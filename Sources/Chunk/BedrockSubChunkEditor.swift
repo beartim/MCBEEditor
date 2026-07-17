@@ -942,7 +942,7 @@ final class BedrockBlockNBTStore {
             throw BlocktopographError.unsupported("目标 SubChunk 尚未生成，不能写入方块状态")
         }
         let decoded = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
-        let currentState = block.stateForEditing(layer: storageIndex)
+        let currentState = currentBlockState(for: block, storageIndex: storageIndex)
         let replacement: BedrockBlockState
         if currentState.legacyID != nil {
             replacement = try legacyBlockState(from: document.root)
@@ -974,6 +974,20 @@ final class BedrockBlockNBTStore {
                 isGenerated: true
             )
         )
+    }
+
+    /// Resolves the editable state without depending on UI-side extensions of
+    /// `BedrockBlockRecord`. Keeping this logic in the store also lets the
+    /// portable core test compile this file with its lightweight record stub.
+    private func currentBlockState(
+        for block: BedrockBlockRecord,
+        storageIndex: Int
+    ) -> BedrockBlockState {
+        if block.layers.indices.contains(storageIndex) {
+            return block.layers[storageIndex]
+        }
+        let version = block.layers.compactMap(\.paletteVersion).first
+        return .editableAir(version: version)
     }
 
     private func legacyBlockState(from root: NBTValue) throws -> BedrockBlockState {

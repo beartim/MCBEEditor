@@ -1,5 +1,12 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.8 方块 NBT 核心测试编译修复
+
+- 修复 `BedrockSubChunkEditor.swift` 在 portable core tests 中调用不存在的 `BedrockBlockRecord.stateForEditing` 导致的编译失败。
+- 当前图层状态改由 `BedrockBlockNBTStore` 直接从 `block.layers` 解析；缺失图层仍按已有调色板版本生成空气状态。
+- 实际 App 的现代方块与旧版数字方块 NBT 保存行为保持不变。
+- 当前版本：**1.1.8 (118)**。
+
 ## v1.1.7 实体存储兼容、旧版方块 NBT 与精确渲染中心
 
 - 新建实体不再固定写入 `actorprefix/digp`：程序会根据当前世界已有记录、`ActorDigestVersion` 和复制来源，自动选择旧版区块 `Entity(0x32)` 或现代 Actor 存储；旧世界中由旧版程序误写的孤立 `digp/actorprefix` 不会被当成世界已升级的依据。
