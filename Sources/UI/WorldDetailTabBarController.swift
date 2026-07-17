@@ -39,11 +39,12 @@ final class WorldDetailTabBarController: UITabBarController {
         let chunks = UINavigationController(rootViewController: chunksController)
 
         let nbt = UINavigationController(rootViewController: NBTMenuViewController(session: session))
+        let commands = UINavigationController(rootViewController: WorldCommandViewController(session: session))
         let tools = UINavigationController(rootViewController: WorldToolsViewController(session: session))
 
         // Preserve the previously requested “实体” second tab. The former map
         // toolbar chunk list now has its own dedicated “区块” tab.
-        for navigation in [map, entities, chunks, nbt, tools] {
+        for navigation in [map, entities, chunks, nbt, commands, tools] {
             navigation.navigationBar.prefersLargeTitles = false
             navigation.viewControllers.first?.navigationItem.leftBarButtonItem = UIBarButtonItem(
                 barButtonSystemItem: .close,
@@ -51,7 +52,7 @@ final class WorldDetailTabBarController: UITabBarController {
                 action: #selector(closeWorkspace)
             )
         }
-        viewControllers = [map, entities, chunks, nbt, tools]
+        viewControllers = [map, entities, chunks, nbt, commands, tools]
     }
 
 

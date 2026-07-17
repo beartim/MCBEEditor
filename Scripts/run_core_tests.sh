@@ -151,6 +151,26 @@ struct Main {
         let legacyStone = BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)
         precondition(legacyStone.name == "minecraft:stone")
         precondition(BedrockLegacyBlockCatalog.searchText(for: legacyStone).contains("0x01"))
+
+        let fillCommand = try WorldCommandParser.parse("fill 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"")
+        if case .fill(let box, let layer0, let layer1) = fillCommand {
+            precondition(box.minimum.x == 0 && box.maximum.y == 200 && box.maximum.z == 16)
+            precondition(layer0.name == "minecraft:leaves" && layer0.states.count == 3)
+            precondition(layer1.name == "minecraft:chest" && layer1.states.count == 1)
+        } else {
+            preconditionFailure("fill command parsed as wrong command")
+        }
+        _ = try WorldCommandParser.parse("clone 0 0 0 1 2 3 10 20 30")
+        _ = try WorldCommandParser.parse("help fill")
+        _ = try WorldCommandParser.parse("clear -123456789")
+        do {
+            _ = try WorldCommandParser.parse("fill 0 0 0 1 1 1 minecraft:stone NULL minecraft:air")
+            preconditionFailure("fill must reject missing layer 1 states")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("/help")
+            preconditionFailure("commands must reject a slash prefix")
+        } catch {}
         print("Blocktopograph core tests passed")
     }
 }
@@ -172,6 +192,7 @@ swiftc \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Command/WorldCommand.swift" \
   -parse-as-library "$TMP/main.swift" -o "$TMP/core-tests"
 
 # The repository intentionally has one deployment target only.
@@ -896,7 +917,7 @@ swiftc \
 echo "Vine color, player NBT editing, map selection and blinking focus passed"
 
 
-# v0.11.7: five-tab navigation with a dedicated chunk tab, peer NBT menu and saved structure templates.
+# Six-tab navigation with dedicated chunk and command tabs, peer NBT menu and saved structure templates.
 for required in \
   "$ROOT/Sources/UI/NBTMenuViewController.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
@@ -907,7 +928,7 @@ for required in \
   }
 done
 for expected in \
-  'viewControllers = [map, entities, chunks, nbt, tools]' \
+  'viewControllers = [map, entities, chunks, nbt, commands, tools]' \
   'NBTMenuViewController(session: session)'; do
   grep -qF "$expected" "$ROOT/Sources/UI/WorldDetailTabBarController.swift" || {
     echo "error: v0.8.0 tab layout is missing: $expected" >&2
@@ -1082,7 +1103,7 @@ done
 
 echo "Editable structure NBT and restored block inspector passed"
 
-echo "Five-tab navigation, peer NBT menu and structure NBT browser passed"
+echo "Six-tab navigation, command terminal, peer NBT menu and structure NBT browser passed"
 
 # v0.9.0: editable entity and block-entity NBT with storage migration.
 for required in \
@@ -2386,7 +2407,7 @@ grep -q '框选区域批量层0层1替换' "$ROOT/Sources/UI/ChunkListViewContro
 }
 
 grep -q 'ChunkListViewController(session: session, initialDimension: 0)' "$TAB_CONTROLLER" && \
-grep -q 'viewControllers = \[map, entities, chunks, nbt, tools\]' "$TAB_CONTROLLER" && \
+grep -q 'viewControllers = \[map, entities, chunks, nbt, commands, tools\]' "$TAB_CONTROLLER" && \
 grep -q 'tabBarItem = UITabBarItem(title: "区块"' "$ROOT/Sources/UI/ChunkListViewController.swift" || {
   echo 'error: the dedicated chunk tab is missing or ordered incorrectly' >&2
   exit 1
@@ -2531,3 +2552,50 @@ grep -q 'blockZ: Double(inputZ) + 0.5' "$MAP_VIEW" || {
 }
 
 echo 'World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed'
+
+# v1.1.9: strict world command terminal and loaded-chunk block operations.
+for required in \
+  "$ROOT/Sources/Command/WorldCommand.swift" \
+  "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
+  "$ROOT/Sources/UI/WorldCommandViewController.swift"; do
+  [[ -f "$required" ]] || { echo "error: command source is missing: ${required#$ROOT/}" >&2; exit 1; }
+done
+COMMAND_PARSER="$ROOT/Sources/Command/WorldCommand.swift"
+COMMAND_EXECUTOR="$ROOT/Sources/Command/WorldCommandExecutor.swift"
+COMMAND_UI="$ROOT/Sources/UI/WorldCommandViewController.swift"
+TAB_CONTROLLER="$ROOT/Sources/UI/WorldDetailTabBarController.swift"
+for expected in \
+  'case "help"' \
+  'case "clear"' \
+  'case "clearspawnpoint"' \
+  'case "clone"' \
+  'case "fill"' \
+  'guard arguments.count == 9' \
+  'guard arguments.count == 10' \
+  'if text == "NULL"' \
+  "'(Byte|Short|Int|Long|Float|Double|String)'"; do
+  grep -qF "$expected" "$COMMAND_PARSER" || {
+    echo "error: strict command parser is missing: $expected" >&2
+    exit 1
+  }
+done
+for expected in \
+  'loadedChunks.contains(sourceChunk)' \
+  'loadedChunks.contains(targetChunk)' \
+  'source: CommandBlockBox' \
+  'layer: 1' \
+  'removeBlockEntities(in:' \
+  '重叠区域已按坐标顺序直接覆盖'; do
+  grep -qF "$expected" "$COMMAND_EXECUTOR" || {
+    echo "error: command execution behavior is missing: $expected" >&2
+    exit 1
+  }
+done
+grep -qF 'WorldCommandViewController(session: session)' "$TAB_CONTROLLER" && \
+grep -qF 'viewControllers = [map, entities, chunks, nbt, commands, tools]' "$TAB_CONTROLLER" && \
+grep -qF 'UITabBarItem(title: "命令"' "$COMMAND_UI" && \
+grep -qF '输入命令（不需要 /）' "$COMMAND_UI" || {
+  echo 'error: command tab is not connected between NBT and information' >&2
+  exit 1
+}
+echo 'Strict command terminal, player mutations and loaded-chunk clone/fill passed'

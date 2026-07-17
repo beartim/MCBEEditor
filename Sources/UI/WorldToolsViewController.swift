@@ -11,7 +11,7 @@ final class WorldToolsViewController: UITableViewController {
         self.session = session
         super.init(style: .insetGrouped)
         title = "信息"
-        tabBarItem = UITabBarItem(title: "信息", image: UIImage(systemName: "info.circle"), tag: 3)
+        tabBarItem = UITabBarItem(title: "信息", image: UIImage(systemName: "info.circle"), tag: 5)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 

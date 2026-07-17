@@ -9,6 +9,8 @@ CHANGES_v1.1.4.md
 CHANGES_v1.1.5.md
 CHANGES_v1.1.6.md
 CHANGES_v1.1.7.md
+CHANGES_v1.1.8.md
+CHANGES_v1.1.9.md
 LICENSE
 PORT_STATUS.md
 README.md
@@ -61,6 +63,8 @@ Sources/Chunk/BedrockSubChunkEditor.swift
 Sources/Chunk/ChunkSurfaceRenderer.swift
 Sources/Chunk/HardcodedSpawners.swift
 Sources/Chunk/MapCoordinate.swift
+Sources/Command/WorldCommand.swift
+Sources/Command/WorldCommandExecutor.swift
 Sources/Entity/BedrockWorldObject.swift
 Sources/Entity/BedrockWorldObjectNBTStore.swift
 Sources/Entity/BedrockWorldObjectScanner.swift
@@ -114,6 +118,7 @@ Sources/UI/VillageNBTEditorViewController.swift
 Sources/UI/VillageNBTListViewController.swift
 Sources/UI/VillageResidentEntitiesViewController.swift
 Sources/UI/WeatherEditorViewController.swift
+Sources/UI/WorldCommandViewController.swift
 Sources/UI/WorldDetailTabBarController.swift
 Sources/UI/WorldListViewController.swift
 Sources/UI/WorldMapViewController.swift
@@ -138,4 +143,3 @@ THIRD_PARTY_NOTICES.md
 Tests/BlocktopographTests.swift
 Vendor/README.md
 project.yml
-CHANGES_v1.1.8.md

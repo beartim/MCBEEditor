@@ -433,6 +433,25 @@ final class BlocktopographTests: XCTestCase {
     }
 
 
+
+    func testWorldCommandStrictParsing() throws {
+        let line = "fill 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
+        guard case .fill(let region, let layer0, let layer1) = try WorldCommandParser.parse(line) else {
+            return XCTFail("fill was not parsed")
+        }
+        XCTAssertEqual(region.minimum.x, 0)
+        XCTAssertEqual(region.maximum.y, 200)
+        XCTAssertEqual(region.maximum.z, 16)
+        XCTAssertEqual(layer0.name, "minecraft:leaves")
+        XCTAssertEqual(layer0.states.count, 3)
+        XCTAssertEqual(layer1.name, "minecraft:chest")
+        XCTAssertEqual(layer1.states.count, 1)
+        XCTAssertNoThrow(try WorldCommandParser.parse("clone 0 0 0 1 1 1 10 20 30"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("help clear"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("/help"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("fill 0 0 0 1 1 1 minecraft:stone NULL minecraft:air"))
+    }
+
     func testLegacySubChunkNumericBlockEditRoundTrip() throws {
         var raw = Data([2])
         raw.append(Data(repeating: 1, count: 4096))
