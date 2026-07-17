@@ -5,6 +5,13 @@ struct WorldCommandExecutionResult {
     let changedWorld: Bool
 }
 
+private struct ResolvedCommandTargets {
+    let players: [PlayerNBTRecord]
+    let entities: [BedrockWorldObject]
+
+    var isEmpty: Bool { players.isEmpty && entities.isEmpty }
+}
+
 final class WorldCommandExecutor {
     private let session: WorldSession
 
@@ -16,12 +23,22 @@ final class WorldCommandExecutor {
         switch command {
         case .help(let target):
             return WorldCommandExecutionResult(message: WorldCommandParser.helpText(for: target), changedWorld: false)
-        case .clear(let uniqueID):
-            let message = try clearPlayerItems(uniqueID: uniqueID)
-            return WorldCommandExecutionResult(message: message, changedWorld: true)
-        case .clearSpawnPoint(let uniqueID):
-            let message = try clearPlayerSpawnPoint(uniqueID: uniqueID)
-            return WorldCommandExecutionResult(message: message, changedWorld: true)
+        case .clear(let target):
+            return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
+        case .clearSpawnPoint(let target):
+            return WorldCommandExecutionResult(message: try clearSpawnPoints(target: target), changedWorld: true)
+        case .give(let target, let itemIdentifier, let count):
+            return WorldCommandExecutionResult(
+                message: try give(target: target, itemIdentifier: itemIdentifier, count: count),
+                changedWorld: true
+            )
+        case .kill(let target, let killCreativePlayers):
+            return WorldCommandExecutionResult(
+                message: try kill(target: target, killCreativePlayers: killCreativePlayers),
+                changedWorld: true
+            )
+        case .kick(let target):
+            return WorldCommandExecutionResult(message: try kick(target: target), changedWorld: true)
         case .clone(let sourceDimension, let source, let targetDimension, let destination):
             let result = try CommandBlockStore.clone(
                 session: session,
@@ -38,49 +55,73 @@ final class WorldCommandExecutor {
         }
     }
 
-    private func clearPlayerItems(uniqueID: Int64?) throws -> String {
-        let store = PlayerNBTStore(session: session)
-        let record = try resolvePlayer(uniqueID: uniqueID, records: store.records())
-        let mutation = clearItemContainers(in: record.document.root)
-        guard mutation.containerCount > 0 else {
-            throw BlocktopographError.unsupported("玩家 \(record.displayName) 的 NBT 中没有可清除的物品容器")
-        }
-        var document = record.document
-        document.root = mutation.value
-        try store.save(record: record, document: document)
-        return "已清除玩家 \(record.displayName)（\(playerIdentity(record))）的 \(mutation.itemCount) 个物品条目；处理 \(mutation.containerCount) 个物品容器。"
-    }
+    // MARK: Target selectors
 
-    private func clearPlayerSpawnPoint(uniqueID: Int64?) throws -> String {
-        let store = PlayerNBTStore(session: session)
-        let record = try resolvePlayer(uniqueID: uniqueID, records: store.records())
-        let mutation = removeSpawnTags(in: record.document.root)
-        guard mutation.removedCount > 0 else {
-            throw BlocktopographError.unsupported("玩家 \(record.displayName) 当前没有可清除的出生点标签")
+    private func resolveTargets(_ target: CommandTarget) throws -> ResolvedCommandTargets {
+        let playerStore = PlayerNBTStore(session: session)
+        let allPlayers = try playerStore.records()
+        let allEntities: [BedrockWorldObject]
+        switch target {
+        case .localPlayer, .allPlayers:
+            allEntities = []
+        case .identifier(let identifier) where normalizedIdentifier(identifier) == "minecraft:player":
+            allEntities = []
+        default:
+            let scan = try BedrockWorldObjectScanner(database: session.database()).scanAll(
+                dimensions: nil,
+                includeEntities: true,
+                includeBlockEntities: false,
+                maximumObjects: Int.max
+            )
+            allEntities = scan.objects.filter { $0.kind == .entity && !isPlayerEntity($0) }
         }
-        var document = record.document
-        document.root = mutation.value
-        try store.save(record: record, document: document)
-        return "已清除玩家 \(record.displayName)（\(playerIdentity(record))）的出生点；移除 \(mutation.removedCount) 个相关标签。"
-    }
 
-    private func resolvePlayer(uniqueID: Int64?, records: [PlayerNBTRecord]) throws -> PlayerNBTRecord {
-        if let uniqueID = uniqueID {
-            let matches = records.filter { playerUniqueID($0) == uniqueID }
-            guard matches.count == 1, let record = matches.first else {
-                if matches.isEmpty {
-                    throw BlocktopographError.unsupported("没有找到 UniqueID 为 \(uniqueID) 的本地或在线玩家")
-                }
-                throw BlocktopographError.malformedData("UniqueID \(uniqueID) 对应多个玩家记录，无法安全修改")
+        let players: [PlayerNBTRecord]
+        let entities: [BedrockWorldObject]
+        switch target {
+        case .localPlayer:
+            players = allPlayers.filter(isLocalPlayer)
+            entities = []
+        case .allPlayers:
+            players = allPlayers
+            entities = []
+        case .allEntities:
+            players = allPlayers
+            entities = allEntities
+        case .identifier(let identifier):
+            if normalizedIdentifier(identifier) == "minecraft:player" {
+                players = allPlayers
+                entities = []
+            } else {
+                players = []
+                let wanted = normalizedIdentifier(identifier)
+                entities = allEntities.filter { normalizedIdentifier($0.identifier) == wanted }
             }
-            return record
+        case .uniqueID(let uniqueID):
+            players = allPlayers.filter { playerUniqueID($0) == uniqueID }
+            entities = allEntities.filter { $0.uniqueID == uniqueID }
         }
-        if let local = records.first(where: { $0.keyText == "~local_player" })
-            ?? records.first(where: { $0.keyText == "LocalPlayer" }) {
-            return local
+        let resolved = ResolvedCommandTargets(players: players, entities: entities)
+        guard !resolved.isEmpty else {
+            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家或实体")
         }
-        throw BlocktopographError.unsupported("世界中没有本地玩家记录")
+        return resolved
     }
+
+    private func isPlayerEntity(_ object: BedrockWorldObject) -> Bool {
+        normalizedIdentifier(object.identifier) == "minecraft:player"
+    }
+
+    private func normalizedIdentifier(_ value: String) -> String {
+        let lowered = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return lowered.contains(":") ? lowered : "minecraft:\(lowered)"
+    }
+
+    private func isLocalPlayer(_ record: PlayerNBTRecord) -> Bool {
+        record.keyText == "~local_player" || record.keyText == "LocalPlayer"
+    }
+
+    private func isOnlinePlayer(_ record: PlayerNBTRecord) -> Bool { !isLocalPlayer(record) }
 
     private func playerIdentity(_ record: PlayerNBTRecord) -> String {
         playerUniqueID(record).map { "UniqueID \($0)" } ?? record.keyText
@@ -90,16 +131,319 @@ final class WorldCommandExecutor {
         if let value = numericTag(in: record.document.root, names: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) {
             return value
         }
-        let prefixes = ["player_server_", "player_"]
-        for prefix in prefixes where record.keyText.hasPrefix(prefix) {
+        for prefix in ["player_server_", "player_"] where record.keyText.hasPrefix(prefix) {
             if let value = Int64(record.keyText.dropFirst(prefix.count)) { return value }
         }
         return nil
     }
 
+    // MARK: clear / clearspawnpoint
+
+    private func clearItems(target: CommandTarget) throws -> String {
+        let targets = try resolveTargets(target)
+        let playerStore = PlayerNBTStore(session: session)
+        let entityStore = BedrockWorldObjectNBTStore(session: session)
+        var changedPlayers = 0
+        var changedEntities = 0
+        var removedItems = 0
+        var containerCount = 0
+
+        for record in targets.players {
+            let mutation = clearItemContainers(in: record.document.root)
+            guard mutation.containerCount > 0 else { continue }
+            var document = record.document
+            document.root = mutation.value
+            try playerStore.save(record: record, document: document)
+            changedPlayers += 1
+            removedItems += mutation.itemCount
+            containerCount += mutation.containerCount
+        }
+        for object in targets.entities {
+            let mutation = clearItemContainers(in: object.document.root)
+            guard mutation.containerCount > 0 else { continue }
+            var document = object.document
+            document.root = mutation.value
+            _ = try entityStore.save(object: object, document: document)
+            changedEntities += 1
+            removedItems += mutation.itemCount
+            containerCount += mutation.containerCount
+        }
+        guard changedPlayers + changedEntities > 0 else {
+            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有可清除的物品容器")
+        }
+        return "clear 完成：修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体，清除 \(removedItems) 个物品条目，处理 \(containerCount) 个容器；村民交易数据保持不变。"
+    }
+
+    private func clearSpawnPoints(target: CommandTarget) throws -> String {
+        let targets = try resolveTargets(target)
+        guard !targets.players.isEmpty else {
+            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；实体不具有玩家出生点")
+        }
+        let store = PlayerNBTStore(session: session)
+        var changed = 0
+        var removed = 0
+        for record in targets.players {
+            let mutation = removeSpawnTags(in: record.document.root)
+            guard mutation.removedCount > 0 else { continue }
+            var document = record.document
+            document.root = mutation.value
+            try store.save(record: record, document: document)
+            changed += 1
+            removed += mutation.removedCount
+        }
+        guard changed > 0 else {
+            throw BlocktopographError.unsupported("目标玩家当前没有可清除的出生点标签")
+        }
+        return "clearspawnpoint 完成：清除 \(changed) 个玩家的出生点，移除 \(removed) 个相关标签。"
+    }
+
+    // MARK: give
+
+    private func give(target: CommandTarget, itemIdentifier: String, count: Int64) throws -> String {
+        let targets = try resolveTargets(target)
+        let playerStore = PlayerNBTStore(session: session)
+        let entityStore = BedrockWorldObjectNBTStore(session: session)
+        var changedPlayers = 0
+        var changedEntities = 0
+        var skippedEntities = 0
+
+        for record in targets.players {
+            let mutation = placingPlayerItem(
+                in: record.document.root,
+                identifier: itemIdentifier,
+                count: count
+            )
+            guard mutation.changed else { continue }
+            var document = record.document
+            document.root = mutation.value
+            try playerStore.save(record: record, document: document)
+            changedPlayers += 1
+        }
+        for object in targets.entities {
+            let mutation = replacingMainhandItem(
+                in: object.document.root,
+                identifier: itemIdentifier,
+                count: count
+            )
+            guard mutation.changed else {
+                skippedEntities += 1
+                continue
+            }
+            var document = object.document
+            document.root = mutation.value
+            _ = try entityStore.save(object: object, document: document)
+            changedEntities += 1
+        }
+        guard changedPlayers + changedEntities > 0 else {
+            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory 或实体 Mainhand 标签")
+        }
+        return "give 完成：向 \(changedPlayers) 个玩家物品栏最后一格写入、替换 \(changedEntities) 个实体主手物品；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有 Mainhand 标签的实体。"
+    }
+
+    private func itemStack(identifier: String, count: Int64, slot: Int8? = nil) -> NBTValue {
+        var tags = [
+            NBTNamedTag(name: "Name", value: .string(identifier)),
+            NBTNamedTag(name: "Count", value: unboundedCountValue(count)),
+            NBTNamedTag(name: "Damage", value: .short(0)),
+            NBTNamedTag(name: "WasPickedUp", value: .byte(0))
+        ]
+        if let slot = slot { tags.append(NBTNamedTag(name: "Slot", value: .byte(slot))) }
+        return .compound(tags)
+    }
+
+    private func unboundedCountValue(_ count: Int64) -> NBTValue {
+        if let value = Int8(exactly: count) { return .byte(value) }
+        if let value = Int16(exactly: count) { return .short(value) }
+        if let value = Int32(exactly: count) { return .int(value) }
+        return .long(count)
+    }
+
+    private func placingPlayerItem(
+        in value: NBTValue,
+        identifier: String,
+        count: Int64
+    ) -> (value: NBTValue, changed: Bool) {
+        guard case .compound(var tags) = value else { return (value, false) }
+        let inventoryNames: Set<String> = ["inventory", "playerinventory"]
+        for index in tags.indices where inventoryNames.contains(normalized(tags[index].name)) {
+            if case .list(let type, var values) = tags[index].value, type == .compound || values.isEmpty {
+                let stack = itemStack(identifier: identifier, count: count, slot: 35)
+                if let slotIndex = values.firstIndex(where: { itemSlot($0) == 35 }) {
+                    values[slotIndex] = stack
+                } else if values.count < 36 {
+                    values.append(stack)
+                } else if !values.isEmpty {
+                    values[values.count - 1] = stack
+                } else {
+                    values = [stack]
+                }
+                tags[index].value = .list(.compound, values)
+                return (.compound(tags), true)
+            }
+        }
+        for index in tags.indices {
+            if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
+            let nested = placingPlayerItem(in: tags[index].value, identifier: identifier, count: count)
+            if nested.changed {
+                tags[index].value = nested.value
+                return (.compound(tags), true)
+            }
+        }
+        return (value, false)
+    }
+
+    private func itemSlot(_ value: NBTValue) -> Int64? {
+        numericTag(in: value, names: ["Slot", "slot"])
+    }
+
+    private func replacingMainhandItem(
+        in value: NBTValue,
+        identifier: String,
+        count: Int64
+    ) -> (value: NBTValue, changed: Bool) {
+        guard case .compound(var tags) = value else { return (value, false) }
+        let names: Set<String> = ["mainhand", "mainhanditem", "mainhandinventory"]
+        for index in tags.indices where names.contains(normalized(tags[index].name)) {
+            let stack = itemStack(identifier: identifier, count: count)
+            switch tags[index].value {
+            case .compound:
+                tags[index].value = stack
+                return (.compound(tags), true)
+            case .list(_, var values):
+                if values.isEmpty { values.append(stack) }
+                else { values[0] = stack }
+                tags[index].value = .list(.compound, values)
+                return (.compound(tags), true)
+            default:
+                continue
+            }
+        }
+        for index in tags.indices {
+            if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
+            let nested = replacingMainhandItem(in: tags[index].value, identifier: identifier, count: count)
+            if nested.changed {
+                tags[index].value = nested.value
+                return (.compound(tags), true)
+            }
+        }
+        return (value, false)
+    }
+
+    // MARK: kill / kick
+
+    private func kill(target: CommandTarget, killCreativePlayers: Bool) throws -> String {
+        let targets = try resolveTargets(target)
+        let playerStore = PlayerNBTStore(session: session)
+        let entityStore = BedrockWorldObjectNBTStore(session: session)
+        var killedPlayers = 0
+        var skippedCreative = 0
+        var deletedEntities = 0
+        var playersWithoutHealth = 0
+
+        for record in targets.players {
+            if isCreativePlayer(record.document.root), !killCreativePlayers {
+                skippedCreative += 1
+                continue
+            }
+            let mutation = settingHealthCurrentToZero(in: record.document.root)
+            guard mutation.changed else {
+                playersWithoutHealth += 1
+                continue
+            }
+            var document = record.document
+            document.root = mutation.value
+            try playerStore.save(record: record, document: document)
+            killedPlayers += 1
+        }
+        for object in targets.entities {
+            try entityStore.delete(object: object)
+            deletedEntities += 1
+        }
+        guard killedPlayers + deletedEntities > 0 else {
+            throw BlocktopographError.unsupported("没有可杀死的目标；跳过 \(skippedCreative) 个创造模式玩家，\(playersWithoutHealth) 个玩家缺少 Health Current")
+        }
+        return "kill 完成：删除 \(deletedEntities) 个非玩家实体，将 \(killedPlayers) 个玩家的生命值 Current 设为 0.0；跳过 \(skippedCreative) 个创造模式玩家和 \(playersWithoutHealth) 个缺少生命值标签的玩家。"
+    }
+
+    private func kick(target: CommandTarget) throws -> String {
+        let store = PlayerNBTStore(session: session)
+        let records = try store.records()
+        let selected: [PlayerNBTRecord]
+        switch target {
+        case .allPlayers:
+            selected = records.filter(isOnlinePlayer)
+        case .uniqueID(let uniqueID):
+            selected = records.filter { isOnlinePlayer($0) && playerUniqueID($0) == uniqueID }
+        default:
+            throw BlocktopographError.malformedData("kick 目标只能是在线玩家 UniqueID 或 @a")
+        }
+        guard !selected.isEmpty else { throw BlocktopographError.unsupported("没有匹配到在线玩家数据") }
+        let deletedKeys = try store.deleteOnlinePlayerData(records: selected)
+        return "kick 完成：删除 \(selected.count) 个在线玩家的全部匹配数据，共移除 \(deletedKeys) 条 LevelDB 记录。"
+    }
+
+    private func isCreativePlayer(_ value: NBTValue) -> Bool {
+        numericTag(in: value, names: ["PlayerGameMode", "playerGameMode", "GameMode", "gameMode"]) == 1
+    }
+
+    private func settingHealthCurrentToZero(in value: NBTValue) -> (value: NBTValue, changed: Bool) {
+        switch value {
+        case .compound(var tags):
+            let attributeName = tags.first(where: {
+                ["name", "id", "identifier"].contains(normalized($0.name))
+            }).flatMap { tag -> String? in
+                guard case .string(let text) = tag.value else { return nil }
+                return normalizedIdentifier(text)
+            }
+            if attributeName == "minecraft:health" || attributeName == "minecraft:attributehealth" {
+                if let index = tags.firstIndex(where: { normalized($0.name) == "current" }) {
+                    tags[index].value = .float(0.0)
+                } else {
+                    tags.append(NBTNamedTag(name: "Current", value: .float(0.0)))
+                }
+                return (.compound(tags), true)
+            }
+            for index in tags.indices where ["health", "currenthealth"].contains(normalized(tags[index].name)) {
+                switch tags[index].value {
+                case .byte, .short, .int, .long, .float, .double:
+                    tags[index].value = .float(0.0)
+                    return (.compound(tags), true)
+                default:
+                    break
+                }
+            }
+            for index in tags.indices {
+                let nested = settingHealthCurrentToZero(in: tags[index].value)
+                if nested.changed {
+                    tags[index].value = nested.value
+                    return (.compound(tags), true)
+                }
+            }
+            return (value, false)
+        case .list(let type, var values):
+            for index in values.indices {
+                let nested = settingHealthCurrentToZero(in: values[index])
+                if nested.changed {
+                    values[index] = nested.value
+                    return (.list(type, values), true)
+                }
+            }
+            return (value, false)
+        default:
+            return (value, false)
+        }
+    }
+
+    // MARK: shared NBT mutations
+
+    private var tradeContainerNames: Set<String> {
+        ["offers", "recipes", "tradetable", "tradeoffers", "trades", "economytradeablecomponent"]
+    }
+
     private func numericTag(in value: NBTValue, names: Set<String>) -> Int64? {
         guard case .compound(let tags) = value else { return nil }
-        for tag in tags where names.contains(tag.name) {
+        let normalizedNames = Set(names.map(normalized))
+        for tag in tags where normalizedNames.contains(normalized(tag.name)) {
             if let number = numericValue(tag.value) { return number }
         }
         return nil
@@ -119,19 +463,24 @@ final class WorldCommandExecutor {
 
     private func clearItemContainers(in value: NBTValue) -> (value: NBTValue, itemCount: Int, containerCount: Int) {
         let names: Set<String> = [
-            "inventory", "armor", "offhand", "mainhand", "hand", "hotbar",
-            "playerinventory", "armorinventory", "offhandinventory"
+            "inventory", "items", "chestitems", "hotbar",
+            "armor", "armoritems", "armorinventory", "equipment",
+            "hand", "handitems", "mainhand", "mainhanditem", "mainhandinventory",
+            "offhand", "offhanditem", "offhandinventory",
+            "playerinventory", "enderchestinventory", "cursorselecteditem", "selecteditem"
         ]
         switch value {
         case .compound(var tags):
             var itemCount = 0
             var containerCount = 0
             for index in tags.indices {
-                if names.contains(normalized(tags[index].name)) {
+                let tagName = normalized(tags[index].name)
+                if tradeContainerNames.contains(tagName) { continue }
+                if names.contains(tagName) {
                     switch tags[index].value {
                     case .list(let type, let values):
                         itemCount += values.filter { !isEmptyItem($0) }.count
-                        tags[index].value = .list(type, [])
+                        tags[index].value = .list(type == .end ? .compound : type, [])
                         containerCount += 1
                     case .compound(let values):
                         if !values.isEmpty { itemCount += 1 }
@@ -197,12 +546,11 @@ final class WorldCommandExecutor {
                 removed += nested.removedCount
             }
             return (.compound(tags), removed)
-        case .list(let type, let original):
-            var values = [NBTValue]()
+        case .list(let type, var values):
             var removed = 0
-            for value in original {
-                let nested = removeSpawnTags(in: value)
-                values.append(nested.value)
+            for index in values.indices {
+                let nested = removeSpawnTags(in: values[index])
+                values[index] = nested.value
                 removed += nested.removedCount
             }
             return (.list(type, values), removed)
@@ -211,12 +559,10 @@ final class WorldCommandExecutor {
         }
     }
 
-    private func normalized(_ name: String) -> String {
-        name.lowercased().filter { $0.isLetter || $0.isNumber }
+    private func normalized(_ value: String) -> String {
+        value.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 }
-
-// MARK: - Three-dimensional block command engine
 
 private final class CommandBlockStore {
     private struct SubKey: Hashable {
@@ -356,6 +702,10 @@ private final class CommandBlockStore {
         let sourceBlockEntities = sourceEntityState.documents
         var targetBlockEntities = targetEntityState.documents
         var changedEntityChunks = Set<ChunkPosition>()
+        // Freeze every source SubChunk before the first target write. This is
+        // required not only for overlapping X/Z ranges, but also when Y3 differs
+        // from Y1 and source/target share the same CommandBlockStore cache.
+        let sourceSnapshot = try sourceStore.snapshotSubChunks(in: source)
 
         // Equivalent to memmove: when source and target overlap, traverse each
         // shifted axis from the far side toward the near side. Future source reads
@@ -395,8 +745,8 @@ private final class CommandBlockStore {
                     }
 
                     touchedDestinationChunks.insert(targetChunk)
-                    let source0 = try sourceStore.state(layer: 0, at: sourceCoordinate)
-                    let source1 = try sourceStore.state(layer: 1, at: sourceCoordinate)
+                    let source0 = try sourceStore.state(layer: 0, at: sourceCoordinate, snapshot: sourceSnapshot)
+                    let source1 = try sourceStore.state(layer: 1, at: sourceCoordinate, snapshot: sourceSnapshot)
                     let targetKey = try subKey(for: targetCoordinate)
                     let target0 = try adaptedState(source0, for: targetKey)
                     let target1 = try adaptedState(source1, for: targetKey)
@@ -432,7 +782,7 @@ private final class CommandBlockStore {
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty else {
             throw BlocktopographError.unsupported("源区域内没有可复制到已加载目标区块的方块")
         }
-        return "clone 完成：从 \(WorldCommandParser.dimensionName(for: sourceStore.dimension)) 复制到 \(WorldCommandParser.dimensionName(for: dimension))；修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk；处理 \(touchedDestinationChunks.count) 个目标区块，跳过 \(skippedSourceChunks.count) 个未加载源区块和 \(skippedTargetChunks.count) 个未加载目标区块。重叠区域按原始源数据复制。"
+        return "clone 完成：从 \(WorldCommandParser.dimensionName(for: sourceStore.dimension)) 复制到 \(WorldCommandParser.dimensionName(for: dimension))；修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk；处理 \(touchedDestinationChunks.count) 个目标区块，跳过 \(skippedSourceChunks.count) 个未加载源区块和 \(skippedTargetChunks.count) 个未加载目标区块。重叠区域和不同 Y 偏移均按命令开始时的原始源数据复制。"
     }
 
     private func destinationRegion(
@@ -547,6 +897,37 @@ private final class CommandBlockStore {
                 return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
             }
             return .editableAir(version: try paletteVersion(for: key))
+        case .value(let subChunk):
+            return subChunk.state(layer: layer, linearIndex: localIndex(for: coordinate))
+        }
+    }
+
+
+    private func snapshotSubChunks(in region: CommandBlockBox) throws -> [SubKey: CachedSubChunk] {
+        let minimumSubY = try subChunkY(for: region.minimum.y)
+        let maximumSubY = try subChunkY(for: region.maximum.y)
+        var snapshot = [SubKey: CachedSubChunk]()
+        for chunk in chunks(in: region) where loadedChunks.contains(chunk) {
+            for rawY in Int(minimumSubY)...Int(maximumSubY) {
+                guard let y = Int8(exactly: rawY) else { continue }
+                let key = SubKey(chunk: chunk, y: y)
+                snapshot[key] = try load(key)
+            }
+        }
+        return snapshot
+    }
+
+    private func state(
+        layer: Int,
+        at coordinate: CommandBlockCoordinate,
+        snapshot: [SubKey: CachedSubChunk]
+    ) throws -> BedrockBlockState {
+        let key = try subKey(for: coordinate)
+        switch snapshot[key] ?? .missing {
+        case .missing:
+            // A missing source SubChunk is air. Use modern air here; adaptedState
+            // converts it to numeric ID 0 when the destination is legacy.
+            return .editableAir(version: globalPaletteVersion)
         case .value(let subChunk):
             return subChunk.state(layer: layer, linearIndex: localIndex(for: coordinate))
         }

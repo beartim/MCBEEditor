@@ -191,6 +191,23 @@ struct Main {
         precondition(copiedStoneTargets == ["1,1"])
         _ = try WorldCommandParser.parse("help fill")
         _ = try WorldCommandParser.parse("clear -123456789")
+        _ = try WorldCommandParser.parse("clear @e")
+        _ = try WorldCommandParser.parse("clearspawnpoint @a")
+        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:redstone_wire 97")
+        _ = try WorldCommandParser.parse("kill @a 1")
+        _ = try WorldCommandParser.parse("kick @a")
+        do {
+            _ = try WorldCommandParser.parse("clear")
+            preconditionFailure("clear must require one target")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("kill @e 2")
+            preconditionFailure("kill boolean must be 0 or 1")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("kick @e")
+            preconditionFailure("kick must reject non-player selectors")
+        } catch {}
         do {
             _ = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air")
             preconditionFailure("fill must reject missing layer 1 states")
@@ -2581,7 +2598,7 @@ grep -q 'blockZ: Double(inputZ) + 0.5' "$MAP_VIEW" || {
 
 echo 'World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed'
 
-# v1.1.10: stable command terminal, explicit dimensions and overlap-safe clone/fill.
+# v1.1.11: local-player map center, integrated terminal input and entity selectors.
 for required in \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
@@ -2592,42 +2609,70 @@ COMMAND_PARSER="$ROOT/Sources/Command/WorldCommand.swift"
 COMMAND_EXECUTOR="$ROOT/Sources/Command/WorldCommandExecutor.swift"
 COMMAND_UI="$ROOT/Sources/UI/WorldCommandViewController.swift"
 TAB_CONTROLLER="$ROOT/Sources/UI/WorldDetailTabBarController.swift"
+PLAYER_STORE="$ROOT/Sources/World/PlayerNBTStore.swift"
 for expected in \
   'case "help"' \
   'case "clear"' \
   'case "clearspawnpoint"' \
   'case "clone"' \
   'case "fill"' \
-  'guard arguments.count == 11' \
+  'case "give"' \
+  'case "kill"' \
+  'case "kick"' \
+  'case "@s": return .localPlayer' \
+  'case "@a": return .allPlayers' \
+  'case "@e": return .allEntities' \
+  'guard arguments.count == 1 else' \
+  'guard arguments.count == 3 else' \
+  'guard arguments.count == 2 else' \
+  'guard arguments.count == 11 else' \
   'parseDimension(arguments[0])' \
   'if text == "NULL"' \
   "'(Byte|Short|Int|Long|Float|Double|String)'"; do
   grep -qF "$expected" "$COMMAND_PARSER" || {
-    echo "error: strict command parser is missing: $expected" >&2
+    echo "error: strict command parser/selector support is missing: $expected" >&2
     exit 1
   }
 done
 for expected in \
+  'snapshotSubChunks(in: source)' \
+  'state(layer: 0, at: sourceCoordinate, snapshot: sourceSnapshot)' \
   'sourceStore.loadedChunks.contains(sourceChunk)' \
   'loadedChunks.contains(targetChunk)' \
   'sourceDimension: Int32' \
   'targetDimension: Int32' \
   'layer: 1' \
   'removeBlockEntities(in:' \
-  '重叠区域按原始源数据复制'; do
+  'clearItems(target:' \
+  'clearSpawnPoints(target:' \
+  'give(target:' \
+  'kill(target:' \
+  'kick(target:' \
+  'tradeContainerNames' \
+  'settingHealthCurrentToZero' \
+  'deleteOnlinePlayerData(records:'; do
   grep -qF "$expected" "$COMMAND_EXECUTOR" || {
     echo "error: command execution behavior is missing: $expected" >&2
     exit 1
   }
 done
+grep -qF 'func localPlayerPosition()' "$PLAYER_STORE" && \
+grep -qF 'deleteOnlinePlayerData(records' "$PLAYER_STORE" && \
+grep -qF 'PlayerNBTStore(session: session).localPlayerPosition()' "$MAP_VIEW" || {
+  echo 'error: local-player map centering or online-player deletion is incomplete' >&2
+  exit 1
+}
 grep -qF 'WorldCommandViewController(session: session)' "$TAB_CONTROLLER" && \
 grep -qF 'viewControllers = [map, entities, chunks, nbt, commands, tools]' "$TAB_CONTROLLER" && \
 grep -qF 'UITabBarItem(title: "命令"' "$COMMAND_UI" && \
+grep -qF 'terminalContainer.addSubview(outputView)' "$COMMAND_UI" && \
+grep -qF 'terminalContainer.addSubview(inputContainer)' "$COMMAND_UI" && \
+grep -qF 'visibleTerminalInput' "$COMMAND_UI" && \
+grep -qF '\u{00A0}' "$COMMAND_UI" && \
 grep -qF 'startCursorBlinking()' "$COMMAND_UI" && \
-grep -qF 'typedTextLabel.text = inputField.text' "$COMMAND_UI" && \
 grep -qF 'self.session.invalidateAfterExternalChange()' "$COMMAND_UI" && \
 grep -qF 'guard Thread.isMainThread' "$ROOT/Sources/World/WorldSession.swift" || {
-  echo 'error: command terminal UI, cursor or main-thread invalidation is incomplete' >&2
+  echo 'error: integrated terminal UI, visible spaces, cursor or main-thread invalidation is incomplete' >&2
   exit 1
 }
 if grep -qF 'dimensionControl' "$COMMAND_UI"; then
@@ -2638,4 +2683,4 @@ if grep -qF 'session.invalidateAfterExternalChange()' "$COMMAND_EXECUTOR"; then
   echo 'error: command executor must not notify UIKit observers from its worker queue' >&2
   exit 1
 fi
-echo 'Stable command terminal, explicit dimensions and overlap-safe clone/fill passed'
+echo 'Local-player map center, integrated terminal, target selectors and Y-safe clone passed'

@@ -11,6 +11,13 @@ struct PlayerSpawnPointRecord: Hashable {
     let forced: Bool?
 }
 
+struct PlayerCurrentPosition: Hashable {
+    let x: Double
+    let y: Double
+    let z: Double
+    let dimension: Int32
+}
+
 struct PlayerNBTRecord: Hashable {
     let key: Data
     let keyText: String
@@ -77,6 +84,54 @@ final class PlayerNBTStore {
         try session.database().put(encoded, for: record.key, sync: true)
     }
 
+
+    func localPlayerPosition() throws -> PlayerCurrentPosition? {
+        guard let record = try records().first(where: { isLocalKey($0.keyText) }) else { return nil }
+        let root = record.document.root
+        guard let rawPosition = compoundValue(in: root, names: ["Pos", "pos", "Position", "position"]),
+              let position = doubleCoordinateTuple(rawPosition) else { return nil }
+        let dimensionValue = compoundValue(in: root, names: [
+            "DimensionId", "DimensionID", "dimension_id", "Dimension", "dimension"
+        ])
+        return PlayerCurrentPosition(
+            x: position.x,
+            y: position.y,
+            z: position.z,
+            dimension: parseDimension(dimensionValue) ?? 0
+        )
+    }
+
+    @discardableResult
+    func deleteOnlinePlayerData(records selectedRecords: [PlayerNBTRecord]) throws -> Int {
+        let records = selectedRecords.filter { !isLocalKey($0.keyText) }
+        guard !records.isEmpty else { return 0 }
+        let database = try session.database()
+        var deleteKeys = Set(records.map(\.key))
+        let keyTexts = Set(records.map(\.keyText))
+        let uniqueIDs = Set(records.compactMap(playerUniqueID))
+        let prefixes = ["player_", "player_server_", "player_data_", "player_storage_"]
+
+        for entry in try database.entries(includeValues: false, limit: 0) {
+            guard let text = String(data: entry.key, encoding: .utf8) else { continue }
+            if keyTexts.contains(text) || keyTexts.contains(where: {
+                text.hasPrefix($0 + "_") || text.hasPrefix($0 + ":") || text.hasPrefix($0 + "/")
+            }) {
+                deleteKeys.insert(entry.key)
+                continue
+            }
+            guard prefixes.contains(where: text.hasPrefix) else { continue }
+            if uniqueIDs.contains(where: { id in
+                let token = String(id)
+                return text == token || text.hasSuffix("_" + token) || text.hasSuffix(":" + token)
+                    || text.contains("_" + token + "_") || text.contains(":" + token + ":")
+            }) {
+                deleteKeys.insert(entry.key)
+            }
+        }
+        try database.applyBatch(puts: [], deletes: Array(deleteKeys), sync: true)
+        return deleteKeys.count
+    }
+
     func spawnPoints() throws -> [PlayerSpawnPointRecord] {
         try records().compactMap { record in
             guard let coordinate = spawnCoordinate(in: record.document.root) else { return nil }
@@ -135,6 +190,48 @@ final class PlayerNBTStore {
         let forcedValue = compoundValue(in: value, names: ["SpawnForced", "spawn_forced", "Forced", "forced"])
         let forced = forcedValue.flatMap(numericInt64).map { $0 != 0 }
         return (spawnX, y, spawnZ, dimension, forced)
+    }
+
+
+    private func playerUniqueID(_ record: PlayerNBTRecord) -> Int64? {
+        if let value = int64Value(in: record.document.root, names: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) {
+            return value
+        }
+        for prefix in ["player_server_", "player_"] where record.keyText.hasPrefix(prefix) {
+            if let value = Int64(record.keyText.dropFirst(prefix.count)) { return value }
+        }
+        return nil
+    }
+
+    private func doubleCoordinateTuple(_ value: NBTValue) -> (x: Double, y: Double, z: Double)? {
+        switch value {
+        case .list(_, let values) where values.count >= 3:
+            guard let x = numericDouble(values[0]), let y = numericDouble(values[1]), let z = numericDouble(values[2]) else { return nil }
+            return (x, y, z)
+        case .intArray(let values) where values.count >= 3:
+            return (Double(values[0]), Double(values[1]), Double(values[2]))
+        case .longArray(let values) where values.count >= 3:
+            return (Double(values[0]), Double(values[1]), Double(values[2]))
+        case .compound:
+            guard let x = compoundValue(in: value, names: ["X", "x"]).flatMap(numericDouble),
+                  let y = compoundValue(in: value, names: ["Y", "y"]).flatMap(numericDouble),
+                  let z = compoundValue(in: value, names: ["Z", "z"]).flatMap(numericDouble) else { return nil }
+            return (x, y, z)
+        default:
+            return nil
+        }
+    }
+
+    private func numericDouble(_ value: NBTValue) -> Double? {
+        switch value {
+        case .byte(let number): return Double(number)
+        case .short(let number): return Double(number)
+        case .int(let number): return Double(number)
+        case .long(let number): return Double(number)
+        case .float(let number): return Double(number)
+        case .double(let number): return number
+        default: return nil
+        }
     }
 
     private func coordinateTuple(_ value: NBTValue) -> (x: Int64, y: Int64?, z: Int64)? {

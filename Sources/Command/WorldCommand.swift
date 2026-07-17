@@ -103,10 +103,31 @@ struct CommandBlockStateSpec {
     }
 }
 
+enum CommandTarget: Hashable {
+    case uniqueID(Int64)
+    case localPlayer
+    case allPlayers
+    case allEntities
+    case identifier(String)
+
+    var displayText: String {
+        switch self {
+        case .uniqueID(let value): return String(value)
+        case .localPlayer: return "@s"
+        case .allPlayers: return "@a"
+        case .allEntities: return "@e"
+        case .identifier(let value): return value
+        }
+    }
+}
+
 enum ParsedWorldCommand {
     case help(command: String?)
-    case clear(uniqueID: Int64?)
-    case clearSpawnPoint(uniqueID: Int64?)
+    case clear(target: CommandTarget)
+    case clearSpawnPoint(target: CommandTarget)
+    case give(target: CommandTarget, itemIdentifier: String, count: Int64)
+    case kill(target: CommandTarget, killCreativePlayers: Bool)
+    case kick(target: CommandTarget)
     case clone(
         sourceDimension: Int32,
         source: CommandBlockBox,
@@ -122,14 +143,17 @@ enum ParsedWorldCommand {
 }
 
 enum WorldCommandParser {
-    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "fill"]
+    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "fill", "give", "kill", "kick"]
 
     static let usage: [String: String] = [
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
-        "clear": "clear [玩家UniqueID]\n无参数：清除本地玩家的物品；指定本地或在线玩家 UniqueID：清除该玩家物品。",
-        "clearspawnpoint": "clearspawnpoint [玩家UniqueID]\n无参数：清除本地玩家出生点；指定本地或在线玩家 UniqueID：清除该玩家出生点。",
-        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；未加载的源或目标区块会跳过。重叠区域使用原始源数据，不会连锁重复复制。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
-        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
+        "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
+        "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
+        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；未加载的源或目标区块会跳过。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
+        "give": "give 目标 物品 数目\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。玩家写入物品栏最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:redstone_wire 97",
+        "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
+        "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。"
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -149,11 +173,33 @@ enum WorldCommandParser {
             }
             return .help(command: arguments.first)
         case "clear":
-            guard arguments.count <= 1 else { throw usageError(command) }
-            return .clear(uniqueID: try arguments.first.map(parseUniqueID))
+            guard arguments.count == 1 else { throw usageError(command) }
+            return .clear(target: try parseTarget(arguments[0]))
         case "clearspawnpoint":
-            guard arguments.count <= 1 else { throw usageError(command) }
-            return .clearSpawnPoint(uniqueID: try arguments.first.map(parseUniqueID))
+            guard arguments.count == 1 else { throw usageError(command) }
+            return .clearSpawnPoint(target: try parseTarget(arguments[0]))
+        case "give":
+            guard arguments.count == 3 else { throw usageError(command) }
+            return .give(
+                target: try parseTarget(arguments[0]),
+                itemIdentifier: try parseNamespacedIdentifier(arguments[1], kind: "物品"),
+                count: try parseItemCount(arguments[2])
+            )
+        case "kill":
+            guard arguments.count == 2 else { throw usageError(command) }
+            return .kill(
+                target: try parseTarget(arguments[0]),
+                killCreativePlayers: try parseBooleanFlag(arguments[1], name: "是否杀死创造模式玩家")
+            )
+        case "kick":
+            guard arguments.count == 1 else { throw usageError(command) }
+            let target = try parseTarget(arguments[0])
+            switch target {
+            case .uniqueID, .allPlayers:
+                return .kick(target: target)
+            default:
+                throw usageError(command)
+            }
         case "clone":
             guard arguments.count == 11 else { throw usageError(command) }
             let sourceDimension = try parseDimension(arguments[0])
@@ -219,11 +265,38 @@ enum WorldCommandParser {
         }
     }
 
-    private static func parseUniqueID(_ text: String) throws -> Int64 {
-        guard let value = Int64(text), value != 0 else {
-            throw BlocktopographError.malformedData("玩家 UniqueID 必须是非零 Int64 整数")
+    private static func parseTarget(_ text: String) throws -> CommandTarget {
+        switch text {
+        case "@s": return .localPlayer
+        case "@a": return .allPlayers
+        case "@e": return .allEntities
+        default:
+            if let uniqueID = Int64(text), uniqueID != 0 { return .uniqueID(uniqueID) }
+            return .identifier(try parseNamespacedIdentifier(text, kind: "目标实体"))
+        }
+    }
+
+    private static func parseNamespacedIdentifier(_ text: String, kind: String) throws -> String {
+        let pattern = "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+        guard text.range(of: pattern, options: .regularExpression) != nil else {
+            throw BlocktopographError.malformedData("\(kind)字符串 ID 格式无效：\(text)")
+        }
+        return text
+    }
+
+    private static func parseItemCount(_ text: String) throws -> Int64 {
+        guard let value = Int64(text), value > 0 else {
+            throw BlocktopographError.malformedData("物品数目必须是大于 0 的 Int64 整数")
         }
         return value
+    }
+
+    private static func parseBooleanFlag(_ text: String, name: String) throws -> Bool {
+        switch text {
+        case "0": return false
+        case "1": return true
+        default: throw BlocktopographError.malformedData("\(name)只能输入 0 或 1")
+        }
     }
 
     private static func parseCoordinates(_ values: [String]) throws -> [CommandBlockCoordinate] {

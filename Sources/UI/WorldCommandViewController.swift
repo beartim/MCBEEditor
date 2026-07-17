@@ -5,6 +5,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let executor: WorldCommandExecutor
     private let queue = DispatchQueue(label: "com.wzn.blocktopograph.world-command", qos: .userInitiated)
 
+    private let terminalContainer = UIView()
     private let outputView = UITextView()
     private let inputField = UITextField()
     private let inputContainer = UIView()
@@ -57,15 +58,15 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         outputView.alwaysBounceVertical = true
         outputView.keyboardDismissMode = .interactive
         outputView.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        outputView.backgroundColor = terminalBackgroundColor
+        terminalContainer.backgroundColor = terminalBackgroundColor
+        terminalContainer.layer.cornerRadius = 10
+        terminalContainer.clipsToBounds = true
+
+        outputView.backgroundColor = .clear
         outputView.textColor = UIColor(white: 0.92, alpha: 1)
-        outputView.layer.cornerRadius = 10
         outputView.textContainerInset = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
 
-        inputContainer.backgroundColor = terminalBackgroundColor
-        inputContainer.layer.cornerRadius = 9
-        inputContainer.layer.borderWidth = 1 / UIScreen.main.scale
-        inputContainer.layer.borderColor = UIColor(white: 0.35, alpha: 1).cgColor
+        inputContainer.backgroundColor = .clear
         inputContainer.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(focusCommandInput)))
         inputContainer.accessibilityLabel = "命令输入"
         inputContainer.accessibilityTraits = .allowsDirectInteraction
@@ -75,7 +76,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         inputScrollView.keyboardDismissMode = .none
 
         let font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        promptLabel.text = ">"
+        promptLabel.text = ">\u{00A0}"
         promptLabel.font = font
         promptLabel.textColor = UIColor(white: 0.58, alpha: 1)
         promptLabel.setContentHuggingPriority(.required, for: .horizontal)
@@ -130,12 +131,16 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         let terminalLine = UIStackView(arrangedSubviews: [promptLabel, typedTextLabel, cursorView])
         terminalLine.axis = .horizontal
         terminalLine.alignment = .center
-        terminalLine.spacing = 7
+        terminalLine.spacing = 0
         terminalLine.translatesAutoresizingMaskIntoConstraints = false
         inputScrollView.addSubview(terminalLine)
 
         inputScrollView.translatesAutoresizingMaskIntoConstraints = false
         inputField.translatesAutoresizingMaskIntoConstraints = false
+        inputContainer.translatesAutoresizingMaskIntoConstraints = false
+        outputView.translatesAutoresizingMaskIntoConstraints = false
+        terminalContainer.addSubview(outputView)
+        terminalContainer.addSubview(inputContainer)
         inputContainer.addSubview(inputScrollView)
         inputContainer.addSubview(inputField)
 
@@ -148,6 +153,16 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             cursorView.widthAnchor.constraint(equalToConstant: 8),
             cursorView.heightAnchor.constraint(equalToConstant: 18),
 
+            outputView.leadingAnchor.constraint(equalTo: terminalContainer.leadingAnchor),
+            outputView.trailingAnchor.constraint(equalTo: terminalContainer.trailingAnchor),
+            outputView.topAnchor.constraint(equalTo: terminalContainer.topAnchor),
+            outputView.bottomAnchor.constraint(equalTo: inputContainer.topAnchor),
+
+            inputContainer.leadingAnchor.constraint(equalTo: terminalContainer.leadingAnchor),
+            inputContainer.trailingAnchor.constraint(equalTo: terminalContainer.trailingAnchor),
+            inputContainer.bottomAnchor.constraint(equalTo: terminalContainer.bottomAnchor),
+            inputContainer.heightAnchor.constraint(equalToConstant: 42),
+
             inputScrollView.leadingAnchor.constraint(equalTo: inputContainer.leadingAnchor),
             inputScrollView.trailingAnchor.constraint(equalTo: inputContainer.trailingAnchor),
             inputScrollView.topAnchor.constraint(equalTo: inputContainer.topAnchor),
@@ -159,13 +174,8 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             inputField.heightAnchor.constraint(equalToConstant: 1)
         ])
 
-        let inputRow = UIStackView(arrangedSubviews: [inputContainer, executeButton])
-        inputRow.axis = .horizontal
-        inputRow.spacing = 8
-        inputRow.alignment = .fill
-        executeButton.widthAnchor.constraint(equalToConstant: 72).isActive = true
-
-        let stack = UIStackView(arrangedSubviews: [outputView, inputRow])
+        executeButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        let stack = UIStackView(arrangedSubviews: [terminalContainer, executeButton])
         stack.axis = .vertical
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -175,8 +185,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
-            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-            inputRow.heightAnchor.constraint(equalToConstant: 46)
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10)
         ])
     }
 
@@ -198,7 +207,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func inputChanged() {
-        typedTextLabel.text = inputField.text ?? ""
+        typedTextLabel.text = visibleTerminalInput(inputField.text ?? "")
         executeButton.isEnabled = !running && !currentInput.isEmpty
         view.layoutIfNeeded()
         let rightEdge = CGPoint(
@@ -206,6 +215,14 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             y: 0
         )
         inputScrollView.setContentOffset(rightEdge, animated: false)
+    }
+
+    private func visibleTerminalInput(_ value: String) -> String {
+        // UILabel may collapse trailing ordinary spaces when calculating its
+        // intrinsic width. Non-breaking spaces keep every typed blank visible
+        // and move the block cursor by exactly one monospaced character.
+        value.replacingOccurrences(of: " ", with: "\u{00A0}")
+            .replacingOccurrences(of: "\t", with: "\u{00A0}\u{00A0}\u{00A0}\u{00A0}")
     }
 
     private var currentInput: String {

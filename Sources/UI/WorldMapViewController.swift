@@ -1149,6 +1149,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func jumpToSpawnOrOrigin() {
         coordinateModeControl.selectedSegmentIndex = 1
+        if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
+           let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
+            dimensionControl.selectedSegmentIndex = dimensionIndex
+            xField.text = String(Int64(floor(local.x)))
+            zField.text = String(Int64(floor(local.z)))
+            renderFromFields()
+            return
+        }
         dimensionControl.selectedSegmentIndex = 0
         xField.text = String(spawnX ?? 0)
         zField.text = String(spawnZ ?? 0)
@@ -4176,6 +4184,19 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
         let storedZoom = defaults.double(forKey: mapStatePrefix + "zoomScale")
         let zoom = storedZoom > 0 ? CGFloat(storedZoom) : 1
+        if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
+           let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
+            let localBlockX = Int64(floor(local.x))
+            let localBlockZ = Int64(floor(local.z))
+            let localChunkX = MapCoordinate.chunk(fromBlock: localBlockX)
+            let localChunkZ = MapCoordinate.chunk(fromBlock: localBlockZ)
+            dimensionControl.selectedSegmentIndex = dimensionIndex
+            coordinateModeControl.selectedSegmentIndex = 1
+            let anchor = MapViewportAnchor(blockX: local.x, blockZ: local.z, zoomScale: zoom)
+            updateCoordinateFields(centerX: localChunkX, centerZ: localChunkZ, anchor: anchor)
+            render(centerX: localChunkX, centerZ: localChunkZ, anchor: anchor, reason: "本地玩家位置", showOverlay: true)
+            return true
+        }
         let blockX = Double(MapCoordinate.blockOrigin(ofChunk: centerX)) + 8
         let blockZ = Double(MapCoordinate.blockOrigin(ofChunk: centerZ)) + 8
         let anchor = MapViewportAnchor(blockX: blockX, blockZ: blockZ, zoomScale: zoom)
