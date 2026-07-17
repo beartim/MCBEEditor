@@ -30,3 +30,14 @@ The Java structure to Bedrock mcstructure compatibility conversion is an indepen
 - Project: https://github.com/MCBE-Essentials/mcbe-essentials.github.io
 - Structure Editor: https://mcbe-essentials.github.io/structure-editor/
 
+
+## Bedrock legacy block ID data
+
+The numeric block ID compatibility table is based on the public Minecraft Wiki
+Bedrock data-values table and cross-checked against PMMP's
+`BedrockBlockUpgradeSchema/block_legacy_id_map.json`. PMMP publishes the schema
+repository under CC0-1.0. The Minecraft Wiki page is provided under its site
+license and is used here as a factual compatibility reference.
+
+- Minecraft Wiki: https://minecraft.wiki/w/Bedrock_Edition_data_values#Block_IDs
+- PMMP schema: https://github.com/pmmp/BedrockBlockUpgradeSchema/blob/master/block_legacy_id_map.json

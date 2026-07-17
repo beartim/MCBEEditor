@@ -316,7 +316,7 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
             addButton.isEnabled = false
             saveButton.isEnabled = false
             exportButton.isEnabled = false
-            statusLabel.text = "该图层使用旧版数字 ID，当前只支持查看名称：\(state.name)"
+            statusLabel.text = "该图层使用旧版数字 ID，当前只支持查看：\(state.identifierDescription)"
             tableView.reloadData()
             return
         }

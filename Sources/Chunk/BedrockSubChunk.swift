@@ -11,8 +11,16 @@ struct BedrockBlockState {
                 ?? nbt.stringValue(named: "Name")
                 ?? "minecraft:unknown"
         }
-        if let legacyID = legacyID { return "legacy:\(legacyID):\(legacyData ?? 0)" }
+        if let legacyID = legacyID {
+            return BedrockLegacyBlockCatalog.identifier(forNumericID: legacyID)
+                ?? "legacy:\(legacyID):\(legacyData ?? 0)"
+        }
         return "minecraft:unknown"
+    }
+
+    var identifierDescription: String {
+        guard let legacyID = legacyID else { return name }
+        return "\(name) · 数字 ID \(legacyID):\(legacyData ?? 0)"
     }
 
     var isAir: Bool {

@@ -60,7 +60,7 @@ final class BlockColumnPickerViewController: UIViewController, UIPickerViewDataS
         guard result.blocks.indices.contains(row) else { return nil }
         let block = result.blocks[row]
         let generated = block.isGenerated ? "" : "  [未生成]"
-        let text = String(format: "Y=%4d   %@%@", block.y, block.name, generated)
+        let text = String(format: "Y=%4d   %@%@", block.y, block.primaryState.identifierDescription, generated)
         return NSAttributedString(string: text, attributes: [
             .font: UIFont.monospacedSystemFont(ofSize: 14, weight: block.primaryState.isAir ? .regular : .semibold),
             .foregroundColor: block.primaryState.isAir ? UIColor.secondaryLabel : UIColor.label
@@ -75,7 +75,7 @@ final class BlockColumnPickerViewController: UIViewController, UIPickerViewDataS
     private func updateDetail(row: Int) {
         guard result.blocks.indices.contains(row) else { return }
         let block = result.blocks[row]
-        var text = "\(block.coordinateDescription)\n\(block.name)"
+        var text = "\(block.coordinateDescription)\n\(block.primaryState.identifierDescription)"
         let properties = block.primaryState.statePropertiesDescription
         if properties != "无方块状态" { text += "\n\(properties.replacingOccurrences(of: "\n", with: "；"))" }
         if !result.diagnostics.isEmpty { text += "\n解析警告：\(result.diagnostics.count) 条" }

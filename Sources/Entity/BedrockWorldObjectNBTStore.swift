@@ -66,6 +66,14 @@ final class BedrockWorldObjectNBTStore {
         }
     }
 
+    /// Migrates the non-canonical overworld digest keys written by v1.1.3-v1.1.5.
+    /// Bedrock uses `digp + chunkX + chunkZ` in the overworld; appending a zero
+    /// dimension makes the record visible to this editor but invisible to the game.
+    @discardableResult
+    func repairAppCreatedOverworldActorDigests() throws -> Int {
+        try repairAppCreatedOverworldActorDigests(database: session.database())
+    }
+
     func suggestedUniqueID() throws -> Int64 {
         let database = try session.database()
         for _ in 0..<128 {
@@ -85,7 +93,13 @@ final class BedrockWorldObjectNBTStore {
         uniqueID: Int64?,
         template: BedrockWorldObject?
     ) throws -> BedrockWorldObjectCreateResult {
-        let trimmedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIdentifier: String
+        if kind == .entity {
+            trimmedIdentifier = BedrockDataValueCatalog.entityIdentifier(forRawValue: rawIdentifier) ?? rawIdentifier
+        } else {
+            trimmedIdentifier = rawIdentifier
+        }
         guard !trimmedIdentifier.isEmpty else {
             throw BlocktopographError.malformedData("实体或方块实体 ID 不能为空。")
         }
@@ -97,6 +111,9 @@ final class BedrockWorldObjectNBTStore {
         }
 
         let database = try session.database()
+        if kind == .entity {
+            _ = try repairAppCreatedOverworldActorDigests(database: database)
+        }
         switch kind {
         case .entity:
             let actorID: Int64
@@ -118,7 +135,8 @@ final class BedrockWorldObjectNBTStore {
                 position: position,
                 dimension: dimension,
                 uniqueID: actorID,
-                template: template?.document
+                template: template?.document,
+                templateIdentifier: template?.identifier
             )
             let encoding = template?.storage.encoding ?? .littleEndian
             let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
@@ -128,8 +146,7 @@ final class BedrockWorldObjectNBTStore {
             let digestKey = makeDigestKey(
                 x: chunkX,
                 z: chunkZ,
-                dimension: dimension,
-                preserveLegacyOverworldForm: false
+                dimension: dimension
             )
             let currentDigest = try database.get(digestKey)
             var actorIDs = try currentDigest.map(decodeActorIDs) ?? []
@@ -158,7 +175,8 @@ final class BedrockWorldObjectNBTStore {
                 position: position,
                 dimension: dimension,
                 uniqueID: nil,
-                template: template?.document
+                template: template?.document,
+                templateIdentifier: template?.identifier
             )
             let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
             let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
@@ -259,8 +277,7 @@ final class BedrockWorldObjectNBTStore {
         let destinationDigestKey = makeDigestKey(
             x: destination.chunkX,
             z: destination.chunkZ,
-            dimension: destination.dimension,
-            preserveLegacyOverworldForm: digestKey.count == 12 && destination.dimension == 0
+            dimension: destination.dimension
         )
         try appendDigestChanges(
             sourceKey: digestKey,
@@ -462,15 +479,22 @@ final class BedrockWorldObjectNBTStore {
             newValue: records.isEmpty ? nil : try ConsecutiveNBTCodec.encode(records),
             label: "actorprefix"
         )]
-        if records.isEmpty, !digestKey.isEmpty, let digest = try database.get(digestKey) {
-            var ids = try decodeActorIDs(digest)
-            ids.removeAll { $0 == actorID }
-            changes.append(DatabaseChange(
-                key: digestKey,
-                originalValue: digest,
-                newValue: ids.isEmpty ? nil : encodeActorIDs(ids),
-                label: "digp"
-            ))
+        if records.isEmpty {
+            // Remove every digest reference, including the invalid overworld key
+            // form written by older Blocktopograph iOS builds. This prevents an
+            // orphaned actor from reappearing in the editor after deletion.
+            for entry in try database.entries(prefix: Data("digp".utf8), includeValues: true) {
+                guard let digest = entry.value else { continue }
+                var ids = try decodeActorIDs(digest)
+                guard ids.contains(actorID) else { continue }
+                ids.removeAll { $0 == actorID }
+                changes.append(DatabaseChange(
+                    key: entry.key,
+                    originalValue: digest,
+                    newValue: ids.isEmpty ? nil : encodeActorIDs(ids),
+                    label: "digp"
+                ))
+            }
         }
         try commit(changes, database: database)
     }
@@ -553,7 +577,8 @@ final class BedrockWorldObjectNBTStore {
         position: BedrockWorldObjectPosition,
         dimension: Int32,
         uniqueID: Int64?,
-        template: NBTDocument?
+        template: NBTDocument?,
+        templateIdentifier: String?
     ) throws -> NBTDocument {
         var document: NBTDocument
         if let template = template {
@@ -566,7 +591,10 @@ final class BedrockWorldObjectNBTStore {
             case .entity:
                 document = NBTDocument(rootName: "", root: .compound([
                     NBTNamedTag(name: "identifier", value: .string(identifier)),
+                    NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
                     NBTNamedTag(name: "UniqueID", value: .long(uniqueID ?? 0)),
+                    NBTNamedTag(name: "Persistent", value: .byte(1)),
+                    NBTNamedTag(name: "IsAutonomous", value: .byte(1)),
                     NBTNamedTag(name: "Pos", value: .list(.float, [
                         .float(Float(position.x)), .float(Float(position.y)), .float(Float(position.z))
                     ])),
@@ -590,11 +618,17 @@ final class BedrockWorldObjectNBTStore {
 
         switch kind {
         case .entity:
+            let previousIdentifier = document.root.stringValue(namedAny: ["identifier", "Identifier", "id", "Id"]) ?? templateIdentifier
             document.root = setTopLevelTag(
                 in: document.root,
                 names: ["identifier", "Identifier", "id", "Id"],
                 preferredName: "identifier",
                 value: .string(identifier)
+            )
+            document.root = ensureEntityDefinition(
+                in: document.root,
+                identifier: identifier,
+                replacing: previousIdentifier
             )
             document.root = setTopLevelTag(
                 in: document.root,
@@ -743,14 +777,89 @@ final class BedrockWorldObjectNBTStore {
     private func makeDigestKey(
         x: Int32,
         z: Int32,
-        dimension: Int32,
-        preserveLegacyOverworldForm: Bool
+        dimension: Int32
     ) -> Data {
         var key = Data("digp".utf8)
         key.appendLE(x)
         key.appendLE(z)
-        if dimension != 0 || !preserveLegacyOverworldForm { key.appendLE(dimension) }
+        // The digest suffix must be the exact Bedrock chunk key. Overworld
+        // chunk keys omit DimensionID; Nether and End keys include it.
+        if dimension != 0 { key.appendLE(dimension) }
         return key
+    }
+
+    private func repairAppCreatedOverworldActorDigests(database: MojangLevelDB) throws -> Int {
+        let prefix = Data("digp".utf8)
+        var mergedByCanonicalKey = [Data: [Int64]]()
+        var invalidKeys = [Data]()
+
+        for entry in try database.entries(prefix: prefix, includeValues: true) {
+            let key = entry.key
+            guard key.count == 16, littleEndianInt32(key, at: 12) == 0 else { continue }
+            guard let invalidValue = entry.value else { continue }
+            let canonicalKey = Data(key.prefix(12))
+            var ids: [Int64]
+            if let cached = mergedByCanonicalKey[canonicalKey] {
+                ids = cached
+            } else {
+                let canonicalValue = try database.get(canonicalKey)
+                ids = try canonicalValue.map(decodeActorIDs) ?? []
+            }
+            for actorID in try decodeActorIDs(invalidValue) where !ids.contains(actorID) {
+                ids.append(actorID)
+            }
+            mergedByCanonicalKey[canonicalKey] = ids
+            invalidKeys.append(key)
+        }
+
+        guard !invalidKeys.isEmpty else { return 0 }
+        let puts = mergedByCanonicalKey.map { (key: $0.key, value: encodeActorIDs($0.value)) }
+        try database.applyBatch(puts: puts, deletes: invalidKeys, sync: true)
+        return invalidKeys.count
+    }
+
+    private func littleEndianInt32(_ data: Data, at offset: Int) -> Int32? {
+        guard offset >= 0, offset + 4 <= data.count else { return nil }
+        var bits: UInt32 = 0
+        for index in 0..<4 {
+            bits |= UInt32(data[offset + index]) << UInt32(index * 8)
+        }
+        return Int32(bitPattern: bits)
+    }
+
+    private func ensureEntityDefinition(
+        in root: NBTValue,
+        identifier: String,
+        replacing previousIdentifier: String?
+    ) -> NBTValue {
+        guard case .compound(var tags) = root else { return root }
+        let definition = "+\(identifier)"
+        let previousDefinition = previousIdentifier.map { "+\($0)" }
+        if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare("definitions") == .orderedSame }),
+           case .list(.string, let currentValues) = tags[index].value {
+            var values = [NBTValue]()
+            var inserted = false
+            for value in currentValues {
+                guard case .string(let text) = value else {
+                    values.append(value)
+                    continue
+                }
+                if text == definition {
+                    if !inserted {
+                        values.append(.string(definition))
+                        inserted = true
+                    }
+                    continue
+                }
+                if previousDefinition != definition, text == previousDefinition { continue }
+                values.append(value)
+            }
+            if !inserted { values.insert(.string(definition), at: 0) }
+            tags[index].value = .list(.string, values)
+        } else {
+            tags.append(NBTNamedTag(name: "definitions", value: .list(.string, [.string(definition)])))
+        }
+        return .compound(tags)
     }
 
     private func commit(_ changes: [DatabaseChange], database: MojangLevelDB) throws {

@@ -142,6 +142,15 @@ struct Main {
         precondition(BedrockDataValueCatalog.enchantments.first { $0.id == 38 }?.identifier == "wind_burst")
         precondition(BedrockDataValueCatalog.enchantments.first { $0.id == 41 }?.identifier == "lunge")
         precondition(Set(BedrockDataValueCatalog.entities.map(\.id)).count == BedrockDataValueCatalog.entities.count)
+        precondition(BedrockLegacyBlockCatalog.blocks.count == 256)
+        precondition(BedrockLegacyBlockCatalog.block(forNumericID: 1)?.identifier == "minecraft:stone")
+        precondition(BedrockLegacyBlockCatalog.block(forNumericID: 5)?.identifier == "minecraft:planks")
+        precondition(BedrockLegacyBlockCatalog.block(forIdentifier: "minecraft:grass")?.id == 2)
+        precondition(BedrockLegacyBlockCatalog.block(forIdentifier: "minecraft:oak_planks")?.id == 5)
+        precondition(BedrockLegacyBlockCatalog.blockIdentifier(forRawValue: "0xA6") == "minecraft:unused_166")
+        let legacyStone = BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)
+        precondition(legacyStone.name == "minecraft:stone")
+        precondition(BedrockLegacyBlockCatalog.searchText(for: legacyStone).contains("0x01"))
         print("Blocktopograph core tests passed")
     }
 }
@@ -151,6 +160,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
   "$ROOT/Sources/NBT/NBTClipboardCodec.swift" \
@@ -1143,7 +1153,14 @@ final class MojangLevelDB {
         for item in puts { values[item.key] = item.value }
         for key in deletes { values.removeValue(forKey: key) }
     }
-    func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] { [] }
+    func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] {
+        let keys = values.keys.filter { key in
+            guard let prefix = prefix else { return true }
+            return key.starts(with: prefix)
+        }.sorted { $0.lexicographicallyPrecedes($1) }
+        let selected = limit > 0 ? Array(keys.prefix(limit)) : keys
+        return selected.map { ($0, includeValues ? values[$0] : nil) }
+    }
 }
 final class WorldSession {
     let world = ImportedWorld(id: UUID())
@@ -1171,7 +1188,13 @@ struct WorldObjectNBTTest {
     }
     static func digestKey(_ x: Int32, _ z: Int32, _ dimension: Int32) -> Data {
         var data = Data("digp".utf8)
-        data.appendLE(x); data.appendLE(z); data.appendLE(dimension)
+        data.appendLE(x); data.appendLE(z)
+        if dimension != 0 { data.appendLE(dimension) }
+        return data
+    }
+    static func nonCanonicalOverworldDigestKey(_ x: Int32, _ z: Int32) -> Data {
+        var data = digestKey(x, z, 0)
+        data.appendLE(Int32(0))
         return data
     }
     static func digest(_ id: Int64) -> Data {
@@ -1191,12 +1214,17 @@ struct WorldObjectNBTTest {
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(1.5), .float(64), .float(1.5)]))
         ]))
         let actorStorageKey = actorKey(actorID)
-        let oldDigestKey = digestKey(0, 0, 0)
+        let oldDigestKey = nonCanonicalOverworldDigestKey(0, 0)
         let database = MojangLevelDB(values: [
             actorStorageKey: try BedrockNBTCodec.encode(actorDocument),
             oldDigestKey: digest(actorID)
         ])
         let session = WorldSession(db: database)
+        let store = BedrockWorldObjectNBTStore(session: session)
+        let repairedDigestCount = try store.repairAppCreatedOverworldActorDigests()
+        precondition(repairedDigestCount == 1)
+        precondition(database.values[oldDigestKey] == nil)
+        precondition(database.values[digestKey(0, 0, 0)] == digest(actorID))
         let scanner = BedrockWorldObjectScanner(database: database)
         let actor = try scanner.scanRegion(
             centerX: 0, centerZ: 0, dimension: 0, radius: 0,
@@ -1287,6 +1315,24 @@ struct WorldObjectNBTTest {
         precondition(createdActor.uniqueID == 1001)
         precondition(database.values[actorKey(1001)] != nil)
         precondition(database.values[digestKey(5, 1, 0)] == digest(1001))
+        let createdActorDocument = try BedrockNBTCodec.decode(database.values[actorKey(1001)]!)
+        precondition(createdActorDocument.root.stringValue(namedAny: ["identifier"]) == "minecraft:cow")
+        let createdDefinitions = createdActorDocument.root.value(namedAny: ["definitions"])?.listValues ?? []
+        precondition(createdDefinitions.contains { value in
+            if case .string(let definition) = value { return definition == "+minecraft:cow" }
+            return false
+        })
+        precondition(createdActorDocument.root.int64Value(namedAny: ["Persistent"]) == 1)
+
+        // The game removes an actor ID from digp when the actor dies. A stale
+        // actorprefix value alone must not continue to appear as a live entity.
+        database.values.removeValue(forKey: digestKey(5, 1, 0))
+        let orphanScan = try scanner.scanAll(
+            dimensions: [0], includeEntities: true, includeBlockEntities: false
+        )
+        precondition(!orphanScan.objects.contains { $0.uniqueID == 1001 })
+        precondition(orphanScan.diagnostics.contains { $0.contains("孤立 actorprefix") })
+        database.values[digestKey(5, 1, 0)] = digest(1001)
 
         let createdBlockEntity = try BedrockWorldObjectNBTStore(session: session).create(
             kind: .blockEntity,
@@ -1633,6 +1679,8 @@ SWIFT
 swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
+  "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
@@ -1983,6 +2031,7 @@ SWIFT
 swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
+  "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
@@ -2367,3 +2416,31 @@ grep -q 'documents.map' "$METADATA_UI" || {
 }
 
 echo 'Atomic multi-tag clipboard and NBT/mcstructure/json tag import passed'
+
+
+# v1.1.6: canonical actor digests and numeric block ID correspondence.
+grep -q 'if dimension != 0 { key.appendLE(dimension) }' "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" || {
+  echo 'error: overworld actor digest still appends DimensionID 0' >&2
+  exit 1
+}
+grep -q 'repairAppCreatedOverworldActorDigests' "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" || {
+  echo 'error: invalid overworld actor digest migration is missing' >&2
+  exit 1
+}
+grep -q '未被 digp 引用的孤立 actorprefix' "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" || {
+  echo 'error: orphan actorprefix records are still shown as live entities' >&2
+  exit 1
+}
+grep -q 'enum BedrockLegacyBlockCatalog' "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" || {
+  echo 'error: legacy numeric block ID catalog is missing' >&2
+  exit 1
+}
+grep -q '("方块ID", "旧版数字 ID、字符串 ID 与十六进制值")' "$ROOT/Sources/UI/WorldToolsViewController.swift" || {
+  echo 'error: block data-value list is not connected' >&2
+  exit 1
+}
+grep -q 'BedrockDataValueEntry(id: 5, identifier: "minecraft:planks"' "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" || {
+  echo 'error: legacy numeric block IDs are not paired with their legacy string IDs' >&2
+  exit 1
+}
+echo 'Canonical actor digest repair, orphan filtering and numeric block ID correspondence passed'

@@ -181,6 +181,17 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertEqual(Set(BedrockDataValueCatalog.enchantments.map(\.id)).count, BedrockDataValueCatalog.enchantments.count)
     }
 
+    func testLegacyBlockNumericIDCatalog() {
+        XCTAssertEqual(BedrockLegacyBlockCatalog.blocks.count, 256)
+        XCTAssertEqual(BedrockLegacyBlockCatalog.block(forNumericID: 1)?.identifier, "minecraft:stone")
+        XCTAssertEqual(BedrockLegacyBlockCatalog.block(forNumericID: 5)?.identifier, "minecraft:planks")
+        XCTAssertEqual(BedrockLegacyBlockCatalog.block(forIdentifier: "minecraft:grass")?.id, 2)
+        XCTAssertEqual(BedrockLegacyBlockCatalog.block(forIdentifier: "minecraft:oak_planks")?.id, 5)
+        XCTAssertEqual(BedrockLegacyBlockCatalog.blockIdentifier(forRawValue: "0xA6"), "minecraft:unused_166")
+        XCTAssertEqual(BedrockLegacyBlockCatalog.numericID(forIdentifier: "minecraft:movingBlock"), 250)
+        XCTAssertEqual(Set(BedrockLegacyBlockCatalog.blocks.map(\.id)).count, 256)
+    }
+
     func testVillageDwellersReadCurrentIDField() {
         let currentDwellers: NBTValue = .compound([
             NBTNamedTag(name: "Dwellers", value: .list(.compound, [

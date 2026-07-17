@@ -29,7 +29,9 @@ struct BedrockBlockRecord {
             guard !state.isAir || layers.count == 1 else { return nil }
             let properties = state.statePropertiesDescription
             let prefix = layers.count > 1 ? "图层 \(index)：" : ""
-            return properties.isEmpty ? "\(prefix)\(state.name)" : "\(prefix)\(state.name)\n\(properties)"
+            return properties.isEmpty
+                ? "\(prefix)\(state.identifierDescription)"
+                : "\(prefix)\(state.identifierDescription)\n\(properties)"
         }
         if !descriptions.isEmpty { return descriptions.joined(separator: "\n\n") }
         return isGenerated ? "minecraft:air\n无方块状态" : "minecraft:air\n该 SubChunk 尚未生成"

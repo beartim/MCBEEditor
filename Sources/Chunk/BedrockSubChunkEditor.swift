@@ -17,7 +17,8 @@ struct BedrockBlockSearchCriteria {
 
     func matches(_ state: BedrockBlockState) -> Bool {
         if let nameContains = nameContains?.trimmingCharacters(in: .whitespacesAndNewlines), !nameContains.isEmpty {
-            guard state.name.range(of: nameContains, options: [.caseInsensitive, .diacriticInsensitive]) != nil else {
+            let searchable = BedrockLegacyBlockCatalog.searchText(for: state)
+            guard searchable.range(of: nameContains, options: [.caseInsensitive, .diacriticInsensitive]) != nil else {
                 return false
             }
         }
@@ -76,7 +77,8 @@ struct BedrockBlockReplacement {
             throw BlocktopographError.unsupported("旧版数字 ID 方块不能进行 name/states 搜索替换")
         }
 
-        if let replacementName = name?.trimmingCharacters(in: .whitespacesAndNewlines), !replacementName.isEmpty {
+        if let rawReplacementName = name?.trimmingCharacters(in: .whitespacesAndNewlines), !rawReplacementName.isEmpty {
+            let replacementName = BedrockLegacyBlockCatalog.blockIdentifier(forRawValue: rawReplacementName) ?? rawReplacementName
             let nameIndex = rootTags.firstIndex { $0.name.caseInsensitiveCompare("name") == .orderedSame }
                 ?? rootTags.firstIndex { $0.name.caseInsensitiveCompare("Name") == .orderedSame }
             if let nameIndex = nameIndex {

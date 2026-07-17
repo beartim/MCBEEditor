@@ -251,20 +251,23 @@ final class BedrockWorldObjectScanner {
                 guard entry.key.count >= actorPrefix.count + 8,
                       let actorData = entry.value else { continue }
                 let actorID = try littleEndianInt64(entry.key, at: actorPrefix.count)
-                let location = digestLocationByActor[actorID]
-                if let location = location, !dimensionAllowed(location.dimension) { continue }
+                guard let location = digestLocationByActor[actorID] else {
+                    diagnostics.append("未被 digp 引用的孤立 actorprefix，已忽略：\(actorID)")
+                    continue
+                }
+                if !dimensionAllowed(location.dimension) { continue }
                 actorRecordCount += 1
                 do {
                     let decoded = try decodeObjects(
                         data: actorData,
                         kind: .entity,
-                        dimension: location?.dimension ?? 0,
-                        chunkX: location?.chunkX ?? 0,
-                        chunkZ: location?.chunkZ ?? 0,
+                        dimension: location.dimension,
+                        chunkX: location.chunkX,
+                        chunkZ: location.chunkZ,
                         source: .modernActor,
                         actorID: actorID,
                         storageKey: entry.key,
-                        digestKey: location?.key
+                        digestKey: location.key
                     ).filter { dimensionAllowed($0.dimension) }
                     objects.append(contentsOf: decoded.prefix(max(0, maximumObjects - objects.count)))
                 } catch {
@@ -477,16 +480,17 @@ final class BedrockWorldObjectScanner {
     }
 
     private func actorDigestKeys(x: Int32, z: Int32, dimension: Int32) -> [Data] {
-        var current = Data("digp".utf8)
-        current.appendLE(x)
-        current.appendLE(z)
-        current.appendLE(dimension)
-        guard dimension == 0 else { return [current] }
+        var canonical = Data("digp".utf8)
+        canonical.appendLE(x)
+        canonical.appendLE(z)
+        if dimension != 0 { canonical.appendLE(dimension) }
+        guard dimension == 0 else { return [canonical] }
 
-        var legacyOverworld = Data("digp".utf8)
-        legacyOverworld.appendLE(x)
-        legacyOverworld.appendLE(z)
-        return [current, legacyOverworld]
+        // Compatibility only: v1.1.3-v1.1.5 incorrectly appended a zero
+        // DimensionID in the overworld. Prefer the game-recognized key.
+        var nonCanonical = canonical
+        nonCanonical.appendLE(Int32(0))
+        return [canonical, nonCanonical]
     }
 
     private func actorKey(id: Int64) -> Data {

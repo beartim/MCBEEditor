@@ -470,6 +470,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         scanQueue.async { [weak self] in
             guard let self = self else { return }
             do {
+                let repairedDigestCount = try self.objectStore.repairAppCreatedOverworldActorDigests()
                 let scanner = BedrockWorldObjectScanner(database: try self.session.database())
                 let result = try scanner.scanAll(
                     dimensions: dimensions,
@@ -486,7 +487,8 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
                     let entityCount = result.objects.filter { $0.kind == .entity }.count
                     let blockCount = result.objects.filter { $0.kind == .blockEntity }.count
                     let errors = result.diagnostics.isEmpty ? "" : "；诊断 \(result.diagnostics.count) 条，点按查看"
-                    self.scanSummary = "\(dimensionText)：实体 \(entityCount)，方块实体 \(blockCount)；摘要 \(result.actorDigestCount)，actor \(result.actorRecordCount)\(errors)"
+                    let repaired = repairedDigestCount > 0 ? "；已修复 \(repairedDigestCount) 条旧版错误 digp" : ""
+                    self.scanSummary = "\(dimensionText)：实体 \(entityCount)，方块实体 \(blockCount)；摘要 \(result.actorDigestCount)，actor \(result.actorRecordCount)\(repaired)\(errors)"
                     self.applyFilter(showErrors: false)
                 }
             } catch {
