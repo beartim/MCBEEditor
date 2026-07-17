@@ -46,9 +46,14 @@ jobs:
             exit 1
           }
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
-          xcodebuild -version
-          [[ "$(xcodebuild -version | awk '/^Xcode / {print $2; exit}')" == 15.4* ]] || {
-            echo "The selected toolchain is not Xcode 15.4." >&2
+          XCODE_VERSION_OUTPUT="$(xcodebuild -version 2>&1)" || {
+            echo "Unable to read the selected Xcode version." >&2
+            exit 1
+          }
+          printf '%s\n' "$XCODE_VERSION_OUTPUT"
+          XCODE_VERSION="$(awk '/^Xcode / { version = $2 } END { print version }' <<< "$XCODE_VERSION_OUTPUT")"
+          [[ "$XCODE_VERSION" == 15.4* ]] || {
+            printf 'The selected toolchain is not Xcode 15.4 (found: %s).\n' "${XCODE_VERSION:-unknown}" >&2
             exit 1
           }
 

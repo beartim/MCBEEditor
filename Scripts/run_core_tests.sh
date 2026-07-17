@@ -287,6 +287,24 @@ fi
 printf 'Release metadata passed: version=%s build=%s\n' \
   "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION"
 
+# Never pipe `xcodebuild -version` into a consumer that exits after the first
+# line. Xcode 15.4 writes a second line and can throw NSFileHandleOperationException
+# when stdout has already been closed by `awk ... exit` or `head`.
+if grep -R -nE 'xcodebuild[[:space:]]+-version[[:space:]]*\|' \
+  "$ROOT/Scripts" "$ROOT/.github/workflows"; then
+  echo 'error: unsafe xcodebuild -version pipeline can trigger Broken pipe' >&2
+  exit 1
+fi
+for version_check in \
+  "$ROOT/Scripts/bootstrap.sh" \
+  "$ROOT/.github/workflows/build-ios.yml"; do
+  grep -qF 'XCODE_VERSION_OUTPUT="$(xcodebuild -version 2>&1)"' "$version_check" || {
+    echo "error: safe full-output Xcode version capture is missing: ${version_check#$ROOT/}" >&2
+    exit 1
+  }
+done
+echo 'Xcode version Broken-pipe regression check passed'
+
 # XcodeGen maps projectFormat xcode15_3 to objectVersion 63. Xcode 15.4 can
 # open that format; only newer object versions must be rejected.
 grep -qF 'MAX_XCODE15_OBJECT_VERSION=63' "$ROOT/Scripts/bootstrap.sh" || {

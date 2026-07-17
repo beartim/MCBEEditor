@@ -1,5 +1,12 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.12 Xcode 版本检测 Broken pipe 修复
+
+- 修复 `Scripts/bootstrap.sh` 使用 `xcodebuild -version | awk ... exit` 时，`awk` 提前关闭管道导致 Xcode 15.4 抛出 `NSFileHandleOperationException: Broken pipe` 并以 134 退出的问题。
+- Xcode 版本检测改为先完整捕获 `xcodebuild -version` 输出，再从内存文本解析版本号，不再提前关闭 `xcodebuild` 的标准输出。
+- GitHub Actions 的 “Select Xcode 15.4” 步骤同步使用同一安全检测方式，避免相同问题在工程生成前发生。
+- 当前版本：**1.1.12 (122)**。
+
 ## v1.1.11 本地玩家地图中心、目标选择器与实体命令
 
 - 地图栏目默认切换到本地玩家所在维度，并以玩家实际方块坐标为视口中心；无法读取时回退到世界出生点。

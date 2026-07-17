@@ -20,7 +20,15 @@ command -v xcodegen >/dev/null || {
 }
 [[ -f "$PROJECT_SPEC" ]] || { echo "错误：工程配置不存在：$PROJECT_SPEC" >&2; exit 1; }
 
-XCODE_VERSION="$(xcodebuild -version | awk '/^Xcode / {print $2; exit}')"
+XCODE_VERSION_OUTPUT="$(xcodebuild -version 2>&1)" || {
+  echo "错误：无法读取 Xcode 版本。" >&2
+  exit 1
+}
+XCODE_VERSION="$(awk '/^Xcode / { version = $2 } END { print version }' <<< "$XCODE_VERSION_OUTPUT")"
+[[ -n "$XCODE_VERSION" ]] || {
+  printf '错误：无法从 xcodebuild 输出中解析 Xcode 版本：\n%s\n' "$XCODE_VERSION_OUTPUT" >&2
+  exit 1
+}
 XCODE_MAJOR="${XCODE_VERSION%%.*}"
 if [[ "$XCODE_MAJOR" != "15" ]]; then
   printf '错误：此工程只构建 iOS 13，需要 Xcode 15.x（推荐 15.4）。当前为 Xcode %s。\n' \

@@ -1,6 +1,6 @@
 # iOS 移植状态
 
-- 当前版本：1.1.11 (121)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
+- 当前版本：1.1.12 (122)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
 - 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、fill、give、kill、kick。
 - clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度和不同 Y 偏移。命令目标支持 @s、@a、@e、UniqueID 与实体 identifier。
 - 地图打开时默认使用本地玩家所在维度与实际坐标；命令输入行位于终端大屏底部并保留空格宽度和闪烁光标。
@@ -17,7 +17,7 @@
 
 ## 当前版本
 
-- 版本：1.1.11 (121)
+- 版本：1.1.12 (122)
 - Bundle ID：`com.wzn.blocktopograph`
 - 最低系统：iOS / iPadOS 13.0
 - 工具链：Xcode 15.4
