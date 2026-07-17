@@ -280,7 +280,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
         alert.addAction(UIAlertAction(title: "统一修改生物群系…", style: .default) { [weak self] _ in
             self?.chooseBatchBiome(for: chunks)
         })
-        alert.addAction(UIAlertAction(title: "添加为常加载区域…", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "常加载区域编辑…", style: .default) { [weak self] _ in
             self?.prepareTickingArea(from: chunks)
         })
         alert.addAction(UIAlertAction(title: "删除 HardcodedSpawners…", style: .destructive) { [weak self] _ in
@@ -298,62 +298,24 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
     }
 
     private func prepareTickingArea(from chunks: [ChunkPosition]) {
-        guard let dimension = chunks.first?.dimension,
-              chunks.allSatisfy({ $0.dimension == dimension }) else {
-            showError(BlocktopographError.unsupported("一次只能把同一维度的区块添加为常加载区域"), title: "维度不一致")
+        guard let context = TickingAreaSelectionContext(chunks: chunks) else {
+            showError(BlocktopographError.unsupported("一次只能编辑同一维度区块对应的常加载区域"), title: "维度不一致")
             return
         }
-        let minimumX = chunks.map(\.x).min() ?? 0
-        let maximumX = chunks.map(\.x).max() ?? 0
-        let minimumZ = chunks.map(\.z).min() ?? 0
-        let maximumZ = chunks.map(\.z).max() ?? 0
-        let area = BedrockTickingArea(
-            dimension: dimension,
-            isCircle: false,
-            minimumX: minimumX,
-            minimumZ: minimumZ,
-            maximumX: maximumX,
-            maximumZ: maximumZ,
-            name: "",
-            preload: false
+        finishBatchMode()
+        let controller = TickingAreaListViewController(
+            session: session,
+            initialDimension: context.dimension,
+            selectionContext: context
         )
-        guard area.chunkCount <= TickingAreaStore.maximumChunksPerArea else {
-            showError(BlocktopographError.unsupported("所选区块的外接矩形包含 \(area.chunkCount) 个区块，超过单个区域的 100 区块上限"), title: "范围过大")
-            return
+        controller.onSelectChunk = { [weak self] position in
+            if let callback = self?.onSelectTickingArea { callback(position) }
+            else { self?.onSelectChunk?(position) }
         }
-        let controller = TickingAreaEditorViewController(area: area, defaultDimension: dimension, existingCount: 0)
-        controller.onSave = { [weak self] editedArea in
-            self?.appendTickingArea(editedArea)
+        controller.onMutation = { [weak self] message in
+            self?.onChunkMutation?(message, context.suggestedArea.centerChunk)
         }
         navigationController?.pushViewController(controller, animated: true)
-    }
-
-    private func appendTickingArea(_ area: BedrockTickingArea) {
-        let overlay = showBusy("增加常加载区域…")
-        workQueue.async { [weak self] in
-            guard let self = self else { return }
-            do {
-                let tickingStore = TickingAreaStore(session: self.session)
-                var records = try tickingStore.records()
-                guard records.count < TickingAreaStore.maximumAreaCount else {
-                    throw BlocktopographError.unsupported("世界中已有 10 个常加载区域")
-                }
-                records.append(try tickingStore.makeRecord(area: area))
-                try tickingStore.save(records)
-                DispatchQueue.main.async {
-                    overlay.removeFromSuperview()
-                    self.session.invalidateAfterExternalChange()
-                    self.onChunkMutation?("已将所选区块范围添加为常加载区域。", area.centerChunk)
-                    self.finishBatchMode()
-                    self.reloadChunks()
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    overlay.removeFromSuperview()
-                    self.showError(error, title: "增加常加载区域失败")
-                }
-            }
-        }
     }
 
     private enum BatchMutationKind {
@@ -572,6 +534,18 @@ enum ChunkActionMenu {
             guard let presenter = presenter else { return }
             let controller = ChunkBiomeEditorViewController(session: session, chunk: summary.position)
             controller.onSave = { message in onMutation(message, summary.position) }
+            presenter.navigationController?.pushViewController(controller, animated: true)
+        })
+        alert.addAction(UIAlertAction(title: "常加载区域编辑…", style: .default) { [weak presenter] _ in
+            guard let presenter = presenter else { return }
+            let context = TickingAreaSelectionContext(chunk: summary.position)
+            let controller = TickingAreaListViewController(
+                session: session,
+                initialDimension: summary.position.dimension,
+                selectionContext: context
+            )
+            controller.onSelectChunk = { position in onSelect?(position) }
+            controller.onMutation = { message in onMutation(message, summary.position) }
             presenter.navigationController?.pushViewController(controller, animated: true)
         })
         alert.addAction(UIAlertAction(title: "HardcodedSpawners…", style: .default) { [weak presenter] _ in

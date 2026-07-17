@@ -2461,6 +2461,27 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             message += " 清空和重新生成会向外扩展为 \(aligned.coordinateText)。"
         }
         let alert = UIAlertController(title: "框选区域操作", message: message, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "常加载区域编辑…", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let context = TickingAreaSelectionContext(region: region)
+            let controller = TickingAreaListViewController(
+                session: self.session,
+                initialDimension: region.dimension,
+                selectionContext: context
+            )
+            controller.onSelectChunk = { [weak self] position in
+                guard let self = self else { return }
+                self.navigationController?.popToViewController(self, animated: true)
+                self.selectChunk(position, centerMap: true)
+            }
+            controller.onMutation = { [weak self] mutationMessage in
+                guard let self = self else { return }
+                self.navigationItem.prompt = mutationMessage
+                self.scheduleAutoRender(immediate: true)
+            }
+            self.setSelectionMode(false)
+            self.navigationController?.pushViewController(controller, animated: true)
+        })
         alert.addAction(UIAlertAction(title: "查看区域内实体…", style: .default) { [weak self] _ in
             self?.scanAndShowSelectionObjects(region: region)
         })

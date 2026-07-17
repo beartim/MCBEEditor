@@ -4,6 +4,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
     private let initialArea: BedrockTickingArea?
     private let defaultDimension: Int32
     private let existingCount: Int
+    private let isCreating: Bool
 
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
@@ -24,12 +25,18 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
 
     var onSave: ((BedrockTickingArea) -> Void)?
 
-    init(area: BedrockTickingArea?, defaultDimension: Int32 = 0, existingCount: Int) {
+    init(
+        area: BedrockTickingArea?,
+        defaultDimension: Int32 = 0,
+        existingCount: Int,
+        isCreating: Bool? = nil
+    ) {
         self.initialArea = area
         self.defaultDimension = defaultDimension
         self.existingCount = existingCount
+        self.isCreating = isCreating ?? (area == nil)
         super.init(nibName: nil, bundle: nil)
-        title = area == nil ? "新增常加载区域" : "编辑常加载区域"
+        title = self.isCreating ? "新增常加载区域" : "编辑常加载区域"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -243,7 +250,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
             showError(BlocktopographError.malformedData("请输入完整的整数区块坐标"), title: "坐标错误")
             return
         }
-        if initialArea == nil, existingCount >= TickingAreaStore.maximumAreaCount {
+        if isCreating, existingCount >= TickingAreaStore.maximumAreaCount {
             showError(BlocktopographError.unsupported("世界中已有 \(existingCount) 个常加载区域，无法继续增加"), title: "数量已达上限")
             return
         }
@@ -267,6 +274,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
     private let store: TickingAreaStore
     private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.ticking-area", qos: .userInitiated)
     private let initialDimension: Int32
+    private let selectionContext: TickingAreaSelectionContext?
     private let dimensionControl = UISegmentedControl(items: ["全部"] + BedrockDimension.allCases.map(\.displayName))
     private var records = [BedrockTickingAreaRecord]()
     private var filtered = [BedrockTickingAreaRecord]()
@@ -277,12 +285,17 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
     var onSelectChunk: ((ChunkPosition) -> Void)?
     var onMutation: ((String) -> Void)?
 
-    init(session: WorldSession, initialDimension: Int32) {
+    init(
+        session: WorldSession,
+        initialDimension: Int32,
+        selectionContext: TickingAreaSelectionContext? = nil
+    ) {
         self.session = session
         self.store = TickingAreaStore(session: session)
         self.initialDimension = initialDimension
+        self.selectionContext = selectionContext
         super.init(style: .insetGrouped)
-        title = "常加载区块"
+        title = selectionContext == nil ? "常加载区块" : "常加载区域编辑"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -299,8 +312,10 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
 
-        dimensionControl.selectedSegmentIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == initialDimension }).map { $0 + 1 } ?? 0
+        let preferredDimension = selectionContext?.dimension ?? initialDimension
+        dimensionControl.selectedSegmentIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == preferredDimension }).map { $0 + 1 } ?? 0
         dimensionControl.addTarget(self, action: #selector(filterChanged), for: .valueChanged)
+        dimensionControl.isEnabled = selectionContext == nil
         let wrapper = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 52))
         dimensionControl.translatesAutoresizingMaskIntoConstraints = false
         wrapper.addSubview(dimensionControl)
@@ -329,7 +344,11 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
             let batch = UIBarButtonItem(title: "批量", style: .plain, target: self, action: #selector(beginBatch))
             batch.isEnabled = !records.isEmpty
             navigationItem.rightBarButtonItems = [add, batch]
-            navigationItem.prompt = "LevelDB：tickingarea · \(records.count)/\(TickingAreaStore.maximumAreaCount) 个区域"
+            if let selectionContext = selectionContext {
+                navigationItem.prompt = "\(selectionContext.detailText) · 相交 \(filtered.count) 个 · LevelDB：tickingarea_"
+            } else {
+                navigationItem.prompt = "LevelDB：tickingarea_ · \(records.count)/\(TickingAreaStore.maximumAreaCount) 个区域"
+            }
         }
     }
 
@@ -338,7 +357,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
         workQueue.async { [weak self] in
             guard let self = self else { return }
             do {
-                let values = try self.store.records()
+                let values = try self.store.records(migratingLegacy: true)
                 DispatchQueue.main.async {
                     overlay.removeFromSuperview()
                     self.records = values
@@ -366,18 +385,34 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
         let dimension: Int32? = dimensionControl.selectedSegmentIndex == 0 ? nil : BedrockDimension.allCases[dimensionControl.selectedSegmentIndex - 1].rawValue
         filtered = records.filter { record in
             if let dimension = dimension, record.area.dimension != dimension { return false }
+            if let selectionContext = selectionContext, !selectionContext.intersects(record.area) { return false }
             guard !query.isEmpty else { return true }
             let text = "\(record.area.name) \(record.area.detailText)"
             return text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
         tableView.reloadData()
+        if filtered.isEmpty {
+            let label = UILabel()
+            label.text = selectionContext == nil
+                ? "没有常加载区域"
+                : "选区内没有相交的常加载区域。\n点击右上角“+”可按当前范围新增。"
+            label.textAlignment = .center
+            label.textColor = .secondaryLabel
+            label.numberOfLines = 0
+            tableView.backgroundView = label
+        } else {
+            tableView.backgroundView = nil
+        }
         updateNavigationButtons()
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int { 1 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { filtered.count }
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        "常加载区域可在未生成区块上存在。地图中的“常加载区块”模式会按这里的范围显示全部区域。"
+        if let selectionContext = selectionContext {
+            return "当前按 \(selectionContext.detailText) 筛选相交区域。点击“+”会以该选区的区块外接矩形作为初始范围；已有区域可继续编辑或删除。"
+        }
+        return "常加载区域可在未生成区块上存在。地图中的“常加载区块”模式会按这里的范围显示全部区域。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -430,7 +465,12 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
 
     @objc private func addArea() {
         let selectedDimension = dimensionControl.selectedSegmentIndex == 0 ? initialDimension : BedrockDimension.allCases[dimensionControl.selectedSegmentIndex - 1].rawValue
-        let controller = TickingAreaEditorViewController(area: nil, defaultDimension: selectedDimension, existingCount: records.count)
+        let controller = TickingAreaEditorViewController(
+            area: selectionContext?.suggestedArea,
+            defaultDimension: selectedDimension,
+            existingCount: records.count,
+            isCreating: true
+        )
         controller.onSave = { [weak self] area in self?.append(area) }
         navigationController?.pushViewController(controller, animated: true)
     }

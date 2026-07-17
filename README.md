@@ -294,7 +294,7 @@ build/output/Blocktopograph-iOS13-unsigned.ipa
 ## v1.1.0：常加载区块、史莱姆区块与天气编辑
 
 - 地图支持常加载区块和史莱姆区块图层。
-- 区块栏目支持管理 LevelDB `tickingarea`，包括新增、编辑、删除与批量预加载操作。
+- 区块栏目支持管理 LevelDB `tickingarea_` 独立记录，包括新增、编辑、删除与批量预加载操作。
 - 信息栏目的世界编辑中支持查看和修改天气。
 
 ## v1.1.1：Xcode 15.4 编译修复
@@ -302,5 +302,15 @@ build/output/Blocktopograph-iOS13-unsigned.ipa
 - 修复常加载区块圆形标记调用错误的 UIKit 绘图 API。
 - 修复导出当前区域时遗漏 `tickingAreas` 参数。
 - 将三处 Swift KeyPath 简写改为显式闭包，兼容 Xcode 15.4 / Swift 5。
-- 导出常加载区块地图时会重新读取当前维度的 `tickingarea` 数据。
+- 导出常加载区块地图时会重新读取当前维度的 `tickingarea_` 数据。
 - 版本更新为 1.1.1（构建号 111）。
+
+
+## v1.1.2：常加载区域存储格式与选区编辑修复
+
+- 修复旧版把多个区域合并写入单个 `tickingarea` 键、导致 Minecraft 与 `/tickingarea` 无法识别的问题。
+- 现在每个区域使用独立的 `tickingarea_<UUID>` LevelDB 键，值为单个 Little-Endian NBT Compound。
+- 兼容读取 v1.1.0/v1.1.1 创建的单键连续 NBT；保存时自动迁移为游戏格式。
+- 地图框选菜单新增“常加载区域编辑”，可查看、增加、修改和删除与选区相交的区域。
+- 单个区块菜单和批量区块菜单新增同样的上下文编辑入口。
+- 版本更新为 1.1.2（构建号 112）。

@@ -2182,3 +2182,20 @@ grep -q 'func scanAll(' "$ENTITY_SCANNER" && \
 
 echo 'Improved selection gestures, region bulk replacement, chunk tab and world-wide entity range filters passed'
 echo 'Unified NBT mutation, editable block layers, chunk management and com.wzn bundle identity passed'
+
+TICKING_STORE="$ROOT/Sources/World/TickingAreaStore.swift"
+TICKING_UI="$ROOT/Sources/UI/TickingAreaViewControllers.swift"
+CHUNK_UI="$ROOT/Sources/UI/ChunkListViewController.swift"
+
+grep -q 'databaseKeyPrefix = Data("tickingarea_".utf8)' "$TICKING_STORE" && \
+grep -q 'BedrockNBTCodec.encode(source.document' "$TICKING_STORE" && \
+grep -q 'database.applyBatch(puts: puts, deletes: deletes' "$TICKING_STORE" && \
+grep -q 'records(migratingLegacy: true)' "$TICKING_UI" && \
+grep -q 'TickingAreaSelectionContext(region: region)' "$MAP_VIEW" && \
+grep -q '常加载区域编辑…' "$CHUNK_UI" && \
+! grep -q 'ConsecutiveNBTCodec.encode(updated)' "$TICKING_STORE" || {
+  echo 'error: native per-key tickingarea storage, legacy migration or contextual editors are incomplete' >&2
+  exit 1
+}
+
+echo 'Native tickingarea_ storage, legacy migration and map/chunk contextual editing passed'
