@@ -1,4 +1,4 @@
-# 应用 Blocktopograph iOS 13 v1.1.3 完整源码
+# 应用 Blocktopograph iOS 13 v1.1.4 完整源码
 
 本压缩包为完整工程源码。覆盖现有工程后执行：
 
@@ -9,10 +9,12 @@ bash Scripts/bootstrap.sh
 
 本版修改了以下核心文件：
 
-- `Sources/Entity/BedrockWorldObjectNBTStore.swift`：增加实体/方块实体创建与删除，并在修改实体 UniqueID 时迁移 `actorprefix` 和 `digp`；
-- `Sources/UI/WorldObjectCreationViewController.swift`：新增对象创建/复制表单；
-- `Sources/UI/EntityBrowserViewController.swift`：增加新建、复制、删除入口；
-- `Sources/UI/WorldObjectNBTEditorViewController.swift`：允许修改 UniqueID 值，但继续禁止删除或重命名；
-- `Scripts/run_core_tests.sh`：增加创建、删除和 UniqueID 索引迁移回归测试。
+- `Sources/Chunk/MapCoordinate.swift`：增加方块距离与区块半径的双向换算；
+- `Sources/World/TickingAreaStore.swift`：圆形常加载区域按游戏原生方块边界读取，并以区块为单位计算半径、地图包含范围和选区相交；
+- `Sources/UI/TickingAreaViewControllers.swift`：圆形中心继续按方块坐标编辑，半径改为区块数并按 16 倍写回；
+- `Sources/UI/NBTEditingUI.swift`：复制的多个标签全部粘贴，同名冲突仅提供覆盖、保留和取消；
+- `Sources/UI/NBTNode.swift`：支持在 Compound 中原位覆盖同名标签；
+- 各 NBT 编辑器：统一接入批量粘贴与覆盖标志；
+- `Scripts/run_core_tests.sh`：增加半径单位及批量粘贴回归检查。
 
-重新生成 Xcode 工程后，版本号为 1.1.3，构建号为 113。
+重新生成 Xcode 工程后，版本号为 1.1.4，构建号为 114。

@@ -54,6 +54,23 @@ struct Main {
         precondition(MapCoordinate.chunk(fromBlock: Int64(-1)) == -1)
         precondition(MapCoordinate.chunk(fromBlock: Int64(-17)) == -2)
         precondition(MapCoordinate.chunk(fromBlock: Int64(Int32.max) * 16) == Int32.max)
+        precondition(MapCoordinate.chunkDistance(fromBlockDistance: 64) == 4)
+        precondition(MapCoordinate.chunkDistance(fromBlockDistance: 65) == 5)
+        precondition(MapCoordinate.blockDistance(fromChunkDistance: 4) == 64)
+
+        let originalCompound: NBTValue = .compound([
+            NBTNamedTag(name: "A", value: .int(1)),
+            NBTNamedTag(name: "B", value: .int(2))
+        ])
+        let overwrittenCompound = try NBTTreeMutation.adding(
+            .int(9), named: "A", to: [], in: originalCompound, replacingExisting: true
+        )
+        precondition(overwrittenCompound.intValue(named: "A") == 9)
+        precondition(overwrittenCompound.intValue(named: "B") == 2)
+        do {
+            _ = try NBTTreeMutation.adding(.int(7), named: "A", to: [], in: originalCompound)
+            preconditionFailure("duplicate Compound insertion should fail without overwrite")
+        } catch {}
 
         // Reference coordinates from the original Android Blocktopograph
         // Bedrock slime-chunk implementation. The calculation is independent
@@ -114,6 +131,7 @@ swiftc \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
+  "$ROOT/Sources/UI/NBTNode.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
@@ -2279,3 +2297,17 @@ grep -q '常加载区域编辑…' "$CHUNK_UI" && \
 }
 
 echo 'Native tickingarea_ storage, legacy migration and map/chunk contextual editing passed'
+
+
+# Circular tickingarea bounds are persisted in blocks, but the command/editor
+# radius is measured in chunks. NBT batch paste must keep all copied items and
+# only ask how to resolve actual Compound name conflicts.
+TICKING_STORE="$ROOT/Sources/World/TickingAreaStore.swift"
+TICKING_UI="$ROOT/Sources/UI/TickingAreaViewControllers.swift"
+NBT_EDITING_UI="$ROOT/Sources/UI/NBTEditingUI.swift"
+NBT_NODE="$ROOT/Sources/UI/NBTNode.swift"
+grep -q 'chunkDistance(fromBlockDistance: halfExtent)' "$TICKING_STORE" && grep -q 'blockDistance(fromChunkDistance: radiusChunks)' "$TICKING_UI" && grep -q 'centerBlockX' "$TICKING_STORE" && grep -q '半径（区块）' "$TICKING_UI" && grep -q 'title: "存在同名标签"' "$NBT_EDITING_UI" && grep -q 'title: "保留"' "$NBT_EDITING_UI" && grep -q 'title: "覆盖"' "$NBT_EDITING_UI" && ! grep -q '可修改粘贴后的标签名称' "$NBT_EDITING_UI" && grep -q 'replacingExisting: Bool = false' "$NBT_NODE" || {
+  echo 'error: tickingarea radius conversion or batch NBT conflict paste is incomplete' >&2
+  exit 1
+}
+echo 'Tickingarea chunk-radius conversion and batch NBT conflict paste passed'

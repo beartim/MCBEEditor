@@ -2,6 +2,8 @@ import UIKit
 
 enum NBTEditingUI {
 
+    typealias TagInsertionCompletion = (_ name: String?, _ value: NBTValue, _ replacingExisting: Bool) -> Void
+
     private static let tagPasteboardType = "com.wzn.blocktopograph.nbt-tag"
     private static let batchTagPasteboardType = "com.wzn.blocktopograph.nbt-tags-v1"
     private static let batchMagic = Data("BTNBTB1".utf8)
@@ -59,7 +61,7 @@ enum NBTEditingUI {
         from presenter: UIViewController,
         node: NBTNode,
         sourceView: UIView? = nil,
-        pasteCompletion: @escaping (_ name: String?, _ value: NBTValue) -> Void
+        pasteCompletion: @escaping TagInsertionCompletion
     ) -> [UIAction] {
         var actions = [UIAction]()
         actions.append(UIAction(title: "复制标签", image: UIImage(systemName: "doc.on.doc")) { _ in
@@ -82,15 +84,19 @@ enum NBTEditingUI {
         from presenter: UIViewController,
         container: NBTValue,
         sourceView: UIView? = nil,
-        completion: @escaping (_ name: String?, _ value: NBTValue) -> Void
+        completion: @escaping TagInsertionCompletion
     ) {
         guard hasCopiedTag else {
-            presentAdd(from: presenter, container: container, sourceView: sourceView, completion: completion)
+            presentAdd(from: presenter, container: container, sourceView: sourceView) { name, value in
+                completion(name, value, false)
+            }
             return
         }
         let sheet = UIAlertController(title: "增加 NBT 标签", message: nil, preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: "新建标签", style: .default) { _ in
-            presentAdd(from: presenter, container: container, sourceView: sourceView, completion: completion)
+            presentAdd(from: presenter, container: container, sourceView: sourceView) { name, value in
+                completion(name, value, false)
+            }
         })
         sheet.addAction(UIAlertAction(title: "粘贴已复制标签", style: .default) { _ in
             presentPaste(from: presenter, container: container, sourceView: sourceView, completion: completion)
@@ -104,7 +110,7 @@ enum NBTEditingUI {
         from presenter: UIViewController,
         container: NBTValue,
         sourceView: UIView? = nil,
-        completion: @escaping (_ name: String?, _ value: NBTValue) -> Void
+        completion: @escaping TagInsertionCompletion
     ) {
         do {
             let copied = try copiedTags()
@@ -113,34 +119,53 @@ enum NBTEditingUI {
             }
             switch container {
             case .compound(let existing):
-                if copied.count == 1, let item = copied.first {
-                    let alert = UIAlertController(
-                        title: "粘贴 NBT 标签",
-                        message: "可修改粘贴后的标签名称。",
-                        preferredStyle: .alert
-                    )
-                    alert.addTextField { field in
-                        field.text = item.name.isEmpty ? "复制的标签" : item.name
-                        field.clearButtonMode = .whileEditing
-                        field.autocapitalizationType = .none
-                        field.autocorrectionType = .no
-                    }
-                    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-                    alert.addAction(UIAlertAction(title: "粘贴", style: .default) { [weak alert] _ in
-                        completion(alert?.textFields?.first?.text, item.value)
-                    })
-                    presenter.present(alert, animated: true)
-                } else {
-                    var usedNames = Set(existing.map(\.name))
-                    for item in copied {
-                        let base = item.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? "复制的标签"
-                            : item.name
-                        let name = uniqueName(base: base, usedNames: &usedNames)
-                        completion(name, item.value)
-                    }
-                    presenter.navigationItem.prompt = "已粘贴 \(copied.count) 个 NBT 标签"
+                let existingNames = Set(existing.map(\.name))
+                let prepared = preparedCompoundTags(copied, existingNames: existingNames)
+                var observedNames = existingNames
+                var conflictNames = Set<String>()
+                for item in prepared {
+                    if observedNames.contains(item.name) { conflictNames.insert(item.name) }
+                    observedNames.insert(item.name)
                 }
+
+                let applyPaste: (_ overwrite: Bool) -> Void = { overwrite in
+                    var occupiedNames = existingNames
+                    var pastedCount = 0
+                    for item in prepared {
+                        let conflicts = occupiedNames.contains(item.name)
+                        if conflicts, !overwrite { continue }
+                        completion(item.name, item.value, overwrite && conflicts)
+                        occupiedNames.insert(item.name)
+                        pastedCount += 1
+                    }
+                    if conflictNames.isEmpty {
+                        presenter.navigationItem.prompt = pastedCount == 1
+                            ? "已粘贴 NBT 标签"
+                            : "已粘贴 \(pastedCount) 个 NBT 标签"
+                    } else if overwrite {
+                        presenter.navigationItem.prompt = "已粘贴 \(pastedCount) 个标签并覆盖同名标签"
+                    } else {
+                        presenter.navigationItem.prompt = "已粘贴 \(pastedCount) 个标签；同名标签已保留"
+                    }
+                }
+
+                guard !conflictNames.isEmpty else {
+                    applyPaste(false)
+                    return
+                }
+                let names = conflictNames.sorted()
+                let shown = names.prefix(8).joined(separator: "、")
+                let suffix = names.count > 8 ? " 等 \(names.count) 个" : ""
+                let alert = UIAlertController(
+                    title: "存在同名标签",
+                    message: "同级 Compound 中已存在：\(shown)\(suffix)。请选择覆盖已有标签，或保留已有标签并跳过冲突项。",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+                alert.addAction(UIAlertAction(title: "保留", style: .default) { _ in applyPaste(false) })
+                alert.addAction(UIAlertAction(title: "覆盖", style: .destructive) { _ in applyPaste(true) })
+                presenter.present(alert, animated: true)
+
             case .list(let elementType, let values):
                 let expectedType: NBTTagType
                 if elementType == .end, values.isEmpty {
@@ -154,13 +179,26 @@ enum NBTEditingUI {
                         "该 List 只能粘贴 \(expectedType.displayName)，复制标签包含：\(copiedTypes)"
                     )
                 }
-                for item in copied { completion(nil, item.value) }
+                for item in copied { completion(nil, item.value, false) }
                 presenter.navigationItem.prompt = copied.count == 1 ? "已粘贴 NBT 标签" : "已粘贴 \(copied.count) 个 NBT 标签"
             default:
                 throw BlocktopographError.unsupported("只能向 Compound 或 List 粘贴标签")
             }
         } catch {
             presenter.showError(error, title: "粘贴标签失败")
+        }
+    }
+
+    private static func preparedCompoundTags(
+        _ copied: [(name: String, value: NBTValue)],
+        existingNames: Set<String>
+    ) -> [(name: String, value: NBTValue)] {
+        var generatedNames = existingNames
+        return copied.map { item in
+            let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty else { return (trimmed, item.value) }
+            let name = uniqueName(base: "复制的标签", usedNames: &generatedNames)
+            return (name, item.value)
         }
     }
 

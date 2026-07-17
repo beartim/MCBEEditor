@@ -246,14 +246,14 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     }
 
     @objc private func addToRoot() {
-        NBTEditingUI.presentAddOrPaste(from: self, container: document.root, sourceView: view) { [weak self] name, value in
-            self?.add(value: value, name: name, to: [])
+        NBTEditingUI.presentAddOrPaste(from: self, container: document.root, sourceView: view) { [weak self] name, value, replacingExisting in
+            self?.add(value: value, name: name, to: [], replacingExisting: replacingExisting)
         }
     }
 
-    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent]) {
+    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent], replacingExisting: Bool = false) {
         do {
-            document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: document.root)
+            document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: document.root, replacingExisting: replacingExisting)
             expanded.insert(path)
             dirty = true
             rebuildRows()
@@ -302,8 +302,8 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
                         from: self,
                         container: node.value,
                         sourceView: tableView.cellForRow(at: indexPath)
-                    ) { [weak self] name, value in
-                        self?.add(value: value, name: name, to: node.path)
+                    ) { [weak self] name, value, replacingExisting in
+                        self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
                     }
                 })
             case .list:
@@ -313,8 +313,8 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
                         from: self,
                         container: node.value,
                         sourceView: tableView.cellForRow(at: indexPath)
-                    ) { [weak self] name, value in
-                        self?.add(value: value, name: name, to: node.path)
+                    ) { [weak self] name, value, replacingExisting in
+                        self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
                     }
                 })
             default:
@@ -337,8 +337,8 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
                 from: self,
                 node: node,
                 sourceView: tableView.cellForRow(at: indexPath)
-            ) { [weak self] name, value in
-                self?.add(value: value, name: name, to: node.path)
+            ) { [weak self] name, value, replacingExisting in
+                self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
             })
             if !node.path.isEmpty {
                 actions.append(UIAction(

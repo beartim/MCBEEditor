@@ -18,4 +18,15 @@ enum MapCoordinate {
     static func absoluteBlock(chunk: Int32, local: Int) -> Int64 {
         blockOrigin(ofChunk: chunk) + Int64(local)
     }
+
+    /// Convert a non-negative distance stored in blocks to the chunk count used
+    /// by commands such as `/tickingarea add circle`. Partial chunks round up.
+    static func chunkDistance(fromBlockDistance distance: Int64) -> Int32 {
+        let nonnegative = max(0, distance)
+        return Int32(clamping: (nonnegative + blocksPerChunk - 1) / blocksPerChunk)
+    }
+
+    static func blockDistance(fromChunkDistance distance: Int64) -> Int64 {
+        max(0, distance) * blocksPerChunk
+    }
 }

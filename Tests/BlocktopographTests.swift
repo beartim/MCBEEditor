@@ -349,13 +349,33 @@ final class BlocktopographTests: XCTestCase {
 
         let circle = BedrockTickingArea(
             dimension: 1, isCircle: true,
-            minimumX: -2, minimumZ: -2, maximumX: 2, maximumZ: 2,
+            minimumX: -32, minimumZ: -32, maximumX: 32, maximumZ: 32,
             name: "circle", preload: false
         )
         XCTAssertEqual(circle.radius, 2)
+        XCTAssertEqual(circle.centerChunk.x, 0)
+        XCTAssertEqual(circle.centerChunk.z, 0)
         XCTAssertTrue(circle.contains(chunkX: 0, chunkZ: 2))
         XCTAssertFalse(circle.contains(chunkX: 2, chunkZ: 2))
         XCTAssertNoThrow(try TickingAreaStore.validate(circle))
+
+        let nativeFourChunkCircle = BedrockTickingArea(
+            dimension: 0, isCircle: true,
+            minimumX: -54, minimumZ: -59, maximumX: 74, maximumZ: 69,
+            name: "radius4", preload: false
+        )
+        XCTAssertEqual(nativeFourChunkCircle.radius, 4)
+        XCTAssertEqual(nativeFourChunkCircle.centerBlockX, 10)
+        XCTAssertEqual(nativeFourChunkCircle.centerBlockZ, 5)
+        XCTAssertEqual(nativeFourChunkCircle.centerChunk.x, 0)
+        XCTAssertEqual(nativeFourChunkCircle.centerChunk.z, 0)
+        XCTAssertTrue(nativeFourChunkCircle.contains(chunkX: 4, chunkZ: 0))
+        XCTAssertFalse(nativeFourChunkCircle.contains(chunkX: 5, chunkZ: 0))
+
+        let selection = TickingAreaSelectionContext(
+            dimension: 0, minimumX: 4, minimumZ: 0, maximumX: 4, maximumZ: 0
+        )
+        XCTAssertTrue(selection.intersects(nativeFourChunkCircle))
     }
 
 }

@@ -235,15 +235,15 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
 
     @objc private func addToRoot() {
         guard let root = levelDat?.document.root else { return }
-        NBTEditingUI.presentAddOrPaste(from: self, container: root, sourceView: view) { [weak self] name, value in
-            self?.add(value: value, name: name, to: [])
+        NBTEditingUI.presentAddOrPaste(from: self, container: root, sourceView: view) { [weak self] name, value, replacingExisting in
+            self?.add(value: value, name: name, to: [], replacingExisting: replacingExisting)
         }
     }
 
-    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent]) {
+    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent], replacingExisting: Bool = false) {
         guard var file = levelDat else { return }
         do {
-            file.document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: file.document.root)
+            file.document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: file.document.root, replacingExisting: replacingExisting)
             levelDat = file
             expanded.insert(path)
             dirty = true
@@ -321,8 +321,8 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
                 from: self,
                 node: node,
                 sourceView: tableView.cellForRow(at: indexPath)
-            ) { [weak self] name, value in
-                self?.add(value: value, name: name, to: node.path)
+            ) { [weak self] name, value, replacingExisting in
+                self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
             })
             actions.append(UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
                 guard let self = self else { return }

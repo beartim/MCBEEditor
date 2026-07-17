@@ -90,7 +90,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
         contentStack.addArrangedSubview(fieldRow(title: "维度", control: dimensionControl))
         contentStack.addArrangedSubview(fieldRow(title: "形状", control: shapeControl))
         contentStack.addArrangedSubview(fieldRow(title: "进入世界时预加载", control: preloadSwitch))
-        contentStack.addArrangedSubview(sectionTitle("区块坐标"))
+        contentStack.addArrangedSubview(sectionTitle("坐标"))
         contentStack.addArrangedSubview(coordinateRow(label: firstXLabel, field: firstXField))
         contentStack.addArrangedSubview(coordinateRow(label: firstZLabel, field: firstZField))
         contentStack.addArrangedSubview(coordinateRow(label: secondXLabel, field: secondXField))
@@ -111,7 +111,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
         note.font = .preferredFont(forTextStyle: .footnote)
         note.textColor = .secondaryLabel
         note.numberOfLines = 0
-        note.text = "坐标单位为区块。基岩版每个世界最多 10 个常加载区域；单个区域最多 100 个区块；圆形半径最多 4 个区块。"
+        note.text = "矩形边界坐标单位为区块；圆形中心坐标单位为方块，半径单位为区块。基岩版每个世界最多 10 个常加载区域；单个区域最多 100 个区块；圆形半径最多 4 个区块。"
         contentStack.addArrangedSubview(note)
     }
 
@@ -131,9 +131,8 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
         shapeControl.selectedSegmentIndex = area.isCircle ? 1 : 0
         preloadSwitch.isOn = area.preload
         if area.isCircle {
-            let center = area.centerChunk
-            firstXField.text = String(center.x)
-            firstZField.text = String(center.z)
+            firstXField.text = String(area.centerBlockX)
+            firstZField.text = String(area.centerBlockZ)
             secondXField.text = String(area.radius)
             secondZField.text = ""
         } else {
@@ -183,9 +182,9 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
 
     private func updateShapeUI() {
         let circle = shapeControl.selectedSegmentIndex == 1
-        firstXLabel.text = circle ? "中心 X" : "最小 X"
-        firstZLabel.text = circle ? "中心 Z" : "最小 Z"
-        secondXLabel.text = circle ? "半径" : "最大 X"
+        firstXLabel.text = circle ? "中心方块 X" : "最小区块 X"
+        firstZLabel.text = circle ? "中心方块 Z" : "最小区块 Z"
+        secondXLabel.text = circle ? "半径（区块）" : "最大区块 X"
         secondZLabel.text = "最大 Z"
         secondZRow.isHidden = circle
         updateSummary()
@@ -202,13 +201,16 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
               firstZ >= Int64(Int32.min), firstZ <= Int64(Int32.max) else { return nil }
         let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
         if shapeControl.selectedSegmentIndex == 1 {
-            let radius = max(0, secondX)
-            let minimumX = firstX - radius
-            let minimumZ = firstZ - radius
-            let maximumX = firstX + radius
-            let maximumZ = firstZ + radius
-            guard radius <= Int64(Int32.max),
-                  minimumX >= Int64(Int32.min), minimumZ >= Int64(Int32.min),
+            let radiusChunks = max(0, secondX)
+            guard radiusChunks <= Int64(TickingAreaStore.maximumCircleRadius) else { return nil }
+            let centerBlockX = firstX
+            let centerBlockZ = firstZ
+            let radiusBlocks = MapCoordinate.blockDistance(fromChunkDistance: radiusChunks)
+            let minimumX = centerBlockX - radiusBlocks
+            let minimumZ = centerBlockZ - radiusBlocks
+            let maximumX = centerBlockX + radiusBlocks
+            let maximumZ = centerBlockZ + radiusBlocks
+            guard minimumX >= Int64(Int32.min), minimumZ >= Int64(Int32.min),
                   maximumX <= Int64(Int32.max), maximumZ <= Int64(Int32.max) else { return nil }
             return BedrockTickingArea(
                 dimension: dimension,
@@ -238,7 +240,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
 
     private func updateSummary() {
         guard let area = draftArea() else {
-            summaryLabel.text = "请输入完整的整数区块坐标。"
+            summaryLabel.text = "请输入完整的整数坐标。"
             return
         }
         summaryLabel.text = area.detailText
@@ -247,7 +249,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
     @objc private func save() {
         view.endEditing(true)
         guard let area = draftArea() else {
-            showError(BlocktopographError.malformedData("请输入完整的整数区块坐标"), title: "坐标错误")
+            showError(BlocktopographError.malformedData("请输入完整的整数坐标"), title: "坐标错误")
             return
         }
         if isCreating, existingCount >= TickingAreaStore.maximumAreaCount {

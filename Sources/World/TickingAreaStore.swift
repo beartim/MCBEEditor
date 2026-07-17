@@ -23,22 +23,43 @@ struct BedrockTickingArea: Equatable {
         BedrockDimension(rawValue: dimension)?.displayName ?? "维度 \(dimension)"
     }
 
+    /// Circular ticking areas persist their center/bounds in block coordinates.
+    /// Rectangular ticking areas persist their Min/Max values in chunk coordinates.
+    var centerBlockX: Int64 {
+        let value = normalized
+        return Int64(value.minimumX) + (Int64(value.maximumX) - Int64(value.minimumX)) / 2
+    }
+
+    var centerBlockZ: Int64 {
+        let value = normalized
+        return Int64(value.minimumZ) + (Int64(value.maximumZ) - Int64(value.minimumZ)) / 2
+    }
+
     var centerChunk: ChunkPosition {
         let value = normalized
-        let centerX = Int64(value.minimumX) + (Int64(value.maximumX) - Int64(value.minimumX)) / 2
-        let centerZ = Int64(value.minimumZ) + (Int64(value.maximumZ) - Int64(value.minimumZ)) / 2
+        if value.isCircle {
+            return ChunkPosition(
+                x: MapCoordinate.chunk(fromBlock: value.centerBlockX),
+                z: MapCoordinate.chunk(fromBlock: value.centerBlockZ),
+                dimension: value.dimension
+            )
+        }
         return ChunkPosition(
-            x: Int32(clamping: centerX),
-            z: Int32(clamping: centerZ),
+            x: Int32(clamping: value.centerBlockX),
+            z: Int32(clamping: value.centerBlockZ),
             dimension: value.dimension
         )
     }
 
+    /// Radius shown by `/tickingarea` is measured in chunks. The persisted circular
+    /// bounding box is measured in blocks, so convert the half-extent by 16.
     var radius: Int32 {
         let value = normalized
         let width = Int64(value.maximumX) - Int64(value.minimumX)
         let depth = Int64(value.maximumZ) - Int64(value.minimumZ)
-        return Int32(clamping: max(width, depth) / 2)
+        let halfExtent = max(width, depth) / 2
+        guard value.isCircle else { return Int32(clamping: halfExtent) }
+        return MapCoordinate.chunkDistance(fromBlockDistance: halfExtent)
     }
 
     var chunkCount: Int {
@@ -60,9 +81,10 @@ struct BedrockTickingArea: Equatable {
 
     func contains(chunkX: Int32, chunkZ: Int32) -> Bool {
         let value = normalized
-        guard chunkX >= value.minimumX, chunkX <= value.maximumX,
-              chunkZ >= value.minimumZ, chunkZ <= value.maximumZ else { return false }
-        guard value.isCircle else { return true }
+        guard value.isCircle else {
+            return chunkX >= value.minimumX && chunkX <= value.maximumX
+                && chunkZ >= value.minimumZ && chunkZ <= value.maximumZ
+        }
         let center = value.centerChunk
         let dx = Int64(chunkX) - Int64(center.x)
         let dz = Int64(chunkZ) - Int64(center.z)
@@ -74,8 +96,7 @@ struct BedrockTickingArea: Equatable {
         let value = normalized
         let shape: String
         if value.isCircle {
-            let center = value.centerChunk
-            shape = "圆形：中心 (\(center.x), \(center.z))，半径 \(value.radius)"
+            shape = "圆形：中心方块 (\(value.centerBlockX), \(value.centerBlockZ))，半径 \(value.radius) 区块"
         } else {
             shape = "矩形：(\(value.minimumX), \(value.minimumZ)) 至 (\(value.maximumX), \(value.maximumZ))"
         }
@@ -151,10 +172,11 @@ struct TickingAreaSelectionContext: Equatable {
 
     func intersects(_ area: BedrockTickingArea) -> Bool {
         let value = area.normalized
-        guard value.dimension == dimension,
-              value.maximumX >= minimumX, maximumX >= value.minimumX,
-              value.maximumZ >= minimumZ, maximumZ >= value.minimumZ else { return false }
-        guard value.isCircle else { return true }
+        guard value.dimension == dimension else { return false }
+        guard value.isCircle else {
+            return value.maximumX >= minimumX && maximumX >= value.minimumX
+                && value.maximumZ >= minimumZ && maximumZ >= value.minimumZ
+        }
 
         let center = value.centerChunk
         let closestX = min(max(Int64(center.x), Int64(minimumX)), Int64(maximumX))

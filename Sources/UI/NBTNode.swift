@@ -74,26 +74,41 @@ enum NBTTreeMutation {
 
 
 
-    static func adding(_ value: NBTValue, named name: String?, to path: [NBTPathComponent], in root: NBTValue) throws -> NBTValue {
+    static func adding(
+        _ value: NBTValue,
+        named name: String?,
+        to path: [NBTPathComponent],
+        in root: NBTValue,
+        replacingExisting: Bool = false
+    ) throws -> NBTValue {
         if path.isEmpty {
-            return try appending(value, named: name, to: root)
+            return try appending(value, named: name, to: root, replacingExisting: replacingExisting)
         }
         guard let container = self.value(at: path, in: root) else {
             throw BlocktopographError.malformedData("NBT 容器路径不存在")
         }
-        let replacement = try appending(value, named: name, to: container)
+        let replacement = try appending(value, named: name, to: container, replacingExisting: replacingExisting)
         return try replacingValue(at: path, in: root, with: replacement)
     }
 
-    private static func appending(_ value: NBTValue, named name: String?, to container: NBTValue) throws -> NBTValue {
+    private static func appending(
+        _ value: NBTValue,
+        named name: String?,
+        to container: NBTValue,
+        replacingExisting: Bool
+    ) throws -> NBTValue {
         switch container {
         case .compound(var tags):
             let cleanName = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleanName.isEmpty else {
                 throw BlocktopographError.malformedData("Compound 标签名称不能为空")
             }
-            guard !tags.contains(where: { $0.name == cleanName }) else {
-                throw BlocktopographError.malformedData("同级 Compound 已存在标签：\(cleanName)")
+            if let existingIndex = tags.firstIndex(where: { $0.name == cleanName }) {
+                guard replacingExisting else {
+                    throw BlocktopographError.malformedData("同级 Compound 已存在标签：\(cleanName)")
+                }
+                tags[existingIndex].value = value
+                return .compound(tags)
             }
             tags.append(NBTNamedTag(name: cleanName, value: value))
             return .compound(tags)

@@ -174,14 +174,14 @@ final class PlayerNBTEditorViewController: UITableViewController, UISearchResult
 
 
     @objc private func addToRoot() {
-        NBTEditingUI.presentAddOrPaste(from: self, container: document.root, sourceView: view) { [weak self] name, value in
-            self?.add(value: value, name: name, to: [])
+        NBTEditingUI.presentAddOrPaste(from: self, container: document.root, sourceView: view) { [weak self] name, value, replacingExisting in
+            self?.add(value: value, name: name, to: [], replacingExisting: replacingExisting)
         }
     }
 
-    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent]) {
+    private func add(value: NBTValue, name: String?, to path: [NBTPathComponent], replacingExisting: Bool = false) {
         do {
-            document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: document.root)
+            document.root = try NBTTreeMutation.adding(value, named: name, to: path, in: document.root, replacingExisting: replacingExisting)
             expanded.insert(path)
             dirty = true
             rebuildRows()
@@ -256,8 +256,8 @@ final class PlayerNBTEditorViewController: UITableViewController, UISearchResult
                 from: self,
                 node: node,
                 sourceView: tableView.cellForRow(at: indexPath)
-            ) { [weak self] name, value in
-                self?.add(value: value, name: name, to: node.path)
+            ) { [weak self] name, value, replacingExisting in
+                self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
             })
             actions.append(UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
                 guard let self = self else { return }
