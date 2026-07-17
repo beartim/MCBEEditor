@@ -1044,9 +1044,9 @@ done
 for expected in \
   'case modernActor(actorKey: Data, digestKey: Data' \
   'case chunkRecord(key: Data, recordIndex: Int' \
-  'sourceIDs.removeAll { $0 == actorID }' \
-  'database.delete(change.key, sync: true)' \
-  'UniqueID 决定 actorprefix 键和 digp 索引'; do
+  'sourceIDs.removeAll { $0 == originalID }' \
+  'database.applyBatch(puts: puts, deletes: deletes' \
+  'UniqueID 可修改但不能删除或重命名'; do
   grep -qF "$expected" \
     "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
     "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
@@ -1055,6 +1055,23 @@ for expected in \
       exit 1
     }
 done
+for expected in \
+  'func create(' \
+  'func delete(object:' \
+  'uniqueIDChanged: Bool' \
+  'makeActorKey(id: editedActorID)' \
+  'WorldObjectCreationViewController(' \
+  '复制为新\(object.kind.displayName)' \
+  'confirmDelete(_ object:'; do
+  grep -R -qF "$expected" \
+    "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+    "$ROOT/Sources/UI/EntityBrowserViewController.swift" \
+    "$ROOT/Sources/UI/WorldObjectCreationViewController.swift" || {
+      echo "error: entity/block-entity create/delete or UniqueID migration is missing: $expected" >&2
+      exit 1
+    }
+done
+
 for source in \
   "$ROOT/Sources/UI/EntityBrowserViewController.swift" \
   "$ROOT/Sources/UI/WorldMapViewController.swift" \
@@ -1130,10 +1147,10 @@ struct WorldObjectNBTTest {
             NBTNamedTag(name: "UniqueID", value: .long(actorID)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(1.5), .float(64), .float(1.5)]))
         ]))
-        let actorKey = actorKey(actorID)
+        let actorStorageKey = actorKey(actorID)
         let oldDigestKey = digestKey(0, 0, 0)
         let database = MojangLevelDB(values: [
-            actorKey: try BedrockNBTCodec.encode(actorDocument),
+            actorStorageKey: try BedrockNBTCodec.encode(actorDocument),
             oldDigestKey: digest(actorID)
         ])
         let session = WorldSession(db: database)
@@ -1189,7 +1206,70 @@ struct WorldObjectNBTTest {
         let targetRecords = try ConsecutiveNBTCodec.decode(database.values[targetKey]!)
         precondition(targetRecords.count == 1)
         precondition(targetRecords[0].document.root.stringValue(namedAny: ["id"]) == "Chest")
-        print("Entity and block-entity NBT write/migration tests passed")
+
+        // UniqueID changes must migrate both actorprefix and digp references.
+        let movedActor = try scanner.scanRegion(
+            centerX: 2, centerZ: 0, dimension: 0, radius: 0,
+            includeEntities: true, includeBlockEntities: false
+        ).objects[0]
+        var identityEdited = movedActor.document
+        identityEdited.root = try NBTTreeMutation.replacingValue(
+            at: [.compound("UniqueID")], in: identityEdited.root, with: .long(84)
+        )
+        let identityResult = try BedrockWorldObjectNBTStore(session: session).save(
+            object: movedActor,
+            document: identityEdited
+        )
+        precondition(identityResult.uniqueIDChanged && identityResult.destinationUniqueID == 84)
+        precondition(database.values[actorKey(actorID)] == nil)
+        precondition(database.values[actorKey(84)] != nil)
+        precondition(database.values[digestKey(2, 0, 0)] == digest(84))
+
+        let renamedActor = try scanner.scanRegion(
+            centerX: 2, centerZ: 0, dimension: 0, radius: 0,
+            includeEntities: true, includeBlockEntities: false
+        ).objects[0]
+        try BedrockWorldObjectNBTStore(session: session).delete(object: renamedActor)
+        precondition(database.values[actorKey(84)] == nil)
+        precondition(database.values[digestKey(2, 0, 0)] == nil)
+
+        let createdActor = try BedrockWorldObjectNBTStore(session: session).create(
+            kind: .entity,
+            identifier: "minecraft:cow",
+            position: BedrockWorldObjectPosition(x: 80, y: 70, z: 16),
+            dimension: 0,
+            uniqueID: 1001,
+            template: nil
+        )
+        precondition(createdActor.uniqueID == 1001)
+        precondition(database.values[actorKey(1001)] != nil)
+        precondition(database.values[digestKey(5, 1, 0)] == digest(1001))
+
+        let createdBlockEntity = try BedrockWorldObjectNBTStore(session: session).create(
+            kind: .blockEntity,
+            identifier: "Chest",
+            position: BedrockWorldObjectPosition(x: 96, y: 64, z: 16),
+            dimension: 0,
+            uniqueID: nil,
+            template: nil
+        )
+        let createdBlockKey = BedrockDBKey(
+            position: ChunkPosition(x: createdBlockEntity.chunkX, z: createdBlockEntity.chunkZ, dimension: 0),
+            recordType: .blockEntity,
+            subChunkIndex: nil
+        ).encoded()
+        let createdBlockRecord = try ConsecutiveNBTCodec.decode(database.values[createdBlockKey]!)[0]
+        let createdBlockObject = BedrockWorldObject(
+            stableID: "created-block", kind: .blockEntity, identifier: "Chest", customName: nil,
+            position: BedrockWorldObjectPosition(x: 96, y: 64, z: 16), dimension: 0,
+            chunkX: createdBlockEntity.chunkX, chunkZ: createdBlockEntity.chunkZ,
+            source: .blockEntity, uniqueID: nil, itemCount: 0,
+            document: createdBlockRecord.document, rawData: createdBlockRecord.rawData,
+            storage: .chunkRecord(key: createdBlockKey, recordIndex: 0, encoding: createdBlockRecord.encoding)
+        )
+        try BedrockWorldObjectNBTStore(session: session).delete(object: createdBlockObject)
+        precondition(database.values[createdBlockKey] == nil)
+        print("Entity/block-entity create, delete, UniqueID and position migration tests passed")
     }
 }
 SWIFT

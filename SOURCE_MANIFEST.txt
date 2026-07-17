@@ -4,6 +4,7 @@ APPLY.md
 CHANGES_v1.1.0.md
 CHANGES_v1.1.1.md
 CHANGES_v1.1.2.md
+CHANGES_v1.1.3.md
 LICENSE
 PORT_STATUS.md
 README.md
@@ -110,6 +111,7 @@ Sources/UI/WeatherEditorViewController.swift
 Sources/UI/WorldDetailTabBarController.swift
 Sources/UI/WorldListViewController.swift
 Sources/UI/WorldMapViewController.swift
+Sources/UI/WorldObjectCreationViewController.swift
 Sources/UI/WorldObjectNBTEditorViewController.swift
 Sources/UI/WorldToolsViewController.swift
 Sources/World/JavaStructureConverter.swift

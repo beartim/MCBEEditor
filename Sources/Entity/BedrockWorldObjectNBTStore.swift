@@ -2,9 +2,19 @@ import Foundation
 
 struct BedrockWorldObjectSaveResult {
     let moved: Bool
+    let uniqueIDChanged: Bool
     let destinationDimension: Int32
     let destinationChunkX: Int32
     let destinationChunkZ: Int32
+    let destinationUniqueID: Int64?
+}
+
+struct BedrockWorldObjectCreateResult {
+    let kind: BedrockWorldObjectKind
+    let dimension: Int32
+    let chunkX: Int32
+    let chunkZ: Int32
+    let uniqueID: Int64?
 }
 
 final class BedrockWorldObjectNBTStore {
@@ -22,7 +32,7 @@ final class BedrockWorldObjectNBTStore {
     }
 
     func save(object: BedrockWorldObject, document: NBTDocument) throws -> BedrockWorldObjectSaveResult {
-        try validateIdentity(of: object, editedDocument: document)
+        try validateDocument(document, for: object)
         switch object.storage {
         case .modernActor(let actorKey, let digestKey, let recordIndex, _):
             return try saveModernActor(
@@ -42,6 +52,145 @@ final class BedrockWorldObjectNBTStore {
         }
     }
 
+    func delete(object: BedrockWorldObject) throws {
+        switch object.storage {
+        case .modernActor(let actorKey, let digestKey, let recordIndex, _):
+            try deleteModernActor(
+                object: object,
+                actorKey: actorKey,
+                digestKey: digestKey,
+                recordIndex: recordIndex
+            )
+        case .chunkRecord(let key, let recordIndex, _):
+            try deleteChunkRecord(object: object, key: key, recordIndex: recordIndex)
+        }
+    }
+
+    func suggestedUniqueID() throws -> Int64 {
+        let database = try session.database()
+        for _ in 0..<128 {
+            let candidate = Int64.random(in: 1...Int64.max)
+            if try isEntityUniqueIDAvailable(candidate, excluding: nil, database: database) {
+                return candidate
+            }
+        }
+        throw BlocktopographError.unsupported("无法生成未占用的实体 UniqueID，请手动填写。")
+    }
+
+    func create(
+        kind: BedrockWorldObjectKind,
+        identifier: String,
+        position: BedrockWorldObjectPosition,
+        dimension: Int32,
+        uniqueID: Int64?,
+        template: BedrockWorldObject?
+    ) throws -> BedrockWorldObjectCreateResult {
+        let trimmedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIdentifier.isEmpty else {
+            throw BlocktopographError.malformedData("实体或方块实体 ID 不能为空。")
+        }
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
+            throw BlocktopographError.malformedData("坐标必须是有限数字。")
+        }
+        if let template = template, template.kind != kind {
+            throw BlocktopographError.unsupported("模板类型与要创建的对象类型不一致。")
+        }
+
+        let database = try session.database()
+        switch kind {
+        case .entity:
+            let actorID: Int64
+            if let uniqueID = uniqueID {
+                actorID = uniqueID
+            } else {
+                actorID = try suggestedUniqueID()
+            }
+            guard actorID != 0 else {
+                throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
+            }
+            guard try isEntityUniqueIDAvailable(actorID, excluding: nil, database: database) else {
+                throw BlocktopographError.unsupported("UniqueID \(actorID) 已被其他实体占用。")
+            }
+
+            let document = try makeCreationDocument(
+                kind: kind,
+                identifier: trimmedIdentifier,
+                position: position,
+                dimension: dimension,
+                uniqueID: actorID,
+                template: template?.document
+            )
+            let encoding = template?.storage.encoding ?? .littleEndian
+            let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
+            let actorKey = makeActorKey(id: actorID)
+            let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
+            let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
+            let digestKey = makeDigestKey(
+                x: chunkX,
+                z: chunkZ,
+                dimension: dimension,
+                preserveLegacyOverworldForm: false
+            )
+            let currentDigest = try database.get(digestKey)
+            var actorIDs = try currentDigest.map(decodeActorIDs) ?? []
+            if !actorIDs.contains(actorID) { actorIDs.append(actorID) }
+
+            try database.applyBatch(
+                puts: [
+                    (key: actorKey, value: actorValue),
+                    (key: digestKey, value: encodeActorIDs(actorIDs))
+                ],
+                deletes: [],
+                sync: true
+            )
+            return BedrockWorldObjectCreateResult(
+                kind: kind,
+                dimension: dimension,
+                chunkX: chunkX,
+                chunkZ: chunkZ,
+                uniqueID: actorID
+            )
+
+        case .blockEntity:
+            let document = try makeCreationDocument(
+                kind: kind,
+                identifier: trimmedIdentifier,
+                position: position,
+                dimension: dimension,
+                uniqueID: nil,
+                template: template?.document
+            )
+            let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
+            let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
+            let key = BedrockDBKey(
+                position: ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension),
+                recordType: .blockEntity,
+                subChunkIndex: nil
+            ).encoded()
+            let original = try database.get(key)
+            var records = try original.map(ConsecutiveNBTCodec.decode) ?? []
+            if records.contains(where: { record in
+                guard let existing = extractPosition(root: record.document.root, kind: .blockEntity) else { return false }
+                return existing.blockX == position.blockX &&
+                    existing.blockY == position.blockY &&
+                    existing.blockZ == position.blockZ
+            }) {
+                throw BlocktopographError.unsupported("该方块坐标已经存在方块实体。请先编辑或删除原记录。")
+            }
+            let encoding = records.first?.encoding ?? template?.storage.encoding ?? .littleEndian
+            let raw = try BedrockNBTCodec.encode(document, encoding: encoding)
+            records.append(ConsecutiveNBTRecord(document: document, rawData: raw, encoding: encoding))
+            try database.put(try ConsecutiveNBTCodec.encode(records), for: key, sync: true)
+            return BedrockWorldObjectCreateResult(
+                kind: kind,
+                dimension: dimension,
+                chunkX: chunkX,
+                chunkZ: chunkZ,
+                uniqueID: nil
+            )
+        }
+    }
+
     private func saveModernActor(
         object: BedrockWorldObject,
         document: NBTDocument,
@@ -49,87 +198,156 @@ final class BedrockWorldObjectNBTStore {
         digestKey: Data,
         recordIndex: Int
     ) throws -> BedrockWorldObjectSaveResult {
-        guard let actorID = object.uniqueID else {
+        guard let originalActorID = object.uniqueID else {
             throw BlocktopographError.malformedData("现代实体缺少 ActorUniqueID，无法安全写回。")
         }
-        guard !digestKey.isEmpty else {
-            throw BlocktopographError.malformedData("现代实体缺少 digp 摘要键，无法安全写回。")
+        let editedActorID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) ?? originalActorID
+        guard editedActorID != 0 else {
+            throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
         }
 
         let database = try session.database()
+        let targetActorKey = makeActorKey(id: editedActorID)
+        if targetActorKey != actorKey, try database.get(targetActorKey) != nil {
+            throw BlocktopographError.unsupported("UniqueID \(editedActorID) 已存在对应的 actorprefix 记录。")
+        }
+        if editedActorID != originalActorID,
+           try !isEntityUniqueIDAvailable(editedActorID, excluding: object, database: database) {
+            throw BlocktopographError.unsupported("UniqueID \(editedActorID) 已被其他实体占用。")
+        }
+
         guard let currentActorData = try database.get(actorKey) else {
             throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描实体。")
         }
         var actorRecords = try ConsecutiveNBTCodec.decode(currentActorData)
-        let locatedIndex = try locateRecord(
-            object: object,
-            in: actorRecords,
-            preferredIndex: recordIndex
-        )
-        actorRecords[locatedIndex].document = document
-        actorRecords[locatedIndex].rawData = try BedrockNBTCodec.encode(
-            document,
-            encoding: actorRecords[locatedIndex].encoding
-        )
-        let editedActorData = try ConsecutiveNBTCodec.encode(actorRecords)
+        let locatedIndex = try locateRecord(object: object, in: actorRecords, preferredIndex: recordIndex)
+        let sourceEncoding = actorRecords[locatedIndex].encoding
+        let editedRaw = try BedrockNBTCodec.encode(document, encoding: sourceEncoding)
 
         let destination = destination(for: object, document: document)
         let moved = destination.dimension != object.dimension ||
             destination.chunkX != object.chunkX || destination.chunkZ != object.chunkZ
+        let uniqueIDChanged = editedActorID != originalActorID
 
-        var changes = [DatabaseChange(
-            key: actorKey,
-            originalValue: currentActorData,
-            newValue: editedActorData,
-            label: "actorprefix"
-        )]
-
-        if moved {
-            guard let currentDigest = try database.get(digestKey) else {
-                throw BlocktopographError.malformedData("原 digp 摘要已不存在，请重新扫描实体。")
-            }
-            var sourceIDs = try decodeActorIDs(currentDigest)
-            guard sourceIDs.contains(actorID) else {
-                throw BlocktopographError.malformedData("原 digp 摘要不再引用此实体，请重新扫描后再编辑。")
-            }
-            sourceIDs.removeAll { $0 == actorID }
-
-            let destinationDigestKey = makeDigestKey(
-                x: destination.chunkX,
-                z: destination.chunkZ,
-                dimension: destination.dimension,
-                preserveLegacyOverworldForm: digestKey.count == 12 && destination.dimension == 0
-            )
-            if destinationDigestKey == digestKey {
-                // This can only happen when the NBT position changed inside the
-                // same chunk, but keep the branch explicit for data safety.
-            } else {
-                let targetOriginal = try database.get(destinationDigestKey)
-                var targetIDs = try targetOriginal.map(decodeActorIDs) ?? []
-                if !targetIDs.contains(actorID) { targetIDs.append(actorID) }
-
-                changes.append(DatabaseChange(
-                    key: destinationDigestKey,
-                    originalValue: targetOriginal,
-                    newValue: encodeActorIDs(targetIDs),
-                    label: "目标 digp"
-                ))
-                changes.append(DatabaseChange(
-                    key: digestKey,
-                    originalValue: currentDigest,
-                    newValue: sourceIDs.isEmpty ? nil : encodeActorIDs(sourceIDs),
-                    label: "原 digp"
-                ))
-            }
+        var changes = [DatabaseChange]()
+        if targetActorKey == actorKey {
+            actorRecords[locatedIndex].document = document
+            actorRecords[locatedIndex].rawData = editedRaw
+            changes.append(DatabaseChange(
+                key: actorKey,
+                originalValue: currentActorData,
+                newValue: try ConsecutiveNBTCodec.encode(actorRecords),
+                label: "actorprefix"
+            ))
+        } else {
+            actorRecords.remove(at: locatedIndex)
+            let remainingValue = actorRecords.isEmpty ? nil : try ConsecutiveNBTCodec.encode(actorRecords)
+            changes.append(DatabaseChange(
+                key: actorKey,
+                originalValue: currentActorData,
+                newValue: remainingValue,
+                label: "原 actorprefix"
+            ))
+            changes.append(DatabaseChange(
+                key: targetActorKey,
+                originalValue: nil,
+                newValue: editedRaw,
+                label: "目标 actorprefix"
+            ))
         }
+
+        let destinationDigestKey = makeDigestKey(
+            x: destination.chunkX,
+            z: destination.chunkZ,
+            dimension: destination.dimension,
+            preserveLegacyOverworldForm: digestKey.count == 12 && destination.dimension == 0
+        )
+        try appendDigestChanges(
+            sourceKey: digestKey,
+            destinationKey: destinationDigestKey,
+            originalID: originalActorID,
+            editedID: editedActorID,
+            database: database,
+            changes: &changes
+        )
 
         try commit(changes, database: database)
         return BedrockWorldObjectSaveResult(
             moved: moved,
+            uniqueIDChanged: uniqueIDChanged,
             destinationDimension: destination.dimension,
             destinationChunkX: destination.chunkX,
-            destinationChunkZ: destination.chunkZ
+            destinationChunkZ: destination.chunkZ,
+            destinationUniqueID: editedActorID
         )
+    }
+
+    private func appendDigestChanges(
+        sourceKey: Data,
+        destinationKey: Data,
+        originalID: Int64,
+        editedID: Int64,
+        database: MojangLevelDB,
+        changes: inout [DatabaseChange]
+    ) throws {
+        if sourceKey.isEmpty {
+            let targetOriginal = try database.get(destinationKey)
+            var targetIDs = try targetOriginal.map(decodeActorIDs) ?? []
+            if !targetIDs.contains(editedID) { targetIDs.append(editedID) }
+            changes.append(DatabaseChange(
+                key: destinationKey,
+                originalValue: targetOriginal,
+                newValue: encodeActorIDs(targetIDs),
+                label: "目标 digp"
+            ))
+            return
+        }
+
+        if sourceKey == destinationKey {
+            guard let currentDigest = try database.get(sourceKey) else {
+                throw BlocktopographError.malformedData("实体 digp 摘要已不存在，请重新扫描实体。")
+            }
+            var ids = try decodeActorIDs(currentDigest)
+            guard ids.contains(originalID) else {
+                throw BlocktopographError.malformedData("digp 摘要不再引用原 UniqueID，请重新扫描后再编辑。")
+            }
+            ids.removeAll { $0 == originalID || $0 == editedID }
+            ids.append(editedID)
+            changes.append(DatabaseChange(
+                key: sourceKey,
+                originalValue: currentDigest,
+                newValue: encodeActorIDs(ids),
+                label: "digp"
+            ))
+            return
+        }
+
+        guard let sourceOriginal = try database.get(sourceKey) else {
+            throw BlocktopographError.malformedData("原 digp 摘要已不存在，请重新扫描实体。")
+        }
+        var sourceIDs = try decodeActorIDs(sourceOriginal)
+        guard sourceIDs.contains(originalID) else {
+            throw BlocktopographError.malformedData("原 digp 摘要不再引用此实体，请重新扫描后再编辑。")
+        }
+        sourceIDs.removeAll { $0 == originalID }
+
+        let targetOriginal = try database.get(destinationKey)
+        var targetIDs = try targetOriginal.map(decodeActorIDs) ?? []
+        targetIDs.removeAll { $0 == editedID }
+        targetIDs.append(editedID)
+
+        changes.append(DatabaseChange(
+            key: destinationKey,
+            originalValue: targetOriginal,
+            newValue: encodeActorIDs(targetIDs),
+            label: "目标 digp"
+        ))
+        changes.append(DatabaseChange(
+            key: sourceKey,
+            originalValue: sourceOriginal,
+            newValue: sourceIDs.isEmpty ? nil : encodeActorIDs(sourceIDs),
+            label: "原 digp"
+        ))
     }
 
     private func saveChunkRecord(
@@ -139,6 +357,14 @@ final class BedrockWorldObjectNBTStore {
         recordIndex: Int
     ) throws -> BedrockWorldObjectSaveResult {
         let database = try session.database()
+        if object.kind == .entity,
+           let originalID = object.uniqueID,
+           let editedID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]),
+           editedID != originalID,
+           try !isEntityUniqueIDAvailable(editedID, excluding: object, database: database) {
+            throw BlocktopographError.unsupported("UniqueID \(editedID) 已被其他实体占用。")
+        }
+
         guard let sourceData = try database.get(sourceKey) else {
             throw BlocktopographError.malformedData("区块对象记录已不存在，请重新扫描。")
         }
@@ -163,19 +389,20 @@ final class BedrockWorldObjectNBTStore {
         if !moved || targetKey == sourceKey {
             sourceRecords[locatedIndex].document = document
             sourceRecords[locatedIndex].rawData = try BedrockNBTCodec.encode(document, encoding: sourceEncoding)
-            let newSourceData = try ConsecutiveNBTCodec.encode(sourceRecords)
             let changes = [DatabaseChange(
                 key: sourceKey,
                 originalValue: sourceData,
-                newValue: newSourceData,
+                newValue: try ConsecutiveNBTCodec.encode(sourceRecords),
                 label: object.kind.displayName
             )]
             try commit(changes, database: database)
             return BedrockWorldObjectSaveResult(
                 moved: false,
+                uniqueIDChanged: object.uniqueID != document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]),
                 destinationDimension: destination.dimension,
                 destinationChunkX: destination.chunkX,
-                destinationChunkZ: destination.chunkZ
+                destinationChunkZ: destination.chunkZ,
+                destinationUniqueID: document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
             )
         }
 
@@ -186,13 +413,12 @@ final class BedrockWorldObjectNBTStore {
         let targetEncoding = targetRecords.first?.encoding ?? sourceEncoding
         let editedRaw = try BedrockNBTCodec.encode(document, encoding: targetEncoding)
         targetRecords.append(ConsecutiveNBTRecord(document: document, rawData: editedRaw, encoding: targetEncoding))
-        let newTargetData = try ConsecutiveNBTCodec.encode(targetRecords)
 
         let changes = [
             DatabaseChange(
                 key: targetKey,
                 originalValue: targetOriginal,
-                newValue: newTargetData,
+                newValue: try ConsecutiveNBTCodec.encode(targetRecords),
                 label: "目标区块对象记录"
             ),
             DatabaseChange(
@@ -205,10 +431,64 @@ final class BedrockWorldObjectNBTStore {
         try commit(changes, database: database)
         return BedrockWorldObjectSaveResult(
             moved: true,
+            uniqueIDChanged: object.uniqueID != document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]),
             destinationDimension: destination.dimension,
             destinationChunkX: destination.chunkX,
-            destinationChunkZ: destination.chunkZ
+            destinationChunkZ: destination.chunkZ,
+            destinationUniqueID: document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
         )
+    }
+
+    private func deleteModernActor(
+        object: BedrockWorldObject,
+        actorKey: Data,
+        digestKey: Data,
+        recordIndex: Int
+    ) throws {
+        guard let actorID = object.uniqueID else {
+            throw BlocktopographError.malformedData("现代实体缺少 UniqueID，无法安全删除。")
+        }
+        let database = try session.database()
+        guard let actorData = try database.get(actorKey) else {
+            throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描。")
+        }
+        var records = try ConsecutiveNBTCodec.decode(actorData)
+        let index = try locateRecord(object: object, in: records, preferredIndex: recordIndex)
+        records.remove(at: index)
+
+        var changes = [DatabaseChange(
+            key: actorKey,
+            originalValue: actorData,
+            newValue: records.isEmpty ? nil : try ConsecutiveNBTCodec.encode(records),
+            label: "actorprefix"
+        )]
+        if records.isEmpty, !digestKey.isEmpty, let digest = try database.get(digestKey) {
+            var ids = try decodeActorIDs(digest)
+            ids.removeAll { $0 == actorID }
+            changes.append(DatabaseChange(
+                key: digestKey,
+                originalValue: digest,
+                newValue: ids.isEmpty ? nil : encodeActorIDs(ids),
+                label: "digp"
+            ))
+        }
+        try commit(changes, database: database)
+    }
+
+    private func deleteChunkRecord(object: BedrockWorldObject, key: Data, recordIndex: Int) throws {
+        let database = try session.database()
+        guard let data = try database.get(key) else {
+            throw BlocktopographError.malformedData("区块对象记录已不存在，请重新扫描。")
+        }
+        var records = try ConsecutiveNBTCodec.decode(data)
+        let index = try locateRecord(object: object, in: records, preferredIndex: recordIndex)
+        records.remove(at: index)
+        try commit([DatabaseChange(
+            key: key,
+            originalValue: data,
+            newValue: records.isEmpty ? nil : try ConsecutiveNBTCodec.encode(records),
+            label: object.kind.displayName
+        )], database: database)
     }
 
     private func locateRecord(
@@ -236,14 +516,21 @@ final class BedrockWorldObjectNBTStore {
            }) {
             return index
         }
-        throw BlocktopographError.malformedData("对象记录已经变化，无法确认要替换的 NBT。请返回列表重新扫描。")
+        throw BlocktopographError.malformedData("对象记录已经变化，无法确认要修改的 NBT。请返回列表重新扫描。")
     }
 
-    private func validateIdentity(of object: BedrockWorldObject, editedDocument: NBTDocument) throws {
-        guard object.kind == .entity, let originalID = object.uniqueID else { return }
-        let editedID = editedDocument.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
-        if let editedID = editedID, editedID != originalID {
-            throw BlocktopographError.unsupported("UniqueID 决定 actorprefix 键与 digp 引用，当前版本禁止修改该字段。")
+    private func validateDocument(_ document: NBTDocument, for object: BedrockWorldObject) throws {
+        guard case .compound = document.root else {
+            throw BlocktopographError.malformedData("实体与方块实体的 NBT 根必须是 Compound。")
+        }
+        guard object.kind == .entity else { return }
+        let originalDocumentID = object.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+        let editedID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+        if originalDocumentID != nil && editedID == nil {
+            throw BlocktopographError.unsupported("UniqueID 可以修改，但不能删除或重命名。")
+        }
+        if let editedID = editedID, editedID == 0 {
+            throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
         }
     }
 
@@ -258,6 +545,137 @@ final class BedrockWorldObjectNBTStore {
             position.map { MapCoordinate.chunk(fromBlock: $0.blockX) } ?? object.chunkX,
             position.map { MapCoordinate.chunk(fromBlock: $0.blockZ) } ?? object.chunkZ
         )
+    }
+
+    private func makeCreationDocument(
+        kind: BedrockWorldObjectKind,
+        identifier: String,
+        position: BedrockWorldObjectPosition,
+        dimension: Int32,
+        uniqueID: Int64?,
+        template: NBTDocument?
+    ) throws -> NBTDocument {
+        var document: NBTDocument
+        if let template = template {
+            document = template
+            guard case .compound = document.root else {
+                throw BlocktopographError.malformedData("模板 NBT 根不是 Compound。")
+            }
+        } else {
+            switch kind {
+            case .entity:
+                document = NBTDocument(rootName: "", root: .compound([
+                    NBTNamedTag(name: "identifier", value: .string(identifier)),
+                    NBTNamedTag(name: "UniqueID", value: .long(uniqueID ?? 0)),
+                    NBTNamedTag(name: "Pos", value: .list(.float, [
+                        .float(Float(position.x)), .float(Float(position.y)), .float(Float(position.z))
+                    ])),
+                    NBTNamedTag(name: "Rotation", value: .list(.float, [.float(0), .float(0)])),
+                    NBTNamedTag(name: "Motion", value: .list(.float, [.float(0), .float(0), .float(0)])),
+                    NBTNamedTag(name: "DimensionId", value: .int(dimension)),
+                    NBTNamedTag(name: "OnGround", value: .byte(1)),
+                    NBTNamedTag(name: "FallDistance", value: .float(0)),
+                    NBTNamedTag(name: "Fire", value: .short(0)),
+                    NBTNamedTag(name: "Air", value: .short(300))
+                ]))
+            case .blockEntity:
+                document = NBTDocument(rootName: "", root: .compound([
+                    NBTNamedTag(name: "id", value: .string(identifier)),
+                    NBTNamedTag(name: "x", value: .int(Int32(clamping: position.blockX))),
+                    NBTNamedTag(name: "y", value: .int(position.blockY)),
+                    NBTNamedTag(name: "z", value: .int(Int32(clamping: position.blockZ)))
+                ]))
+            }
+        }
+
+        switch kind {
+        case .entity:
+            document.root = setTopLevelTag(
+                in: document.root,
+                names: ["identifier", "Identifier", "id", "Id"],
+                preferredName: "identifier",
+                value: .string(identifier)
+            )
+            document.root = setTopLevelTag(
+                in: document.root,
+                names: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"],
+                preferredName: "UniqueID",
+                value: .long(uniqueID ?? 0)
+            )
+            document.root = setTopLevelTag(
+                in: document.root,
+                names: ["Pos", "pos", "Position", "position"],
+                preferredName: "Pos",
+                value: .list(.float, [
+                    .float(Float(position.x)), .float(Float(position.y)), .float(Float(position.z))
+                ])
+            )
+            document.root = setTopLevelTag(
+                in: document.root,
+                names: ["DimensionId", "DimensionID", "Dimension", "dimension"],
+                preferredName: "DimensionId",
+                value: .int(dimension)
+            )
+        case .blockEntity:
+            document.root = setTopLevelTag(
+                in: document.root,
+                names: ["id", "Id", "identifier", "Identifier"],
+                preferredName: "id",
+                value: .string(identifier)
+            )
+            document.root = setTopLevelTag(in: document.root, names: ["x", "X"], preferredName: "x", value: .int(Int32(clamping: position.blockX)))
+            document.root = setTopLevelTag(in: document.root, names: ["y", "Y"], preferredName: "y", value: .int(position.blockY))
+            document.root = setTopLevelTag(in: document.root, names: ["z", "Z"], preferredName: "z", value: .int(Int32(clamping: position.blockZ)))
+        }
+        return document
+    }
+
+    private func setTopLevelTag(
+        in root: NBTValue,
+        names: [String],
+        preferredName: String,
+        value: NBTValue
+    ) -> NBTValue {
+        guard case .compound(var tags) = root else { return root }
+        let lowered = Set(names.map { $0.lowercased() })
+        if let index = tags.firstIndex(where: { lowered.contains($0.name.lowercased()) }) {
+            tags[index].value = value
+        } else {
+            tags.append(NBTNamedTag(name: preferredName, value: value))
+        }
+        return .compound(tags)
+    }
+
+    private func isEntityUniqueIDAvailable(
+        _ uniqueID: Int64,
+        excluding object: BedrockWorldObject?,
+        database: MojangLevelDB
+    ) throws -> Bool {
+        let key = makeActorKey(id: uniqueID)
+        if let object = object,
+           case .modernActor(let currentKey, _, _, _) = object.storage,
+           currentKey == key {
+            // The selected modern actor owns this key.
+        } else if try database.get(key) != nil {
+            return false
+        }
+
+        for entry in try database.entries(includeValues: false, limit: 0) {
+            guard let parsed = BedrockDBKey.parse(entry.key), parsed.recordType == .entity else { continue }
+            guard let data = try database.get(entry.key),
+                  let records = try? ConsecutiveNBTCodec.decode(data) else { continue }
+            for record in records {
+                guard record.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) == uniqueID else { continue }
+                if let object = object,
+                   case .chunkRecord(let sourceKey, _, _) = object.storage,
+                   sourceKey == entry.key,
+                   record.rawData == object.rawData {
+                    continue
+                }
+                return false
+            }
+        }
+        return true
     }
 
     private func extractPosition(root: NBTValue, kind: BedrockWorldObjectKind) -> BedrockWorldObjectPosition? {
@@ -313,6 +731,15 @@ final class BedrockWorldObjectNBTStore {
         return data
     }
 
+    private func makeActorKey(id: Int64) -> Data {
+        var key = Data("actorprefix".utf8)
+        let bits = UInt64(bitPattern: id)
+        for shift in stride(from: 0, through: 56, by: 8) {
+            key.append(UInt8(truncatingIfNeeded: bits >> UInt64(shift)))
+        }
+        return key
+    }
+
     private func makeDigestKey(
         x: Int32,
         z: Int32,
@@ -327,30 +754,16 @@ final class BedrockWorldObjectNBTStore {
     }
 
     private func commit(_ changes: [DatabaseChange], database: MojangLevelDB) throws {
-        var applied = [DatabaseChange]()
-        do {
-            for change in changes {
-                if let value = change.newValue {
-                    try database.put(value, for: change.key, sync: true)
-                } else {
-                    try database.delete(change.key, sync: true)
-                }
-                applied.append(change)
+        var puts = [(key: Data, value: Data)]()
+        var deletes = [Data]()
+        var seen = Set<Data>()
+        for change in changes.reversed() where seen.insert(change.key).inserted {
+            if let value = change.newValue {
+                puts.append((key: change.key, value: value))
+            } else {
+                deletes.append(change.key)
             }
-        } catch {
-            for change in applied.reversed() {
-                do {
-                    if let original = change.originalValue {
-                        try database.put(original, for: change.key, sync: true)
-                    } else {
-                        try database.delete(change.key, sync: true)
-                    }
-                } catch {
-                    // Best-effort rollback; preserve the original write error.
-                }
-            }
-            throw error
         }
+        try database.applyBatch(puts: puts, deletes: deletes, sync: true)
     }
-
 }

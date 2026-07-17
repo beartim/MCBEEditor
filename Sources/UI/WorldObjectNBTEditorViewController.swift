@@ -41,6 +41,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
             UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(confirmSave)),
             UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addToRoot)),
             UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(exportCurrentNBT)),
+            UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(confirmDeleteObject)),
             batchSelectionCoordinator.selectionButton
         ]
     }
@@ -128,7 +129,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.detailTextLabel?.numberOfLines = query.isEmpty ? 1 : 2
         let marker = node.hasChildren ? (expanded.contains(node.path) ? "▾" : "▸") : " "
-        let protected = isProtectedIdentityNode(node) ? " 🔒" : ""
+        let protected = isProtectedIdentityNode(node) ? " 🔗" : ""
         cell.imageView?.image = NBTTagIcon.image(for: node.value.type)
         cell.imageView?.contentMode = .center
         cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>\(protected)"
@@ -158,13 +159,6 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     }
 
     private func edit(_ node: NBTNode) {
-        guard !isProtectedIdentityNode(node) else {
-            showError(
-                BlocktopographError.unsupported("UniqueID 决定 actorprefix 键和 digp 索引，禁止直接修改。"),
-                title: "受保护字段"
-            )
-            return
-        }
         NBTEditingUI.presentEdit(from: self, node: node) { [weak self] replacement in
             guard let self = self else { return }
             do {
@@ -249,7 +243,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
                     }
                 })
             }
-            if node.value.isDirectlyEditable && !self.isProtectedIdentityNode(node) {
+            if node.value.isDirectlyEditable {
                 actions.append(UIAction(title: "修改值", image: UIImage(systemName: "square.and.pencil")) { [weak self] _ in self?.edit(node) })
             }
             if case .compound? = node.path.last, !self.isProtectedIdentityNode(node) {
@@ -282,7 +276,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         guard !batchSelectionCoordinator.isActive, rows.indices.contains(indexPath.row) else { return nil }
         let node = rows[indexPath.row]
         var actions = [UIContextualAction]()
-        if node.value.isDirectlyEditable && !isProtectedIdentityNode(node) {
+        if node.value.isDirectlyEditable {
             let editAction = UIContextualAction(style: .normal, title: "修改") { [weak self] _, _, completion in
                 self?.edit(node)
                 completion(true)
@@ -309,6 +303,27 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         return normalized == "uniqueid"
     }
 
+    @objc private func confirmDeleteObject() {
+        let unsaved = dirty ? "当前未保存的 NBT 修改也会丢失。\n" : ""
+        let alert = UIAlertController(
+            title: "删除\(object.kind.displayName)？",
+            message: "\(unsaved)将从世界 LevelDB 删除整个对象；现代实体的 actorprefix 与 digp 引用会同步清理。此操作不可撤销。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "删除", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            do {
+                try self.store.delete(object: self.object)
+                self.onSave()
+                self.navigationController?.popViewController(animated: true)
+            } catch {
+                self.showError(error, title: "删除\(self.object.kind.displayName)失败")
+            }
+        })
+        present(alert, animated: true)
+    }
+
     @objc private func confirmSave() {
         guard dirty else {
             navigationItem.prompt = "没有需要保存的修改"
@@ -316,7 +331,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         }
         let alert = UIAlertController(
             title: "保存 \(object.kind.displayName) NBT？",
-            message: "将直接修改世界 LevelDB；若坐标跨区块，索引会同步迁移。保存前请退出 Minecraft。",
+            message: "将直接修改世界 LevelDB；若坐标跨区块或实体 UniqueID 改变，actorprefix 与 digp 索引会同步迁移。UniqueID 可修改但不能删除或重命名。保存前请退出 Minecraft。",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))
@@ -334,7 +349,10 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
             let movedText = result.moved
                 ? "；已迁移到维度 \(result.destinationDimension) 区块 (\(result.destinationChunkX), \(result.destinationChunkZ))"
                 : ""
-            navigationItem.prompt = "已保存\(movedText)"
+            let identityText = result.uniqueIDChanged
+                ? result.destinationUniqueID.map { "；UniqueID 已改为 \($0)，索引已迁移" } ?? "；UniqueID 已修改"
+                : ""
+            navigationItem.prompt = "已保存\(movedText)\(identityText)"
             onSave()
         } catch {
             showError(error, title: "保存 \(object.kind.displayName) NBT 失败")

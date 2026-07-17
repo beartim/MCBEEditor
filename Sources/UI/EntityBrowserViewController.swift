@@ -65,6 +65,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
     private let statusLabel = UILabel()
     private let searchController = UISearchController(searchResultsController: nil)
     private let scanQueue = DispatchQueue(label: "com.wzn.blocktopograph.entity-scan", qos: .userInitiated)
+    private lazy var objectStore = BedrockWorldObjectNBTStore(session: session)
     private var allObjects = [BedrockWorldObject]()
     private var shownObjects = [BedrockWorldObject]()
     private var diagnostics = [String]()
@@ -165,7 +166,10 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(scan))
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(scan)),
+            UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(createObject))
+        ]
 
         view.addSubview(controls)
         view.addSubview(statusLabel)
@@ -394,6 +398,50 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         }
     }
 
+
+    @objc private func createObject() {
+        let kind: BedrockWorldObjectKind = kindControl.selectedSegmentIndex == 0 ? .entity : .blockEntity
+        let controller = WorldObjectCreationViewController(
+            session: session,
+            kind: kind,
+            onCreate: {}
+        )
+        navigationController?.pushViewController(controller, animated: true)
+    }
+
+    private func duplicateObject(_ object: BedrockWorldObject) {
+        let controller = WorldObjectCreationViewController(
+            session: session,
+            kind: object.kind,
+            template: object,
+            onCreate: {}
+        )
+        navigationController?.pushViewController(controller, animated: true)
+    }
+
+    private func confirmDelete(_ object: BedrockWorldObject) {
+        let alert = UIAlertController(
+            title: "删除\(object.kind.displayName)？",
+            message: "将从世界 LevelDB 删除“\(dataValueDisplayName(for: object))”。现代实体的 actorprefix 和 digp 引用会同步清理。此操作不可撤销。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        alert.addAction(UIAlertAction(title: "删除", style: .destructive) { [weak self] _ in
+            self?.deleteObject(object)
+        })
+        present(alert, animated: true)
+    }
+
+    private func deleteObject(_ object: BedrockWorldObject) {
+        do {
+            try objectStore.delete(object: object)
+            session.invalidateAfterExternalChange()
+            navigationItem.prompt = "已删除\(object.kind.displayName)：\(dataValueDisplayName(for: object))"
+        } catch {
+            showError(error, title: "删除\(object.kind.displayName)失败")
+        }
+    }
+
     @objc private func worldDidChange() {
         allObjects = []
         shownObjects = []
@@ -417,7 +465,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         scanGeneration += 1
         let generation = scanGeneration
         statusLabel.text = "正在扫描\(dimensionText)全部实体与方块实体…"
-        navigationItem.rightBarButtonItem?.isEnabled = false
+        navigationItem.rightBarButtonItems?.first?.isEnabled = false
 
         scanQueue.async { [weak self] in
             guard let self = self else { return }
@@ -432,7 +480,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
                 )
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
-                    self.navigationItem.rightBarButtonItem?.isEnabled = true
+                    self.navigationItem.rightBarButtonItems?.first?.isEnabled = true
                     self.allObjects = result.objects
                     self.diagnostics = result.diagnostics
                     let entityCount = result.objects.filter { $0.kind == .entity }.count
@@ -444,7 +492,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
             } catch {
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
-                    self.navigationItem.rightBarButtonItem?.isEnabled = true
+                    self.navigationItem.rightBarButtonItems?.first?.isEnabled = true
                     self.statusLabel.text = "扫描失败：\(error.localizedDescription)"
                     self.showError(error, title: "实体扫描失败")
                 }
@@ -579,17 +627,61 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
 
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         let object = shownObjects[indexPath.row]
+        let delete = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+            self?.confirmDelete(object)
+            completion(true)
+        }
+        let duplicate = UIContextualAction(style: .normal, title: "新建副本") { [weak self] _, _, completion in
+            self?.duplicateObject(object)
+            completion(true)
+        }
+        duplicate.backgroundColor = .systemOrange
         let locate = UIContextualAction(style: .normal, title: "地图") { [weak self] _, _, completion in
             self?.onLocate(object)
             completion(true)
         }
         locate.backgroundColor = .systemBlue
-        let copy = UIContextualAction(style: .normal, title: "复制") { _, _, completion in
-            UIPasteboard.general.string = object.coordinateText
-            completion(true)
+        let configuration = UISwipeActionsConfiguration(actions: [delete, duplicate, locate])
+        configuration.performsFirstActionWithFullSwipe = false
+        return configuration
+    }
+
+    func tableView(
+        _ tableView: UITableView,
+        contextMenuConfigurationForRowAt indexPath: IndexPath,
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard shownObjects.indices.contains(indexPath.row) else { return nil }
+        let object = shownObjects[indexPath.row]
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let self = self else { return nil }
+            var actions = [UIAction(title: "编辑 NBT", image: UIImage(systemName: "square.and.pencil")) { [weak self] _ in
+                self?.openEditor(object)
+            }]
+            actions.append(UIAction(title: "复制为新\(object.kind.displayName)", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+                self?.duplicateObject(object)
+            })
+            if object.position != nil {
+                actions.append(UIAction(title: "在地图中定位", image: UIImage(systemName: "map")) { [weak self] _ in
+                    self?.onLocate(object)
+                })
+            }
+            actions.append(UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
+                self?.confirmDelete(object)
+            })
+            return UIMenu(title: self.dataValueDisplayName(for: object), children: actions)
         }
-        copy.backgroundColor = .systemGray
-        return UISwipeActionsConfiguration(actions: [locate, copy])
+    }
+
+    private func openEditor(_ object: BedrockWorldObject) {
+        let controller = WorldObjectNBTEditorViewController(
+            object: object,
+            session: session,
+            onSave: { [weak self] in
+                self?.session.invalidateAfterExternalChange()
+            }
+        )
+        navigationController?.pushViewController(controller, animated: true)
     }
 
     private func showDetails(_ object: BedrockWorldObject) {
@@ -600,16 +692,13 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         if object.itemCount > 0 { message += "\n物品槽：\(object.itemCount)" }
         let alert = UIAlertController(title: dataValueDisplayName(for: object), message: message, preferredStyle: .actionSheet)
         alert.addAction(UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            let controller = WorldObjectNBTEditorViewController(
-                object: object,
-                session: self.session,
-                onSave: { [weak self] in
-                    self?.session.invalidateAfterExternalChange()
-                    self?.scan()
-                }
-            )
-            self.navigationController?.pushViewController(controller, animated: true)
+            self?.openEditor(object)
+        })
+        alert.addAction(UIAlertAction(title: "复制为新\(object.kind.displayName)", style: .default) { [weak self] _ in
+            self?.duplicateObject(object)
+        })
+        alert.addAction(UIAlertAction(title: "删除\(object.kind.displayName)", style: .destructive) { [weak self] _ in
+            self?.confirmDelete(object)
         })
         if object.position != nil {
             alert.addAction(UIAlertAction(title: "在地图中定位", style: .default) { [weak self] _ in self?.onLocate(object) })
