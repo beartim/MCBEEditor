@@ -186,35 +186,63 @@ extension SubChunkStorage {
         guard (0..<16).contains(x), (0..<16).contains(y), (0..<16).contains(z) else {
             throw BlocktopographError.malformedData("方块局部坐标越界")
         }
-        guard let newNBT = newState.nbt else {
-            throw BlocktopographError.unsupported("旧版数字 ID 方块不能使用 NBT 调色板编辑器写回")
-        }
         let blockIndex = (x << 8) | (z << 4) | y
         guard indices.indices.contains(blockIndex) else {
             throw BlocktopographError.malformedData("方块索引越界")
         }
 
-        let encodedNew = try BedrockNBTCodec.encode(
-            NBTDocument(rootName: "", root: newNBT),
-            encoding: .littleEndian
-        )
         var updatedPalette = palette
         let paletteIndex: UInt16
-        if let existing = try updatedPalette.firstIndex(where: { state in
-            guard let nbt = state.nbt else { return false }
-            let data = try BedrockNBTCodec.encode(
-                NBTDocument(rootName: "", root: nbt),
+        if let newNBT = newState.nbt {
+            let encodedNew = try BedrockNBTCodec.encode(
+                NBTDocument(rootName: "", root: newNBT),
                 encoding: .littleEndian
             )
-            return data == encodedNew
-        }) {
-            paletteIndex = UInt16(existing)
-        } else {
-            guard updatedPalette.count < Int(UInt16.max) else {
-                throw BlocktopographError.unsupported("方块调色板条目过多，无法追加新状态")
+            if let existing = try updatedPalette.firstIndex(where: { state in
+                guard let nbt = state.nbt else { return false }
+                let data = try BedrockNBTCodec.encode(
+                    NBTDocument(rootName: "", root: nbt),
+                    encoding: .littleEndian
+                )
+                return data == encodedNew
+            }) {
+                paletteIndex = UInt16(existing)
+            } else {
+                guard updatedPalette.allSatisfy({ $0.nbt != nil }) else {
+                    throw BlocktopographError.unsupported("不能把现代 NBT 方块写入旧版数字 ID SubChunk")
+                }
+                guard updatedPalette.count < Int(UInt16.max) else {
+                    throw BlocktopographError.unsupported("方块调色板条目过多，无法追加新状态")
+                }
+                paletteIndex = UInt16(updatedPalette.count)
+                updatedPalette.append(newState)
             }
-            paletteIndex = UInt16(updatedPalette.count)
-            updatedPalette.append(newState)
+        } else if let newID = newState.legacyID {
+            guard newID <= 255, (newState.legacyData ?? 0) <= 15 else {
+                throw BlocktopographError.malformedData("旧版方块数字 ID 必须为 0…255，数据值必须为 0…15")
+            }
+            guard updatedPalette.allSatisfy({ $0.legacyID != nil }) else {
+                throw BlocktopographError.unsupported("不能把旧版数字 ID 方块写入现代持久化调色板")
+            }
+            if let existing = updatedPalette.firstIndex(where: {
+                $0.legacyID == newID && ($0.legacyData ?? 0) == (newState.legacyData ?? 0)
+            }) {
+                paletteIndex = UInt16(existing)
+            } else {
+                guard updatedPalette.count < Int(UInt16.max) else {
+                    throw BlocktopographError.unsupported("方块调色板条目过多，无法追加新状态")
+                }
+                paletteIndex = UInt16(updatedPalette.count)
+                updatedPalette.append(newState)
+            }
+        } else {
+            throw BlocktopographError.malformedData("方块状态既没有 NBT，也没有旧版数字 ID")
+        }
+
+        if updatedPalette.indices.contains(Int(paletteIndex)) {
+            // already resolved above
+        } else {
+            throw BlocktopographError.malformedData("方块调色板索引解析失败")
         }
 
         var updatedIndices = indices
@@ -265,8 +293,37 @@ extension BedrockSubChunk {
         guard (0..<BedrockBlockRecord.editableLayerCount).contains(storageIndex) else {
             throw BlocktopographError.malformedData("仅支持编辑方块层 0 和层 1")
         }
+
+        if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+            guard storageIndex == 0 else {
+                throw BlocktopographError.unsupported("旧版数字 ID SubChunk 只有层 0")
+            }
+            guard newState.legacyID != nil, newState.nbt == nil else {
+                throw BlocktopographError.unsupported("旧版 SubChunk 只能写入数字 ID 与数据值")
+            }
+            guard storages.count == 1 else {
+                throw BlocktopographError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
+            }
+            var updatedStorages = storages
+            updatedStorages[0] = try updatedStorages[0].replacingBlockState(
+                x: x,
+                y: y,
+                z: z,
+                with: newState
+            )
+            return BedrockSubChunk(
+                version: version,
+                yIndex: yIndex,
+                storages: updatedStorages,
+                trailingData: trailingData
+            )
+        }
+
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持方块状态写回")
+            throw BlocktopographError.unsupported("SubChunk v\(version) 暂不支持方块状态写回")
+        }
+        guard newState.nbt != nil else {
+            throw BlocktopographError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
         }
 
         var updatedStorages = storages
@@ -302,8 +359,11 @@ extension BedrockSubChunk {
     }
 
     func encodePersistent() throws -> Data {
+        if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+            return try encodeLegacyPersistent()
+        }
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持重新编码")
+            throw BlocktopographError.unsupported("SubChunk v\(version) 暂不支持重新编码")
         }
         if version == 1, storages.count != 1 {
             throw BlocktopographError.malformedData("SubChunk v1 必须恰好包含一个 storage")
@@ -325,6 +385,44 @@ extension BedrockSubChunk {
         }
         writer.writeData(trailingData)
         return writer.data
+    }
+
+    private func encodeLegacyPersistent() throws -> Data {
+        guard storages.count == 1 else {
+            throw BlocktopographError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
+        }
+        let storage = storages[0]
+        guard storage.indices.count == 4096, !storage.palette.isEmpty else {
+            throw BlocktopographError.malformedData("旧版 SubChunk 方块数据无效")
+        }
+
+        var ids = Data(repeating: 0, count: 4096)
+        var metadata = Data(repeating: 0, count: 2048)
+        for blockIndex in 0..<4096 {
+            let paletteIndex = Int(storage.indices[blockIndex])
+            guard storage.palette.indices.contains(paletteIndex),
+                  let legacyID = storage.palette[paletteIndex].legacyID,
+                  legacyID <= 255 else {
+                throw BlocktopographError.malformedData("旧版 SubChunk 调色板包含非数字 ID 方块")
+            }
+            let legacyData = storage.palette[paletteIndex].legacyData ?? 0
+            guard legacyData <= 15 else {
+                throw BlocktopographError.malformedData("旧版方块数据值必须为 0…15")
+            }
+            ids[blockIndex] = UInt8(legacyID)
+            let metadataIndex = blockIndex / 2
+            if blockIndex % 2 == 0 {
+                metadata[metadataIndex] = (metadata[metadataIndex] & 0xf0) | legacyData
+            } else {
+                metadata[metadataIndex] = (metadata[metadataIndex] & 0x0f) | (legacyData << 4)
+            }
+        }
+
+        var output = Data([version])
+        output.append(ids)
+        output.append(metadata)
+        output.append(trailingData)
+        return output
     }
 
     private static func encode(storage: SubChunkStorage, writer: inout BinaryWriter) throws {
@@ -844,7 +942,13 @@ final class BedrockBlockNBTStore {
             throw BlocktopographError.unsupported("目标 SubChunk 尚未生成，不能写入方块状态")
         }
         let decoded = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
-        let replacement = BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
+        let currentState = block.stateForEditing(layer: storageIndex)
+        let replacement: BedrockBlockState
+        if currentState.legacyID != nil {
+            replacement = try legacyBlockState(from: document.root)
+        } else {
+            replacement = BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
+        }
         let updated = try decoded.replacingBlockState(
             x: localX,
             y: localY,
@@ -870,6 +974,61 @@ final class BedrockBlockNBTStore {
                 isGenerated: true
             )
         )
+    }
+
+    private func legacyBlockState(from root: NBTValue) throws -> BedrockBlockState {
+        guard case .compound = root else {
+            throw BlocktopographError.malformedData("旧版方块编辑根节点必须是 Compound")
+        }
+        let numericID = firstNumericValue(
+            in: root,
+            names: ["legacy_id", "legacyID", "numeric_id", "numericID"]
+        ) ?? firstStringValue(
+            in: root,
+            names: ["name", "Name", "identifier", "Identifier"]
+        ).flatMap { BedrockLegacyBlockCatalog.block(forIdentifier: $0)?.id }.map(Int64.init)
+        guard let numericID = numericID, (0...255).contains(numericID) else {
+            throw BlocktopographError.malformedData("legacy_id 必须是 0…255；也可以填写可对应的旧版字符串 ID")
+        }
+        let dataValue = firstNumericValue(
+            in: root,
+            names: ["legacy_data", "legacyData", "data", "Data"]
+        ) ?? 0
+        guard (0...15).contains(dataValue) else {
+            throw BlocktopographError.malformedData("legacy_data 必须是 0…15")
+        }
+        return BedrockBlockState(
+            nbt: nil,
+            legacyID: UInt16(numericID),
+            legacyData: UInt8(dataValue)
+        )
+    }
+
+    private func firstNumericValue(in root: NBTValue, names: [String]) -> Int64? {
+        guard case .compound(let tags) = root else { return nil }
+        let lowered = Set(names.map { $0.lowercased() })
+        guard let value = tags.first(where: { lowered.contains($0.name.lowercased()) })?.value else {
+            return nil
+        }
+        switch value {
+        case .byte(let number): return Int64(number)
+        case .short(let number): return Int64(number)
+        case .int(let number): return Int64(number)
+        case .long(let number): return number
+        case .float(let number): return Int64(number)
+        case .double(let number): return Int64(number)
+        default: return nil
+        }
+    }
+
+    private func firstStringValue(in root: NBTValue, names: [String]) -> String? {
+        guard case .compound(let tags) = root else { return nil }
+        let lowered = Set(names.map { $0.lowercased() })
+        guard let value = tags.first(where: { lowered.contains($0.name.lowercased()) })?.value,
+              case .string(let string) = value else {
+            return nil
+        }
+        return string
     }
 
     private func floorDiv16(_ y: Int32) -> Int32 {

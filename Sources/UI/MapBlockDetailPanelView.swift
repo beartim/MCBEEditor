@@ -309,24 +309,39 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
         }
         let layerExists = block.layers.indices.contains(selectedLayerIndex)
         let state = block.stateForEditing(layer: selectedLayerIndex)
-        guard let root = state.nbt else {
-            document = nil
-            rows = []
-            tableView.isHidden = false
-            addButton.isEnabled = false
-            saveButton.isEnabled = false
-            exportButton.isEnabled = false
-            statusLabel.text = "该图层使用旧版数字 ID，当前只支持查看：\(state.identifierDescription)"
-            tableView.reloadData()
+        if let root = state.nbt {
+            document = NBTDocument(rootName: "", root: root)
+            expanded = [[]]
+            dirty = false
+            statusLabel.text = layerExists
+                ? "长按标签可增加、修改、重命名或删除；保存会直接写入 SubChunk。"
+                : "层 \(selectedLayerIndex) 当前不存在，按空气层显示；修改并保存后会创建该层。"
+            rebuildRows()
             return
         }
-        document = NBTDocument(rootName: "", root: root)
-        expanded = [[]]
-        dirty = false
-        statusLabel.text = layerExists
-            ? "长按标签可增加、修改、重命名或删除；保存会直接写入 SubChunk。"
-            : "层 \(selectedLayerIndex) 当前不存在，按空气层显示；修改并保存后会创建该层。"
-        rebuildRows()
+
+        if let legacyID = state.legacyID {
+            let legacyData = state.legacyData ?? 0
+            document = NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "legacy_id", value: .int(Int32(legacyID))),
+                NBTNamedTag(name: "legacy_data", value: .byte(Int8(legacyData))),
+                NBTNamedTag(name: "name", value: .string(state.name))
+            ]))
+            expanded = [[]]
+            dirty = false
+            statusLabel.text = "旧版数字 ID 方块：可修改 legacy_id（0…255）和 legacy_data（0…15）；name 用于对照，也可填写旧版字符串 ID。保存会直接重写旧版 SubChunk。"
+            rebuildRows()
+            return
+        }
+
+        document = nil
+        rows = []
+        tableView.isHidden = false
+        addButton.isEnabled = false
+        saveButton.isEnabled = false
+        exportButton.isEnabled = false
+        statusLabel.text = "该图层没有可编辑的方块状态。"
+        tableView.reloadData()
     }
 
     private func rebuildRows() {

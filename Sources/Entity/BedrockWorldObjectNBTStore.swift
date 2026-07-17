@@ -15,9 +15,15 @@ struct BedrockWorldObjectCreateResult {
     let chunkX: Int32
     let chunkZ: Int32
     let uniqueID: Int64?
+    let source: BedrockWorldObjectSource
 }
 
 final class BedrockWorldObjectNBTStore {
+    private enum EntityCreationStorageMode {
+        case legacyChunkEntity
+        case modernActor
+    }
+
     private struct DatabaseChange {
         let key: Data
         let originalValue: Data?
@@ -111,9 +117,6 @@ final class BedrockWorldObjectNBTStore {
         }
 
         let database = try session.database()
-        if kind == .entity {
-            _ = try repairAppCreatedOverworldActorDigests(database: database)
-        }
         switch kind {
         case .entity:
             let actorID: Int64
@@ -129,6 +132,15 @@ final class BedrockWorldObjectNBTStore {
                 throw BlocktopographError.unsupported("UniqueID \(actorID) 已被其他实体占用。")
             }
 
+            let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
+            let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
+            let storageMode = try preferredEntityCreationStorage(
+                template: template,
+                chunkX: chunkX,
+                chunkZ: chunkZ,
+                dimension: dimension,
+                database: database
+            )
             let document = try makeCreationDocument(
                 kind: kind,
                 identifier: trimmedIdentifier,
@@ -136,37 +148,63 @@ final class BedrockWorldObjectNBTStore {
                 dimension: dimension,
                 uniqueID: actorID,
                 template: template?.document,
-                templateIdentifier: template?.identifier
+                templateIdentifier: template?.identifier,
+                entityStorageMode: storageMode
             )
-            let encoding = template?.storage.encoding ?? .littleEndian
-            let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
-            let actorKey = makeActorKey(id: actorID)
-            let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
-            let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
-            let digestKey = makeDigestKey(
-                x: chunkX,
-                z: chunkZ,
-                dimension: dimension
-            )
-            let currentDigest = try database.get(digestKey)
-            var actorIDs = try currentDigest.map(decodeActorIDs) ?? []
-            if !actorIDs.contains(actorID) { actorIDs.append(actorID) }
 
-            try database.applyBatch(
-                puts: [
-                    (key: actorKey, value: actorValue),
-                    (key: digestKey, value: encodeActorIDs(actorIDs))
-                ],
-                deletes: [],
-                sync: true
-            )
-            return BedrockWorldObjectCreateResult(
-                kind: kind,
-                dimension: dimension,
-                chunkX: chunkX,
-                chunkZ: chunkZ,
-                uniqueID: actorID
-            )
+            switch storageMode {
+            case .legacyChunkEntity:
+                let entityKey = BedrockDBKey(
+                    position: ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension),
+                    recordType: .entity,
+                    subChunkIndex: nil
+                ).encoded()
+                let original = try database.get(entityKey)
+                var records = try original.map(ConsecutiveNBTCodec.decode) ?? []
+                let encoding = records.first?.encoding ?? template?.storage.encoding ?? .littleEndian
+                let raw = try BedrockNBTCodec.encode(document, encoding: encoding)
+                records.append(ConsecutiveNBTRecord(document: document, rawData: raw, encoding: encoding))
+                try database.put(try ConsecutiveNBTCodec.encode(records), for: entityKey, sync: true)
+                return BedrockWorldObjectCreateResult(
+                    kind: kind,
+                    dimension: dimension,
+                    chunkX: chunkX,
+                    chunkZ: chunkZ,
+                    uniqueID: actorID,
+                    source: .legacyChunkEntity
+                )
+
+            case .modernActor:
+                _ = try repairAppCreatedOverworldActorDigests(database: database)
+                let encoding = template?.storage.encoding ?? .littleEndian
+                let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
+                let actorKey = makeActorKey(id: actorID)
+                let digestKey = makeDigestKey(
+                    x: chunkX,
+                    z: chunkZ,
+                    dimension: dimension
+                )
+                let currentDigest = try database.get(digestKey)
+                var actorIDs = try currentDigest.map(decodeActorIDs) ?? []
+                if !actorIDs.contains(actorID) { actorIDs.append(actorID) }
+
+                try database.applyBatch(
+                    puts: [
+                        (key: actorKey, value: actorValue),
+                        (key: digestKey, value: encodeActorIDs(actorIDs))
+                    ],
+                    deletes: [],
+                    sync: true
+                )
+                return BedrockWorldObjectCreateResult(
+                    kind: kind,
+                    dimension: dimension,
+                    chunkX: chunkX,
+                    chunkZ: chunkZ,
+                    uniqueID: actorID,
+                    source: .modernActor
+                )
+            }
 
         case .blockEntity:
             let document = try makeCreationDocument(
@@ -176,7 +214,8 @@ final class BedrockWorldObjectNBTStore {
                 dimension: dimension,
                 uniqueID: nil,
                 template: template?.document,
-                templateIdentifier: template?.identifier
+                templateIdentifier: template?.identifier,
+                entityStorageMode: nil
             )
             let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
             let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
@@ -204,7 +243,8 @@ final class BedrockWorldObjectNBTStore {
                 dimension: dimension,
                 chunkX: chunkX,
                 chunkZ: chunkZ,
-                uniqueID: nil
+                uniqueID: nil,
+                source: .blockEntity
             )
         }
     }
@@ -571,6 +611,59 @@ final class BedrockWorldObjectNBTStore {
         )
     }
 
+    private func preferredEntityCreationStorage(
+        template: BedrockWorldObject?,
+        chunkX: Int32,
+        chunkZ: Int32,
+        dimension: Int32,
+        database: MojangLevelDB
+    ) throws -> EntityCreationStorageMode {
+        // A copied legacy entity must remain in the legacy per-chunk record.
+        // This is especially important for worlds last opened before the
+        // modern actor-storage migration in Bedrock 1.18.20/1.18.30.
+        if template?.source == .legacyChunkEntity { return .legacyChunkEntity }
+
+        let entries = try database.entries(includeValues: false, limit: 0)
+
+        // ActorDigestVersion is the authoritative marker for a world that has
+        // completed the modern actor-storage migration. A bare digp/actorprefix
+        // pair is not sufficient because older Blocktopograph builds may have
+        // created those records inside an otherwise legacy world.
+        if entries.contains(where: { entry in
+            BedrockDBKey.parse(entry.key)?.recordType == .actorDigestVersion
+        }) {
+            return .modernActor
+        }
+
+        let legacyKey = BedrockDBKey(
+            position: ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension),
+            recordType: .entity,
+            subChunkIndex: nil
+        ).encoded()
+        if try database.get(legacyKey) != nil || entries.contains(where: { entry in
+            BedrockDBKey.parse(entry.key)?.recordType == .entity
+        }) {
+            return .legacyChunkEntity
+        }
+
+        let targetDigestKey = makeDigestKey(x: chunkX, z: chunkZ, dimension: dimension)
+        if let digest = try database.get(targetDigestKey),
+           try digestContainsExistingActor(digest, database: database) {
+            return .modernActor
+        }
+
+        if template?.source == .modernActor { return .modernActor }
+        return .modernActor
+    }
+
+    private func digestContainsExistingActor(_ digest: Data, database: MojangLevelDB) throws -> Bool {
+        guard digest.count % 8 == 0 else { return false }
+        for actorID in try decodeActorIDs(digest) {
+            if try database.get(makeActorKey(id: actorID)) != nil { return true }
+        }
+        return false
+    }
+
     private func makeCreationDocument(
         kind: BedrockWorldObjectKind,
         identifier: String,
@@ -578,7 +671,8 @@ final class BedrockWorldObjectNBTStore {
         dimension: Int32,
         uniqueID: Int64?,
         template: NBTDocument?,
-        templateIdentifier: String?
+        templateIdentifier: String?,
+        entityStorageMode: EntityCreationStorageMode?
     ) throws -> NBTDocument {
         var document: NBTDocument
         if let template = template {
@@ -589,8 +683,17 @@ final class BedrockWorldObjectNBTStore {
         } else {
             switch kind {
             case .entity:
-                document = NBTDocument(rootName: "", root: .compound([
-                    NBTNamedTag(name: "identifier", value: .string(identifier)),
+                var identityTags = [NBTNamedTag]()
+                if entityStorageMode == .legacyChunkEntity {
+                    guard let numeric = BedrockDataValueCatalog.entity(forIdentifier: identifier)?.id,
+                          numeric <= Int(Int16.max) else {
+                        throw BlocktopographError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID；请从同类旧实体复制，或使用数据值表中的实体 ID。")
+                    }
+                    identityTags.append(NBTNamedTag(name: "id", value: .short(Int16(numeric))))
+                } else {
+                    identityTags.append(NBTNamedTag(name: "identifier", value: .string(identifier)))
+                }
+                identityTags.append(contentsOf: [
                     NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
                     NBTNamedTag(name: "UniqueID", value: .long(uniqueID ?? 0)),
                     NBTNamedTag(name: "Persistent", value: .byte(1)),
@@ -605,7 +708,8 @@ final class BedrockWorldObjectNBTStore {
                     NBTNamedTag(name: "FallDistance", value: .float(0)),
                     NBTNamedTag(name: "Fire", value: .short(0)),
                     NBTNamedTag(name: "Air", value: .short(300))
-                ]))
+                ])
+                document = NBTDocument(rootName: "", root: .compound(identityTags))
             case .blockEntity:
                 document = NBTDocument(rootName: "", root: .compound([
                     NBTNamedTag(name: "id", value: .string(identifier)),
@@ -619,11 +723,11 @@ final class BedrockWorldObjectNBTStore {
         switch kind {
         case .entity:
             let previousIdentifier = document.root.stringValue(namedAny: ["identifier", "Identifier", "id", "Id"]) ?? templateIdentifier
-            document.root = setTopLevelTag(
+            document.root = try updateEntityIdentity(
                 in: document.root,
-                names: ["identifier", "Identifier", "id", "Id"],
-                preferredName: "identifier",
-                value: .string(identifier)
+                identifier: identifier,
+                previousIdentifier: previousIdentifier,
+                storageMode: entityStorageMode ?? .modernActor
             )
             document.root = ensureEntityDefinition(
                 in: document.root,
@@ -662,6 +766,72 @@ final class BedrockWorldObjectNBTStore {
             document.root = setTopLevelTag(in: document.root, names: ["z", "Z"], preferredName: "z", value: .int(Int32(clamping: position.blockZ)))
         }
         return document
+    }
+
+    private func updateEntityIdentity(
+        in root: NBTValue,
+        identifier: String,
+        previousIdentifier: String?,
+        storageMode: EntityCreationStorageMode
+    ) throws -> NBTValue {
+        guard case .compound(var tags) = root else { return root }
+        let identifierNames: Set<String> = ["identifier"]
+        let idNames: Set<String> = ["id"]
+        let sameIdentifier = previousIdentifier?.caseInsensitiveCompare(identifier) == .orderedSame
+        let mappedID = BedrockDataValueCatalog.entity(forIdentifier: identifier)?.id
+        var foundIdentityTag = false
+        var foundNumericID = false
+
+        for index in tags.indices {
+            let name = tags[index].name.lowercased()
+            if identifierNames.contains(name) {
+                tags[index].value = .string(identifier)
+                foundIdentityTag = true
+                continue
+            }
+            guard idNames.contains(name) else { continue }
+            foundIdentityTag = true
+            switch tags[index].value {
+            case .string:
+                tags[index].value = .string(identifier)
+            case .byte, .short, .int, .long:
+                foundNumericID = true
+                if sameIdentifier {
+                    // Preserve unusual legacy/runtime numeric IDs when copying
+                    // the same entity. Definitions remain the authoritative
+                    // namespaced identifier for such records.
+                    continue
+                }
+                guard let mappedID = mappedID else {
+                    throw BlocktopographError.unsupported("实体 \(identifier) 没有可用的旧版数字 ID，不能替换数字 id 标签。")
+                }
+                tags[index].value = entityNumericIDValue(mappedID, preserving: tags[index].value)
+            default:
+                tags[index].value = .string(identifier)
+            }
+        }
+
+        switch storageMode {
+        case .legacyChunkEntity where !foundNumericID:
+            guard let mappedID = mappedID, mappedID <= Int(Int16.max) else {
+                throw BlocktopographError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID。")
+            }
+            tags.append(NBTNamedTag(name: "id", value: .short(Int16(mappedID))))
+        case .modernActor where !foundIdentityTag:
+            tags.append(NBTNamedTag(name: "identifier", value: .string(identifier)))
+        default:
+            break
+        }
+        return .compound(tags)
+    }
+
+    private func entityNumericIDValue(_ id: Int, preserving original: NBTValue) -> NBTValue {
+        switch original {
+        case .byte where id <= Int(Int8.max): return .byte(Int8(id))
+        case .short where id <= Int(Int16.max): return .short(Int16(id))
+        case .long: return .long(Int64(id))
+        default: return .int(Int32(id))
+        }
     }
 
     private func setTopLevelTag(

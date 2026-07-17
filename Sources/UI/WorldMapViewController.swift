@@ -1240,14 +1240,23 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
         let centerX: Int32
         let centerZ: Int32
+        let anchor: MapViewportAnchor?
         if coordinateModeControl.selectedSegmentIndex == 0 {
             centerX = Int32(clamping: inputX)
             centerZ = Int32(clamping: inputZ)
+            anchor = nil
         } else {
             centerX = MapCoordinate.chunk(fromBlock: inputX)
             centerZ = MapCoordinate.chunk(fromBlock: inputZ)
+            // The rendered image is still chunk-aligned, but the viewport must
+            // center on the exact block requested instead of the chunk center.
+            anchor = MapViewportAnchor(
+                blockX: Double(inputX) + 0.5,
+                blockZ: Double(inputZ) + 0.5,
+                zoomScale: max(scrollView.zoomScale, 1)
+            )
         }
-        render(centerX: centerX, centerZ: centerZ, anchor: nil, reason: "坐标跳转", showOverlay: true)
+        render(centerX: centerX, centerZ: centerZ, anchor: anchor, reason: "坐标跳转", showOverlay: true)
     }
 
     private func render(

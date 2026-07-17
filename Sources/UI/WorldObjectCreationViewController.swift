@@ -106,10 +106,10 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         noticeLabel.translatesAutoresizingMaskIntoConstraints = false
         if template == nil {
             noticeLabel.text = kind == .entity
-                ? "将创建现代 actorprefix 实体并同步写入所在区块的 digp 索引。空白模板只包含基础标签；复杂实体建议从现有同类实体复制后再编辑 NBT。"
+                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板只包含基础标签；复杂实体建议从现有同类实体复制。"
                 : "方块实体会写入目标区块的 BlockEntity(0x31) 记录。请确保目标坐标的方块类型与方块实体 ID 相匹配。"
         } else {
-            noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并替换 ID、坐标、维度及实体 UniqueID。原对象不会被修改。"
+            noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并根据目标世界及原对象自动选择区块 Entity 或 actorprefix；原对象不会被修改。"
         }
 
         let selectedButton = UIButton(type: .system)
@@ -244,8 +244,9 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
             session.invalidateAfterExternalChange()
             onCreate()
             let idText = result.uniqueID.map { "；UniqueID \($0)" } ?? ""
+            let storageText = kind == .entity ? "；存储：\(result.source.rawValue)" : ""
             navigationController?.popViewController(animated: true)
-            navigationController?.topViewController?.navigationItem.prompt = "已创建\(kind.displayName)：区块 (\(result.chunkX), \(result.chunkZ))\(idText)"
+            navigationController?.topViewController?.navigationItem.prompt = "已创建\(kind.displayName)：区块 (\(result.chunkX), \(result.chunkZ))\(idText)\(storageText)"
         } catch {
             showError(error, title: "创建\(kind.displayName)失败")
         }

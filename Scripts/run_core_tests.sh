@@ -1358,7 +1358,58 @@ struct WorldObjectNBTTest {
         )
         try BedrockWorldObjectNBTStore(session: session).delete(object: createdBlockObject)
         precondition(database.values[createdBlockKey] == nil)
-        print("Entity/block-entity create, delete, UniqueID and position migration tests passed")
+
+        // v1.1.7: worlds that still contain per-chunk Entity(0x32) records
+        // must create new actors in that same format. Numeric entity id tags
+        // are preserved when copying unusual legacy entities.
+        let legacyKey = BedrockDBKey(
+            position: ChunkPosition(x: 0, z: 0, dimension: 0),
+            recordType: .entity,
+            subChunkIndex: nil
+        ).encoded()
+        let legacyDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "id", value: .short(12)),
+            NBTNamedTag(name: "definitions", value: .list(.string, [.string("+minecraft:pig")])),
+            NBTNamedTag(name: "UniqueID", value: .long(7001)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(1), .float(64), .float(1)]))
+        ]))
+        let legacyRaw = try BedrockNBTCodec.encode(legacyDocument)
+        let strayActorID: Int64 = 7099
+        let strayActorDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "identifier", value: .string("minecraft:pig")),
+            NBTNamedTag(name: "UniqueID", value: .long(strayActorID)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(40), .float(64), .float(8)]))
+        ]))
+        let legacyDatabase = MojangLevelDB(values: [
+            legacyKey: try ConsecutiveNBTCodec.encode([
+                ConsecutiveNBTRecord(document: legacyDocument, rawData: legacyRaw, encoding: .littleEndian)
+            ]),
+            actorKey(strayActorID): try BedrockNBTCodec.encode(strayActorDocument),
+            digestKey(2, 0, 0): digest(strayActorID)
+        ])
+        let legacySession = WorldSession(db: legacyDatabase)
+        let legacyCreated = try BedrockWorldObjectNBTStore(session: legacySession).create(
+            kind: .entity,
+            identifier: "minecraft:cow",
+            position: BedrockWorldObjectPosition(x: 40, y: 70, z: 8),
+            dimension: 0,
+            uniqueID: 7002,
+            template: nil
+        )
+        precondition(legacyCreated.source == .legacyChunkEntity)
+        precondition(legacyDatabase.values[actorKey(7002)] == nil)
+        let legacyTargetKey = BedrockDBKey(
+            position: ChunkPosition(x: 2, z: 0, dimension: 0),
+            recordType: .entity,
+            subChunkIndex: nil
+        ).encoded()
+        let legacyCreatedRecord = try ConsecutiveNBTCodec.decode(legacyDatabase.values[legacyTargetKey]!)[0]
+        guard case .short(let legacyNumericID)? = legacyCreatedRecord.document.root.value(namedAny: ["id"]) else {
+            preconditionFailure("legacy entity id is not numeric")
+        }
+        precondition(legacyNumericID == 11)
+
+        print("Entity/block-entity create, delete, UniqueID, storage mode and position migration tests passed")
     }
 }
 SWIFT
@@ -2444,3 +2495,39 @@ grep -q 'BedrockDataValueEntry(id: 5, identifier: "minecraft:planks"' "$ROOT/Sou
   exit 1
 }
 echo 'Canonical actor digest repair, orphan filtering and numeric block ID correspondence passed'
+
+
+# v1.1.7: entity creation follows the world's actual storage generation,
+# legacy block NBT can rewrite numeric ID/data, and block-coordinate rendering
+# keeps the exact selected block at the viewport center.
+ENTITY_STORE="$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift"
+ENTITY_CREATE_UI="$ROOT/Sources/UI/WorldObjectCreationViewController.swift"
+BLOCK_DETAIL_UI="$ROOT/Sources/UI/MapBlockDetailPanelView.swift"
+SUBCHUNK_EDITOR="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
+MAP_VIEW="$ROOT/Sources/UI/WorldMapViewController.swift"
+
+grep -q 'enum EntityCreationStorageMode' "$ENTITY_STORE" && \
+grep -q 'preferredEntityCreationStorage' "$ENTITY_STORE" && \
+grep -q 'updateEntityIdentity' "$ENTITY_STORE" && \
+grep -q 'case \.legacyChunkEntity' "$ENTITY_STORE" && \
+grep -q 'recordType: \.entity' "$ENTITY_STORE" && \
+grep -q '自动识别世界的实体存储格式' "$ENTITY_CREATE_UI" || {
+  echo 'error: legacy/modern entity creation storage auto-detection is incomplete' >&2
+  exit 1
+}
+
+grep -q 'NBTNamedTag(name: "legacy_id"' "$BLOCK_DETAIL_UI" && \
+grep -q 'NBTNamedTag(name: "legacy_data"' "$BLOCK_DETAIL_UI" && \
+grep -q 'legacyBlockState(from:' "$SUBCHUNK_EDITOR" && \
+grep -q 'encodeLegacyPersistent' "$SUBCHUNK_EDITOR" || {
+  echo 'error: legacy numeric block NBT editing or persistence is incomplete' >&2
+  exit 1
+}
+
+grep -q 'blockX: Double(inputX) + 0.5' "$MAP_VIEW" && \
+grep -q 'blockZ: Double(inputZ) + 0.5' "$MAP_VIEW" || {
+  echo 'error: block-coordinate rendering still snaps to the chunk center' >&2
+  exit 1
+}
+
+echo 'World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed'

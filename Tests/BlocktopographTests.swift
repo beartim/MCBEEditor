@@ -432,4 +432,29 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertTrue(selection.intersects(nativeFourChunkCircle))
     }
 
+
+    func testLegacySubChunkNumericBlockEditRoundTrip() throws {
+        var raw = Data([2])
+        raw.append(Data(repeating: 1, count: 4096))
+        raw.append(Data(repeating: 0, count: 2048))
+        raw.append(contentsOf: [0xaa, 0xbb])
+
+        let decoded = try BedrockSubChunk.decode(raw, keyYIndex: 0)
+        let changed = try decoded.replacingBlockState(
+            x: 3,
+            y: 4,
+            z: 5,
+            storageIndex: 0,
+            with: BedrockBlockState(nbt: nil, legacyID: 5, legacyData: 2)
+        )
+        let encoded = try changed.encodePersistent()
+        let roundTrip = try BedrockSubChunk.decode(encoded, keyYIndex: 0)
+        let state = try XCTUnwrap(roundTrip.storages.first?.blockState(x: 3, y: 4, z: 5))
+
+        XCTAssertEqual(state.legacyID, 5)
+        XCTAssertEqual(state.legacyData, 2)
+        XCTAssertEqual(state.name, "minecraft:planks")
+        XCTAssertEqual(Data(encoded.suffix(2)), Data([0xaa, 0xbb]))
+    }
+
 }
