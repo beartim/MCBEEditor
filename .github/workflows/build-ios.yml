@@ -1,0 +1,87 @@
+name: Build iOS 13
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Xcode 15.4 can build and debug iOS 13 targets. GitHub's macOS 14
+    # image currently includes Xcode 15.4. When macos-14 is retired,
+    # use a self-hosted macOS runner with Xcode 15.4 installed.
+    runs-on: macos-14
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Normalize script permissions
+        run: chmod +x Scripts/*.sh
+
+      # A previous ZIP overlay could not delete these tracked files. They are
+      # obsolete and must not affect the single iOS 13 build configuration.
+      - name: Remove obsolete files
+        run: |
+          rm -f project-ios13-legacy.yml Scripts/bootstrap_ios13_legacy.sh
+          rm -f Sources/Chunk/MapMarker.swift Sources/UI/MapMarkerListViewController.swift
+          rm -f Sources/World/WorldBackupService.swift
+
+      - name: Select Xcode 15.4
+        run: |
+          XCODE_APP=/Applications/Xcode_15.4.app
+          if [[ ! -d "$XCODE_APP" ]]; then
+            XCODE_APP=/Applications/Xcode_15.4.0.app
+          fi
+          [[ -d "$XCODE_APP" ]] || {
+            echo "Xcode 15.4 is not installed on this runner." >&2
+            exit 1
+          }
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
+          [[ "$(xcodebuild -version | awk '/^Xcode / {print $2; exit}')" == 15.4* ]] || {
+            echo "The selected toolchain is not Xcode 15.4." >&2
+            exit 1
+          }
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate iOS 13 project
+        run: bash Scripts/bootstrap.sh
+
+      - name: Run portable core tests
+        run: bash Scripts/run_core_tests.sh
+
+      - name: Build simulator target
+        run: |
+          xcodebuild \
+            -project Blocktopograph.xcodeproj \
+            -scheme Blocktopograph \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build unsigned iOS 13 IPA
+        run: bash Scripts/build_unsigned_ipa.sh
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: Blocktopograph-iOS13-unsigned
+          path: build/output/Blocktopograph-iOS13-unsigned.ipa
+          if-no-files-found: error

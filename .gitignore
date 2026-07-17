@@ -1,0 +1,8 @@
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+Blocktopograph.xcodeproj/
+Vendor/leveldb-mcpe/
+Vendor/leveldb-mcpe.lock

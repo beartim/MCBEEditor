@@ -1,0 +1,212 @@
+name: Blocktopograph
+options:
+  minimumXcodeGenVersion: "2.45.0"
+  xcodeVersion: "15.4"
+  projectFormat: xcode15_3
+  bundleIdPrefix: com.wzn
+  deploymentTarget:
+    iOS: "13.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: "13.0"
+    SWIFT_VERSION: "5.0"
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    CLANG_CXX_LIBRARY: libc++
+    ENABLE_BITCODE: NO
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 110
+    MARKETING_VERSION: 1.1.0
+    TARGETED_DEVICE_FAMILY: "1,2"
+    SUPPORTS_MACCATALYST: NO
+
+targets:
+  MojangLevelDB:
+    type: library.static
+    platform: iOS
+    deploymentTarget: "13.0"
+    sources:
+      - Vendor/leveldb-mcpe/db/builder.cc
+      - Vendor/leveldb-mcpe/db/c.cc
+      - Vendor/leveldb-mcpe/db/db_impl.cc
+      - Vendor/leveldb-mcpe/db/db_iter.cc
+      - Vendor/leveldb-mcpe/db/dbformat.cc
+      - Vendor/leveldb-mcpe/db/filename.cc
+      - Vendor/leveldb-mcpe/db/log_reader.cc
+      - Vendor/leveldb-mcpe/db/log_writer.cc
+      - Vendor/leveldb-mcpe/db/memtable.cc
+      - Vendor/leveldb-mcpe/db/repair.cc
+      - Vendor/leveldb-mcpe/db/table_cache.cc
+      - Vendor/leveldb-mcpe/db/version_edit.cc
+      - Vendor/leveldb-mcpe/db/version_set.cc
+      - Vendor/leveldb-mcpe/db/write_batch.cc
+      - Vendor/leveldb-mcpe/db/zlib_compressor.cc
+      - Vendor/leveldb-mcpe/db/zstd_compressor.cc
+      - Vendor/leveldb-mcpe/table/block.cc
+      - Vendor/leveldb-mcpe/table/block_builder.cc
+      - Vendor/leveldb-mcpe/table/filter_block.cc
+      - Vendor/leveldb-mcpe/table/format.cc
+      - Vendor/leveldb-mcpe/table/iterator.cc
+      - Vendor/leveldb-mcpe/table/merger.cc
+      - Vendor/leveldb-mcpe/table/table.cc
+      - Vendor/leveldb-mcpe/table/table_builder.cc
+      - Vendor/leveldb-mcpe/table/two_level_iterator.cc
+      - Vendor/leveldb-mcpe/util/arena.cc
+      - Vendor/leveldb-mcpe/util/bloom.cc
+      - Vendor/leveldb-mcpe/util/cache.cc
+      - Vendor/leveldb-mcpe/util/coding.cc
+      - Vendor/leveldb-mcpe/util/comparator.cc
+      - Vendor/leveldb-mcpe/util/crc32c.cc
+      - Vendor/leveldb-mcpe/util/env.cc
+      - Vendor/leveldb-mcpe/util/env_posix.cc
+      - Vendor/leveldb-mcpe/util/filter_policy.cc
+      - Vendor/leveldb-mcpe/util/hash.cc
+      - Vendor/leveldb-mcpe/util/histogram.cc
+      - Vendor/leveldb-mcpe/util/logging.cc
+      - Vendor/leveldb-mcpe/util/options.cc
+      - Vendor/leveldb-mcpe/util/status.cc
+      - Vendor/leveldb-mcpe/port/port_posix.cc
+      - Vendor/leveldb-mcpe/port/port_posix_sse.cc
+    settings:
+      base:
+        PRODUCT_NAME: MojangLevelDB
+        SKIP_INSTALL: YES
+        DEFINES_MODULE: NO
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/Vendor/leveldb-mcpe"
+          - "$(SRCROOT)/Vendor/leveldb-mcpe/include"
+        USER_HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/Vendor/leveldb-mcpe"
+          - "$(SRCROOT)/Vendor/leveldb-mcpe/include"
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "OS_MACOSX=1"
+          - "LEVELDB_PLATFORM_POSIX=1"
+          - "HAVE_ZLIB=1"
+          - "DLLX="
+        OTHER_CPLUSPLUSFLAGS:
+          - "$(inherited)"
+          - "-Wno-deprecated-declarations"
+          - "-Wno-shorten-64-to-32"
+    dependencies:
+      - sdk: libz.tbd
+
+  Blocktopograph:
+    type: application
+    platform: iOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources
+      - path: Resources
+        excludes:
+          - Info.plist
+        buildPhase: resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Blocktopograph
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchStoryboardName: LaunchScreen
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Minecraft Bedrock World
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.mojang.mcworld
+              - com.microsoft.minecraft.mcworld
+          - CFBundleTypeName: Minecraft NBT
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.wzn.minecraft.nbt
+              - com.wzn.minecraft.mcstructure
+              - public.json
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.mojang.mcworld
+            UTTypeDescription: Minecraft Bedrock World
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mcworld
+              public.mime-type: application/zip
+          - UTTypeIdentifier: com.microsoft.minecraft.mcworld
+            UTTypeDescription: Minecraft Bedrock World
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mcworld
+              public.mime-type: application/zip
+          - UTTypeIdentifier: com.wzn.minecraft.nbt
+            UTTypeDescription: Minecraft NBT File
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - nbt
+              public.mime-type: application/octet-stream
+          - UTTypeIdentifier: com.wzn.minecraft.mcstructure
+            UTTypeDescription: Minecraft Bedrock Structure
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mcstructure
+              public.mime-type: application/octet-stream
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph
+        PRODUCT_NAME: Blocktopograph
+        INFOPLIST_FILE: Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Blocktopograph-Bridging-Header.h
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "OS_MACOSX=1"
+          - "LEVELDB_PLATFORM_POSIX=1"
+          - "HAVE_ZLIB=1"
+          - "DLLX="
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/Vendor/leveldb-mcpe"
+          - "$(SRCROOT)/Vendor/leveldb-mcpe/include"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ObjC"
+    dependencies:
+      - target: MojangLevelDB
+      - sdk: UIKit.framework
+      - sdk: MobileCoreServices.framework
+      - sdk: libz.tbd
+
+  BlocktopographTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Blocktopograph
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph.tests
