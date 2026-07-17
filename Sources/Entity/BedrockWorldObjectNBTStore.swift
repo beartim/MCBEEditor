@@ -37,6 +37,25 @@ final class BedrockWorldObjectNBTStore {
         self.session = session
     }
 
+    /// Returns every consecutive root stored in the same LevelDB value as the
+    /// selected object. This is used by the long-press continuous-NBT export.
+    func sourceDocuments(for object: BedrockWorldObject) throws -> [NBTDocument] {
+        let database = try session.database()
+        let key: Data
+        switch object.storage {
+        case .modernActor(let actorKey, _, _, _): key = actorKey
+        case .chunkRecord(let sourceKey, _, _): key = sourceKey
+        }
+        guard let raw = try database.get(key) else {
+            throw BlocktopographError.unsupported("对象的源 NBT 记录已经不存在。")
+        }
+        let documents = try ConsecutiveNBTCodec.decode(raw).map { $0.document }
+        guard !documents.isEmpty else {
+            throw BlocktopographError.malformedData("对象源记录不包含可导出的 NBT 根标签。")
+        }
+        return documents
+    }
+
     func save(object: BedrockWorldObject, document: NBTDocument) throws -> BedrockWorldObjectSaveResult {
         try validateDocument(document, for: object)
         switch object.storage {
@@ -80,6 +99,52 @@ final class BedrockWorldObjectNBTStore {
         try repairAppCreatedOverworldActorDigests(database: session.database())
     }
 
+    func prepareEntityDocument(
+        _ source: NBTDocument,
+        fallbackIdentifier: String,
+        position: BedrockWorldObjectPosition,
+        dimension: Int32,
+        uniqueID: Int64
+    ) throws -> NBTDocument {
+        let identifier = BedrockEntityCommonNBT.identifier(in: source.root) ?? fallbackIdentifier
+        let database = try session.database()
+        let mode = try preferredEntityCreationStorage(
+            template: nil,
+            chunkX: MapCoordinate.chunk(fromBlock: position.blockX),
+            chunkZ: MapCoordinate.chunk(fromBlock: position.blockZ),
+            dimension: dimension,
+            database: database
+        )
+        return try makeCreationDocument(
+            kind: .entity,
+            identifier: identifier,
+            position: position,
+            dimension: dimension,
+            uniqueID: uniqueID,
+            template: source,
+            templateIdentifier: BedrockEntityCommonNBT.identifier(in: source.root),
+            entityStorageMode: mode
+        )
+    }
+
+    func createEntity(from document: NBTDocument) throws -> BedrockWorldObjectCreateResult {
+        guard let identifier = BedrockEntityCommonNBT.identifier(in: document.root),
+              let position = BedrockEntityCommonNBT.position(in: document.root),
+              let dimension = BedrockEntityCommonNBT.dimension(in: document.root),
+              let uniqueID = BedrockEntityCommonNBT.uniqueID(in: document.root) else {
+            throw BlocktopographError.malformedData("实体 NBT 必须包含可识别的实体 ID、Pos、DimensionId 和 UniqueID。")
+        }
+        return try create(
+            kind: .entity,
+            identifier: identifier,
+            position: position,
+            dimension: dimension,
+            uniqueID: uniqueID,
+            template: nil,
+            templateDocument: document
+        )
+    }
+
     func suggestedUniqueID() throws -> Int64 {
         let database = try session.database()
         for _ in 0..<128 {
@@ -97,7 +162,8 @@ final class BedrockWorldObjectNBTStore {
         position: BedrockWorldObjectPosition,
         dimension: Int32,
         uniqueID: Int64?,
-        template: BedrockWorldObject?
+        template: BedrockWorldObject?,
+        templateDocument: NBTDocument? = nil
     ) throws -> BedrockWorldObjectCreateResult {
         let rawIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedIdentifier: String
@@ -147,8 +213,8 @@ final class BedrockWorldObjectNBTStore {
                 position: position,
                 dimension: dimension,
                 uniqueID: actorID,
-                template: template?.document,
-                templateIdentifier: template?.identifier,
+                template: templateDocument ?? template?.document,
+                templateIdentifier: template?.identifier ?? templateDocument.flatMap { BedrockEntityCommonNBT.identifier(in: $0.root) },
                 entityStorageMode: storageMode
             )
 
@@ -213,7 +279,7 @@ final class BedrockWorldObjectNBTStore {
                 position: position,
                 dimension: dimension,
                 uniqueID: nil,
-                template: template?.document,
+                template: templateDocument ?? template?.document,
                 templateIdentifier: template?.identifier,
                 entityStorageMode: nil
             )
@@ -693,22 +759,12 @@ final class BedrockWorldObjectNBTStore {
                 } else {
                     identityTags.append(NBTNamedTag(name: "identifier", value: .string(identifier)))
                 }
-                identityTags.append(contentsOf: [
-                    NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
-                    NBTNamedTag(name: "UniqueID", value: .long(uniqueID ?? 0)),
-                    NBTNamedTag(name: "Persistent", value: .byte(1)),
-                    NBTNamedTag(name: "IsAutonomous", value: .byte(1)),
-                    NBTNamedTag(name: "Pos", value: .list(.float, [
-                        .float(Float(position.x)), .float(Float(position.y)), .float(Float(position.z))
-                    ])),
-                    NBTNamedTag(name: "Rotation", value: .list(.float, [.float(0), .float(0)])),
-                    NBTNamedTag(name: "Motion", value: .list(.float, [.float(0), .float(0), .float(0)])),
-                    NBTNamedTag(name: "DimensionId", value: .int(dimension)),
-                    NBTNamedTag(name: "OnGround", value: .byte(1)),
-                    NBTNamedTag(name: "FallDistance", value: .float(0)),
-                    NBTNamedTag(name: "Fire", value: .short(0)),
-                    NBTNamedTag(name: "Air", value: .short(300))
-                ])
+                identityTags.append(contentsOf: BedrockEntityCommonNBT.tags(
+                    identifier: identifier,
+                    position: position,
+                    dimension: dimension,
+                    uniqueID: uniqueID ?? 0
+                ))
                 document = NBTDocument(rootName: "", root: .compound(identityTags))
             case .blockEntity:
                 document = NBTDocument(rootName: "", root: .compound([
@@ -722,6 +778,15 @@ final class BedrockWorldObjectNBTStore {
 
         switch kind {
         case .entity:
+            document.root = try BedrockEntityCommonNBT.addingMissingTopLevel(
+                BedrockEntityCommonNBT.tags(
+                    identifier: identifier,
+                    position: position,
+                    dimension: dimension,
+                    uniqueID: uniqueID ?? 0
+                ),
+                to: document.root
+            )
             let previousIdentifier = document.root.stringValue(namedAny: ["identifier", "Identifier", "id", "Id"]) ?? templateIdentifier
             document.root = try updateEntityIdentity(
                 in: document.root,

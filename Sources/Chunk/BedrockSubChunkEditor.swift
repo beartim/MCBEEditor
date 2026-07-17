@@ -938,16 +938,42 @@ final class BedrockBlockNBTStore {
             index: subChunkY
         )
         let database = try session.database()
-        guard let raw = try database.get(key) else {
-            throw BlocktopographError.unsupported("目标 SubChunk 尚未生成，不能写入方块状态")
-        }
-        let decoded = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
         let currentState = currentBlockState(for: block, storageIndex: storageIndex)
         let replacement: BedrockBlockState
         if currentState.legacyID != nil {
             replacement = try legacyBlockState(from: document.root)
         } else {
             replacement = BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
+        }
+        let raw = try database.get(key)
+        let decoded: BedrockSubChunk
+        var metadataPuts = [(key: Data, value: Data)]()
+        if let raw = raw {
+            decoded = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
+        } else {
+            let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: block.dimension)
+            metadataPuts = BedrockEmptyChunk.metadataRecords(at: position).map { ($0.key, $0.value) }
+            if replacement.legacyID != nil {
+                let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+                decoded = BedrockSubChunk(
+                    version: 7,
+                    yIndex: subChunkY,
+                    storages: [SubChunkStorage(
+                        bitsPerBlock: 8,
+                        palette: [air],
+                        indices: Array(repeating: 0, count: 4096)
+                    )],
+                    trailingData: Data()
+                )
+            } else {
+                let air = BedrockBlockState.editableAir(version: replacement.paletteVersion)
+                decoded = BedrockSubChunk(
+                    version: 9,
+                    yIndex: subChunkY,
+                    storages: [.airFilled(with: air)],
+                    trailingData: Data()
+                )
+            }
         }
         let updated = try decoded.replacingBlockState(
             x: localX,
@@ -956,7 +982,16 @@ final class BedrockBlockNBTStore {
             storageIndex: storageIndex,
             with: replacement
         )
-        try database.put(try updated.encodePersistent(), for: key, sync: true)
+        let encoded = try updated.encodePersistent()
+        if metadataPuts.isEmpty {
+            try database.put(encoded, for: key, sync: true)
+        } else {
+            try database.applyBatch(
+                puts: metadataPuts + [(key: key, value: encoded)],
+                deletes: [],
+                sync: true
+            )
+        }
 
         var layers = block.layers
         let fallbackVersion = layers.compactMap(\.paletteVersion).first ?? replacement.paletteVersion

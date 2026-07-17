@@ -65,6 +65,20 @@ enum NBTExportUI {
         presenter.present(sheet, animated: true)
     }
 
+    static func exportConsecutiveLittleEndian(
+        from presenter: UIViewController,
+        documents: [NBTDocument],
+        baseFilename: String
+    ) {
+        guard !documents.isEmpty else {
+            presenter.showError(BlocktopographError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
+            return
+        }
+        export(from: presenter, filename: safeFilename(baseFilename) + "-consecutive.nbt") {
+            try StandaloneNBTFileCodec.encode(documents, encoding: .littleEndian)
+        }
+    }
+
     static func documents(from nodes: [NBTNode]) -> [NBTDocument] {
         nodes.map { node in
             let rawName = node.name.hasPrefix("[") ? "item" : node.name

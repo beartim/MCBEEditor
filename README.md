@@ -1,5 +1,16 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.13 实体通用 NBT、连续实体导入导出、summon 与空气区块补写
+
+- 新建与复制实体会补齐基岩版实体通用 NBT 标签，同时保留模板或导入文件中的实体专用标签。
+- 新建实体支持选择连续多根 `.nbt`：先指定维度、坐标和起始 UniqueID，再逐根预览和编辑后批量导入。
+- 实体长按菜单新增“导出连续多根 NBT”，按源 LevelDB 记录导出全部连续根标签。
+- 新增严格格式的 `summon` 命令，可用实体通用模板创建实体并增补/覆盖指定 NBT 标签。
+- 方块 NBT、`clone`、`fill` 涉及未加载区块时，会先写入空气区块元数据和生成完成状态，再创建或修改 SubChunk。
+- 地图点选无有效 Y 的列时默认选择 Y=0；命令输入光标移到终端上方；命令完成后对象列表在主线程安全重新扫描。
+- `give` 对玩家优先写入第一个空物品栏槽位，物品栏满时替换最后一格。
+- 当前版本：**1.1.13 (123)**。
+
 ## v1.1.12 Xcode 版本检测 Broken pipe 修复
 
 - 修复 `Scripts/bootstrap.sh` 使用 `xcodebuild -version | awk ... exit` 时，`awk` 提前关闭管道导致 Xcode 15.4 抛出 `NSFileHandleOperationException: Broken pipe` 并以 134 退出的问题。

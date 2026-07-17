@@ -469,6 +469,9 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertNoThrow(try WorldCommandParser.parse("kill @a 1"))
         XCTAssertNoThrow(try WorldCommandParser.parse("kick @a"))
         XCTAssertNoThrow(try WorldCommandParser.parse("kick -123456789"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""))
+        XCTAssertThrowsError(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 NULL"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Long'\"UniqueID\"=\"2\""))
         XCTAssertThrowsError(try WorldCommandParser.parse("clear"))
         XCTAssertThrowsError(try WorldCommandParser.parse("clearspawnpoint"))
         XCTAssertThrowsError(try WorldCommandParser.parse("give @s minecraft:stone"))
@@ -476,6 +479,25 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertThrowsError(try WorldCommandParser.parse("kick @e"))
         XCTAssertThrowsError(try WorldCommandParser.parse("/help"))
         XCTAssertThrowsError(try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air"))
+    }
+
+    func testCommonEntityNBTTemplate() throws {
+        let tags = BedrockEntityCommonNBT.tags(
+            identifier: "minecraft:pig",
+            position: BedrockWorldObjectPosition(x: 1.5, y: 64, z: -2.5),
+            dimension: 0,
+            uniqueID: 77
+        )
+        let root = NBTValue.compound(tags)
+        XCTAssertEqual(root.int64Value(namedAny: ["UniqueID"]), 77)
+        XCTAssertEqual(root.int64Value(namedAny: ["Air"]), 300)
+        XCTAssertEqual(root.int64Value(namedAny: ["Persistent"]), 1)
+        XCTAssertEqual(root.value(namedAny: ["Motion"])?.listValues?.count, 3)
+        XCTAssertEqual(root.value(namedAny: ["Rotation"])?.listValues?.count, 2)
+        XCTAssertEqual(root.value(namedAny: ["LinksTag"])?.listValues?.count, 0)
+        XCTAssertEqual(root.value(namedAny: ["Tags"])?.listValues?.count, 0)
+        XCTAssertEqual(BedrockEntityCommonNBT.identifier(in: root), "minecraft:pig")
+        XCTAssertEqual(BedrockEntityCommonNBT.position(in: root)?.blockY, 64)
     }
 
     func testLegacySubChunkNumericBlockEditRoundTrip() throws {

@@ -2735,7 +2735,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let index = position.localZ * side + position.localX
         let initialY: Int32? = lastBlockHeights.indices.contains(index) && lastBlockHeights[index] != Int16.min
             ? Int32(lastBlockHeights[index])
-            : nil
+            : 0
         showBlockColumn(x: position.absoluteX, z: position.absoluteZ, initialY: initialY)
     }
 

@@ -1,4 +1,4 @@
-# 应用 Blocktopograph iOS 13 v1.1.12 完整源码
+# 应用 Blocktopograph iOS 13 v1.1.13 完整源码
 
 本压缩包为完整工程源码。覆盖现有工程后执行：
 
@@ -7,11 +7,13 @@ chmod +x Scripts/*.sh
 bash Scripts/bootstrap.sh
 ```
 
-本版修复：
+本版新增与修复：
 
-- 修复 Xcode 15.4 在 `xcodebuild -version` 输出管道被提前关闭时抛出 `NSFileHandleOperationException: Broken pipe`、构建流程以退出码 134 中止的问题；
-- `Scripts/bootstrap.sh` 先完整捕获版本输出，再解析 Xcode 版本；
-- GitHub Actions 的 Xcode 15.4 选择与校验步骤同步改为安全解析；
-- 保留 v1.1.11 的地图中心、命令选择器、`clear/give/kill/kick` 和 clone 修复。
+- 新建实体补齐实体通用 NBT，并支持连续多根 NBT 的预览、修改和批量导入；
+- 实体长按支持导出源记录中的连续多根 NBT；
+- 新增 `summon` 命令；
+- 方块 NBT、`clone`、`fill` 遇到未加载区块时先生成空气区块及完成状态；
+- 地图无 Y 点选默认 Y=0，命令光标移到终端上方，命令后对象记录安全自动重扫；
+- `give` 对玩家优先使用第一个空物品栏槽位。
 
-重新生成 Xcode 工程后，版本号为 1.1.12，构建号为 122。
+重新生成 Xcode 工程后，版本号为 1.1.13，构建号为 123。

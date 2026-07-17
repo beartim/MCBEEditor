@@ -153,15 +153,15 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             cursorView.widthAnchor.constraint(equalToConstant: 8),
             cursorView.heightAnchor.constraint(equalToConstant: 18),
 
-            outputView.leadingAnchor.constraint(equalTo: terminalContainer.leadingAnchor),
-            outputView.trailingAnchor.constraint(equalTo: terminalContainer.trailingAnchor),
-            outputView.topAnchor.constraint(equalTo: terminalContainer.topAnchor),
-            outputView.bottomAnchor.constraint(equalTo: inputContainer.topAnchor),
-
             inputContainer.leadingAnchor.constraint(equalTo: terminalContainer.leadingAnchor),
             inputContainer.trailingAnchor.constraint(equalTo: terminalContainer.trailingAnchor),
-            inputContainer.bottomAnchor.constraint(equalTo: terminalContainer.bottomAnchor),
+            inputContainer.topAnchor.constraint(equalTo: terminalContainer.topAnchor),
             inputContainer.heightAnchor.constraint(equalToConstant: 42),
+
+            outputView.leadingAnchor.constraint(equalTo: terminalContainer.leadingAnchor),
+            outputView.trailingAnchor.constraint(equalTo: terminalContainer.trailingAnchor),
+            outputView.topAnchor.constraint(equalTo: inputContainer.bottomAnchor),
+            outputView.bottomAnchor.constraint(equalTo: terminalContainer.bottomAnchor),
 
             inputScrollView.leadingAnchor.constraint(equalTo: inputContainer.leadingAnchor),
             inputScrollView.trailingAnchor.constraint(equalTo: inputContainer.trailingAnchor),
@@ -252,7 +252,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     // Invalidation must therefore happen on the main thread and only
                     // after the command store has finished and released its DB work.
                     if result.changedWorld {
-                        self.session.invalidateAfterExternalChange()
+                        self.session.notifyAfterDatabaseMutation()
                     }
                     self.appendOutput(result.message)
                     self.setRunning(false)

@@ -196,6 +196,7 @@ struct Main {
         _ = try WorldCommandParser.parse("give minecraft:cow minecraft:redstone_wire 97")
         _ = try WorldCommandParser.parse("kill @a 1")
         _ = try WorldCommandParser.parse("kick @a")
+        _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"")
         do {
             _ = try WorldCommandParser.parse("clear")
             preconditionFailure("clear must require one target")
@@ -1171,6 +1172,7 @@ echo "Six-tab navigation, command terminal, peer NBT menu and structure NBT brow
 # v0.9.0: editable entity and block-entity NBT with storage migration.
 for required in \
   "$ROOT/Sources/NBT/ConsecutiveNBTCodec.swift" \
+  "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
   "$ROOT/Sources/UI/WorldObjectNBTEditorViewController.swift"; do
   [[ -f "$required" ]] || {
@@ -1186,7 +1188,8 @@ for expected in \
   'UniqueID 可修改但不能删除或重命名'; do
   grep -qF "$expected" \
     "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
-    "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+    "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
+  "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
     "$ROOT/Sources/UI/WorldObjectNBTEditorViewController.swift" || {
       echo "error: entity/block-entity editing safety feature missing: $expected" >&2
       exit 1
@@ -1201,7 +1204,8 @@ for expected in \
   '复制为新\(object.kind.displayName)' \
   'confirmDelete(_ object:'; do
   grep -R -qF "$expected" \
-    "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+    "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
+  "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
     "$ROOT/Sources/UI/EntityBrowserViewController.swift" \
     "$ROOT/Sources/UI/WorldObjectCreationViewController.swift" || {
       echo "error: entity/block-entity create/delete or UniqueID migration is missing: $expected" >&2
@@ -1407,6 +1411,12 @@ struct WorldObjectNBTTest {
             return false
         })
         precondition(createdActorDocument.root.int64Value(namedAny: ["Persistent"]) == 1)
+        precondition(createdActorDocument.root.int64Value(namedAny: ["Air"]) == 300)
+        precondition(createdActorDocument.root.int64Value(namedAny: ["DimensionId"]) == 0)
+        precondition(createdActorDocument.root.value(namedAny: ["Motion"])?.listValues?.count == 3)
+        precondition(createdActorDocument.root.value(namedAny: ["Rotation"])?.listValues?.count == 2)
+        precondition(createdActorDocument.root.value(namedAny: ["LinksTag"])?.listValues?.isEmpty == true)
+        precondition(createdActorDocument.root.value(namedAny: ["Tags"])?.listValues?.isEmpty == true)
 
         // The game removes an actor ID from digp when the actor dies. A stale
         // actorprefix value alone must not continue to appear as a live entity.
@@ -1512,6 +1522,7 @@ swiftc \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \
+  "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
   -parse-as-library "$TMP/world_object_nbt_test.swift" -o "$TMP/world-object-nbt-tests"
 "$TMP/world-object-nbt-tests"
@@ -1576,6 +1587,10 @@ final class MojangLevelDB {
     var values: [Data: Data] = [:]
     func get(_ key: Data) throws -> Data? { values[key] }
     func put(_ value: Data, for key: Data, sync: Bool = true) throws { values[key] = value }
+    func applyBatch(puts: [(key: Data, value: Data)], deletes: [Data], sync: Bool = true) throws {
+        for key in deletes { values.removeValue(forKey: key) }
+        for put in puts { values[put.key] = put.value }
+    }
     func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] {
         let matches = values.keys.filter { key in
             guard let prefix = prefix else { return true }
@@ -1599,7 +1614,21 @@ enum MapCoordinate {
     static func chunk(fromBlock coordinate: Int64) -> Int32 { Int32(floor(Double(coordinate) / 16.0)) }
     static func blockOrigin(ofChunk chunk: Int32) -> Int64 { Int64(chunk) * 16 }
 }
-enum BedrockDBKey {
+struct ChunkPosition: Hashable { let x: Int32; let z: Int32; let dimension: Int32 }
+enum ChunkRecordType: UInt8 { case legacyVersion = 0x76; case finalizedState = 0x36 }
+struct BedrockDBKey {
+    let position: ChunkPosition
+    let recordType: ChunkRecordType
+    let subChunkIndex: Int8?
+    init(position: ChunkPosition, recordType: ChunkRecordType, subChunkIndex: Int8?) {
+        self.position = position; self.recordType = recordType; self.subChunkIndex = subChunkIndex
+    }
+    func encoded() -> Data {
+        var result = Data(); result.appendLE(position.x); result.appendLE(position.z); result.appendLE(position.dimension)
+        result.append(recordType.rawValue)
+        if let subChunkIndex = subChunkIndex { result.append(UInt8(bitPattern: subChunkIndex)) }
+        return result
+    }
     static func subChunk(x: Int32, z: Int32, dimension: Int32, index: Int8) -> Data {
         var result = Data(); result.appendLE(x); result.appendLE(z); result.appendLE(dimension); result.append(UInt8(bitPattern: index)); return result
     }
@@ -1807,7 +1836,58 @@ struct BlockNBTEditorTest {
         let clearedLayer0 = try v1.clearingLayer(0)
         precondition(clearedLayer0.subChunk.storages[0].blockState(x: 2, y: 3, z: 4)?.isAir == true)
         precondition(clearedLayer0.subChunk.trailingData == v1.trailingData)
-        print("Editable block NBT, typed states, coordinated search and bulk layer operations passed")
+
+        // v1.1.13: editing a block in an unloaded chunk first writes the
+        // pure-air chunk metadata and FinalizedState=2, then creates the target
+        // SubChunk in the same database batch.
+        let missingSession = WorldSession()
+        let missingBlock = BedrockBlockRecord(
+            x: 160, y: 64, z: -32, dimension: 0,
+            layers: [.editableAir(version: 18168865)],
+            isGenerated: false
+        )
+        let diamond = state("minecraft:diamond_block", property: 9)
+        let missingResult = try BedrockBlockNBTStore(session: missingSession).save(
+            block: missingBlock,
+            storageIndex: 0,
+            document: NBTDocument(rootName: "", root: diamond.nbt!)
+        )
+        precondition(missingResult.block.isGenerated)
+        let missingDB = try missingSession.database()
+        let missingPosition = ChunkPosition(x: 10, z: -2, dimension: 0)
+        for record in BedrockEmptyChunk.metadataRecords(at: missingPosition) {
+            let exists = try missingDB.get(record.key) != nil
+            precondition(exists)
+        }
+        let missingSubKey = BedrockDBKey.subChunk(x: 10, z: -2, dimension: 0, index: 4)
+        guard let missingRaw = try missingDB.get(missingSubKey) else {
+            preconditionFailure("missing SubChunk was not created")
+        }
+        let missingDecoded = try BedrockSubChunk.decode(missingRaw, keyYIndex: 4)
+        precondition(missingDecoded.storages[0].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:diamond_block")
+
+        let missingLegacyBlock = BedrockBlockRecord(
+            x: 176, y: 64, z: -32, dimension: 0,
+            layers: [BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)],
+            isGenerated: false
+        )
+        let legacyDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "legacy_id", value: .int(5)),
+            NBTNamedTag(name: "legacy_data", value: .byte(2)),
+            NBTNamedTag(name: "name", value: .string("minecraft:planks"))
+        ]))
+        _ = try BedrockBlockNBTStore(session: missingSession).save(
+            block: missingLegacyBlock, storageIndex: 0, document: legacyDocument
+        )
+        let missingLegacyKey = BedrockDBKey.subChunk(x: 11, z: -2, dimension: 0, index: 4)
+        guard let missingLegacyRaw = try missingDB.get(missingLegacyKey) else {
+            preconditionFailure("missing legacy SubChunk was not created")
+        }
+        let missingLegacyDecoded = try BedrockSubChunk.decode(missingLegacyRaw, keyYIndex: 4)
+        let missingLegacyState = missingLegacyDecoded.storages[0].blockState(x: 0, y: 0, z: 0)
+        precondition(missingLegacyState?.legacyID == 5)
+        precondition(missingLegacyState?.legacyData == 2)
+        print("Editable block NBT, typed states, generated missing chunks and bulk layer operations passed")
     }
 }
 SWIFT
@@ -1821,6 +1901,7 @@ swiftc \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
+  "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   -parse-as-library "$TMP/block_nbt_editor_test.swift" -o "$TMP/block-nbt-editor-tests"
 "$TMP/block-nbt-editor-tests"
@@ -2637,6 +2718,7 @@ for expected in \
   'case "give"' \
   'case "kill"' \
   'case "kick"' \
+  'case "summon"' \
   'case "@s": return .localPlayer' \
   'case "@a": return .allPlayers' \
   'case "@e": return .allEntities' \
@@ -2655,8 +2737,8 @@ done
 for expected in \
   'snapshotSubChunks(in: source)' \
   'state(layer: 0, at: sourceCoordinate, snapshot: sourceSnapshot)' \
-  'sourceStore.loadedChunks.contains(sourceChunk)' \
-  'loadedChunks.contains(targetChunk)' \
+  'ensureGenerated(sourceStore.chunks(in: source))' \
+  'ensureGenerated(chunks(in: targetRegion))' \
   'sourceDimension: Int32' \
   'targetDimension: Int32' \
   'layer: 1' \
@@ -2666,6 +2748,7 @@ for expected in \
   'give(target:' \
   'kill(target:' \
   'kick(target:' \
+  'summon(identifier:' \
   'tradeContainerNames' \
   'settingHealthCurrentToZero' \
   'deleteOnlinePlayerData(records:'; do
@@ -2688,7 +2771,7 @@ grep -qF 'terminalContainer.addSubview(inputContainer)' "$COMMAND_UI" && \
 grep -qF 'visibleTerminalInput' "$COMMAND_UI" && \
 grep -qF '\u{00A0}' "$COMMAND_UI" && \
 grep -qF 'startCursorBlinking()' "$COMMAND_UI" && \
-grep -qF 'self.session.invalidateAfterExternalChange()' "$COMMAND_UI" && \
+grep -qF 'self.session.notifyAfterDatabaseMutation()' "$COMMAND_UI" && \
 grep -qF 'guard Thread.isMainThread' "$ROOT/Sources/World/WorldSession.swift" || {
   echo 'error: integrated terminal UI, visible spaces, cursor or main-thread invalidation is incomplete' >&2
   exit 1
@@ -2702,3 +2785,54 @@ if grep -qF 'session.invalidateAfterExternalChange()' "$COMMAND_EXECUTOR"; then
   exit 1
 fi
 echo 'Local-player map center, integrated terminal, target selectors and Y-safe clone passed'
+
+# v1.1.13: common entity NBT, consecutive entity import/export, summon,
+# generated-air fallback for unloaded chunks, Y=0 map taps and safe object refresh.
+ENTITY_COMMON="$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift"
+ENTITY_IMPORT_UI="$ROOT/Sources/UI/EntityNBTImportReviewViewController.swift"
+ENTITY_CREATE_UI="$ROOT/Sources/UI/WorldObjectCreationViewController.swift"
+ENTITY_BROWSER_UI="$ROOT/Sources/UI/EntityBrowserViewController.swift"
+BLOCK_STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
+for required in "$ENTITY_COMMON" "$ENTITY_IMPORT_UI"; do
+  [[ -f "$required" ]] || { echo "error: v1.1.13 source missing: ${required#$ROOT/}" >&2; exit 1; }
+done
+for tag in '"Air"' '"Motion"' '"Rotation"' '"LinksTag"' '"Tags"' '"PortalCooldown"' '"Persistent"'; do
+  grep -qF "$tag" "$ENTITY_COMMON" || { echo "error: common entity NBT tag missing: $tag" >&2; exit 1; }
+done
+grep -qF 'decoded.documents.count >= 2' "$ENTITY_CREATE_UI" && \
+grep -qF 'EntityNBTImportReviewViewController' "$ENTITY_CREATE_UI" && \
+grep -qF 'StandaloneNBTEditorViewController' "$ENTITY_IMPORT_UI" && \
+grep -qF 'createEntity(from:' "$ENTITY_IMPORT_UI" || {
+  echo 'error: consecutive entity NBT review/import flow is incomplete' >&2
+  exit 1
+}
+grep -qF '导出连续多根 NBT' "$ENTITY_BROWSER_UI" && \
+grep -qF 'sourceDocuments(for:' "$ENTITY_BROWSER_UI" && \
+grep -qF 'exportConsecutiveLittleEndian' "$ENTITY_BROWSER_UI" || {
+  echo 'error: consecutive entity NBT export is incomplete' >&2
+  exit 1
+}
+grep -qF 'BedrockEmptyChunk.metadataRecords(at: position)' "$BLOCK_STORE" && \
+grep -qF 'metadataPuts + [(key: key, value: encoded)]' "$BLOCK_STORE" && \
+grep -qF 'ensureGenerated(sourceStore.chunks(in: source))' "$COMMAND_EXECUTOR" && \
+grep -qF 'ensureGenerated(chunks(in: targetRegion))' "$COMMAND_EXECUTOR" || {
+  echo 'error: unloaded-chunk air generation is incomplete' >&2
+  exit 1
+}
+grep -qF ': 0' "$MAP_VIEW" && grep -qF 'lastBlockHeights[index] != Int16.min' "$MAP_VIEW" || {
+  echo 'error: map tap without rendered Y does not default to Y=0' >&2
+  exit 1
+}
+grep -qF 'inputContainer.topAnchor.constraint(equalTo: terminalContainer.topAnchor)' "$COMMAND_UI" && \
+grep -qF 'outputView.topAnchor.constraint(equalTo: inputContainer.bottomAnchor)' "$COMMAND_UI" && \
+grep -qF 'notifyAfterDatabaseMutation()' "$ROOT/Sources/World/WorldSession.swift" || {
+  echo 'error: top terminal cursor or safe command refresh is incomplete' >&2
+  exit 1
+}
+grep -qF '(0...35).first(where:' "$COMMAND_EXECUTOR" && \
+grep -qF 'case .summon' "$COMMAND_EXECUTOR" && \
+grep -qF 'BedrockEntityCommonNBT.mergingTopLevel' "$COMMAND_EXECUTOR" || {
+  echo 'error: first-empty-slot give or summon implementation is incomplete' >&2
+  exit 1
+}
+echo 'Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed'

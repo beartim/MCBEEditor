@@ -663,6 +663,11 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
             actions.append(UIAction(title: "复制为新\(object.kind.displayName)", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
                 self?.duplicateObject(object)
             })
+            if object.kind == .entity {
+                actions.append(UIAction(title: "导出连续多根 NBT", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+                    self?.exportEntitySource(object)
+                })
+            }
             if object.position != nil {
                 actions.append(UIAction(title: "在地图中定位", image: UIImage(systemName: "map")) { [weak self] _ in
                     self?.onLocate(object)
@@ -699,6 +704,11 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         alert.addAction(UIAlertAction(title: "复制为新\(object.kind.displayName)", style: .default) { [weak self] _ in
             self?.duplicateObject(object)
         })
+        if object.kind == .entity {
+            alert.addAction(UIAlertAction(title: "导出连续多根 NBT", style: .default) { [weak self] _ in
+                self?.exportEntitySource(object)
+            })
+        }
         alert.addAction(UIAlertAction(title: "删除\(object.kind.displayName)", style: .destructive) { [weak self] _ in
             self?.confirmDelete(object)
         })
@@ -712,6 +722,21 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
             popover.sourceRect = CGRect(x: tableView.bounds.midX, y: tableView.bounds.midY, width: 1, height: 1)
         }
         present(alert, animated: true)
+    }
+
+    private func exportEntitySource(_ object: BedrockWorldObject) {
+        do {
+            let documents = try objectStore.sourceDocuments(for: object)
+            let identifier = object.identifier.replacingOccurrences(of: ":", with: "_")
+            let suffix = object.uniqueID.map(String.init) ?? "entity"
+            NBTExportUI.exportConsecutiveLittleEndian(
+                from: self,
+                documents: documents,
+                baseFilename: "\(identifier)-\(suffix)"
+            )
+        } catch {
+            showError(error, title: "导出实体 NBT 失败")
+        }
     }
 
     private func dataValueDisplayName(for object: BedrockWorldObject) -> String {

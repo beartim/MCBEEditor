@@ -112,6 +112,17 @@ final class WorldSession {
         lock.unlock()
     }
 
+    /// Notifies all world-backed screens after this process has completed a
+    /// database mutation. The cached LevelDB handle deliberately stays open so an
+    /// entity scan already using it cannot race a close and crash.
+    func notifyAfterDatabaseMutation() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.notifyAfterDatabaseMutation() }
+            return
+        }
+        NotificationCenter.default.post(name: Self.worldDidChangeNotification, object: self)
+    }
+
     func invalidateAfterExternalChange() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in

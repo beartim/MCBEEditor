@@ -1,6 +1,7 @@
 import UIKit
+import MobileCoreServices
 
-final class WorldObjectCreationViewController: UIViewController, UITextFieldDelegate {
+final class WorldObjectCreationViewController: UIViewController, UITextFieldDelegate, UIDocumentPickerDelegate {
     private let session: WorldSession
     private let kind: BedrockWorldObjectKind
     private let template: BedrockWorldObject?
@@ -15,6 +16,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
     private let dimensionControl = UISegmentedControl(items: BedrockDimension.allCases.map(\.displayName))
     private let uniqueIDRow = UIStackView()
     private let noticeLabel = UILabel()
+    private let importNBTButton = UIButton(type: .system)
 
     init(
         session: WorldSession,
@@ -106,7 +108,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         noticeLabel.translatesAutoresizingMaskIntoConstraints = false
         if template == nil {
             noticeLabel.text = kind == .entity
-                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板只包含基础标签；复杂实体建议从现有同类实体复制。"
+                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板包含实体通用 NBT 标签；类型专属数据可从现有同类实体复制或从连续 NBT 文件导入。"
                 : "方块实体会写入目标区块的 BlockEntity(0x31) 记录。请确保目标坐标的方块类型与方块实体 ID 相匹配。"
         } else {
             noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并根据目标世界及原对象自动选择区块 Entity 或 actorprefix；原对象不会被修改。"
@@ -121,8 +123,18 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         selectedButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
         selectedButton.translatesAutoresizingMaskIntoConstraints = false
 
+        importNBTButton.setTitle("从连续多根 NBT 文件导入…", for: .normal)
+        importNBTButton.setImage(UIImage(systemName: "doc.badge.plus"), for: .normal)
+        importNBTButton.addTarget(self, action: #selector(selectEntityNBTFile), for: .touchUpInside)
+        importNBTButton.backgroundColor = .secondarySystemGroupedBackground
+        importNBTButton.layer.cornerRadius = 10
+        importNBTButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        importNBTButton.translatesAutoresizingMaskIntoConstraints = false
+        importNBTButton.isHidden = kind != .entity || template != nil
+
         view.addSubview(form)
         view.addSubview(selectedButton)
+        view.addSubview(importNBTButton)
         view.addSubview(noticeLabel)
         NSLayoutConstraint.activate([
             form.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
@@ -132,9 +144,16 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
             selectedButton.trailingAnchor.constraint(equalTo: form.trailingAnchor),
             selectedButton.topAnchor.constraint(equalTo: form.bottomAnchor, constant: 14),
             selectedButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            importNBTButton.leadingAnchor.constraint(equalTo: form.leadingAnchor),
+            importNBTButton.trailingAnchor.constraint(equalTo: form.trailingAnchor),
+            importNBTButton.topAnchor.constraint(equalTo: selectedButton.bottomAnchor, constant: 10),
+            importNBTButton.heightAnchor.constraint(equalToConstant: importNBTButton.isHidden ? 0 : 44),
             noticeLabel.leadingAnchor.constraint(equalTo: form.leadingAnchor, constant: 4),
             noticeLabel.trailingAnchor.constraint(equalTo: form.trailingAnchor, constant: -4),
-            noticeLabel.topAnchor.constraint(equalTo: selectedButton.bottomAnchor, constant: 14)
+            noticeLabel.topAnchor.constraint(
+                equalTo: importNBTButton.isHidden ? selectedButton.bottomAnchor : importNBTButton.bottomAnchor,
+                constant: 14
+            )
         ])
     }
 
@@ -208,6 +227,100 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
 
     @objc private func regenerateUniqueID() {
         uniqueIDField.text = String(Int64.random(in: 1...Int64.max))
+    }
+
+    @objc private func selectEntityNBTFile() {
+        view.endEditing(true)
+        do {
+            _ = try entityImportConfiguration()
+        } catch {
+            showError(error, title: "导入参数错误")
+            return
+        }
+        let picker = UIDocumentPickerViewController(documentTypes: [kUTTypeItem as String], in: .import)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        guard url.pathExtension.lowercased() == "nbt" else {
+            showError(BlocktopographError.unsupported("请选择包含连续多根标签的 .nbt 文件。"), title: "文件格式错误")
+            return
+        }
+        do {
+            let configuration = try entityImportConfiguration()
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            let decoded = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: url), filename: url.lastPathComponent)
+            guard decoded.documents.count >= 2 else {
+                throw BlocktopographError.unsupported("实体导入文件必须是连续多根 NBT，至少包含两个根标签。")
+            }
+            var prepared = [NBTDocument]()
+            prepared.reserveCapacity(decoded.documents.count)
+            for (index, document) in decoded.documents.enumerated() {
+                let addition = configuration.uniqueID.addingReportingOverflow(Int64(index))
+                guard !addition.overflow, addition.partialValue != 0 else {
+                    throw BlocktopographError.malformedData("连续实体 UniqueID 超出 Int64 范围。")
+                }
+                prepared.append(try store.prepareEntityDocument(
+                    document,
+                    fallbackIdentifier: configuration.identifier,
+                    position: configuration.position,
+                    dimension: configuration.dimension,
+                    uniqueID: addition.partialValue
+                ))
+            }
+            let returnController = navigationController?.viewControllers.dropLast().last
+            let review = EntityNBTImportReviewViewController(
+                session: session,
+                documents: prepared,
+                onComplete: { [weak self] results in
+                    guard let self = self else { return }
+                    self.onCreate()
+                    let message = "已导入 \(results.count) 个实体；对象记录正在重新扫描。"
+                    if let destination = returnController {
+                        self.navigationController?.popToViewController(destination, animated: true)
+                        destination.navigationItem.prompt = message
+                    } else {
+                        self.navigationController?.popToRootViewController(animated: true)
+                    }
+                }
+            )
+            navigationController?.pushViewController(review, animated: true)
+        } catch {
+            showError(error, title: "读取实体 NBT 失败")
+        }
+    }
+
+    private func entityImportConfiguration() throws -> (
+        identifier: String,
+        position: BedrockWorldObjectPosition,
+        dimension: Int32,
+        uniqueID: Int64
+    ) {
+        guard kind == .entity, template == nil else {
+            throw BlocktopographError.unsupported("只有空白新建实体支持从连续 NBT 文件导入。")
+        }
+        let identifier = identifierField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !identifier.isEmpty else { throw BlocktopographError.malformedData("请先填写实体 ID。") }
+        guard let x = Double(xField.text ?? ""),
+              let y = Double(yField.text ?? ""),
+              let z = Double(zField.text ?? ""),
+              x.isFinite, y.isFinite, z.isFinite else {
+            throw BlocktopographError.malformedData("请先填写有效的实体 X、Y、Z 坐标。")
+        }
+        guard let uniqueID = Int64(uniqueIDField.text ?? ""), uniqueID != 0 else {
+            throw BlocktopographError.malformedData("请先填写非零 Int64 UniqueID。")
+        }
+        let index = max(0, dimensionControl.selectedSegmentIndex)
+        return (
+            identifier,
+            BedrockWorldObjectPosition(x: x, y: y, z: z),
+            BedrockDimension.allCases[index].rawValue,
+            uniqueID
+        )
     }
 
     @objc private func createObject() {

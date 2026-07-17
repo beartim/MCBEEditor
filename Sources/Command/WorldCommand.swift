@@ -128,6 +128,7 @@ enum ParsedWorldCommand {
     case give(target: CommandTarget, itemIdentifier: String, count: Int64)
     case kill(target: CommandTarget, killCreativePlayers: Bool)
     case kick(target: CommandTarget)
+    case summon(identifier: String, dimension: Int32, position: CommandBlockCoordinate, additions: [NBTNamedTag])
     case clone(
         sourceDimension: Int32,
         source: CommandBlockBox,
@@ -143,17 +144,18 @@ enum ParsedWorldCommand {
 }
 
 enum WorldCommandParser {
-    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "fill", "give", "kill", "kick"]
+    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "fill", "give", "kill", "kick", "summon"]
 
     static let usage: [String: String] = [
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
-        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；未加载的源或目标区块会跳过。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
-        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
-        "give": "give 目标 物品 数目\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。玩家写入物品栏最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:redstone_wire 97",
+        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String；涉及未加载区块时先写入空气区块与生成完成状态。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
+        "give": "give 目标 物品 数目\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:redstone_wire 97",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
-        "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。"
+        "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。",
+        "summon": "summon 实体类型 实体维度 x y z NBT标签\n实体维度必须为 overworld、nether 或 the_end；最后一个参数必须使用 '类型'\"键\"=\"值\" 格式且不能为 NULL。命令会先建立实体通用 NBT，再用指定标签增补或覆盖。\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -200,6 +202,20 @@ enum WorldCommandParser {
             default:
                 throw usageError(command)
             }
+        case "summon":
+            guard arguments.count == 6 else { throw usageError(command) }
+            let identifier = try parseNamespacedIdentifier(arguments[0], kind: "实体")
+            let dimension = try parseDimension(arguments[1])
+            let position = try parseCoordinates(Array(arguments[2...4]))[0]
+            let additions = try parseStates(arguments[5])
+            guard !additions.isEmpty else {
+                throw BlocktopographError.malformedData("summon 的 NBT 标签不能为 NULL")
+            }
+            let protected = Set(["uniqueid", "pos", "dimensionid", "dimension", "identifier", "id", "definitions"])
+            if let invalid = additions.first(where: { protected.contains($0.name.lowercased()) }) {
+                throw BlocktopographError.malformedData("summon 不能覆盖由命令控制的标签：\(invalid.name)")
+            }
+            return .summon(identifier: identifier, dimension: dimension, position: position, additions: additions)
         case "clone":
             guard arguments.count == 11 else { throw usageError(command) }
             let sourceDimension = try parseDimension(arguments[0])
