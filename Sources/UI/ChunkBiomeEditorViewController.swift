@@ -128,7 +128,7 @@ final class ChunkBiomeEditorViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard indexPath.section == 1, var record = record else { return }
+        guard indexPath.section == 1, let record = record else { return }
         let layerIndex = indexPath.row
         let editor = BiomeLayerEditorViewController(layer: record.document.layers[layerIndex])
         editor.onCommit = { [weak self] layer in

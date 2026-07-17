@@ -2,6 +2,7 @@
 .gitignore
 APPLY.md
 CHANGES_v1.1.0.md
+CHANGES_v1.1.1.md
 LICENSE
 PORT_STATUS.md
 README.md

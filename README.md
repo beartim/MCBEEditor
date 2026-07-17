@@ -283,7 +283,7 @@ build/output/Blocktopograph-iOS13-unsigned.ipa
 - 方块状态 NBT 已支持调色板 SubChunk v1/v8/v9 写回；旧版数字 ID SubChunk 仍只读。
 - 实体和方块实体支持任意 NBT 标签增删改与坐标迁移，但尚未提供克隆或删除整个对象。
 - 玩家 NBT 支持通用标签增删改，尚未提供背包槽位等专用结构化表单。
-- 尚未实现洞穴切片、史莱姆区块和原版方块纹理；
+- 尚未实现洞穴切片和原版方块纹理；
 - `.mcworld` 压缩暂不支持 ZIP64 或超大型世界流式处理；
 - 标准 iOS App 无法直接读取 Minecraft 私有沙盒，只能通过导入/导出访问世界。
 
@@ -296,3 +296,11 @@ build/output/Blocktopograph-iOS13-unsigned.ipa
 - 地图支持常加载区块和史莱姆区块图层。
 - 区块栏目支持管理 LevelDB `tickingarea`，包括新增、编辑、删除与批量预加载操作。
 - 信息栏目的世界编辑中支持查看和修改天气。
+
+## v1.1.1：Xcode 15.4 编译修复
+
+- 修复常加载区块圆形标记调用错误的 UIKit 绘图 API。
+- 修复导出当前区域时遗漏 `tickingAreas` 参数。
+- 将三处 Swift KeyPath 简写改为显式闭包，兼容 Xcode 15.4 / Swift 5。
+- 导出常加载区块地图时会重新读取当前维度的 `tickingarea` 数据。
+- 版本更新为 1.1.1（构建号 111）。

@@ -1736,7 +1736,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             cg.stroke(CGRect(x: 0.5, y: 0.5, width: 15, height: 15))
             if matches.first?.isCircle == true {
                 UIColor.white.withAlphaComponent(0.25).setFill()
-                context.fillEllipse(in: CGRect(x: 4, y: 4, width: 8, height: 8))
+                context.cgContext.fillEllipse(in: CGRect(x: 4, y: 4, width: 8, height: 8))
             }
         }
     }
@@ -3807,6 +3807,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                 let villageFeatures = layers.villages
                     ? try VillageNBTStore(session: self.session).mapFeatures().features.filter { $0.dimension == dimension }
                     : []
+                let exportTickingAreas: [BedrockTickingArea]
+                if mode == .tickingAreas {
+                    exportTickingAreas = try TickingAreaStore(session: self.session)
+                        .records()
+                        .map { $0.area }
+                        .filter { $0.dimension == dimension }
+                } else {
+                    exportTickingAreas = []
+                }
 
                 let image: UIImage
                 let exportSuffix: String
@@ -3853,6 +3862,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         displayBlockEntities: layers.blockEntities,
                         hardcodedSpawnerHits: spawnerScan.hits,
                         villageFeatures: villageFeatures,
+                        tickingAreas: exportTickingAreas,
                         additionalErrors: spawnerScan.diagnostics,
                         shouldCancel: { false }
                     )
@@ -3877,7 +3887,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     guard !summaries.isEmpty else {
                         throw BlocktopographError.unsupported("当前维度没有可导出的已加载区块。")
                     }
-                    let positions = summaries.map(\.position)
+                    let positions: [ChunkPosition] = summaries.map { $0.position }
                     let base = try self.renderLoadedDimensionBase(
                         renderer: renderer,
                         positions: positions,
@@ -3909,7 +3919,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         layers: layers
                     )
                     let spawnerHits = layers.hardcodedSpawners
-                        ? try self.scanHardcodedSpawners(database: database, positions: summaries.filter(\.hasHardcodedSpawners).map(\.position)).hits
+                        ? try self.scanHardcodedSpawners(database: database, positions: summaries.filter { $0.hasHardcodedSpawners }.map { $0.position }).hits
                         : []
                     let villageHits = self.makeExportVillageHits(
                         features: villageFeatures,
