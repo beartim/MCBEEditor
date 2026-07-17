@@ -6,6 +6,7 @@ CHANGES_v1.1.1.md
 CHANGES_v1.1.2.md
 CHANGES_v1.1.3.md
 CHANGES_v1.1.4.md
+CHANGES_v1.1.5.md
 LICENSE
 PORT_STATUS.md
 README.md
@@ -65,6 +66,7 @@ Sources/LevelDB/MojangLevelDB.swift
 Sources/NBT/BedrockNBTCodec.swift
 Sources/NBT/BinaryCursor.swift
 Sources/NBT/ConsecutiveNBTCodec.swift
+Sources/NBT/NBTClipboardCodec.swift
 Sources/NBT/NBTJSONCodec.swift
 Sources/NBT/NBTTypes.swift
 Sources/Support/AtomicFile.swift

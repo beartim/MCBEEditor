@@ -299,9 +299,11 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
     }
 
     @objc private func addRoot() {
-        NBTEditingUI.presentCreateRoot(from: self, sourceView: view) { [weak self] document in
-            guard let self = self else { return }
-            self.roots.append(ConsecutiveNBTRecord(document: document, rawData: Data(), encoding: .littleEndian))
+        NBTEditingUI.presentCreateRoot(from: self, sourceView: view) { [weak self] documents in
+            guard let self = self, !documents.isEmpty else { return }
+            self.roots.append(contentsOf: documents.map {
+                ConsecutiveNBTRecord(document: $0, rawData: Data(), encoding: .littleEndian)
+            })
             self.dirty = true
             self.rebuild()
         }

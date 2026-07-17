@@ -421,16 +421,16 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
                 actions.append(UIAction(title: "增加子标签", image: UIImage(systemName: "plus")) { [weak self] _ in
                     guard let self = self else { return }
                     guard let presenter = self.owningViewController else { return }
-                    NBTEditingUI.presentAdd(from: presenter, container: node.value, sourceView: tableView.cellForRow(at: indexPath)) { [weak self] name, value in
-                        self?.add(value: value, name: name, to: node.path)
+                    NBTEditingUI.presentAdd(from: presenter, container: node.value, sourceView: tableView.cellForRow(at: indexPath)) { [weak self] name, value, replacingExisting in
+                        self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
                     }
                 })
             } else if case .list = node.value {
                 actions.append(UIAction(title: "增加列表元素", image: UIImage(systemName: "plus")) { [weak self] _ in
                     guard let self = self else { return }
                     guard let presenter = self.owningViewController else { return }
-                    NBTEditingUI.presentAdd(from: presenter, container: node.value, sourceView: tableView.cellForRow(at: indexPath)) { [weak self] name, value in
-                        self?.add(value: value, name: name, to: node.path)
+                    NBTEditingUI.presentAdd(from: presenter, container: node.value, sourceView: tableView.cellForRow(at: indexPath)) { [weak self] name, value, replacingExisting in
+                        self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
                     }
                 })
             }

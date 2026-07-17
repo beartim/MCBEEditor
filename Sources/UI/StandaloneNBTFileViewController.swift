@@ -134,14 +134,14 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
     }
 
     @objc private func addRootDocument() {
-        NBTEditingUI.presentCreateRoot(from: self, sourceView: view) { [weak self] document in
-            guard let self = self else { return }
+        NBTEditingUI.presentCreateRoot(from: self, sourceView: view) { [weak self] documents in
+            guard let self = self, !documents.isEmpty else { return }
             self.searchController.searchBar.text = ""
             self.searchController.isActive = false
-            self.file.documents.append(document)
+            self.file.documents.append(contentsOf: documents)
             self.file.dirty = true
             self.rebuildDisplayedIndices()
-            let newIndex = self.file.documents.count - 1
+            let newIndex = self.file.documents.count - documents.count
             if let row = self.displayedIndices.firstIndex(of: newIndex) {
                 self.tableView.scrollToRow(at: IndexPath(row: row, section: 0), at: .middle, animated: true)
             }

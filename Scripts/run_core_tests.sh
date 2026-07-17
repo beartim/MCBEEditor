@@ -29,6 +29,30 @@ struct Main {
         precondition(ordinaryJSON.count == 1)
         precondition(ordinaryJSON[0].root.type == .compound)
 
+
+        let clipboardDocuments = [
+            NBTDocument(rootName: "First", root: .int(1)),
+            NBTDocument(rootName: "Second", root: .string("two")),
+            NBTDocument(rootName: "Third", root: .compound([
+                NBTNamedTag(name: "value", value: .long(3))
+            ]))
+        ]
+        let clipboardPayload = try NBTClipboardCodec.encodeBatch(clipboardDocuments)
+        precondition(NBTClipboardCodec.isBatchPayload(clipboardPayload))
+        let clipboardRoundTrip = try NBTClipboardCodec.decodeBatch(clipboardPayload)
+        precondition(clipboardRoundTrip.count == 3)
+        precondition(clipboardRoundTrip.map(\.rootName) == ["First", "Second", "Third"])
+        if case .int(let value) = clipboardRoundTrip[0].root { precondition(value == 1) }
+        else { preconditionFailure("first clipboard tag changed type") }
+        if case .string(let value) = clipboardRoundTrip[1].root { precondition(value == "two") }
+        else { preconditionFailure("second clipboard tag changed type") }
+        if case .compound(let tags) = clipboardRoundTrip[2].root,
+           case .long(let value)? = tags.first(where: { $0.name == "value" })?.value {
+            precondition(value == 3)
+        } else {
+            preconditionFailure("third clipboard tag changed type")
+        }
+
         for value in [Int32.min, -1000, -1, 0, 1, 1000, Int32.max] {
             var writer = BinaryWriter()
             writer.writeSignedVarInt(value)
@@ -129,6 +153,7 @@ swiftc \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
+  "$ROOT/Sources/NBT/NBTClipboardCodec.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
@@ -2311,3 +2336,34 @@ grep -q 'chunkDistance(fromBlockDistance: halfExtent)' "$TICKING_STORE" && grep 
   exit 1
 }
 echo 'Tickingarea chunk-radius conversion and batch NBT conflict paste passed'
+
+# v1.1.5: both pasteboard representations must be written atomically into one
+# item, and every NBT creation surface must offer nbt/mcstructure/json import.
+NBT_CLIPBOARD_CODEC="$ROOT/Sources/NBT/NBTClipboardCodec.swift"
+NBT_EDITING_UI="$ROOT/Sources/UI/NBTEditingUI.swift"
+STANDALONE_LIST="$ROOT/Sources/UI/StandaloneNBTFileViewController.swift"
+METADATA_UI="$ROOT/Sources/UI/MetadataNBTViewControllers.swift"
+
+grep -q 'UIPasteboard.general.setItems' "$NBT_EDITING_UI" && \
+grep -q 'batchTagPasteboardType: batch' "$NBT_EDITING_UI" && \
+grep -q 'tagPasteboardType: encoded\[0\]' "$NBT_EDITING_UI" && \
+! grep -q 'setData(batch, forPasteboardType: batchTagPasteboardType)' "$NBT_EDITING_UI" && \
+grep -q 'NBTClipboardCodec.encodeBatch(documents)' "$NBT_EDITING_UI" && \
+grep -q 'NBTClipboardCodec.decodeBatch(batch)' "$NBT_EDITING_UI" && \
+grep -q 'static func encodeBatch' "$NBT_CLIPBOARD_CODEC" && \
+grep -q 'static func decodeBatch' "$NBT_CLIPBOARD_CODEC" || {
+  echo 'error: atomic multi-tag pasteboard payload or clipboard codec is incomplete' >&2
+  exit 1
+}
+
+grep -q '导入 NBT／mcstructure／JSON…' "$NBT_EDITING_UI" && \
+grep -q 'StandaloneNBTFileCodec.decode' "$NBT_EDITING_UI" && \
+grep -q 'ext == "nbt" || ext == "mcstructure" || ext == "json"' "$NBT_EDITING_UI" && \
+grep -q 'completion: @escaping (\[NBTDocument\]) -> Void' "$NBT_EDITING_UI" && \
+grep -q 'append(contentsOf: documents)' "$STANDALONE_LIST" && \
+grep -q 'documents.map' "$METADATA_UI" || {
+  echo 'error: NBT/mcstructure/json tag and root import integration is incomplete' >&2
+  exit 1
+}
+
+echo 'Atomic multi-tag clipboard and NBT/mcstructure/json tag import passed'

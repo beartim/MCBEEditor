@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import Blocktopograph
 
 final class BlocktopographTests: XCTestCase {
@@ -12,6 +13,48 @@ final class BlocktopographTests: XCTestCase {
         let decoded = try BedrockNBTCodec.decode(encoded)
         XCTAssertEqual(decoded.root.stringValue(named: "LevelName"), "Test World")
         XCTAssertEqual(try BedrockNBTCodec.encode(decoded), encoded)
+    }
+
+    func testBatchNBTClipboardRoundTripPreservesEveryTag() throws {
+        let documents = [
+            NBTDocument(rootName: "A", root: .int(1)),
+            NBTDocument(rootName: "B", root: .string("two")),
+            NBTDocument(rootName: "C", root: .compound([
+                NBTNamedTag(name: "value", value: .long(3))
+            ]))
+        ]
+        let payload = try NBTClipboardCodec.encodeBatch(documents)
+        XCTAssertTrue(NBTClipboardCodec.isBatchPayload(payload))
+        let decoded = try NBTClipboardCodec.decodeBatch(payload)
+        XCTAssertEqual(decoded.count, 3)
+        XCTAssertEqual(decoded.map(\.rootName), ["A", "B", "C"])
+        if case .int(let value) = decoded[0].root { XCTAssertEqual(value, 1) }
+        else { XCTFail("first tag changed type") }
+        if case .string(let value) = decoded[1].root { XCTAssertEqual(value, "two") }
+        else { XCTFail("second tag changed type") }
+        guard case .compound(let tags) = decoded[2].root,
+              case .long(let value)? = tags.first(where: { $0.name == "value" })?.value else {
+            return XCTFail("third tag changed type")
+        }
+        XCTAssertEqual(value, 3)
+    }
+
+    func testCopyDocumentsWritesBatchAndLegacyRepresentationsTogether() throws {
+        let documents = [
+            NBTDocument(rootName: "one", root: .int(1)),
+            NBTDocument(rootName: "two", root: .int(2)),
+            NBTDocument(rootName: "three", root: .int(3))
+        ]
+        UIPasteboard.general.items = []
+        NBTEditingUI.copyDocuments(documents)
+
+        XCTAssertEqual(UIPasteboard.general.items.count, 1)
+        let batchType = "com.wzn.blocktopograph.nbt-tags-v1"
+        let legacyType = "com.wzn.blocktopograph.nbt-tag"
+        let item = try XCTUnwrap(UIPasteboard.general.items.first)
+        let batch = try XCTUnwrap(item[batchType] as? Data)
+        XCTAssertNotNil(item[legacyType] as? Data)
+        XCTAssertEqual(try NBTClipboardCodec.decodeBatch(batch).count, 3)
     }
 
     func testMapCoordinateFlooring() {
