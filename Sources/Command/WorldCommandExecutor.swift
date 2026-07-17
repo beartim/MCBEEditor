@@ -12,25 +12,28 @@ final class WorldCommandExecutor {
         self.session = session
     }
 
-    func execute(_ command: ParsedWorldCommand, dimension: Int32) throws -> WorldCommandExecutionResult {
+    func execute(_ command: ParsedWorldCommand) throws -> WorldCommandExecutionResult {
         switch command {
         case .help(let target):
             return WorldCommandExecutionResult(message: WorldCommandParser.helpText(for: target), changedWorld: false)
         case .clear(let uniqueID):
             let message = try clearPlayerItems(uniqueID: uniqueID)
-            session.invalidateAfterExternalChange()
             return WorldCommandExecutionResult(message: message, changedWorld: true)
         case .clearSpawnPoint(let uniqueID):
             let message = try clearPlayerSpawnPoint(uniqueID: uniqueID)
-            session.invalidateAfterExternalChange()
             return WorldCommandExecutionResult(message: message, changedWorld: true)
-        case .clone(let source, let destination):
-            let result = try CommandBlockStore(session: session, dimension: dimension).clone(source: source, destination: destination)
-            session.invalidateAfterExternalChange()
+        case .clone(let sourceDimension, let source, let targetDimension, let destination):
+            let result = try CommandBlockStore.clone(
+                session: session,
+                sourceDimension: sourceDimension,
+                source: source,
+                targetDimension: targetDimension,
+                destination: destination
+            )
             return WorldCommandExecutionResult(message: result, changedWorld: true)
-        case .fill(let region, let layer0, let layer1):
-            let result = try CommandBlockStore(session: session, dimension: dimension).fill(region: region, layer0: layer0, layer1: layer1)
-            session.invalidateAfterExternalChange()
+        case .fill(let targetDimension, let region, let layer0, let layer1):
+            let result = try CommandBlockStore(session: session, dimension: targetDimension)
+                .fill(region: region, layer0: layer0, layer1: layer1)
             return WorldCommandExecutionResult(message: result, changedWorld: true)
         }
     }
@@ -302,31 +305,74 @@ private final class CommandBlockStore {
         return "fill 完成：修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体；处理 \(touchedChunks.count) 个已加载区块，跳过 \(skippedChunks.count) 个未加载区块。"
     }
 
-    func clone(source: CommandBlockBox, destination: CommandBlockCoordinate) throws -> String {
-        try validateVolume(source)
-        let deltaX = destination.x - source.minimum.x
-        let deltaY64 = Int64(destination.y) - Int64(source.minimum.y)
-        let deltaZ = destination.z - source.minimum.z
-        guard let deltaY = Int32(exactly: deltaY64) else {
-            throw BlocktopographError.malformedData("目标 Y 偏移超出 Int32 范围")
+    static func clone(
+        session: WorldSession,
+        sourceDimension: Int32,
+        source: CommandBlockBox,
+        targetDimension: Int32,
+        destination: CommandBlockCoordinate
+    ) throws -> String {
+        let sourceStore = try CommandBlockStore(session: session, dimension: sourceDimension)
+        let targetStore = sourceDimension == targetDimension
+            ? sourceStore
+            : try CommandBlockStore(session: session, dimension: targetDimension)
+        return try targetStore.clone(
+            from: sourceStore,
+            source: source,
+            destination: destination
+        )
+    }
+
+    private func clone(
+        from sourceStore: CommandBlockStore,
+        source: CommandBlockBox,
+        destination: CommandBlockCoordinate
+    ) throws -> String {
+        try sourceStore.validateVolume(source)
+        let targetRegion = try destinationRegion(for: source, destination: destination)
+        try validateVolume(targetRegion)
+
+        let deltaXResult = destination.x.subtractingReportingOverflow(source.minimum.x)
+        let deltaYResult = destination.y.subtractingReportingOverflow(source.minimum.y)
+        let deltaZResult = destination.z.subtractingReportingOverflow(source.minimum.z)
+        guard !deltaXResult.overflow, !deltaYResult.overflow, !deltaZResult.overflow else {
+            throw BlocktopographError.malformedData("clone 目标坐标偏移溢出")
         }
-        var skippedChunks = Set<ChunkPosition>()
+        let deltaX = deltaXResult.partialValue
+        let deltaY = deltaYResult.partialValue
+        let deltaZ = deltaZResult.partialValue
+
+        var skippedSourceChunks = Set<ChunkPosition>()
+        var skippedTargetChunks = Set<ChunkPosition>()
         var changedBlocks: UInt64 = 0
         var touchedDestinationChunks = Set<ChunkPosition>()
 
-        let entityState = try loadBlockEntities(for: try cloneRelevantChunks(source: source, destination: destination))
-        var blockEntities = entityState.documents
+        // Read both entity collections before any write. This gives block entities
+        // snapshot semantics even when source and target overlap in one dimension.
+        let sourceEntityChunks = sourceStore.chunks(in: source).intersection(sourceStore.loadedChunks)
+        let targetEntityChunks = chunks(in: targetRegion).intersection(loadedChunks)
+        let sourceEntityState = try sourceStore.loadBlockEntities(for: sourceEntityChunks)
+        let targetEntityState = try loadBlockEntities(for: targetEntityChunks)
+        let sourceBlockEntities = sourceEntityState.documents
+        var targetBlockEntities = targetEntityState.documents
         var changedEntityChunks = Set<ChunkPosition>()
 
-        // Deliberately read and write the same mutable working set in ascending
-        // coordinate order. Therefore a destination that overlaps the source
-        // immediately overwrites it, matching the requested direct-overwrite behavior.
-        var x = source.minimum.x
-        while x <= source.maximum.x {
-            var y = source.minimum.y
-            while y <= source.maximum.y {
-                var z = source.minimum.z
-                while z <= source.maximum.z {
+        // Equivalent to memmove: when source and target overlap, traverse each
+        // shifted axis from the far side toward the near side. Future source reads
+        // therefore always see the original source block instead of a block written
+        // by an earlier iteration. This prevents one source block from cascading
+        // through the entire overlap region.
+        let traversal = CommandCloneTraversal(
+            source: source,
+            target: targetRegion,
+            sameDimension: sourceStore.dimension == dimension
+        )
+        var x = traversal.startX
+        while axisContains(x, minimum: source.minimum.x, maximum: source.maximum.x, step: traversal.stepX) {
+            var y = traversal.startY
+            while axisContains(y, minimum: source.minimum.y, maximum: source.maximum.y, step: traversal.stepY) {
+                var z = traversal.startZ
+                while axisContains(z, minimum: source.minimum.z, maximum: source.maximum.z, step: traversal.stepZ) {
                     let targetX = x.addingReportingOverflow(deltaX)
                     let targetY = y.addingReportingOverflow(deltaY)
                     let targetZ = z.addingReportingOverflow(deltaZ)
@@ -334,19 +380,23 @@ private final class CommandBlockStore {
                         throw BlocktopographError.malformedData("clone 目标坐标溢出")
                     }
                     let sourceCoordinate = CommandBlockCoordinate(x: x, y: y, z: z)
-                    let targetCoordinate = CommandBlockCoordinate(x: targetX.partialValue, y: targetY.partialValue, z: targetZ.partialValue)
-                    let sourceChunk = chunkPosition(x: x, z: z)
+                    let targetCoordinate = CommandBlockCoordinate(
+                        x: targetX.partialValue,
+                        y: targetY.partialValue,
+                        z: targetZ.partialValue
+                    )
+                    let sourceChunk = sourceStore.chunkPosition(x: x, z: z)
                     let targetChunk = chunkPosition(x: targetCoordinate.x, z: targetCoordinate.z)
-                    guard loadedChunks.contains(sourceChunk), loadedChunks.contains(targetChunk) else {
-                        if !loadedChunks.contains(sourceChunk) { skippedChunks.insert(sourceChunk) }
-                        if !loadedChunks.contains(targetChunk) { skippedChunks.insert(targetChunk) }
-                        if z == Int64.max { break }
-                        z += 1
+                    guard sourceStore.loadedChunks.contains(sourceChunk), loadedChunks.contains(targetChunk) else {
+                        if !sourceStore.loadedChunks.contains(sourceChunk) { skippedSourceChunks.insert(sourceChunk) }
+                        if !loadedChunks.contains(targetChunk) { skippedTargetChunks.insert(targetChunk) }
+                        z = nextAxisValue(z, step: traversal.stepZ)
                         continue
                     }
+
                     touchedDestinationChunks.insert(targetChunk)
-                    let source0 = try state(layer: 0, at: sourceCoordinate)
-                    let source1 = try state(layer: 1, at: sourceCoordinate)
+                    let source0 = try sourceStore.state(layer: 0, at: sourceCoordinate)
+                    let source1 = try sourceStore.state(layer: 1, at: sourceCoordinate)
                     let targetKey = try subKey(for: targetCoordinate)
                     let target0 = try adaptedState(source0, for: targetKey)
                     let target1 = try adaptedState(source1, for: targetKey)
@@ -355,34 +405,73 @@ private final class CommandBlockStore {
                     if changed0 || changed1 { changedBlocks += 1 }
 
                     let sourceEntityKey = BlockEntityCoordinate(x: x, y: y, z: z)
-                    let targetEntityKey = BlockEntityCoordinate(x: targetCoordinate.x, y: targetCoordinate.y, z: targetCoordinate.z)
-                    if let sourceDocument = blockEntities[sourceEntityKey] {
-                        blockEntities[targetEntityKey] = offsetBlockEntity(sourceDocument, to: targetCoordinate)
+                    let targetEntityKey = BlockEntityCoordinate(
+                        x: targetCoordinate.x,
+                        y: targetCoordinate.y,
+                        z: targetCoordinate.z
+                    )
+                    if let sourceDocument = sourceBlockEntities[sourceEntityKey] {
+                        targetBlockEntities[targetEntityKey] = offsetBlockEntity(sourceDocument, to: targetCoordinate)
                     } else {
-                        blockEntities.removeValue(forKey: targetEntityKey)
+                        targetBlockEntities.removeValue(forKey: targetEntityKey)
                     }
                     changedEntityChunks.insert(targetChunk)
-
-                    if z == Int64.max { break }
-                    z += 1
+                    z = nextAxisValue(z, step: traversal.stepZ)
                 }
-                if y == Int32.max { break }
-                y += 1
+                y = nextAxisValue(y, step: traversal.stepY)
             }
-            if x == Int64.max { break }
-            x += 1
+            x = nextAxisValue(x, step: traversal.stepX)
         }
 
         let entityWrites = try encodeBlockEntities(
-            documents: blockEntities,
+            documents: targetBlockEntities,
             changedChunks: changedEntityChunks,
-            originalKeys: entityState.keysByChunk
+            originalKeys: targetEntityState.keysByChunk
         )
         let written = try commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty else {
             throw BlocktopographError.unsupported("源区域内没有可复制到已加载目标区块的方块")
         }
-        return "clone 完成：复制并写入 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk；处理 \(touchedDestinationChunks.count) 个目标区块，跳过 \(skippedChunks.count) 个未加载区块。重叠区域已按坐标顺序直接覆盖。"
+        return "clone 完成：从 \(WorldCommandParser.dimensionName(for: sourceStore.dimension)) 复制到 \(WorldCommandParser.dimensionName(for: dimension))；修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk；处理 \(touchedDestinationChunks.count) 个目标区块，跳过 \(skippedSourceChunks.count) 个未加载源区块和 \(skippedTargetChunks.count) 个未加载目标区块。重叠区域按原始源数据复制。"
+    }
+
+    private func destinationRegion(
+        for source: CommandBlockBox,
+        destination: CommandBlockCoordinate
+    ) throws -> CommandBlockBox {
+        let width = source.maximum.x.subtractingReportingOverflow(source.minimum.x)
+        let height = source.maximum.y.subtractingReportingOverflow(source.minimum.y)
+        let depth = source.maximum.z.subtractingReportingOverflow(source.minimum.z)
+        guard !width.overflow, !height.overflow, !depth.overflow else {
+            throw BlocktopographError.malformedData("clone 源区域尺寸溢出")
+        }
+        let maximumX = destination.x.addingReportingOverflow(width.partialValue)
+        let maximumY = destination.y.addingReportingOverflow(height.partialValue)
+        let maximumZ = destination.z.addingReportingOverflow(depth.partialValue)
+        guard !maximumX.overflow, !maximumY.overflow, !maximumZ.overflow else {
+            throw BlocktopographError.malformedData("clone 目标区域坐标溢出")
+        }
+        return CommandBlockBox(
+            destination,
+            CommandBlockCoordinate(
+                x: maximumX.partialValue,
+                y: maximumY.partialValue,
+                z: maximumZ.partialValue
+            )
+        )
+    }
+
+    private func axisContains<T: FixedWidthInteger>(
+        _ value: T,
+        minimum: T,
+        maximum: T,
+        step: T
+    ) -> Bool {
+        step > 0 ? value <= maximum : value >= minimum
+    }
+
+    private func nextAxisValue<T: FixedWidthInteger>(_ value: T, step: T) -> T {
+        value.addingReportingOverflow(step).partialValue
     }
 
     private func validateVolume(_ region: CommandBlockBox) throws {
@@ -577,25 +666,6 @@ private final class CommandBlockStore {
     }
 
     // MARK: Block entities
-
-    private func cloneRelevantChunks(source: CommandBlockBox, destination: CommandBlockCoordinate) throws -> Set<ChunkPosition> {
-        let targetMaximumXResult = destination.x.addingReportingOverflow(source.maximum.x - source.minimum.x)
-        let targetMaximumZResult = destination.z.addingReportingOverflow(source.maximum.z - source.minimum.z)
-        guard !targetMaximumXResult.overflow, !targetMaximumZResult.overflow else {
-            throw BlocktopographError.malformedData("clone 目标区域坐标溢出")
-        }
-        let targetMaximumX = targetMaximumXResult.partialValue
-        let targetMaximumZ = targetMaximumZResult.partialValue
-        try validateHorizontal(destination.x, name: "目标X")
-        try validateHorizontal(destination.z, name: "目标Z")
-        try validateHorizontal(targetMaximumX, name: "目标最大X")
-        try validateHorizontal(targetMaximumZ, name: "目标最大Z")
-        let target = CommandBlockBox(
-            destination,
-            CommandBlockCoordinate(x: targetMaximumX, y: destination.y, z: targetMaximumZ)
-        )
-        return chunks(in: source).union(chunks(in: target)).intersection(loadedChunks)
-    }
 
     private func chunks(in box: CommandBlockBox) -> Set<ChunkPosition> {
         let minX = MapCoordinate.chunk(fromBlock: box.minimum.x)

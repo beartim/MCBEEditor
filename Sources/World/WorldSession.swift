@@ -113,6 +113,12 @@ final class WorldSession {
     }
 
     func invalidateAfterExternalChange() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.invalidateAfterExternalChange()
+            }
+            return
+        }
         close()
         NotificationCenter.default.post(name: Self.worldDidChangeNotification, object: self)
     }

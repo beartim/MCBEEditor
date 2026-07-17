@@ -1,8 +1,8 @@
 # iOS 移植状态
 
-- 当前版本：1.1.9 (119)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
+- 当前版本：1.1.10 (120)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
 - 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、fill。
-- clone/fill 只操作选择维度的已加载区块，支持层 0、层 1、方块实体和严格 typed states。
+- clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度，fill 操作指定目标维度的已加载区块。
 
 - 地图框选升级为可编辑矩形区域：四边触控范围加大，支持输入 X0/Z0/X1/Z1；框选键在模式内闪烁，建立选区前后均可移动/缩放地图，已有选区时禁止重新拉框。
 - 区域操作支持查看实体、等大复制、搜索替换、选区内批量层 0/层 1 替换、生物群系与 HardcodedSpawners 修改。
@@ -16,7 +16,7 @@
 
 ## 当前版本
 
-- 版本：1.1.9 (119)
+- 版本：1.1.10 (120)
 - Bundle ID：`com.wzn.blocktopograph`
 - 最低系统：iOS / iPadOS 13.0
 - 工具链：Xcode 15.4

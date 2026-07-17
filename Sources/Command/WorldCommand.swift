@@ -44,6 +44,34 @@ struct CommandBlockBox: Hashable {
             && (minimum.y...maximum.y).contains(coordinate.y)
             && (minimum.z...maximum.z).contains(coordinate.z)
     }
+
+    func intersects(_ other: CommandBlockBox) -> Bool {
+        minimum.x <= other.maximum.x && maximum.x >= other.minimum.x
+            && minimum.y <= other.maximum.y && maximum.y >= other.minimum.y
+            && minimum.z <= other.maximum.z && maximum.z >= other.minimum.z
+    }
+}
+
+struct CommandCloneTraversal {
+    let startX: Int64
+    let startY: Int32
+    let startZ: Int64
+    let stepX: Int64
+    let stepY: Int32
+    let stepZ: Int64
+
+    init(source: CommandBlockBox, target: CommandBlockBox, sameDimension: Bool) {
+        let overlaps = sameDimension && source.intersects(target)
+        let deltaX = target.minimum.x - source.minimum.x
+        let deltaY = target.minimum.y - source.minimum.y
+        let deltaZ = target.minimum.z - source.minimum.z
+        stepX = overlaps && deltaX > 0 ? -1 : 1
+        stepY = overlaps && deltaY > 0 ? -1 : 1
+        stepZ = overlaps && deltaZ > 0 ? -1 : 1
+        startX = stepX > 0 ? source.minimum.x : source.maximum.x
+        startY = stepY > 0 ? source.minimum.y : source.maximum.y
+        startZ = stepZ > 0 ? source.minimum.z : source.maximum.z
+    }
 }
 
 struct CommandBlockStateSpec {
@@ -79,8 +107,18 @@ enum ParsedWorldCommand {
     case help(command: String?)
     case clear(uniqueID: Int64?)
     case clearSpawnPoint(uniqueID: Int64?)
-    case clone(source: CommandBlockBox, destination: CommandBlockCoordinate)
-    case fill(region: CommandBlockBox, layer0: CommandBlockStateSpec, layer1: CommandBlockStateSpec)
+    case clone(
+        sourceDimension: Int32,
+        source: CommandBlockBox,
+        targetDimension: Int32,
+        destination: CommandBlockCoordinate
+    )
+    case fill(
+        targetDimension: Int32,
+        region: CommandBlockBox,
+        layer0: CommandBlockStateSpec,
+        layer1: CommandBlockStateSpec
+    )
 }
 
 enum WorldCommandParser {
@@ -90,8 +128,8 @@ enum WorldCommandParser {
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
         "clear": "clear [玩家UniqueID]\n无参数：清除本地玩家的物品；指定本地或在线玩家 UniqueID：清除该玩家物品。",
         "clearspawnpoint": "clearspawnpoint [玩家UniqueID]\n无参数：清除本地玩家出生点；指定本地或在线玩家 UniqueID：清除该玩家出生点。",
-        "clone": "clone x1 y1 z1 x2 y2 z2 x3 y3 z3\n复制源区域两角 (x1,y1,z1) 与 (x2,y2,z2) 到目标起点 (x3,y3,z3)。未加载区块会整块跳过；重叠区域按坐标顺序直接覆盖。",
-        "fill": "fill x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\nstates 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String。"
+        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；未加载的源或目标区块会跳过。重叠区域使用原始源数据，不会连锁重复复制。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -117,21 +155,35 @@ enum WorldCommandParser {
             guard arguments.count <= 1 else { throw usageError(command) }
             return .clearSpawnPoint(uniqueID: try arguments.first.map(parseUniqueID))
         case "clone":
-            guard arguments.count == 9 else { throw usageError(command) }
-            let coordinates = try parseCoordinates(arguments)
-            return .clone(source: CommandBlockBox(coordinates[0], coordinates[1]), destination: coordinates[2])
+            guard arguments.count == 11 else { throw usageError(command) }
+            let sourceDimension = try parseDimension(arguments[0])
+            let sourceCoordinates = try parseCoordinates(Array(arguments[1...6]))
+            let targetDimension = try parseDimension(arguments[7])
+            let destination = try parseCoordinates(Array(arguments[8...10]))[0]
+            return .clone(
+                sourceDimension: sourceDimension,
+                source: CommandBlockBox(sourceCoordinates[0], sourceCoordinates[1]),
+                targetDimension: targetDimension,
+                destination: destination
+            )
         case "fill":
-            guard arguments.count == 10 else { throw usageError(command) }
-            let coordinates = try parseCoordinates(Array(arguments.prefix(6)))
+            guard arguments.count == 11 else { throw usageError(command) }
+            let targetDimension = try parseDimension(arguments[0])
+            let coordinates = try parseCoordinates(Array(arguments[1...6]))
             let layer0 = try CommandBlockStateSpec(
-                name: parseBlockName(arguments[6]),
-                states: parseStates(arguments[7])
+                name: parseBlockName(arguments[7]),
+                states: parseStates(arguments[8])
             )
             let layer1 = try CommandBlockStateSpec(
-                name: parseBlockName(arguments[8]),
-                states: parseStates(arguments[9])
+                name: parseBlockName(arguments[9]),
+                states: parseStates(arguments[10])
             )
-            return .fill(region: CommandBlockBox(coordinates[0], coordinates[1]), layer0: layer0, layer1: layer1)
+            return .fill(
+                targetDimension: targetDimension,
+                region: CommandBlockBox(coordinates[0], coordinates[1]),
+                layer0: layer0,
+                layer1: layer1
+            )
         default:
             throw BlocktopographError.malformedData("不存在的命令：\(command)。输入 help 查看全部命令。")
         }
@@ -144,6 +196,27 @@ enum WorldCommandParser {
 
     private static func usageError(_ command: String) -> BlocktopographError {
         .malformedData("参数格式错误。\n\(usage[command] ?? command)")
+    }
+
+    static func dimensionName(for rawValue: Int32) -> String {
+        switch rawValue {
+        case 0: return "overworld"
+        case 1: return "nether"
+        case 2: return "the_end"
+        default: return "unknown(\(rawValue))"
+        }
+    }
+
+    private static func parseDimension(_ text: String) throws -> Int32 {
+        switch text {
+        case "overworld": return 0
+        case "nether": return 1
+        case "the_end": return 2
+        default:
+            throw BlocktopographError.malformedData(
+                "维度名称无效：\(text)。只能使用 overworld、nether 或 the_end"
+            )
+        }
     }
 
     private static func parseUniqueID(_ text: String) throws -> Int64 {

@@ -152,19 +152,47 @@ struct Main {
         precondition(legacyStone.name == "minecraft:stone")
         precondition(BedrockLegacyBlockCatalog.searchText(for: legacyStone).contains("0x01"))
 
-        let fillCommand = try WorldCommandParser.parse("fill 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"")
-        if case .fill(let box, let layer0, let layer1) = fillCommand {
+        let fillCommand = try WorldCommandParser.parse("fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"")
+        if case .fill(let dimension, let box, let layer0, let layer1) = fillCommand {
+            precondition(dimension == 2)
             precondition(box.minimum.x == 0 && box.maximum.y == 200 && box.maximum.z == 16)
             precondition(layer0.name == "minecraft:leaves" && layer0.states.count == 3)
             precondition(layer1.name == "minecraft:chest" && layer1.states.count == 1)
         } else {
             preconditionFailure("fill command parsed as wrong command")
         }
-        _ = try WorldCommandParser.parse("clone 0 0 0 1 2 3 10 20 30")
+        _ = try WorldCommandParser.parse("clone overworld 0 0 0 1 2 3 nether 10 20 30")
+        let overlapSource = CommandBlockBox(
+            CommandBlockCoordinate(x: 0, y: 70, z: 0),
+            CommandBlockCoordinate(x: 4, y: 70, z: 4)
+        )
+        let overlapTarget = CommandBlockBox(
+            CommandBlockCoordinate(x: 1, y: 70, z: 1),
+            CommandBlockCoordinate(x: 5, y: 70, z: 5)
+        )
+        let traversal = CommandCloneTraversal(source: overlapSource, target: overlapTarget, sameDimension: true)
+        precondition(traversal.startX == 4 && traversal.stepX == -1)
+        precondition(traversal.startZ == 4 && traversal.stepZ == -1)
+        var simulated = [String: Bool]()
+        simulated["0,0"] = true
+        var sx = traversal.startX
+        while sx >= overlapSource.minimum.x {
+            var sz = traversal.startZ
+            while sz >= overlapSource.minimum.z {
+                simulated["\(sx + 1),\(sz + 1)"] = simulated["\(sx),\(sz)"] ?? false
+                sz += traversal.stepZ
+            }
+            sx += traversal.stepX
+        }
+        let copiedStoneTargets = simulated.compactMap { key, value -> String? in
+            guard value, key != "0,0" else { return nil }
+            return key
+        }
+        precondition(copiedStoneTargets == ["1,1"])
         _ = try WorldCommandParser.parse("help fill")
         _ = try WorldCommandParser.parse("clear -123456789")
         do {
-            _ = try WorldCommandParser.parse("fill 0 0 0 1 1 1 minecraft:stone NULL minecraft:air")
+            _ = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air")
             preconditionFailure("fill must reject missing layer 1 states")
         } catch {}
         do {
@@ -2553,7 +2581,7 @@ grep -q 'blockZ: Double(inputZ) + 0.5' "$MAP_VIEW" || {
 
 echo 'World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed'
 
-# v1.1.9: strict world command terminal and loaded-chunk block operations.
+# v1.1.10: stable command terminal, explicit dimensions and overlap-safe clone/fill.
 for required in \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
@@ -2570,8 +2598,8 @@ for expected in \
   'case "clearspawnpoint"' \
   'case "clone"' \
   'case "fill"' \
-  'guard arguments.count == 9' \
-  'guard arguments.count == 10' \
+  'guard arguments.count == 11' \
+  'parseDimension(arguments[0])' \
   'if text == "NULL"' \
   "'(Byte|Short|Int|Long|Float|Double|String)'"; do
   grep -qF "$expected" "$COMMAND_PARSER" || {
@@ -2580,12 +2608,13 @@ for expected in \
   }
 done
 for expected in \
-  'loadedChunks.contains(sourceChunk)' \
+  'sourceStore.loadedChunks.contains(sourceChunk)' \
   'loadedChunks.contains(targetChunk)' \
-  'source: CommandBlockBox' \
+  'sourceDimension: Int32' \
+  'targetDimension: Int32' \
   'layer: 1' \
   'removeBlockEntities(in:' \
-  '重叠区域已按坐标顺序直接覆盖'; do
+  '重叠区域按原始源数据复制'; do
   grep -qF "$expected" "$COMMAND_EXECUTOR" || {
     echo "error: command execution behavior is missing: $expected" >&2
     exit 1
@@ -2594,8 +2623,19 @@ done
 grep -qF 'WorldCommandViewController(session: session)' "$TAB_CONTROLLER" && \
 grep -qF 'viewControllers = [map, entities, chunks, nbt, commands, tools]' "$TAB_CONTROLLER" && \
 grep -qF 'UITabBarItem(title: "命令"' "$COMMAND_UI" && \
-grep -qF '输入命令（不需要 /）' "$COMMAND_UI" || {
-  echo 'error: command tab is not connected between NBT and information' >&2
+grep -qF 'startCursorBlinking()' "$COMMAND_UI" && \
+grep -qF 'typedTextLabel.text = inputField.text' "$COMMAND_UI" && \
+grep -qF 'self.session.invalidateAfterExternalChange()' "$COMMAND_UI" && \
+grep -qF 'guard Thread.isMainThread' "$ROOT/Sources/World/WorldSession.swift" || {
+  echo 'error: command terminal UI, cursor or main-thread invalidation is incomplete' >&2
   exit 1
 }
-echo 'Strict command terminal, player mutations and loaded-chunk clone/fill passed'
+if grep -qF 'dimensionControl' "$COMMAND_UI"; then
+  echo 'error: command tab still contains the removed dimension selector' >&2
+  exit 1
+fi
+if grep -qF 'session.invalidateAfterExternalChange()' "$COMMAND_EXECUTOR"; then
+  echo 'error: command executor must not notify UIKit observers from its worker queue' >&2
+  exit 1
+fi
+echo 'Stable command terminal, explicit dimensions and overlap-safe clone/fill passed'

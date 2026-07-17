@@ -5,9 +5,13 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let executor: WorldCommandExecutor
     private let queue = DispatchQueue(label: "com.wzn.blocktopograph.world-command", qos: .userInitiated)
 
-    private let dimensionControl = UISegmentedControl(items: BedrockDimension.allCases.map(\.displayName))
     private let outputView = UITextView()
     private let inputField = UITextField()
+    private let inputContainer = UIView()
+    private let inputScrollView = UIScrollView()
+    private let promptLabel = UILabel()
+    private let typedTextLabel = UILabel()
+    private let cursorView = UIView()
     private let executeButton = UIButton(type: .system)
     private var running = false
 
@@ -21,13 +25,21 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        startCursorBlinking()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         configureNavigation()
         configureViews()
         configureLayout()
-        appendOutput("Blocktopograph 世界命令行\n输入 help 查看全部命令。clone 与 fill 使用上方选择的维度。")
+        startCursorBlinking()
+        appendOutput(
+            "Blocktopograph 世界命令行\n输入 help 查看全部命令。维度名称：overworld、nether、the_end。"
+        )
     }
 
     private func configureNavigation() {
@@ -40,31 +52,63 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     private func configureViews() {
-        dimensionControl.selectedSegmentIndex = 0
-        dimensionControl.accessibilityLabel = "命令操作维度"
-
         outputView.isEditable = false
         outputView.isSelectable = true
         outputView.alwaysBounceVertical = true
         outputView.keyboardDismissMode = .interactive
         outputView.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        outputView.backgroundColor = UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(white: 0.04, alpha: 1) : UIColor(white: 0.08, alpha: 1)
-        }
+        outputView.backgroundColor = terminalBackgroundColor
         outputView.textColor = UIColor(white: 0.92, alpha: 1)
         outputView.layer.cornerRadius = 10
         outputView.textContainerInset = UIEdgeInsets(top: 12, left: 10, bottom: 12, right: 10)
 
+        inputContainer.backgroundColor = terminalBackgroundColor
+        inputContainer.layer.cornerRadius = 9
+        inputContainer.layer.borderWidth = 1 / UIScreen.main.scale
+        inputContainer.layer.borderColor = UIColor(white: 0.35, alpha: 1).cgColor
+        inputContainer.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(focusCommandInput)))
+        inputContainer.accessibilityLabel = "命令输入"
+        inputContainer.accessibilityTraits = .allowsDirectInteraction
+
+        inputScrollView.showsHorizontalScrollIndicator = false
+        inputScrollView.alwaysBounceHorizontal = true
+        inputScrollView.keyboardDismissMode = .none
+
+        let font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        promptLabel.text = ">"
+        promptLabel.font = font
+        promptLabel.textColor = UIColor(white: 0.58, alpha: 1)
+        promptLabel.setContentHuggingPriority(.required, for: .horizontal)
+
+        typedTextLabel.font = font
+        typedTextLabel.textColor = UIColor(white: 0.96, alpha: 1)
+        typedTextLabel.numberOfLines = 1
+        typedTextLabel.lineBreakMode = .byClipping
+        typedTextLabel.text = ""
+        typedTextLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        cursorView.backgroundColor = UIColor(white: 0.94, alpha: 1)
+        cursorView.layer.cornerRadius = 1
+        cursorView.setContentHuggingPriority(.required, for: .horizontal)
+
         inputField.delegate = self
-        inputField.placeholder = "输入命令（不需要 /）"
-        inputField.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        inputField.borderStyle = .roundedRect
         inputField.autocapitalizationType = .none
         inputField.autocorrectionType = .no
         inputField.spellCheckingType = .no
         inputField.returnKeyType = .send
-        inputField.clearButtonMode = .whileEditing
+        inputField.keyboardType = .asciiCapable
+        inputField.smartDashesType = .no
+        inputField.smartQuotesType = .no
+        inputField.smartInsertDeleteType = .no
+        inputField.textContentType = nil
         inputField.addTarget(self, action: #selector(inputChanged), for: .editingChanged)
+        // Keep a real UITextField in the hierarchy for keyboard input and selection,
+        // while the terminal line mirrors every character in a stable monospaced view.
+        inputField.alpha = 0.01
+        inputField.tintColor = .clear
+        inputField.textColor = .clear
+        inputField.backgroundColor = .clear
+        inputField.accessibilityElementsHidden = true
 
         executeButton.setTitle("运行", for: .normal)
         executeButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
@@ -74,14 +118,54 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         executeButton.isEnabled = false
     }
 
+    private var terminalBackgroundColor: UIColor {
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(white: 0.025, alpha: 1)
+                : UIColor(white: 0.08, alpha: 1)
+        }
+    }
+
     private func configureLayout() {
-        let inputRow = UIStackView(arrangedSubviews: [inputField, executeButton])
+        let terminalLine = UIStackView(arrangedSubviews: [promptLabel, typedTextLabel, cursorView])
+        terminalLine.axis = .horizontal
+        terminalLine.alignment = .center
+        terminalLine.spacing = 7
+        terminalLine.translatesAutoresizingMaskIntoConstraints = false
+        inputScrollView.addSubview(terminalLine)
+
+        inputScrollView.translatesAutoresizingMaskIntoConstraints = false
+        inputField.translatesAutoresizingMaskIntoConstraints = false
+        inputContainer.addSubview(inputScrollView)
+        inputContainer.addSubview(inputField)
+
+        NSLayoutConstraint.activate([
+            terminalLine.leadingAnchor.constraint(equalTo: inputScrollView.contentLayoutGuide.leadingAnchor, constant: 12),
+            terminalLine.trailingAnchor.constraint(equalTo: inputScrollView.contentLayoutGuide.trailingAnchor, constant: -12),
+            terminalLine.topAnchor.constraint(equalTo: inputScrollView.contentLayoutGuide.topAnchor),
+            terminalLine.bottomAnchor.constraint(equalTo: inputScrollView.contentLayoutGuide.bottomAnchor),
+            terminalLine.heightAnchor.constraint(equalTo: inputScrollView.frameLayoutGuide.heightAnchor),
+            cursorView.widthAnchor.constraint(equalToConstant: 8),
+            cursorView.heightAnchor.constraint(equalToConstant: 18),
+
+            inputScrollView.leadingAnchor.constraint(equalTo: inputContainer.leadingAnchor),
+            inputScrollView.trailingAnchor.constraint(equalTo: inputContainer.trailingAnchor),
+            inputScrollView.topAnchor.constraint(equalTo: inputContainer.topAnchor),
+            inputScrollView.bottomAnchor.constraint(equalTo: inputContainer.bottomAnchor),
+
+            inputField.leadingAnchor.constraint(equalTo: inputContainer.leadingAnchor),
+            inputField.bottomAnchor.constraint(equalTo: inputContainer.bottomAnchor),
+            inputField.widthAnchor.constraint(equalToConstant: 1),
+            inputField.heightAnchor.constraint(equalToConstant: 1)
+        ])
+
+        let inputRow = UIStackView(arrangedSubviews: [inputContainer, executeButton])
         inputRow.axis = .horizontal
         inputRow.spacing = 8
         inputRow.alignment = .fill
         executeButton.widthAnchor.constraint(equalToConstant: 72).isActive = true
 
-        let stack = UIStackView(arrangedSubviews: [dimensionControl, outputView, inputRow])
+        let stack = UIStackView(arrangedSubviews: [outputView, inputRow])
         stack.axis = .vertical
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -92,12 +176,40 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-            inputRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+            inputRow.heightAnchor.constraint(equalToConstant: 46)
         ])
     }
 
+    private func startCursorBlinking() {
+        cursorView.layer.removeAnimation(forKey: "terminal-cursor-blink")
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = 1.0
+        animation.toValue = 0.08
+        animation.duration = 0.55
+        animation.autoreverses = true
+        animation.repeatCount = .infinity
+        animation.isRemovedOnCompletion = false
+        cursorView.layer.add(animation, forKey: "terminal-cursor-blink")
+    }
+
+    @objc private func focusCommandInput() {
+        guard !running else { return }
+        inputField.becomeFirstResponder()
+    }
+
     @objc private func inputChanged() {
-        executeButton.isEnabled = !running && !(inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        typedTextLabel.text = inputField.text ?? ""
+        executeButton.isEnabled = !running && !currentInput.isEmpty
+        view.layoutIfNeeded()
+        let rightEdge = CGPoint(
+            x: max(0, inputScrollView.contentSize.width - inputScrollView.bounds.width),
+            y: 0
+        )
+        inputScrollView.setContentOffset(rightEdge, animated: false)
+    }
+
+    private var currentInput: String {
+        inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     @objc private func clearTerminal() {
@@ -105,14 +217,10 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func runCommand() {
-        guard !running,
-              let raw = inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty else { return }
-        let dimension = BedrockDimension.allCases.indices.contains(dimensionControl.selectedSegmentIndex)
-            ? BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
-            : 0
+        guard !running, !currentInput.isEmpty else { return }
+        let raw = currentInput
         inputField.text = ""
-        inputField.resignFirstResponder()
+        typedTextLabel.text = ""
         appendOutput("\n> \(raw)")
         setRunning(true)
 
@@ -120,13 +228,21 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             guard let self = self else { return }
             do {
                 let parsed = try WorldCommandParser.parse(raw)
-                let result = try self.executor.execute(parsed, dimension: dimension)
-                DispatchQueue.main.async {
+                let result = try self.executor.execute(parsed)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    // WorldSession notifications synchronously update UIKit observers.
+                    // Invalidation must therefore happen on the main thread and only
+                    // after the command store has finished and released its DB work.
+                    if result.changedWorld {
+                        self.session.invalidateAfterExternalChange()
+                    }
                     self.appendOutput(result.message)
                     self.setRunning(false)
                 }
             } catch {
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
                     self.appendOutput("错误：\(error.localizedDescription)")
                     self.setRunning(false)
                 }
@@ -137,21 +253,21 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private func setRunning(_ value: Bool) {
         running = value
         inputField.isEnabled = !value
-        dimensionControl.isEnabled = !value
+        inputContainer.alpha = value ? 0.62 : 1
         executeButton.setTitle(value ? "运行中…" : "运行", for: .normal)
-        executeButton.isEnabled = !value && !(inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        executeButton.isEnabled = !value && !currentInput.isEmpty
         navigationItem.prompt = value ? "正在修改世界，请勿同时打开 Minecraft" : nil
     }
 
     private func appendOutput(_ text: String) {
         if outputView.text.isEmpty { outputView.text = text }
         else { outputView.text += "\n\(text)" }
-        let end = NSRange(location: max(0, outputView.text.utf16.count - 1), length: 1)
+        let end = NSRange(location: outputView.text.utf16.count, length: 0)
         outputView.scrollRangeToVisible(end)
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         runCommand()
-        return true
+        return false
     }
 }

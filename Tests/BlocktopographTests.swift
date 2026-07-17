@@ -435,10 +435,11 @@ final class BlocktopographTests: XCTestCase {
 
 
     func testWorldCommandStrictParsing() throws {
-        let line = "fill 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
-        guard case .fill(let region, let layer0, let layer1) = try WorldCommandParser.parse(line) else {
+        let line = "fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
+        guard case .fill(let dimension, let region, let layer0, let layer1) = try WorldCommandParser.parse(line) else {
             return XCTFail("fill was not parsed")
         }
+        XCTAssertEqual(dimension, 2)
         XCTAssertEqual(region.minimum.x, 0)
         XCTAssertEqual(region.maximum.y, 200)
         XCTAssertEqual(region.maximum.z, 16)
@@ -446,10 +447,24 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertEqual(layer0.states.count, 3)
         XCTAssertEqual(layer1.name, "minecraft:chest")
         XCTAssertEqual(layer1.states.count, 1)
-        XCTAssertNoThrow(try WorldCommandParser.parse("clone 0 0 0 1 1 1 10 20 30"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("clone overworld 0 0 0 1 1 1 nether 10 20 30"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("clone 主世界 0 0 0 1 1 1 nether 10 20 30"))
+        let source = CommandBlockBox(
+            CommandBlockCoordinate(x: 0, y: 70, z: 0),
+            CommandBlockCoordinate(x: 4, y: 70, z: 4)
+        )
+        let target = CommandBlockBox(
+            CommandBlockCoordinate(x: 1, y: 70, z: 1),
+            CommandBlockCoordinate(x: 5, y: 70, z: 5)
+        )
+        let traversal = CommandCloneTraversal(source: source, target: target, sameDimension: true)
+        XCTAssertEqual(traversal.startX, 4)
+        XCTAssertEqual(traversal.startZ, 4)
+        XCTAssertEqual(traversal.stepX, -1)
+        XCTAssertEqual(traversal.stepZ, -1)
         XCTAssertNoThrow(try WorldCommandParser.parse("help clear"))
         XCTAssertThrowsError(try WorldCommandParser.parse("/help"))
-        XCTAssertThrowsError(try WorldCommandParser.parse("fill 0 0 0 1 1 1 minecraft:stone NULL minecraft:air"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air"))
     }
 
     func testLegacySubChunkNumericBlockEditRoundTrip() throws {
