@@ -1,11 +1,12 @@
 # iOS 移植状态
 
-- 当前版本：1.1.15 (125)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
+- 当前版本：1.1.16 (126)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
 - 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、fill、give、kill、kick、summon。
 - clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度和不同 Y 偏移。命令目标支持 @s、@a、@e、UniqueID 与实体 identifier。
-- 地图打开时默认使用本地玩家所在维度与实际坐标；命令输入行位于终端大屏上方并保留空格宽度和闪烁光标。
+- 地图打开时默认使用本地玩家所在维度与实际坐标；切换到玩家所在维度时默认回到玩家坐标，另外两个维度默认以方块坐标 (0,0) 为中心；命令输入行位于终端大屏上方并保留空格宽度和闪烁光标。
 - v1.1.14：成功命令结果改为绿色；`kill @e 1` 使用原子批量删除；未加载区块按维度实际 Version/LegacyVersion、Data3D/Data2D 与 SubChunk 格式补写并读回验证；`give`、`summon default` 和实体通用模板规则同步修正。
 - v1.1.15：旧版数字 ID 区块遇到现代方块状态时原子迁移为 Version/Data3D/v9；命令 NBT 支持全部标签类型和任意嵌套；`give` 增加第四个物品标签参数。
+- v1.1.16：修复未加载区块生成回归检查误报；地图按玩家所在维度使用玩家坐标、其他维度使用 (0,0) 作为默认中心。
 
 - 地图框选升级为可编辑矩形区域：四边触控范围加大，支持输入 X0/Z0/X1/Z1；框选键在模式内闪烁，建立选区前后均可移动/缩放地图，已有选区时禁止重新拉框。
 - 区域操作支持查看实体、等大复制、搜索替换、选区内批量层 0/层 1 替换、生物群系与 HardcodedSpawners 修改。
@@ -19,7 +20,7 @@
 
 ## 当前版本
 
-- 版本：1.1.15 (125)
+- 版本：1.1.16 (126)
 - Bundle ID：`com.wzn.blocktopograph`
 - 最低系统：iOS / iPadOS 13.0
 - 工具链：Xcode 15.4

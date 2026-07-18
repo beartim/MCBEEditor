@@ -756,7 +756,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             object: session
         )
         loadSpawn()
-        if !restoreMapState() { jumpToSpawnOrOrigin() }
+        if !restoreMapState() { jumpToDefaultCenter() }
     }
 
     deinit {
@@ -808,7 +808,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             self?.chunkCache.removeAll()
         }
         loadSpawn()
-        jumpToSpawnOrOrigin()
+        jumpToDefaultCenter()
     }
 
     private func configureUI() {
@@ -1147,20 +1147,79 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
     }
 
-    private func jumpToSpawnOrOrigin() {
+    private func defaultViewportTarget(
+        for dimension: Int32,
+        zoomScale: CGFloat
+    ) -> (centerX: Int32, centerZ: Int32, inputX: Int64, inputZ: Int64, anchor: MapViewportAnchor, reason: String) {
+        if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
+           local.dimension == dimension {
+            let inputX = Int64(floor(local.x))
+            let inputZ = Int64(floor(local.z))
+            return (
+                centerX: MapCoordinate.chunk(fromBlock: inputX),
+                centerZ: MapCoordinate.chunk(fromBlock: inputZ),
+                inputX: inputX,
+                inputZ: inputZ,
+                anchor: MapViewportAnchor(
+                    blockX: local.x,
+                    blockZ: local.z,
+                    zoomScale: max(zoomScale, CGFloat(0.0001))
+                ),
+                reason: "本地玩家位置"
+            )
+        }
+
+        return (
+            centerX: 0,
+            centerZ: 0,
+            inputX: 0,
+            inputZ: 0,
+            anchor: MapViewportAnchor(
+                blockX: 0.5,
+                blockZ: 0.5,
+                zoomScale: max(zoomScale, CGFloat(0.0001))
+            ),
+            reason: "维度原点"
+        )
+    }
+
+    private func renderDefaultCenter(
+        for dimension: Int32,
+        zoomScale: CGFloat,
+        reason: String? = nil,
+        showOverlay: Bool
+    ) {
         coordinateModeControl.selectedSegmentIndex = 1
+        let target = defaultViewportTarget(for: dimension, zoomScale: zoomScale)
+        xField.text = String(target.inputX)
+        zField.text = String(target.inputZ)
+        render(
+            centerX: target.centerX,
+            centerZ: target.centerZ,
+            anchor: target.anchor,
+            reason: reason ?? target.reason,
+            showOverlay: showOverlay
+        )
+    }
+
+    private func jumpToDefaultCenter() {
         if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
            let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
             dimensionControl.selectedSegmentIndex = dimensionIndex
-            xField.text = String(Int64(floor(local.x)))
-            zField.text = String(Int64(floor(local.z)))
-            renderFromFields()
+            renderDefaultCenter(
+                for: local.dimension,
+                zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
+                showOverlay: true
+            )
             return
         }
+
         dimensionControl.selectedSegmentIndex = 0
-        xField.text = String(spawnX ?? 0)
-        zField.text = String(spawnZ ?? 0)
-        renderFromFields()
+        renderDefaultCenter(
+            for: BedrockDimension.overworld.rawValue,
+            zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
+            showOverlay: true
+        )
     }
 
     @objc private func regionOptionChanged() {
@@ -1182,9 +1241,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         blockDetailPanel.clearBlock()
         let newDimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
         if selectedChunk?.dimension != newDimension { selectedChunk = nil }
-        let anchor = currentViewportAnchor()
-        let center = anchor.map { chunkCenter(for: $0) } ?? (lastCenterX, lastCenterZ)
-        render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "切换维度", showOverlay: true)
+        renderDefaultCenter(
+            for: newDimension,
+            zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
+            reason: "切换维度",
+            showOverlay: true
+        )
     }
 
     @objc private func autoRenderChanged() {
@@ -4163,8 +4225,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private func restoreMapState() -> Bool {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: mapStatePrefix + "centerX") != nil else { return false }
-        let centerX = Int32(clamping: defaults.integer(forKey: mapStatePrefix + "centerX"))
-        let centerZ = Int32(clamping: defaults.integer(forKey: mapStatePrefix + "centerZ"))
         dimensionControl.selectedSegmentIndex = min(BedrockDimension.allCases.count - 1, max(0, defaults.integer(forKey: mapStatePrefix + "dimension")))
         modeControl.selectedSegmentIndex = min(modeControl.numberOfSegments - 1, max(0, defaults.integer(forKey: mapStatePrefix + "mode")))
         coordinateModeControl.selectedSegmentIndex = min(1, max(0, defaults.integer(forKey: mapStatePrefix + "coordinateMode")))
@@ -4186,22 +4246,21 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let zoom = storedZoom > 0 ? CGFloat(storedZoom) : 1
         if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
            let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
-            let localBlockX = Int64(floor(local.x))
-            let localBlockZ = Int64(floor(local.z))
-            let localChunkX = MapCoordinate.chunk(fromBlock: localBlockX)
-            let localChunkZ = MapCoordinate.chunk(fromBlock: localBlockZ)
             dimensionControl.selectedSegmentIndex = dimensionIndex
-            coordinateModeControl.selectedSegmentIndex = 1
-            let anchor = MapViewportAnchor(blockX: local.x, blockZ: local.z, zoomScale: zoom)
-            updateCoordinateFields(centerX: localChunkX, centerZ: localChunkZ, anchor: anchor)
-            render(centerX: localChunkX, centerZ: localChunkZ, anchor: anchor, reason: "本地玩家位置", showOverlay: true)
+            renderDefaultCenter(
+                for: local.dimension,
+                zoomScale: zoom,
+                showOverlay: true
+            )
             return true
         }
-        let blockX = Double(MapCoordinate.blockOrigin(ofChunk: centerX)) + 8
-        let blockZ = Double(MapCoordinate.blockOrigin(ofChunk: centerZ)) + 8
-        let anchor = MapViewportAnchor(blockX: blockX, blockZ: blockZ, zoomScale: zoom)
-        updateCoordinateFields(centerX: centerX, centerZ: centerZ, anchor: anchor)
-        render(centerX: centerX, centerZ: centerZ, anchor: anchor, reason: "恢复上次位置", showOverlay: true)
+
+        dimensionControl.selectedSegmentIndex = 0
+        renderDefaultCenter(
+            for: BedrockDimension.overworld.rawValue,
+            zoomScale: zoom,
+            showOverlay: true
+        )
         return true
     }
 

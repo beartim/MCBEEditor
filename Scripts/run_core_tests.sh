@@ -2939,8 +2939,12 @@ for expected in \
 done
 grep -qF 'func localPlayerPosition()' "$PLAYER_STORE" && \
 grep -qF 'deleteOnlinePlayerData(records' "$PLAYER_STORE" && \
-grep -qF 'PlayerNBTStore(session: session).localPlayerPosition()' "$MAP_VIEW" || {
-  echo 'error: local-player map centering or online-player deletion is incomplete' >&2
+grep -qF 'PlayerNBTStore(session: session).localPlayerPosition()' "$MAP_VIEW" && \
+grep -qF 'local.dimension == dimension' "$MAP_VIEW" && \
+grep -qF 'blockX: 0.5' "$MAP_VIEW" && \
+grep -qF 'blockZ: 0.5' "$MAP_VIEW" && \
+grep -qF 'renderDefaultCenter(' "$MAP_VIEW" || {
+  echo 'error: per-dimension player/origin map centering or online-player deletion is incomplete' >&2
   exit 1
 }
 grep -qF 'WorldCommandViewController(session: session)' "$TAB_CONTROLLER" && \
@@ -2993,7 +2997,7 @@ grep -qF 'exportConsecutiveLittleEndian' "$ENTITY_BROWSER_UI" || {
   exit 1
 }
 grep -qF 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$BLOCK_STORE" && \
-grep -qF 'metadataPuts + [(key: key, value: encoded)]' "$BLOCK_STORE" && \
+grep -qF 'let allPuts = metadataPuts + upgradedSubChunkPuts + [(key: key, value: encoded)]' "$BLOCK_STORE" && \
 grep -qF 'ensureGenerated(sourceStore.chunks(in: source))' "$COMMAND_EXECUTOR" && \
 grep -qF 'ensureGenerated(chunks(in: targetRegion))' "$COMMAND_EXECUTOR" || {
   echo 'error: unloaded-chunk air generation is incomplete' >&2
