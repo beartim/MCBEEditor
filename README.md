@@ -1,5 +1,13 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.15 旧版 SubChunk 自动升级与完整命令 NBT
+
+- 方块 NBT、`fill`、`clone` 在旧版数字 ID SubChunk 中写入无数字 ID 方块、非空 states 或非空气层 1 时，自动把整个区块迁移为 `Version/Data3D/v9` 后再写入。
+- 可继续用旧版数字 ID 表示且 states 为空的修改仍保留旧格式。
+- 命令 NBT 参数支持全部标量、ByteArray/IntArray/LongArray、List、Compound 和任意层级嵌套，空中括号与空大括号均可使用。
+- `give` 改为四个参数，第四参数可为 `NULL` 或完整物品 NBT 标签列表。
+- 当前版本：**1.1.15 (125)**。
+
 ## v1.1.14 命令结果、区块持久化、批量 kill 与实体模板修复
 
 - 所有成功执行的命令结果使用绿色文字显示，错误结果继续使用红色。

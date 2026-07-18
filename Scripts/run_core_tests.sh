@@ -193,7 +193,16 @@ struct Main {
         _ = try WorldCommandParser.parse("clear -123456789")
         _ = try WorldCommandParser.parse("clear @e")
         _ = try WorldCommandParser.parse("clearspawnpoint @a")
-        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:redstone_wire 97")
+        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:redstone_wire 97 NULL")
+        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"")
+        let byteArrayTags = try WorldCommandParser.parseStates("'ByteArray'\"Name\"=\"[0,1]\"")
+        precondition(byteArrayTags.count == 1)
+        let intArrayListTags = try WorldCommandParser.parseStates("'List''IntArray'\"Name\"=\"[],[5,2]\"")
+        if case .list(.intArray, let values) = intArrayListTags[0].value { precondition(values.count == 2) } else { preconditionFailure("List<IntArray> parse failed") }
+        let nestedCompoundTags = try WorldCommandParser.parseStates("'Compound'\"Name\"=\"{'String'\"Name\"=\"Tom\",'List''Int'\"Num\"=\"1,2,3,4\"}\"")
+        if case .compound(let values) = nestedCompoundTags[0].value { precondition(values.count == 2) } else { preconditionFailure("nested Compound parse failed") }
+        let compoundListTags = try WorldCommandParser.parseStates("'List''Compound'\"Name\"=\"{'Int'\"Num\"=\"0\"},{}\"")
+        if case .list(.compound, let values) = compoundListTags[0].value { precondition(values.count == 2) } else { preconditionFailure("List<Compound> parse failed") }
         _ = try WorldCommandParser.parse("kill @a 1")
         _ = try WorldCommandParser.parse("kick @a")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"")
@@ -1976,7 +1985,55 @@ struct BlockNBTEditorTest {
         precondition(legacyOnlyDecoded.version == 7)
         precondition(legacyOnlyState?.legacyID == 5)
         precondition(legacyOnlyState?.legacyData == 2)
-        print("Editable block NBT, typed states, format-matched generated chunks and bulk layer operations passed")
+
+        // v1.1.15: a modern block or any non-empty states upgrades the whole
+        // legacy chunk to Version/Data3D plus v9 SubChunks before editing.
+        let upperLegacy = BedrockSubChunk(
+            version: 7, yIndex: 5, storages: legacyOnlyDecoded.storages, trailingData: Data()
+        )
+        let upperLegacyKey = BedrockDBKey.subChunk(x: 12, z: -2, dimension: 0, index: 5)
+        try legacyOnlyDB.put(try upperLegacy.encodePersistent(), for: upperLegacyKey)
+        let statefulDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "name", value: .string("minecraft:leaves")),
+            NBTNamedTag(name: "states", value: .compound([
+                NBTNamedTag(name: "old_leaf_type", value: .string("oak")),
+                NBTNamedTag(name: "persistent_bit", value: .byte(1))
+            ])),
+            NBTNamedTag(name: "version", value: .int(18_153_728))
+        ]))
+        let legacyExistingBlock = BedrockBlockRecord(
+            x: 192, y: 64, z: -32, dimension: 0,
+            layers: [legacyOnlyState ?? BedrockBlockState(nbt: nil, legacyID: 5, legacyData: 2)],
+            isGenerated: true
+        )
+        _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
+            block: legacyExistingBlock, storageIndex: 0, document: statefulDocument
+        )
+        let modernVersionKey = BedrockDBKey(
+            position: legacyOnlyPosition, recordType: .version, subChunkIndex: nil
+        ).encoded()
+        let data3DKey = BedrockDBKey(
+            position: legacyOnlyPosition, recordType: .data3D, subChunkIndex: nil
+        ).encoded()
+        let savedModernVersion = try legacyOnlyDB.get(modernVersionKey)
+        let removedLegacyVersion = try legacyOnlyDB.get(legacyVersionKey)
+        let savedData3D = try legacyOnlyDB.get(data3DKey)
+        let removedData2D = try legacyOnlyDB.get(legacyTerrainKey)
+        precondition(savedModernVersion != nil)
+        precondition(removedLegacyVersion == nil)
+        precondition(savedData3D != nil)
+        precondition(removedData2D == nil)
+        guard let upgradedTargetRaw = try legacyOnlyDB.get(legacyOnlySubKey),
+              let upgradedUpperRaw = try legacyOnlyDB.get(upperLegacyKey) else {
+            preconditionFailure("legacy chunk upgrade did not persist all SubChunks")
+        }
+        let upgradedTarget = try BedrockSubChunk.decode(upgradedTargetRaw, keyYIndex: 4)
+        let upgradedUpper = try BedrockSubChunk.decode(upgradedUpperRaw, keyYIndex: 5)
+        precondition(upgradedTarget.version == 9 && upgradedUpper.version == 9)
+        let upgradedState = upgradedTarget.storages[0].blockState(x: 0, y: 0, z: 0)
+        precondition(upgradedState?.name == "minecraft:leaves")
+        precondition(upgradedState?.stateProperties.count == 2)
+        print("Editable block NBT, recursive command NBT, legacy-to-modern chunk upgrade and bulk layer operations passed")
     }
 }
 SWIFT
@@ -1990,8 +2047,10 @@ swiftc \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   -parse-as-library "$TMP/block_nbt_editor_test.swift" -o "$TMP/block-nbt-editor-tests"
 "$TMP/block-nbt-editor-tests"
@@ -2840,12 +2899,16 @@ for expected in \
   'case "@a": return .allPlayers' \
   'case "@e": return .allEntities' \
   'guard arguments.count == 1 else' \
-  'guard arguments.count == 3 else' \
+  'guard arguments.count == 4 else' \
   'guard arguments.count == 2 else' \
   'guard arguments.count == 11 else' \
   'parseDimension(arguments[0])' \
   'if text == "NULL"' \
-  "'(Byte|Short|Int|Long|Float|Double|String)'"; do
+  'case "ByteArray": return .byteArray' \
+  'case "List": return .list' \
+  'case "Compound": return .compound' \
+  'case "IntArray": return .intArray' \
+  'case "LongArray": return .longArray'; do
   grep -qF "$expected" "$COMMAND_PARSER" || {
     echo "error: strict command parser/selector support is missing: $expected" >&2
     exit 1
@@ -2967,3 +3030,54 @@ for removed in '"LinksTag"' '"FireImmune"' '"HasCollision"' '"HasGravity"' '"Has
   fi
 done
 echo 'Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed'
+
+# v1.1.15: recursive command NBT, give item tags and legacy chunk modernization.
+LEGACY_UPGRADE="$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift"
+[[ -f "$LEGACY_UPGRADE" ]] || { echo 'error: legacy chunk upgrade source is missing' >&2; exit 1; }
+for expected in \
+  'case "ByteArray": return .byteArray' \
+  'case "List": return .list' \
+  'case "Compound": return .compound' \
+  'case "IntArray": return .intArray' \
+  'case "LongArray": return .longArray' \
+  'private indirect enum CommandNBTTypeDescriptor' \
+  'guard arguments.count == 4 else' \
+  'itemTags: try parseStates(arguments[3])'; do
+  grep -qF "$expected" "$COMMAND_PARSER" || {
+    echo "error: recursive command NBT or four-argument give is incomplete: $expected" >&2
+    exit 1
+  }
+done
+for expected in \
+  'BedrockLegacyChunkUpgrade.plan' \
+  'pendingMetadataDeletes.formUnion' \
+  'pendingMetadataPuts' \
+  'itemTags: [NBTNamedTag]' \
+  'replaceItemTag(named: "Name"' \
+  'replaceItemTag(named: "Count"'; do
+  grep -qF "$expected" "$COMMAND_EXECUTOR" || {
+    echo "error: command legacy upgrade or give item-tag merge is incomplete: $expected" >&2
+    exit 1
+  }
+done
+for expected in \
+  'func upgradedToModern(paletteVersion:' \
+  'expandedToData3D' \
+  'recordType: .data3D' \
+  'recordType: .legacyVersion' \
+  'recordType: .data2D'; do
+  grep -qF "$expected" "$LEGACY_UPGRADE" || {
+    echo "error: legacy SubChunk metadata migration is incomplete: $expected" >&2
+    exit 1
+  }
+done
+grep -qF 'existing.isLegacyNumeric && initiallyRequested.nbt != nil' "$BLOCK_STORE" && \
+grep -qF 'upgradedSubChunkPuts' "$BLOCK_STORE" || {
+  echo 'error: block NBT does not trigger whole-chunk legacy upgrade' >&2
+  exit 1
+}
+if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
+  echo 'error: command NBT parser still depends on the old flat regular expression' >&2
+  exit 1
+fi
+echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'

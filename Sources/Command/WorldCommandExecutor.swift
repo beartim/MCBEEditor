@@ -27,9 +27,9 @@ final class WorldCommandExecutor {
             return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
         case .clearSpawnPoint(let target):
             return WorldCommandExecutionResult(message: try clearSpawnPoints(target: target), changedWorld: true)
-        case .give(let target, let itemIdentifier, let count):
+        case .give(let target, let itemIdentifier, let count, let itemTags):
             return WorldCommandExecutionResult(
-                message: try give(target: target, itemIdentifier: itemIdentifier, count: count),
+                message: try give(target: target, itemIdentifier: itemIdentifier, count: count, itemTags: itemTags),
                 changedWorld: true
             )
         case .kill(let target, let killCreativePlayers):
@@ -238,7 +238,12 @@ final class WorldCommandExecutor {
 
     // MARK: give
 
-    private func give(target: CommandTarget, itemIdentifier: String, count: Int64) throws -> String {
+    private func give(
+        target: CommandTarget,
+        itemIdentifier: String,
+        count: Int64,
+        itemTags: [NBTNamedTag]
+    ) throws -> String {
         let targets = try resolveTargets(target)
         let playerStore = PlayerNBTStore(session: session)
         let entityStore = BedrockWorldObjectNBTStore(session: session)
@@ -250,7 +255,8 @@ final class WorldCommandExecutor {
             let mutation = placingPlayerItem(
                 in: record.document.root,
                 identifier: itemIdentifier,
-                count: count
+                count: count,
+                itemTags: itemTags
             )
             guard mutation.changed else { continue }
             var document = record.document
@@ -262,7 +268,8 @@ final class WorldCommandExecutor {
             let mutation = replacingMainhandItem(
                 in: object.document.root,
                 identifier: itemIdentifier,
-                count: count
+                count: count,
+                itemTags: itemTags
             )
             guard mutation.changed else {
                 skippedEntities += 1
@@ -283,7 +290,8 @@ final class WorldCommandExecutor {
         identifier: String,
         count: Int64,
         slot: Int8? = nil,
-        wasPickedUp: Int8 = 0
+        wasPickedUp: Int8 = 0,
+        itemTags: [NBTNamedTag] = []
     ) -> NBTValue {
         var tags = [
             NBTNamedTag(name: "Name", value: .string(identifier)),
@@ -292,7 +300,30 @@ final class WorldCommandExecutor {
             NBTNamedTag(name: "WasPickedUp", value: .byte(wasPickedUp))
         ]
         if let slot = slot { tags.append(NBTNamedTag(name: "Slot", value: .byte(slot))) }
+        for addition in itemTags {
+            if let index = tags.firstIndex(where: {
+                $0.name.caseInsensitiveCompare(addition.name) == .orderedSame
+            }) {
+                tags[index] = addition
+            } else {
+                tags.append(addition)
+            }
+        }
+        // The dedicated command parameters remain authoritative even when the
+        // optional item-NBT argument contains tags with the same names.
+        replaceItemTag(named: "Name", with: .string(identifier), in: &tags)
+        replaceItemTag(named: "Count", with: unboundedCountValue(count), in: &tags)
+        replaceItemTag(named: "WasPickedUp", with: .byte(wasPickedUp), in: &tags)
+        if let slot = slot { replaceItemTag(named: "Slot", with: .byte(slot), in: &tags) }
         return .compound(tags)
+    }
+
+    private func replaceItemTag(named name: String, with value: NBTValue, in tags: inout [NBTNamedTag]) {
+        if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            tags[index] = NBTNamedTag(name: tags[index].name, value: value)
+        } else {
+            tags.append(NBTNamedTag(name: name, value: value))
+        }
     }
 
     private func unboundedCountValue(_ count: Int64) -> NBTValue {
@@ -305,7 +336,8 @@ final class WorldCommandExecutor {
     private func placingPlayerItem(
         in value: NBTValue,
         identifier: String,
-        count: Int64
+        count: Int64,
+        itemTags: [NBTNamedTag]
     ) -> (value: NBTValue, changed: Bool) {
         guard case .compound(var tags) = value else { return (value, false) }
         let inventoryNames: Set<String> = ["inventory", "playerinventory"]
@@ -324,16 +356,17 @@ final class WorldCommandExecutor {
                     values[firstEmpty.0] = itemStack(
                         identifier: identifier,
                         count: count,
-                        slot: Int8(firstEmpty.1)
+                        slot: Int8(firstEmpty.1),
+                        itemTags: itemTags
                     )
                 } else if let slot35 = values.firstIndex(where: { itemSlot($0) == 35 }) {
-                    values[slot35] = itemStack(identifier: identifier, count: count, slot: 35)
+                    values[slot35] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
                 } else if !values.isEmpty {
                     // Malformed/non-slot-indexed inventory: replace the physical last
                     // entry rather than inventing an additional slot.
-                    values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35)
+                    values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
                 } else {
-                    values.append(itemStack(identifier: identifier, count: count, slot: 0))
+                    values.append(itemStack(identifier: identifier, count: count, slot: 0, itemTags: itemTags))
                 }
                 tags[index].value = .list(.compound, values)
                 return (.compound(tags), true)
@@ -341,7 +374,7 @@ final class WorldCommandExecutor {
         }
         for index in tags.indices {
             if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
-            let nested = placingPlayerItem(in: tags[index].value, identifier: identifier, count: count)
+            let nested = placingPlayerItem(in: tags[index].value, identifier: identifier, count: count, itemTags: itemTags)
             if nested.changed {
                 tags[index].value = nested.value
                 return (.compound(tags), true)
@@ -365,12 +398,13 @@ final class WorldCommandExecutor {
     private func replacingMainhandItem(
         in value: NBTValue,
         identifier: String,
-        count: Int64
+        count: Int64,
+        itemTags: [NBTNamedTag]
     ) -> (value: NBTValue, changed: Bool) {
         guard case .compound(var tags) = value else { return (value, false) }
         let names: Set<String> = ["mainhand", "mainhanditem", "mainhandinventory"]
         for index in tags.indices where names.contains(normalized(tags[index].name)) {
-            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1)
+            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1, itemTags: itemTags)
             switch tags[index].value {
             case .compound:
                 tags[index].value = stack
@@ -386,7 +420,7 @@ final class WorldCommandExecutor {
         }
         for index in tags.indices {
             if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
-            let nested = replacingMainhandItem(in: tags[index].value, identifier: identifier, count: count)
+            let nested = replacingMainhandItem(in: tags[index].value, identifier: identifier, count: count, itemTags: itemTags)
             if nested.changed {
                 tags[index].value = nested.value
                 return (.compound(tags), true)
@@ -655,6 +689,9 @@ private final class CommandBlockStore {
     private var globalPaletteVersion: Int32?
     private var chunkLegacyFormat = [ChunkPosition: Bool]()
     private var emptyChunkProfiles = [Bool: BedrockEmptyChunkProfile]()
+    private var pendingMetadataPuts = [Data: Data]()
+    private var pendingMetadataDeletes = Set<Data>()
+    private var modernizedChunks = Set<ChunkPosition>()
 
     init(session: WorldSession, dimension: Int32) throws {
         self.session = session
@@ -727,8 +764,11 @@ private final class CommandBlockStore {
                     let key = try subKey(for: coordinate)
                     let formatLegacy = try isLegacyTarget(key)
                     let version = try paletteVersion(for: key)
-                    let state0 = try formatLegacy ? layer0.legacyState() : layer0.modernState(version: version)
-                    let state1 = try formatLegacy ? layer1.legacyState() : layer1.modernState(version: version)
+                    let keepLegacy = formatLegacy
+                        && layer0.canRemainLegacy(layer: 0)
+                        && layer1.canRemainLegacy(layer: 1)
+                    let state0 = try keepLegacy ? layer0.legacyState() : layer0.modernState(version: version)
+                    let state1 = try keepLegacy ? layer1.legacyState() : layer1.modernState(version: version)
                     let changed0 = try setState(state0, layer: 0, at: coordinate, createWhenAir: false)
                     let changed1 = try setState(state1, layer: 1, at: coordinate, createWhenAir: false)
                     if changed0 || changed1 { changedBlocks += 1 }
@@ -839,8 +879,8 @@ private final class CommandBlockStore {
                     let source0 = try sourceStore.state(layer: 0, at: sourceCoordinate, snapshot: sourceSnapshot)
                     let source1 = try sourceStore.state(layer: 1, at: sourceCoordinate, snapshot: sourceSnapshot)
                     let targetKey = try subKey(for: targetCoordinate)
-                    let target0 = try adaptedState(source0, for: targetKey)
-                    let target1 = try adaptedState(source1, for: targetKey)
+                    let target0 = try adaptedState(source0, layer: 0, for: targetKey)
+                    let target1 = try adaptedState(source1, layer: 1, for: targetKey)
                     let changed0 = try setState(target0, layer: 0, at: targetCoordinate, createWhenAir: false)
                     let changed1 = try setState(target1, layer: 1, at: targetCoordinate, createWhenAir: false)
                     if changed0 || changed1 { changedBlocks += 1 }
@@ -1034,28 +1074,87 @@ private final class CommandBlockStore {
     ) throws -> Bool {
         let key = try subKey(for: coordinate)
         let index = localIndex(for: coordinate)
+        let existing = try load(key)
+        let legacyTarget: Bool
+        switch existing {
+        case .value(let value): legacyTarget = value.isLegacy
+        case .missing: legacyTarget = try isLegacyTarget(key)
+        }
+        let requiresUpgrade = legacyTarget && (state.nbt != nil || (layer == 1 && !state.isAir))
+        if requiresUpgrade { try upgradeChunkToModern(key.chunk) }
+
         var mutable: MutableCommandSubChunk
         switch try load(key) {
-        case .value(let existing):
-            mutable = existing
+        case .value(let value):
+            mutable = value
         case .missing:
             if state.isAir && !createWhenAir { return false }
-            let legacy = try isLegacyTarget(key)
-            if legacy {
-                guard state.nbt == nil else {
-                    throw BlocktopographError.unsupported("不能把现代方块状态写入旧版数字 ID SubChunk")
-                }
+            if try isLegacyTarget(key) {
                 mutable = try MutableCommandSubChunk.emptyLegacy(y: key.y)
             } else {
-                mutable = try MutableCommandSubChunk.emptyModern(y: key.y, version: state.paletteVersion ?? paletteVersion(for: key))
+                mutable = try MutableCommandSubChunk.emptyModern(
+                    y: key.y,
+                    version: state.paletteVersion ?? paletteVersion(for: key)
+                )
             }
         }
-        let changed = try mutable.setState(state, layer: layer, linearIndex: index)
+
+        var writable = state
+        if mutable.isLegacy, writable.nbt != nil {
+            try upgradeChunkToModern(key.chunk)
+            guard case .value(let upgraded) = try load(key) else {
+                throw BlocktopographError.malformedData("旧版 SubChunk 升级后未能重新载入")
+            }
+            mutable = upgraded
+        }
+        if !mutable.isLegacy, writable.nbt == nil {
+            writable = modernState(from: writable, version: try paletteVersion(for: key))
+        }
+        let changed = try mutable.setState(writable, layer: layer, linearIndex: index)
         if changed {
             cache[key] = .value(mutable)
             changedKeys.insert(key)
         }
         return changed
+    }
+
+    private func upgradeChunkToModern(_ chunk: ChunkPosition) throws {
+        guard modernizedChunks.insert(chunk).inserted else { return }
+        let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: chunk)
+        for put in plan.metadataPuts { pendingMetadataPuts[put.key] = put.value }
+        pendingMetadataDeletes.formUnion(plan.metadataDeletes)
+        for put in plan.subChunkPuts {
+            guard let parsed = BedrockDBKey.parse(put.key), let y = parsed.subChunkIndex else { continue }
+            let key = SubKey(chunk: chunk, y: y)
+            if case .value(let cached)? = cache[key], cached.isLegacy {
+                cache[key] = .value(try cached.upgradedToModern(version: plan.paletteVersion))
+            } else {
+                switch cache[key] {
+                case .value:
+                    break
+                case .missing, .none:
+                    let decoded = try BedrockSubChunk.decode(put.value, keyYIndex: y)
+                    cache[key] = .value(try MutableCommandSubChunk(decoded))
+                }
+            }
+            changedKeys.insert(key)
+        }
+        // Include legacy SubChunks created only in the command cache and not yet
+        // present in LevelDB when the format upgrade is triggered.
+        let cachedKeys = cache.keys.filter { $0.chunk == chunk }
+        for key in cachedKeys {
+            guard case .value(let value)? = cache[key], value.isLegacy else { continue }
+            cache[key] = .value(try value.upgradedToModern(version: plan.paletteVersion))
+            changedKeys.insert(key)
+        }
+        chunkLegacyFormat[chunk] = false
+        globalPaletteVersion = plan.paletteVersion
+    }
+
+    private func modernState(from state: BedrockBlockState, version: Int32?) -> BedrockBlockState {
+        if state.nbt != nil { return state }
+        let identifier = BedrockLegacyBlockCatalog.identifier(forNumericID: state.legacyID ?? 0) ?? state.name
+        return CommandBlockStateSpec(name: identifier, states: []).modernState(version: version)
     }
 
     private func isLegacyTarget(_ key: SubKey) throws -> Bool {
@@ -1068,7 +1167,7 @@ private final class CommandBlockStore {
                 let dbKey = BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: y)
                 guard let raw = try database.get(dbKey) else { continue }
                 let decoded = try BedrockSubChunk.decode(raw, keyYIndex: y)
-                let legacy = decoded.version <= 7
+                let legacy = decoded.isLegacyNumeric
                 chunkLegacyFormat[key.chunk] = legacy
                 if globalPaletteVersion == nil {
                     globalPaletteVersion = decoded.storages.flatMap(\.palette).compactMap(\.paletteVersion).first
@@ -1104,32 +1203,65 @@ private final class CommandBlockStore {
     }
 
 
-    private func adaptedState(_ state: BedrockBlockState, for targetKey: SubKey) throws -> BedrockBlockState {
+    private func adaptedState(
+        _ state: BedrockBlockState,
+        layer: Int,
+        for targetKey: SubKey
+    ) throws -> BedrockBlockState {
         let targetLegacy = try isLegacyTarget(targetKey)
         if targetLegacy {
             if state.nbt == nil { return state }
-            guard state.stateProperties.isEmpty,
-                  let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) else {
-                throw BlocktopographError.unsupported("方块 \(state.name) 的现代 states 无法复制到旧版数字 ID SubChunk")
+            if layer == 1, state.isAir {
+                return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
             }
-            return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
+            if layer == 0,
+               state.stateProperties.isEmpty,
+               let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) {
+                return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
+            }
+            // A block without a legacy numeric ID, any non-empty states, or a
+            // non-air layer 1 forces the destination chunk to modern storage.
+            return normalizedModernState(state, version: try paletteVersion(for: targetKey))
         }
-        if state.nbt != nil { return state }
-        let identifier = BedrockLegacyBlockCatalog.identifier(forNumericID: state.legacyID ?? 0) ?? state.name
-        return CommandBlockStateSpec(name: identifier, states: []).modernState(version: try paletteVersion(for: targetKey))
+        return state.nbt != nil
+            ? normalizedModernState(state, version: try paletteVersion(for: targetKey))
+            : modernState(from: state, version: try paletteVersion(for: targetKey))
+    }
+
+    private func normalizedModernState(_ state: BedrockBlockState, version: Int32?) -> BedrockBlockState {
+        guard case .compound(var tags)? = state.nbt else { return state }
+        let resolved = state.paletteVersion ?? version ?? BedrockBlockState.defaultPaletteVersion
+        if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame }) {
+            tags[index] = NBTNamedTag(name: tags[index].name, value: .int(resolved))
+        } else {
+            tags.append(NBTNamedTag(name: "version", value: .int(resolved)))
+        }
+        return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
     }
 
     private func commit(
         extraPuts: [(key: Data, value: Data)] = [],
         extraDeletes: [Data] = []
     ) throws -> Int {
-        var puts = extraPuts
+        var puts = pendingMetadataPuts.map { (key: $0.key, value: $0.value) }
+        puts.append(contentsOf: extraPuts)
         for key in changedKeys.sorted(by: commandSubKeyOrder) {
             guard case .value(let mutable)? = cache[key] else { continue }
             let data = try mutable.persistentSubChunk().encodePersistent()
             puts.append((BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: key.y), data))
         }
-        try database.applyBatch(puts: puts, deletes: extraDeletes, sync: true)
+        let deletes = Array(pendingMetadataDeletes) + extraDeletes
+        try database.applyBatch(puts: puts, deletes: deletes, sync: true)
+        for (key, value) in pendingMetadataPuts {
+            guard try database.get(key) == value else {
+                throw BlocktopographError.malformedData("升级后的区块元数据写入后未能从 LevelDB 读回")
+            }
+        }
+        for key in pendingMetadataDeletes where pendingMetadataPuts[key] == nil {
+            guard try database.get(key) == nil else {
+                throw BlocktopographError.malformedData("升级前的旧版区块元数据仍然存在")
+            }
+        }
         // Verify every changed SubChunk through the same LevelDB handle before a
         // success result is returned. This catches rejected/corrupt new records
         // instead of leaving the UI to report a successful but missing change.
@@ -1367,8 +1499,13 @@ private struct MutableCommandSubChunk {
         return try MutableCommandSubChunk(BedrockSubChunk(version: 7, yIndex: y, storages: [storage], trailingData: Data()))
     }
 
-    var isLegacy: Bool { version <= 7 }
+    var isLegacy: Bool { [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) }
     var paletteVersion: Int32? { storages.flatMap(\.palette).compactMap(\.paletteVersion).first }
+
+    func upgradedToModern(version: Int32?) throws -> MutableCommandSubChunk {
+        let upgraded = try persistentSubChunk().upgradedToModern(paletteVersion: version)
+        return try MutableCommandSubChunk(upgraded)
+    }
 
     func state(layer: Int, linearIndex: Int) -> BedrockBlockState {
         guard storages.indices.contains(layer), let state = storages[layer].state(at: linearIndex) else { return fallbackAir }

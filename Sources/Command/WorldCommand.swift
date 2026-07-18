@@ -92,6 +92,12 @@ struct CommandBlockStateSpec {
         return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
     }
 
+    func canRemainLegacy(layer: Int) -> Bool {
+        guard states.isEmpty else { return false }
+        if layer == 1 { return isAir }
+        return BedrockLegacyBlockCatalog.block(forIdentifier: name) != nil
+    }
+
     func legacyState() throws -> BedrockBlockState {
         guard states.isEmpty else {
             throw BlocktopographError.unsupported("旧版数字 ID SubChunk 不能保存命令中的现代 states；请使用 NULL")
@@ -125,7 +131,7 @@ enum ParsedWorldCommand {
     case help(command: String?)
     case clear(target: CommandTarget)
     case clearSpawnPoint(target: CommandTarget)
-    case give(target: CommandTarget, itemIdentifier: String, count: Int64)
+    case give(target: CommandTarget, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag])
     case kill(target: CommandTarget, killCreativePlayers: Bool)
     case kick(target: CommandTarget)
     case summon(identifier: String, dimension: Int32, position: CommandBlockCoordinate, additions: [NBTNamedTag])
@@ -151,11 +157,11 @@ enum WorldCommandParser {
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
-        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 必须为 NULL，或严格使用 '类型'\"键\"=\"值\" 并以英文逗号分隔。支持 Byte、Short、Int、Long、Float、Double、String；涉及未加载区块时先写入空气区块与生成完成状态。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
-        "give": "give 目标 物品 数目\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:redstone_wire 97",
+        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
+        "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。",
-        "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则必须严格使用 '类型'\"键\"=\"值\" 格式且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
+        "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -181,11 +187,12 @@ enum WorldCommandParser {
             guard arguments.count == 1 else { throw usageError(command) }
             return .clearSpawnPoint(target: try parseTarget(arguments[0]))
         case "give":
-            guard arguments.count == 3 else { throw usageError(command) }
+            guard arguments.count == 4 else { throw usageError(command) }
             return .give(
                 target: try parseTarget(arguments[0]),
                 itemIdentifier: try parseNamespacedIdentifier(arguments[1], kind: "物品"),
-                count: try parseItemCount(arguments[2])
+                count: try parseItemCount(arguments[2]),
+                itemTags: try parseStates(arguments[3])
             )
         case "kill":
             guard arguments.count == 2 else { throw usageError(command) }
@@ -344,135 +351,391 @@ enum WorldCommandParser {
 
     static func parseStates(_ text: String) throws -> [NBTNamedTag] {
         if text == "NULL" { return [] }
-        guard !text.isEmpty else { throw BlocktopographError.malformedData("states 不能为空；空 states 请填写 NULL") }
-        let components = try splitStateComponents(text)
-        guard !components.isEmpty else { throw BlocktopographError.malformedData("states 格式无效") }
-        var names = Set<String>()
-        return try components.map { component in
-            let expression = try parseStateComponent(component)
-            guard names.insert(expression.name).inserted else {
-                throw BlocktopographError.malformedData("states 中存在重复键：\(expression.name)")
-            }
-            return expression
+        guard !text.isEmpty else {
+            throw BlocktopographError.malformedData("NBT 标签不能为空；不添加标签请填写 NULL")
         }
-    }
-
-    private static func parseStateComponent(_ text: String) throws -> NBTNamedTag {
-        let pattern = "^'(Byte|Short|Int|Long|Float|Double|String)'\"((?:[^\"\\\\]|\\\\.)+)\"=\"((?:[^\"\\\\]|\\\\.)*)\"$"
-        let regex = try NSRegularExpression(pattern: pattern)
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        guard let match = regex.firstMatch(in: text, range: range), match.range == range,
-              let typeRange = Range(match.range(at: 1), in: text),
-              let nameRange = Range(match.range(at: 2), in: text),
-              let valueRange = Range(match.range(at: 3), in: text) else {
-            throw BlocktopographError.malformedData("states 项格式无效：\(text)")
+        var parser = CommandNBTTextParser(text: text)
+        let tags = try parser.parseNamedTags()
+        parser.skipWhitespace()
+        guard parser.isAtEnd else {
+            throw BlocktopographError.malformedData("NBT 标签末尾存在无法识别的内容：\(parser.remainingText)")
         }
-        let type = String(text[typeRange])
-        let name = unescape(String(text[nameRange]))
-        let rawValue = unescape(String(text[valueRange]))
-        guard !name.isEmpty else { throw BlocktopographError.malformedData("states 键不能为空") }
-        let value: NBTValue
-        switch type {
-        case "Byte":
-            guard let number = Int8(rawValue) else { throw invalidStateValue(type, rawValue) }
-            value = .byte(number)
-        case "Short":
-            guard let number = Int16(rawValue) else { throw invalidStateValue(type, rawValue) }
-            value = .short(number)
-        case "Int":
-            guard let number = Int32(rawValue) else { throw invalidStateValue(type, rawValue) }
-            value = .int(number)
-        case "Long":
-            guard let number = Int64(rawValue) else { throw invalidStateValue(type, rawValue) }
-            value = .long(number)
-        case "Float":
-            guard let number = Float(rawValue), number.isFinite else { throw invalidStateValue(type, rawValue) }
-            value = .float(number)
-        case "Double":
-            guard let number = Double(rawValue), number.isFinite else { throw invalidStateValue(type, rawValue) }
-            value = .double(number)
-        case "String": value = .string(rawValue)
-        default: throw BlocktopographError.malformedData("不支持的 states 类型：\(type)")
-        }
-        return NBTNamedTag(name: name, value: value)
-    }
-
-    private static func invalidStateValue(_ type: String, _ value: String) -> BlocktopographError {
-        .malformedData("states 的 \(type) 值无效：\(value)")
-    }
-
-    private static func splitStateComponents(_ text: String) throws -> [String] {
-        var result = [String]()
-        var current = ""
-        var inSingle = false
-        var inDouble = false
-        var escaped = false
-        for character in text {
-            if escaped {
-                current.append(character)
-                escaped = false
-                continue
-            }
-            if character == "\\", inDouble {
-                current.append(character)
-                escaped = true
-                continue
-            }
-            if character == "'", !inDouble { inSingle.toggle(); current.append(character); continue }
-            if character == "\"", !inSingle { inDouble.toggle(); current.append(character); continue }
-            if character == ",", !inSingle, !inDouble {
-                guard !current.isEmpty else { throw BlocktopographError.malformedData("states 中存在空项") }
-                result.append(current)
-                current = ""
-            } else {
-                current.append(character)
-            }
-        }
-        guard !inSingle, !inDouble, !escaped else { throw BlocktopographError.malformedData("states 引号未闭合") }
-        guard !current.isEmpty else { throw BlocktopographError.malformedData("states 末尾不能有逗号") }
-        result.append(current)
-        return result
+        return tags
     }
 
     private static func tokenize(_ text: String) throws -> [String] {
         var tokens = [String]()
-        var current = ""
-        var inSingle = false
-        var inDouble = false
-        var escaped = false
-        for character in text {
-            if escaped {
-                current.append(character)
-                escaped = false
-                continue
+        var index = text.startIndex
+        while index < text.endIndex {
+            while index < text.endIndex, text[index].isWhitespace {
+                index = text.index(after: index)
             }
-            if character == "\\", inDouble {
-                current.append(character)
-                escaped = true
-                continue
-            }
-            if character == "'", !inDouble { inSingle.toggle(); current.append(character); continue }
-            if character == "\"", !inSingle { inDouble.toggle(); current.append(character); continue }
-            if character.isWhitespace, !inSingle, !inDouble {
-                if !current.isEmpty { tokens.append(current); current = "" }
+            guard index < text.endIndex else { break }
+            let start = index
+            if text[index] == "'" {
+                var parser = CommandNBTTextParser(text: text, index: index)
+                _ = try parser.parseNamedTags()
+                index = parser.index
+                if index < text.endIndex, !text[index].isWhitespace {
+                    throw BlocktopographError.malformedData("NBT 参数后必须使用空格分隔下一个命令参数")
+                }
             } else {
-                current.append(character)
+                while index < text.endIndex, !text[index].isWhitespace {
+                    index = text.index(after: index)
+                }
             }
+            tokens.append(String(text[start..<index]))
         }
-        guard !inSingle, !inDouble, !escaped else { throw BlocktopographError.malformedData("命令中的引号未闭合") }
-        if !current.isEmpty { tokens.append(current) }
         return tokens
     }
 
-    private static func unescape(_ text: String) -> String {
-        var result = ""
-        var escaped = false
-        for character in text {
-            if escaped { result.append(character); escaped = false }
-            else if character == "\\" { escaped = true }
-            else { result.append(character) }
+    private indirect enum CommandNBTTypeDescriptor {
+        case value(NBTTagType)
+        case list(CommandNBTTypeDescriptor)
+
+        var tagType: NBTTagType {
+            switch self {
+            case .value(let type): return type
+            case .list: return .list
+            }
         }
-        if escaped { result.append("\\") }
-        return result
+    }
+
+    private struct CommandNBTTextParser {
+        let text: String
+        var index: String.Index
+
+        init(text: String, index: String.Index? = nil) {
+            self.text = text
+            self.index = index ?? text.startIndex
+        }
+
+        var isAtEnd: Bool { index >= text.endIndex }
+        var remainingText: String { isAtEnd ? "" : String(text[index...]) }
+
+        mutating func skipWhitespace() {
+            while !isAtEnd, text[index].isWhitespace { index = text.index(after: index) }
+        }
+
+        mutating func parseNamedTags(until closing: Character? = nil) throws -> [NBTNamedTag] {
+            skipWhitespace()
+            if let closing = closing, peek == closing { return [] }
+            var tags = [NBTNamedTag]()
+            var names = Set<String>()
+            while true {
+                let tag = try parseNamedTag()
+                guard names.insert(tag.name).inserted else {
+                    throw BlocktopographError.malformedData("同一 Compound 中存在重复 NBT 标签：\(tag.name)")
+                }
+                tags.append(tag)
+                let endOfTag = index
+                skipWhitespace()
+                if let closing = closing, peek == closing { break }
+                if peek != "," {
+                    // At the command root, whitespace terminates the NBT argument.
+                    // Restore the exact end so the tokenizer can keep the next
+                    // command parameter separate. Nested Compound whitespace is
+                    // still consumed because it has an explicit closing brace.
+                    if closing == nil { index = endOfTag }
+                    break
+                }
+                advance()
+                skipWhitespace()
+                if isAtEnd || (closing != nil && peek == closing) {
+                    throw BlocktopographError.malformedData("NBT 标签列表末尾不能有逗号")
+                }
+            }
+            return tags
+        }
+
+        private mutating func parseNamedTag() throws -> NBTNamedTag {
+            let descriptor = try parseTypeDescriptor()
+            let name = try parseQuotedString(quote: "\"")
+            guard !name.isEmpty else { throw BlocktopographError.malformedData("NBT 标签名称不能为空") }
+            try expect("=")
+            try expect("\"")
+            let value = try parsePayload(descriptor, listTerminator: "\"")
+            try expect("\"")
+            return NBTNamedTag(name: name, value: value)
+        }
+
+        private mutating func parseTypeDescriptor() throws -> CommandNBTTypeDescriptor {
+            let name = try parseQuotedString(quote: "'")
+            guard let type = tagType(named: name), type != .end else {
+                throw BlocktopographError.malformedData("不支持的 NBT 类型：\(name)")
+            }
+            if type == .list {
+                return .list(try parseTypeDescriptor())
+            }
+            return .value(type)
+        }
+
+        private func tagType(named name: String) -> NBTTagType? {
+            switch name {
+            case "Byte": return .byte
+            case "Short": return .short
+            case "Int": return .int
+            case "Long": return .long
+            case "Float": return .float
+            case "Double": return .double
+            case "ByteArray": return .byteArray
+            case "String": return .string
+            case "List": return .list
+            case "Compound": return .compound
+            case "IntArray": return .intArray
+            case "LongArray": return .longArray
+            default: return nil
+            }
+        }
+
+        private mutating func parsePayload(
+            _ descriptor: CommandNBTTypeDescriptor,
+            listTerminator: Character
+        ) throws -> NBTValue {
+            switch descriptor {
+            case .list(let element):
+                return .list(element.tagType, try parseListValues(element: element, terminator: listTerminator))
+            case .value(let type):
+                switch type {
+                case .byte:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Int8(raw) else { throw invalidValue(type, raw) }
+                    return .byte(number)
+                case .short:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Int16(raw) else { throw invalidValue(type, raw) }
+                    return .short(number)
+                case .int:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Int32(raw) else { throw invalidValue(type, raw) }
+                    return .int(number)
+                case .long:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Int64(raw) else { throw invalidValue(type, raw) }
+                    return .long(number)
+                case .float:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Float(raw), number.isFinite else { throw invalidValue(type, raw) }
+                    return .float(number)
+                case .double:
+                    let raw = try readScalarUntilQuote()
+                    guard let number = Double(raw), number.isFinite else { throw invalidValue(type, raw) }
+                    return .double(number)
+                case .string:
+                    return .string(try readEscaped(until: "\""))
+                case .byteArray:
+                    let values: [Int8] = try parseNumericArray(type: type, convert: { Int8($0) })
+                    return .byteArray(Data(values.map { UInt8(bitPattern: $0) }))
+                case .intArray:
+                    let values: [Int32] = try parseNumericArray(type: type, convert: { Int32($0) })
+                    return .intArray(values)
+                case .longArray:
+                    let values: [Int64] = try parseNumericArray(type: type, convert: { Int64($0) })
+                    return .longArray(values)
+                case .compound:
+                    try expect("{")
+                    let tags = try parseNamedTags(until: "}")
+                    try expect("}")
+                    return .compound(tags)
+                case .list, .end:
+                    throw BlocktopographError.malformedData("NBT 类型描述无效")
+                }
+            }
+        }
+
+        private mutating func parseListValues(
+            element: CommandNBTTypeDescriptor,
+            terminator: Character
+        ) throws -> [NBTValue] {
+            skipWhitespace()
+            if peek == terminator { return [] }
+            var values = [NBTValue]()
+            while true {
+                values.append(try parseListElement(element, terminator: terminator))
+                skipWhitespace()
+                if peek == terminator { break }
+                guard peek == "," else {
+                    throw BlocktopographError.malformedData("List 元素之间必须使用英文逗号分隔")
+                }
+                advance()
+                skipWhitespace()
+                if peek == terminator {
+                    throw BlocktopographError.malformedData("List 末尾不能有逗号")
+                }
+            }
+            return values
+        }
+
+        private mutating func parseListElement(
+            _ descriptor: CommandNBTTypeDescriptor,
+            terminator: Character
+        ) throws -> NBTValue {
+            switch descriptor {
+            case .list(let child):
+                try expect("[")
+                let values = try parseListValues(element: child, terminator: "]")
+                try expect("]")
+                return .list(child.tagType, values)
+            case .value(let type):
+                switch type {
+                case .compound:
+                    try expect("{")
+                    let tags = try parseNamedTags(until: "}")
+                    try expect("}")
+                    return .compound(tags)
+                case .byteArray:
+                    let values: [Int8] = try parseNumericArray(type: type, convert: { Int8($0) })
+                    return .byteArray(Data(values.map { UInt8(bitPattern: $0) }))
+                case .intArray:
+                    return .intArray(try parseNumericArray(type: type, convert: { Int32($0) }))
+                case .longArray:
+                    return .longArray(try parseNumericArray(type: type, convert: { Int64($0) }))
+                case .string:
+                    return .string(try readListScalar(terminator: terminator, preserveWhitespace: true))
+                case .byte:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Int8(raw) else { throw invalidValue(type, raw) }
+                    return .byte(number)
+                case .short:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Int16(raw) else { throw invalidValue(type, raw) }
+                    return .short(number)
+                case .int:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Int32(raw) else { throw invalidValue(type, raw) }
+                    return .int(number)
+                case .long:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Int64(raw) else { throw invalidValue(type, raw) }
+                    return .long(number)
+                case .float:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Float(raw), number.isFinite else { throw invalidValue(type, raw) }
+                    return .float(number)
+                case .double:
+                    let raw = try readListScalar(terminator: terminator)
+                    guard let number = Double(raw), number.isFinite else { throw invalidValue(type, raw) }
+                    return .double(number)
+                case .list, .end:
+                    throw BlocktopographError.malformedData("List 元素类型无效")
+                }
+            }
+        }
+
+        private mutating func parseNumericArray<T>(
+            type: NBTTagType,
+            convert: (String) -> T?
+        ) throws -> [T] {
+            try expect("[")
+            skipWhitespace()
+            if peek == "]" { advance(); return [] }
+            var values = [T]()
+            while true {
+                let raw = try readUntilAny([",", "]"]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !raw.isEmpty, let value = convert(raw) else { throw invalidValue(type, raw) }
+                values.append(value)
+                guard let character = peek else {
+                    throw BlocktopographError.malformedData("\(type.displayName) 缺少右中括号")
+                }
+                if character == "]" { advance(); break }
+                advance()
+                skipWhitespace()
+                if peek == "]" { throw BlocktopographError.malformedData("数组末尾不能有逗号") }
+            }
+            return values
+        }
+
+        private mutating func readScalarUntilQuote() throws -> String {
+            let raw = try readEscaped(until: "\"").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else { throw BlocktopographError.malformedData("数值 NBT 标签不能为空") }
+            return raw
+        }
+
+        private mutating func readListScalar(
+            terminator: Character,
+            preserveWhitespace: Bool = false
+        ) throws -> String {
+            var result = ""
+            var escaped = false
+            while let character = peek {
+                if escaped {
+                    result.append(character)
+                    escaped = false
+                    advance()
+                    continue
+                }
+                if character == "\\" {
+                    escaped = true
+                    advance()
+                    continue
+                }
+                if character == "," || character == terminator { break }
+                result.append(character)
+                advance()
+            }
+            if escaped { result.append("\\") }
+            let value = preserveWhitespace ? result : result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.isEmpty, !preserveWhitespace {
+                throw BlocktopographError.malformedData("List 中存在空元素")
+            }
+            return value
+        }
+
+        private mutating func readEscaped(until terminator: Character) throws -> String {
+            var result = ""
+            var escaped = false
+            while let character = peek {
+                if escaped {
+                    result.append(character)
+                    escaped = false
+                    advance()
+                    continue
+                }
+                if character == "\\" {
+                    escaped = true
+                    advance()
+                    continue
+                }
+                if character == terminator { return result }
+                result.append(character)
+                advance()
+            }
+            throw BlocktopographError.malformedData("NBT 字符串缺少结束引号")
+        }
+
+        private mutating func readUntilAny(_ terminators: Set<Character>) throws -> String {
+            var result = ""
+            while let character = peek, !terminators.contains(character) {
+                result.append(character)
+                advance()
+            }
+            guard peek != nil else { throw BlocktopographError.malformedData("NBT 数组未闭合") }
+            return result
+        }
+
+        private mutating func parseQuotedString(quote: Character) throws -> String {
+            try expect(quote)
+            let value = try readEscaped(until: quote)
+            try expect(quote)
+            return value
+        }
+
+        private func invalidValue(_ type: NBTTagType, _ value: String) -> BlocktopographError {
+            .malformedData("\(type.displayName) 值无效：\(value)")
+        }
+
+        private var peek: Character? { isAtEnd ? nil : text[index] }
+
+        private mutating func advance() {
+            guard !isAtEnd else { return }
+            index = text.index(after: index)
+        }
+
+        private mutating func expect(_ expected: Character) throws {
+            guard peek == expected else {
+                throw BlocktopographError.malformedData("NBT 格式错误：应为 \(expected)，当前位置为 \(remainingText.prefix(24))")
+            }
+            advance()
+        }
     }
 }

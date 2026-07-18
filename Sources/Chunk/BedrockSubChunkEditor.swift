@@ -294,7 +294,25 @@ extension BedrockSubChunk {
             throw BlocktopographError.malformedData("仅支持编辑方块层 0 和层 1")
         }
 
-        if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+        if isLegacyNumeric {
+            if newState.nbt != nil || storageIndex > 0 {
+                let upgraded = try upgradedToModern(paletteVersion: newState.paletteVersion)
+                return try upgraded.replacingBlockState(
+                    x: x,
+                    y: y,
+                    z: z,
+                    storageIndex: storageIndex,
+                    with: newState.nbt == nil
+                        ? BedrockBlockState(nbt: .compound([
+                            NBTNamedTag(name: "name", value: .string(
+                                BedrockLegacyBlockCatalog.identifier(forNumericID: newState.legacyID ?? 0) ?? newState.name
+                            )),
+                            NBTNamedTag(name: "states", value: .compound([])),
+                            NBTNamedTag(name: "version", value: .int(newState.paletteVersion ?? BedrockBlockState.defaultPaletteVersion))
+                        ]), legacyID: nil, legacyData: nil)
+                        : newState
+                )
+            }
             guard storageIndex == 0 else {
                 throw BlocktopographError.unsupported("旧版数字 ID SubChunk 只有层 0")
             }
@@ -939,37 +957,56 @@ final class BedrockBlockNBTStore {
         )
         let database = try session.database()
         let currentState = currentBlockState(for: block, storageIndex: storageIndex)
-        let requestedReplacement: BedrockBlockState
-        if currentState.legacyID != nil {
-            requestedReplacement = try legacyBlockState(from: document.root)
-        } else {
-            requestedReplacement = BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
-        }
         let raw = try database.get(key)
-        let decoded: BedrockSubChunk
-        let replacement: BedrockBlockState
+        let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: block.dimension)
+        var decoded: BedrockSubChunk
+        var replacement: BedrockBlockState
         var metadataPuts = [(key: Data, value: Data)]()
+        var metadataDeletes = [Data]()
+        var upgradedSubChunkPuts = [(key: Data, value: Data)]()
+
+        let requestsModern = currentState.legacyID != nil && requiresModernBlockState(document.root)
+        let initiallyRequested: BedrockBlockState = requestsModern
+            ? try modernBlockState(from: document.root, paletteVersion: nil)
+            : (currentState.legacyID != nil
+                ? try legacyBlockState(from: document.root)
+                : BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil))
+
         if let raw = raw {
-            decoded = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
-            replacement = try adaptedReplacement(requestedReplacement, legacy: decoded.version <= 7, paletteVersion: nil)
+            let existing = try BedrockSubChunk.decode(raw, keyYIndex: subChunkY)
+            if existing.isLegacyNumeric && initiallyRequested.nbt != nil {
+                let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position)
+                metadataPuts = plan.metadataPuts
+                metadataDeletes = plan.metadataDeletes
+                upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
+                decoded = try existing.upgradedToModern(paletteVersion: plan.paletteVersion)
+                replacement = try adaptedReplacement(
+                    initiallyRequested,
+                    legacy: false,
+                    paletteVersion: plan.paletteVersion
+                )
+            } else {
+                decoded = existing
+                replacement = try adaptedReplacement(
+                    initiallyRequested,
+                    legacy: existing.isLegacyNumeric,
+                    paletteVersion: nil
+                )
+            }
         } else {
-            let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: block.dimension)
-            // For a wholly missing chunk, follow the dimension's actual storage
-            // generation. The editable placeholder type must not force a v7/v9
-            // format that conflicts with the world's Version record.
             let profile = try BedrockEmptyChunk.profile(
                 database: database,
                 dimension: block.dimension,
                 preferLegacy: false
             )
-            let createLegacy = profile.versionRecordType == .legacyVersion
-            replacement = try adaptedReplacement(
-                requestedReplacement,
-                legacy: createLegacy,
-                paletteVersion: profile.blockPaletteVersion
-            )
-            metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
+            let createLegacy = profile.versionRecordType == .legacyVersion && initiallyRequested.nbt == nil
             if createLegacy {
+                replacement = try adaptedReplacement(
+                    initiallyRequested,
+                    legacy: true,
+                    paletteVersion: profile.blockPaletteVersion
+                )
+                metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
                 let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
                 decoded = BedrockSubChunk(
                     version: 7,
@@ -982,7 +1019,33 @@ final class BedrockBlockNBTStore {
                     trailingData: Data()
                 )
             } else {
-                let air = BedrockBlockState.editableAir(version: profile.blockPaletteVersion)
+                let modernProfile: BedrockEmptyChunkProfile
+                if profile.versionRecordType == .version {
+                    modernProfile = profile
+                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
+                } else {
+                    let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position)
+                    modernProfile = BedrockEmptyChunkProfile(
+                        versionRecordType: .version,
+                        versionValue: plan.metadataPuts.first(where: {
+                            BedrockDBKey.parse($0.key)?.recordType == .version
+                        })?.value ?? Data([40]),
+                        blockPaletteVersion: plan.paletteVersion,
+                        terrainRecordType: .data3D,
+                        terrainValue: plan.metadataPuts.first(where: {
+                            BedrockDBKey.parse($0.key)?.recordType == .data3D
+                        })?.value
+                    )
+                    metadataPuts = plan.metadataPuts
+                    metadataDeletes = plan.metadataDeletes
+                    upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
+                }
+                replacement = try adaptedReplacement(
+                    initiallyRequested,
+                    legacy: false,
+                    paletteVersion: modernProfile.blockPaletteVersion
+                )
+                let air = BedrockBlockState.editableAir(version: modernProfile.blockPaletteVersion)
                 decoded = BedrockSubChunk(
                     version: 9,
                     yIndex: subChunkY,
@@ -999,18 +1062,30 @@ final class BedrockBlockNBTStore {
             with: replacement
         )
         let encoded = try updated.encodePersistent()
-        if metadataPuts.isEmpty {
+        let allPuts = metadataPuts + upgradedSubChunkPuts + [(key: key, value: encoded)]
+        if allPuts.count == 1 && metadataDeletes.isEmpty {
             try database.put(encoded, for: key, sync: true)
         } else {
             try database.applyBatch(
-                puts: metadataPuts + [(key: key, value: encoded)],
-                deletes: [],
+                puts: allPuts,
+                deletes: metadataDeletes,
                 sync: true
             )
         }
         for metadata in metadataPuts {
             guard try database.get(metadata.key) == metadata.value else {
                 throw BlocktopographError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
+            }
+        }
+        for upgraded in upgradedSubChunkPuts {
+            guard let stored = try database.get(upgraded.key) else {
+                throw BlocktopographError.malformedData("升级后的 SubChunk 写入后未能从 LevelDB 读回")
+            }
+            _ = try BedrockSubChunk.decode(stored, keyYIndex: BedrockDBKey.parse(upgraded.key)?.subChunkIndex)
+        }
+        for deleted in metadataDeletes where metadataPuts.allSatisfy({ $0.key != deleted }) {
+            guard try database.get(deleted) == nil else {
+                throw BlocktopographError.malformedData("旧版区块元数据删除后仍然存在")
             }
         }
         guard let persisted = try database.get(key) else {
@@ -1034,6 +1109,63 @@ final class BedrockBlockNBTStore {
                 isGenerated: true
             )
         )
+    }
+
+    private func requiresModernBlockState(_ root: NBTValue) -> Bool {
+        guard case .compound(let tags) = root else { return true }
+        if let states = tags.first(where: { $0.name.caseInsensitiveCompare("states") == .orderedSame })?.value,
+           case .compound(let values) = states,
+           !values.isEmpty {
+            return true
+        }
+        let name = tags.first(where: {
+            ["name", "identifier"].contains($0.name.lowercased())
+        }).flatMap { tag -> String? in
+            guard case .string(let value) = tag.value else { return nil }
+            return value
+        }
+        if let name = name, BedrockLegacyBlockCatalog.block(forIdentifier: name) == nil {
+            return true
+        }
+        return false
+    }
+
+    private func modernBlockState(from root: NBTValue, paletteVersion: Int32?) throws -> BedrockBlockState {
+        guard case .compound(let tags) = root else {
+            throw BlocktopographError.malformedData("现代方块状态根必须是 Compound")
+        }
+        guard let name = tags.first(where: {
+            ["name", "identifier"].contains($0.name.lowercased())
+        }).flatMap({ tag -> String? in
+            guard case .string(let value) = tag.value else { return nil }
+            return value
+        }), !name.isEmpty else {
+            throw BlocktopographError.malformedData("升级为新版 SubChunk 时必须提供方块 name")
+        }
+        let states: [NBTNamedTag]
+        if let value = tags.first(where: { $0.name.caseInsensitiveCompare("states") == .orderedSame })?.value {
+            guard case .compound(let values) = value else {
+                throw BlocktopographError.malformedData("方块 states 必须是 Compound")
+            }
+            states = values
+        } else {
+            states = []
+        }
+        let version = tags.first(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame })
+            .flatMap { tag -> Int32? in
+                switch tag.value {
+                case .byte(let value): return Int32(value)
+                case .short(let value): return Int32(value)
+                case .int(let value): return value
+                case .long(let value): return Int32(exactly: value)
+                default: return nil
+                }
+            } ?? paletteVersion ?? BedrockBlockState.defaultPaletteVersion
+        return BedrockBlockState(nbt: .compound([
+            NBTNamedTag(name: "name", value: .string(name)),
+            NBTNamedTag(name: "states", value: .compound(states)),
+            NBTNamedTag(name: "version", value: .int(version))
+        ]), legacyID: nil, legacyData: nil)
     }
 
     private func adaptedReplacement(
