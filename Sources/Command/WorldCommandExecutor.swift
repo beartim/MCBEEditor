@@ -44,6 +44,9 @@ final class WorldCommandExecutor {
                 message: try summon(identifier: identifier, dimension: dimension, position: position, additions: additions),
                 changedWorld: true
             )
+        case .effect(let operation, let target, let selection):
+            let result = try effect(operation: operation, target: target, selection: selection)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         case .clone(let sourceDimension, let source, let targetDimension, let destination):
             let result = try CommandBlockStore.clone(
                 session: session,
@@ -92,6 +95,134 @@ final class WorldCommandExecutor {
             templateDocument: NBTDocument(rootName: "", root: root)
         )
         return "summon 完成：创建 \(identifier)，维度 \(WorldCommandParser.dimensionName(for: dimension))，坐标 \(position.x) \(position.y) \(position.z)，UniqueID \(uniqueID)，存储方式 \(result.source.rawValue)。"
+    }
+
+
+    // MARK: effect
+
+    private func effect(
+        operation: CommandEffectOperation,
+        target: CommandTarget,
+        selection: CommandEffectSelection
+    ) throws -> (message: String, changed: Bool) {
+        let targets = try resolveTargets(target)
+        var playerPuts = [(key: Data, value: Data)]()
+        var entityReplacements = [(object: BedrockWorldObject, document: NBTDocument)]()
+        var changedPlayers = 0
+        var changedEntities = 0
+        var skippedPlayers = 0
+        var skippedEntities = 0
+
+        // Build every mutation before the first write. A malformed ActiveEffects
+        // value in any target therefore aborts the whole command instead of
+        // leaving a partially modified selector result.
+        for record in targets.players {
+            let mutation = try CommandEffectNBT.applying(
+                operation: operation,
+                selection: selection,
+                to: record.document.root
+            )
+            guard mutation.changed else {
+                skippedPlayers += 1
+                continue
+            }
+            var document = record.document
+            document.root = mutation.value
+            playerPuts.append((
+                key: record.key,
+                value: try BedrockNBTCodec.encode(document, encoding: .littleEndian)
+            ))
+            changedPlayers += 1
+        }
+
+        for object in targets.entities {
+            let mutation = try CommandEffectNBT.applying(
+                operation: operation,
+                selection: selection,
+                to: object.document.root
+            )
+            guard mutation.changed else {
+                skippedEntities += 1
+                continue
+            }
+            var document = object.document
+            document.root = mutation.value
+            entityReplacements.append((object: object, document: document))
+            changedEntities += 1
+        }
+
+        let entityPuts = try encodedUnmovedEntityReplacements(entityReplacements)
+        let allPuts = playerPuts + entityPuts
+        if !allPuts.isEmpty {
+            try session.database().applyBatch(puts: allPuts, deletes: [], sync: true)
+        }
+
+        let effectText = selection.displayText
+        switch operation {
+        case .give(let duration, let amplifier):
+            return (
+                "effect give 完成：向 \(changedPlayers) 个玩家和 \(changedEntities) 个实体给予 \(effectText)，持续 \(duration) 游戏刻，等级 \(Int(amplifier) + 1)。",
+                !allPuts.isEmpty
+            )
+        case .clear:
+            return (
+                "effect clear 完成：从 \(changedPlayers) 个玩家和 \(changedEntities) 个实体移除 \(effectText)；跳过 \(skippedPlayers) 个玩家和 \(skippedEntities) 个没有对应状态效果的实体。",
+                !allPuts.isEmpty
+            )
+        }
+    }
+
+    private func encodedUnmovedEntityReplacements(
+        _ replacements: [(object: BedrockWorldObject, document: NBTDocument)]
+    ) throws -> [(key: Data, value: Data)] {
+        guard !replacements.isEmpty else { return [] }
+        let database = try session.database()
+        var groups = [Data: [(object: BedrockWorldObject, document: NBTDocument)]]()
+        for replacement in replacements {
+            groups[replacement.object.storage.primaryKey, default: []].append(replacement)
+        }
+
+        var puts = [(key: Data, value: Data)]()
+        puts.reserveCapacity(groups.count)
+        for (key, group) in groups {
+            guard let original = try database.get(key) else {
+                throw BlocktopographError.malformedData("实体源 NBT 记录已不存在，请重新扫描。")
+            }
+            var records = try ConsecutiveNBTCodec.decode(original)
+            var occupiedIndexes = Set<Int>()
+            for replacement in group {
+                let object = replacement.object
+                let index: Int
+                let preferred = object.storage.recordIndex
+                if records.indices.contains(preferred), records[preferred].rawData == object.rawData {
+                    index = preferred
+                } else if let uniqueID = object.uniqueID,
+                          let located = records.firstIndex(where: {
+                              $0.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) == uniqueID
+                          }) {
+                    index = located
+                } else if let located = records.firstIndex(where: { $0.rawData == object.rawData }) {
+                    index = located
+                } else {
+                    throw BlocktopographError.malformedData("实体记录已经变化，无法应用状态效果；请重新扫描。")
+                }
+                guard occupiedIndexes.insert(index).inserted else {
+                    throw BlocktopographError.malformedData("同一实体在目标选择器中重复出现。")
+                }
+                let originalID = object.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+                let editedID = replacement.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+                guard originalID == editedID else {
+                    throw BlocktopographError.malformedData("effect 命令不能修改实体 UniqueID。")
+                }
+                records[index].document = replacement.document
+                records[index].rawData = try BedrockNBTCodec.encode(
+                    replacement.document,
+                    encoding: records[index].encoding
+                )
+            }
+            puts.append((key: key, value: try ConsecutiveNBTCodec.encode(records)))
+        }
+        return puts
     }
 
     // MARK: Target selectors

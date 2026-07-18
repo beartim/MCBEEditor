@@ -1,4 +1,4 @@
-# 应用 Blocktopograph iOS 13 v1.1.17 完整源码
+# 应用 Blocktopograph iOS 13 v1.1.18 完整源码
 
 本压缩包为完整工程源码。覆盖现有工程后执行：
 
@@ -7,11 +7,13 @@ chmod +x Scripts/*.sh
 bash Scripts/bootstrap.sh
 ```
 
-本版新增与修复：
+本版新增：
 
-- 修复 `Scripts/run_core_tests.sh` 仍匹配旧版方块写入代码，导致未加载区块生成逻辑被误报为不完整、构建在 Xcode 编译前退出；
-- 地图默认进入本地玩家所在维度并以玩家坐标为中心；
-- 切换到玩家所在维度时默认回到玩家坐标，切换到其他维度时默认以方块坐标 `(0,0)` 为中心；
-- 保留当前图层、对象显示开关和缩放比例。
+- `effect give 目标 状态效果ID或ALL 持续时间 效果等级`；
+- `effect clear 目标 状态效果ID或ALL`；
+- 状态效果字符串 ID 到当前数据值数字 ID 的严格校验；
+- 完整 `ActiveEffects` Compound List 写入，不创建 `FactorCalculationData`；
+- 清除最后一个效果时自动删除 `ActiveEffects` 根标签；
+- 玩家和实体在同一 LevelDB WriteBatch 中原子更新。
 
-重新生成 Xcode 工程后，版本号为 1.1.17，构建号为 127。
+重新生成 Xcode 工程后，版本号为 1.1.18，构建号为 128。

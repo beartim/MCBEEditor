@@ -476,6 +476,12 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertNoThrow(try WorldCommandParser.parse("kick -123456789"))
         XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""))
         XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 default"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("effect give @a strength 12000 50"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("effect clear @e ALL"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("effect clear @e ALL 1"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("effect give @a unknown_effect 20 0"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("effect give @a strength -1 0"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("effect give @a strength 20 256"))
         XCTAssertThrowsError(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 NULL"))
         XCTAssertThrowsError(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Long'\"UniqueID\"=\"2\""))
         XCTAssertThrowsError(try WorldCommandParser.parse("clear"))
@@ -485,6 +491,60 @@ final class BlocktopographTests: XCTestCase {
         XCTAssertThrowsError(try WorldCommandParser.parse("kick @e"))
         XCTAssertThrowsError(try WorldCommandParser.parse("/help"))
         XCTAssertThrowsError(try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air"))
+    }
+
+    func testCommandEffectNBTMutation() throws {
+        guard let strength = BedrockDataValueCatalog.statusEffects.first(where: { $0.identifier == "strength" }) else {
+            return XCTFail("strength data value missing")
+        }
+        let root = NBTValue.compound([NBTNamedTag(name: "UniqueID", value: .long(123))])
+        let given = try CommandEffectNBT.applying(
+            operation: .give(duration: 12000, amplifier: 50),
+            selection: .single(strength),
+            to: root
+        )
+        XCTAssertTrue(given.changed)
+        guard case .list(.compound, let effects)? = given.value.compoundValue(named: "ActiveEffects"),
+              effects.count == 1,
+              case .compound(let tags) = effects[0] else {
+            return XCTFail("ActiveEffects was not created")
+        }
+        func value(_ name: String) -> NBTValue? { tags.first(where: { $0.name == name })?.value }
+        XCTAssertEqual(value("Id")?.numericInt64Value, 5)
+        XCTAssertEqual(value("Amplifier")?.numericInt64Value, 50)
+        XCTAssertEqual(value("Duration")?.numericInt64Value, 12000)
+        XCTAssertEqual(value("DurationEasy")?.numericInt64Value, 12000)
+        XCTAssertEqual(value("DurationNormal")?.numericInt64Value, 12000)
+        XCTAssertEqual(value("DurationHard")?.numericInt64Value, 12000)
+        XCTAssertEqual(value("Ambient")?.numericInt64Value, 0)
+        XCTAssertEqual(value("DisplayOnScreenTextureAnimation")?.numericInt64Value, 0)
+        XCTAssertEqual(value("ShowParticles")?.numericInt64Value, 0)
+        XCTAssertNil(value("FactorCalculationData"))
+
+        let cleared = try CommandEffectNBT.applying(
+            operation: .clear,
+            selection: .single(strength),
+            to: given.value
+        )
+        XCTAssertTrue(cleared.changed)
+        XCTAssertNil(cleared.value.compoundValue(named: "ActiveEffects"))
+
+        let all = try CommandEffectNBT.applying(
+            operation: .give(duration: 100, amplifier: 0),
+            selection: .all,
+            to: root
+        )
+        guard case .list(.compound, let allEffects)? = all.value.compoundValue(named: "ActiveEffects") else {
+            return XCTFail("ALL effects were not created")
+        }
+        XCTAssertEqual(allEffects.count, BedrockDataValueCatalog.statusEffects.count)
+
+        let unchanged = try CommandEffectNBT.applying(
+            operation: .clear,
+            selection: .single(strength),
+            to: root
+        )
+        XCTAssertFalse(unchanged.changed)
     }
 
     func testCommonEntityNBTTemplate() throws {

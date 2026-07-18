@@ -216,6 +216,76 @@ struct Main {
         _ = try WorldCommandParser.parse("kick @a")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 default")
+        let effectGive = try WorldCommandParser.parse("effect give @a strength 12000 50")
+        guard case .effect(.give(let duration, let amplifier), .allPlayers, .single(let effectEntry)) = effectGive else {
+            preconditionFailure("effect give parsed as wrong command")
+        }
+        precondition(duration == 12000 && amplifier == 50)
+        precondition(effectEntry.id == 5 && effectEntry.identifier == "strength")
+        let effectClear = try WorldCommandParser.parse("effect clear @e ALL")
+        guard case .effect(.clear, .allEntities, .all) = effectClear else {
+            preconditionFailure("effect clear parsed as wrong command")
+        }
+        let effectRoot = NBTValue.compound([
+            NBTNamedTag(name: "UniqueID", value: .long(99))
+        ])
+        let givenEffect = try CommandEffectNBT.applying(
+            operation: .give(duration: 12000, amplifier: 50),
+            selection: .single(effectEntry),
+            to: effectRoot
+        )
+        precondition(givenEffect.changed)
+        guard case .list(.compound, let activeValues)? = givenEffect.value.compoundValue(named: "ActiveEffects"),
+              activeValues.count == 1,
+              case .compound(let activeTags) = activeValues[0] else {
+            preconditionFailure("effect give did not create ActiveEffects Compound List")
+        }
+        func effectTag(_ name: String) -> NBTValue? {
+            activeTags.first { $0.name == name }?.value
+        }
+        func effectNumber(_ name: String) -> Int64? {
+            switch effectTag(name) {
+            case .byte(let value): return Int64(value)
+            case .short(let value): return Int64(value)
+            case .int(let value): return Int64(value)
+            case .long(let value): return value
+            default: return nil
+            }
+        }
+        precondition(effectNumber("Id") == 5)
+        precondition(effectNumber("Amplifier") == 50)
+        precondition(effectNumber("Duration") == 12000)
+        precondition(effectNumber("DurationEasy") == 12000)
+        precondition(effectNumber("DurationNormal") == 12000)
+        precondition(effectNumber("DurationHard") == 12000)
+        precondition(effectNumber("Ambient") == 0)
+        precondition(effectNumber("DisplayOnScreenTextureAnimation") == 0)
+        precondition(effectNumber("ShowParticles") == 0)
+        precondition(activeTags.first { $0.name == "FactorCalculationData" } == nil)
+        let clearedEffect = try CommandEffectNBT.applying(
+            operation: .clear,
+            selection: .single(effectEntry),
+            to: givenEffect.value
+        )
+        precondition(clearedEffect.changed)
+        precondition(clearedEffect.value.compoundValue(named: "ActiveEffects") == nil)
+        let allEffects = try CommandEffectNBT.applying(
+            operation: .give(duration: 40, amplifier: 0),
+            selection: .all,
+            to: effectRoot
+        )
+        guard case .list(.compound, let allValues)? = allEffects.value.compoundValue(named: "ActiveEffects") else {
+            preconditionFailure("effect give ALL did not create ActiveEffects")
+        }
+        precondition(allValues.count == BedrockDataValueCatalog.statusEffects.count)
+        do {
+            _ = try WorldCommandParser.parse("effect clear @e ALL 1")
+            preconditionFailure("effect clear must reject extra parameters")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("effect give @a unknown_effect 20 0")
+            preconditionFailure("effect must reject identifiers without numeric IDs")
+        } catch {}
         do {
             _ = try WorldCommandParser.parse("clear")
             preconditionFailure("clear must require one target")
@@ -2953,6 +3023,7 @@ for expected in \
   'case "clear"' \
   'case "clearspawnpoint"' \
   'case "clone"' \
+  'case "effect"' \
   'case "fill"' \
   'case "give"' \
   'case "kill"' \
@@ -2988,6 +3059,8 @@ for expected in \
   'removeBlockEntities(in:' \
   'clearItems(target:' \
   'clearSpawnPoints(target:' \
+  'effect(operation:' \
+  'CommandEffectNBT.applying' \
   'give(target:' \
   'kill(target:' \
   'kick(target:' \
@@ -3148,3 +3221,145 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
   exit 1
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
+
+# v1.1.18: effect command with status-effect IDs and complete ActiveEffects NBT.
+grep -qF 'case effect(operation: CommandEffectOperation' "$COMMAND_PARSER" && grep -qF 'case "effect"' "$COMMAND_PARSER" && grep -qF 'effect give @a strength 12000 50' "$COMMAND_PARSER" && grep -qF 'effect clear @e ALL' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationEasy"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationNormal"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationHard"' "$COMMAND_PARSER" && ! grep -qF 'FactorCalculationData' "$COMMAND_PARSER" && grep -qF 'encodedUnmovedEntityReplacements' "$COMMAND_EXECUTOR" && grep -qF 'session.database().applyBatch(puts: allPuts' "$COMMAND_EXECUTOR" || {
+  echo 'error: effect command parser, NBT schema or atomic target update is incomplete' >&2
+  exit 1
+}
+echo 'Status-effect give/clear/ALL command support passed'
+
+
+cat > "$TMP/EffectCommandStubs.swift" <<'SWIFT'
+import Foundation
+struct ImportedWorld { let id: UUID }
+final class MojangLevelDB {
+    var values: [Data: Data] = [:]
+    func get(_ key: Data) throws -> Data? { values[key] }
+    func put(_ value: Data, for key: Data, sync: Bool = true) throws { values[key] = value }
+    func delete(_ key: Data, sync: Bool = true) throws { values.removeValue(forKey: key) }
+    func applyBatch(puts: [(key: Data, value: Data)], deletes: [Data], sync: Bool = true) throws {
+        for key in deletes { values.removeValue(forKey: key) }
+        for item in puts { values[item.key] = item.value }
+    }
+    func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] {
+        let keys = values.keys.filter { prefix == nil || $0.starts(with: prefix!) }
+        return keys.map { ($0, includeValues ? values[$0] : nil) }
+    }
+}
+final class WorldSession {
+    let world = ImportedWorld(id: UUID())
+    let db = MojangLevelDB()
+    func database() throws -> MojangLevelDB { db }
+}
+final class WorldStore {
+    static let shared = WorldStore()
+    func metadataURL(for world: ImportedWorld) -> URL { FileManager.default.temporaryDirectory }
+}
+enum AtomicFile { static func write(_ data: Data, to url: URL) throws { try data.write(to: url) } }
+struct BedrockBlockRecord {
+    static let editableLayerCount = 2
+    let x: Int64
+    let y: Int32
+    let z: Int64
+    let dimension: Int32
+    let layers: [BedrockBlockState]
+    let isGenerated: Bool
+}
+SWIFT
+
+cat > "$TMP/effect_command_test.swift" <<'SWIFT'
+import Foundation
+@main
+struct EffectCommandTest {
+    static func entity(_ identifier: String, _ uniqueID: Int64, _ x: Float) -> NBTDocument {
+        NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "identifier", value: .string(identifier)),
+            NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
+            NBTNamedTag(name: "UniqueID", value: .long(uniqueID)),
+            NBTNamedTag(name: "DimensionId", value: .int(0)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(x), .float(64), .float(1)]))
+        ]))
+    }
+    static func effectCount(_ root: NBTValue) -> Int? {
+        guard case .list(.compound, let values)? = root.compoundValue(named: "ActiveEffects") else { return nil }
+        return values.count
+    }
+    static func main() throws {
+        let session = WorldSession()
+        let localKey = Data("~local_player".utf8)
+        session.db.values[localKey] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "UniqueID", value: .long(1)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)]))
+        ])))
+        let entityKey = BedrockDBKey(
+            position: ChunkPosition(x: 0, z: 0, dimension: 0),
+            recordType: .entity,
+            subChunkIndex: nil
+        ).encoded()
+        let documents = [entity("minecraft:cow", 2, 1), entity("minecraft:pig", 3, 2)]
+        let records = try documents.map { document -> ConsecutiveNBTRecord in
+            let raw = try BedrockNBTCodec.encode(document)
+            return ConsecutiveNBTRecord(document: document, rawData: raw, encoding: .littleEndian)
+        }
+        session.db.values[entityKey] = try ConsecutiveNBTCodec.encode(records)
+        let executor = WorldCommandExecutor(session: session)
+
+        let given = try executor.execute(try WorldCommandParser.parse("effect give @e strength 12000 50"))
+        precondition(given.changedWorld)
+        let localAfterGive = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(effectCount(localAfterGive) == 1)
+        let entitiesAfterGive = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        precondition(entitiesAfterGive.count == 2)
+        precondition(entitiesAfterGive.allSatisfy { effectCount($0.document.root) == 1 })
+
+        let cleared = try executor.execute(try WorldCommandParser.parse("effect clear @e strength"))
+        precondition(cleared.changedWorld)
+        let localAfterClear = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(localAfterClear.compoundValue(named: "ActiveEffects") == nil)
+        let entitiesAfterClear = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        precondition(entitiesAfterClear.allSatisfy { $0.document.root.compoundValue(named: "ActiveEffects") == nil })
+
+        let skipped = try executor.execute(try WorldCommandParser.parse("effect clear @e strength"))
+        precondition(!skipped.changedWorld)
+
+        let all = try executor.execute(try WorldCommandParser.parse("effect give @e ALL 40 0"))
+        precondition(all.changedWorld)
+        let localAfterAll = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(effectCount(localAfterAll) == BedrockDataValueCatalog.statusEffects.count)
+        let allEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        precondition(allEntities.allSatisfy { effectCount($0.document.root) == BedrockDataValueCatalog.statusEffects.count })
+        print("Effect command executor tests passed")
+    }
+}
+SWIFT
+
+swiftc \
+  "$ROOT/Sources/Support/Errors.swift" \
+  "$ROOT/Sources/Support/Hex.swift" \
+  "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/NBT/NBTTypes.swift" \
+  "$ROOT/Sources/NBT/BinaryCursor.swift" \
+  "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
+  "$ROOT/Sources/NBT/ConsecutiveNBTCodec.swift" \
+  "$ROOT/Sources/Chunk/MapCoordinate.swift" \
+  "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
+  "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
+  "$ROOT/Sources/Chunk/HardcodedSpawners.swift" \
+  "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
+  "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
+  "$ROOT/Sources/Chunk/BedrockChunkStore.swift" \
+  "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
+  "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \
+  "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
+  "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+  "$ROOT/Sources/World/PlayerNBTStore.swift" \
+  "$ROOT/Sources/Command/WorldCommand.swift" \
+  "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
+  "$TMP/EffectCommandStubs.swift" \
+  -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
+"$TMP/effect-command-tests"

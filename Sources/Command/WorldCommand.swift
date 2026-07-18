@@ -135,6 +135,7 @@ enum ParsedWorldCommand {
     case kill(target: CommandTarget, killCreativePlayers: Bool)
     case kick(target: CommandTarget)
     case summon(identifier: String, dimension: Int32, position: CommandBlockCoordinate, additions: [NBTNamedTag])
+    case effect(operation: CommandEffectOperation, target: CommandTarget, selection: CommandEffectSelection)
     case clone(
         sourceDimension: Int32,
         source: CommandBlockBox,
@@ -149,14 +150,157 @@ enum ParsedWorldCommand {
     )
 }
 
+enum CommandEffectSelection {
+    case all
+    case single(BedrockDataValueEntry)
+
+    var displayText: String {
+        switch self {
+        case .all: return "ALL"
+        case .single(let entry): return entry.identifier
+        }
+    }
+
+    var entries: [BedrockDataValueEntry] {
+        switch self {
+        case .all: return BedrockDataValueCatalog.statusEffects
+        case .single(let entry): return [entry]
+        }
+    }
+}
+
+enum CommandEffectOperation {
+    case give(duration: Int32, amplifier: UInt8)
+    case clear
+}
+
+enum CommandEffectNBT {
+    static let rootName = "ActiveEffects"
+
+    static func applying(
+        operation: CommandEffectOperation,
+        selection: CommandEffectSelection,
+        to root: NBTValue
+    ) throws -> (value: NBTValue, changed: Bool) {
+        guard case .compound(var rootTags) = root else {
+            throw BlocktopographError.malformedData("实体或玩家的 NBT 根必须是 Compound")
+        }
+        let matchingIndexes = rootTags.indices.filter {
+            rootTags[$0].name.caseInsensitiveCompare(rootName) == .orderedSame
+        }
+        guard matchingIndexes.count <= 1 else {
+            throw BlocktopographError.malformedData("NBT 根中存在多个 ActiveEffects 标签")
+        }
+        let activeIndex = matchingIndexes.first
+
+        switch operation {
+        case .give(let duration, let amplifier):
+            var existing = try activeIndex.map { try effectValues(from: rootTags[$0].value) } ?? []
+            let requestedIDs = Set(selection.entries.map(\.id))
+            existing.removeAll { value in
+                guard let id = try? effectID(in: value) else { return false }
+                return requestedIDs.contains(id)
+            }
+            existing.append(contentsOf: selection.entries.map {
+                effectCompound(id: $0.id, duration: duration, amplifier: amplifier)
+            })
+            let value: NBTValue = .list(.compound, existing)
+            if let activeIndex = activeIndex {
+                rootTags[activeIndex] = NBTNamedTag(name: rootTags[activeIndex].name, value: value)
+            } else {
+                rootTags.append(NBTNamedTag(name: rootName, value: value))
+            }
+            return (.compound(rootTags), true)
+
+        case .clear:
+            guard let activeIndex = activeIndex else { return (root, false) }
+            if case .all = selection {
+                rootTags.remove(at: activeIndex)
+                return (.compound(rootTags), true)
+            }
+            let requestedIDs = Set(selection.entries.map(\.id))
+            let existing = try effectValues(from: rootTags[activeIndex].value)
+            var removed = false
+            let remaining = try existing.filter { value in
+                let id = try effectID(in: value)
+                if requestedIDs.contains(id) {
+                    removed = true
+                    return false
+                }
+                return true
+            }
+            guard removed else { return (root, false) }
+            if remaining.isEmpty {
+                rootTags.remove(at: activeIndex)
+            } else {
+                rootTags[activeIndex] = NBTNamedTag(
+                    name: rootTags[activeIndex].name,
+                    value: .list(.compound, remaining)
+                )
+            }
+            return (.compound(rootTags), true)
+        }
+    }
+
+    static func effectCompound(id: Int, duration: Int32, amplifier: UInt8) -> NBTValue {
+        .compound([
+            NBTNamedTag(name: "Ambient", value: .byte(0)),
+            NBTNamedTag(name: "Amplifier", value: .byte(Int8(bitPattern: amplifier))),
+            NBTNamedTag(name: "DisplayOnScreenTextureAnimation", value: .byte(0)),
+            NBTNamedTag(name: "Duration", value: .int(duration)),
+            NBTNamedTag(name: "DurationEasy", value: .int(duration)),
+            NBTNamedTag(name: "DurationNormal", value: .int(duration)),
+            NBTNamedTag(name: "DurationHard", value: .int(duration)),
+            NBTNamedTag(name: "Id", value: .byte(Int8(clamping: id))),
+            NBTNamedTag(name: "ShowParticles", value: .byte(0))
+        ])
+    }
+
+    private static func effectValues(from value: NBTValue) throws -> [NBTValue] {
+        switch value {
+        case .list(.compound, let values):
+            guard values.allSatisfy({ $0.type == .compound }) else {
+                throw BlocktopographError.malformedData("ActiveEffects 必须是 Compound List")
+            }
+            for value in values { _ = try effectID(in: value) }
+            return values
+        case .list(.end, let values) where values.isEmpty:
+            return []
+        default:
+            throw BlocktopographError.malformedData("ActiveEffects 必须是 Compound List")
+        }
+    }
+
+    private static func effectID(in value: NBTValue) throws -> Int {
+        guard case .compound(let tags) = value,
+              let tag = tags.first(where: { $0.name.caseInsensitiveCompare("Id") == .orderedSame }) else {
+            throw BlocktopographError.malformedData("状态效果 Compound 缺少数字 Id 标签")
+        }
+        let raw: Int64
+        switch tag.value {
+        case .byte(let value): raw = Int64(UInt8(bitPattern: value))
+        case .short(let value): raw = Int64(value)
+        case .int(let value): raw = Int64(value)
+        case .long(let value): raw = value
+        default:
+            throw BlocktopographError.malformedData("状态效果 Id 必须是数字标签")
+        }
+        guard raw >= 0, raw <= Int64(Int.max) else {
+            throw BlocktopographError.malformedData("状态效果 Id 超出有效范围")
+        }
+        return Int(raw)
+    }
+}
+
 enum WorldCommandParser {
-    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "fill", "give", "kill", "kick", "summon"]
+    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "effect", "fill", "give", "kill", "kick", "summon"]
 
     static let usage: [String: String] = [
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间写入 Duration、DurationEasy、DurationNormal、DurationHard，效果等级为零基数（输入 50 表示 51 级）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect clear @e ALL",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
         "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
@@ -186,6 +330,29 @@ enum WorldCommandParser {
         case "clearspawnpoint":
             guard arguments.count == 1 else { throw usageError(command) }
             return .clearSpawnPoint(target: try parseTarget(arguments[0]))
+        case "effect":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "give":
+                guard arguments.count == 5 else { throw usageError(command) }
+                return .effect(
+                    operation: .give(
+                        duration: try parseEffectDuration(arguments[3]),
+                        amplifier: try parseEffectAmplifier(arguments[4])
+                    ),
+                    target: try parseTarget(arguments[1]),
+                    selection: try parseEffectSelection(arguments[2])
+                )
+            case "clear":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .effect(
+                    operation: .clear,
+                    target: try parseTarget(arguments[1]),
+                    selection: try parseEffectSelection(arguments[2])
+                )
+            default:
+                throw usageError(command)
+            }
         case "give":
             guard arguments.count == 4 else { throw usageError(command) }
             return .give(
@@ -310,6 +477,30 @@ enum WorldCommandParser {
             throw BlocktopographError.malformedData("\(kind)字符串 ID 格式无效：\(text)")
         }
         return text
+    }
+
+    private static func parseEffectSelection(_ text: String) throws -> CommandEffectSelection {
+        if text == "ALL" { return .all }
+        guard let entry = BedrockDataValueCatalog.statusEffects.first(where: { $0.identifier == text }) else {
+            throw BlocktopographError.malformedData(
+                "状态效果字符串 ID 没有对应的数字 ID：\(text)"
+            )
+        }
+        return .single(entry)
+    }
+
+    private static func parseEffectDuration(_ text: String) throws -> Int32 {
+        guard let value = Int32(text), value >= 0 else {
+            throw BlocktopographError.malformedData("状态效果持续时间必须是 0…2147483647 的整数")
+        }
+        return value
+    }
+
+    private static func parseEffectAmplifier(_ text: String) throws -> UInt8 {
+        guard let value = UInt8(text) else {
+            throw BlocktopographError.malformedData("状态效果等级必须是 0…255 的整数；输入值为零基数")
+        }
+        return value
     }
 
     private static func parseItemCount(_ text: String) throws -> Int64 {
