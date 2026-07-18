@@ -688,6 +688,7 @@ private final class CommandBlockStore {
     private var changedKeys = Set<SubKey>()
     private var globalPaletteVersion: Int32?
     private var chunkLegacyFormat = [ChunkPosition: Bool]()
+    private var chunkSubChunkVersion = [ChunkPosition: UInt8]()
     private var emptyChunkProfiles = [Bool: BedrockEmptyChunkProfile]()
     private var pendingMetadataPuts = [Data: Data]()
     private var pendingMetadataDeletes = Set<Data>()
@@ -717,11 +718,12 @@ private final class CommandBlockStore {
             if lhs.z != rhs.z { return lhs.z < rhs.z }
             return lhs.x < rhs.x
         }) {
-            let probe = SubKey(chunk: chunk, y: 0)
-            let legacy = try isLegacyTarget(probe)
-            let profile = try emptyChunkProfile(preferLegacy: legacy)
+            let profile = try emptyChunkProfile(preferLegacy: false)
+            let version = profile.subChunkVersion
+            let legacy = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
             puts.append(contentsOf: BedrockEmptyChunk.metadataRecords(at: chunk, profile: profile).map { ($0.key, $0.value) })
             chunkLegacyFormat[chunk] = legacy
+            chunkSubChunkVersion[chunk] = version
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
         for put in puts {
@@ -1015,6 +1017,7 @@ private final class CommandBlockStore {
             cache[key] = cached
             if globalPaletteVersion == nil { globalPaletteVersion = mutable.paletteVersion }
             chunkLegacyFormat[key.chunk] = mutable.isLegacy
+            chunkSubChunkVersion[key.chunk] = mutable.version
             return cached
         }
         cache[key] = .missing
@@ -1089,12 +1092,14 @@ private final class CommandBlockStore {
             mutable = value
         case .missing:
             if state.isAir && !createWhenAir { return false }
+            let persistentVersion = try preferredSubChunkVersion(for: key)
             if try isLegacyTarget(key) {
-                mutable = try MutableCommandSubChunk.emptyLegacy(y: key.y)
+                mutable = try MutableCommandSubChunk.emptyLegacy(y: key.y, subChunkVersion: persistentVersion)
             } else {
                 mutable = try MutableCommandSubChunk.emptyModern(
                     y: key.y,
-                    version: state.paletteVersion ?? paletteVersion(for: key)
+                    version: state.paletteVersion ?? paletteVersion(for: key),
+                    subChunkVersion: persistentVersion
                 )
             }
         }
@@ -1148,6 +1153,7 @@ private final class CommandBlockStore {
             changedKeys.insert(key)
         }
         chunkLegacyFormat[chunk] = false
+        chunkSubChunkVersion[chunk] = 9
         globalPaletteVersion = plan.paletteVersion
     }
 
@@ -1174,10 +1180,25 @@ private final class CommandBlockStore {
                 }
                 return legacy
             }
-            let legacy = try emptyChunkProfile(preferLegacy: false).versionRecordType == .legacyVersion
+            let version = try emptyChunkProfile(preferLegacy: false).subChunkVersion
+            let legacy = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
             chunkLegacyFormat[key.chunk] = legacy
+            chunkSubChunkVersion[key.chunk] = version
             return legacy
         }
+    }
+
+    private func preferredSubChunkVersion(for key: SubKey) throws -> UInt8 {
+        if let cached = chunkSubChunkVersion[key.chunk] { return cached }
+        let profile = try emptyChunkProfile(preferLegacy: false)
+        let version = try BedrockEmptyChunk.preferredSubChunkVersion(
+            database: database,
+            at: key.chunk,
+            fallback: profile.subChunkVersion
+        )
+        chunkSubChunkVersion[key.chunk] = version
+        chunkLegacyFormat[key.chunk] = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
+        return version
     }
 
     private func paletteVersion(for key: SubKey) throws -> Int32? {
@@ -1487,16 +1508,18 @@ private struct MutableCommandSubChunk {
         self.fallbackAir = subChunk.storages.flatMap(\.palette).first(where: { $0.isAir }) ?? .editableAir(version: paletteVersion)
     }
 
-    static func emptyModern(y: Int8, version: Int32?) throws -> MutableCommandSubChunk {
+    static func emptyModern(y: Int8, version: Int32?, subChunkVersion: UInt8) throws -> MutableCommandSubChunk {
         let air = BedrockBlockState.editableAir(version: version)
         let storage = SubChunkStorage(bitsPerBlock: 0, palette: [air], indices: Array(repeating: 0, count: 4096))
-        return try MutableCommandSubChunk(BedrockSubChunk(version: 9, yIndex: y, storages: [storage], trailingData: Data()))
+        let persistentVersion: UInt8 = [UInt8(1), 8, 9].contains(subChunkVersion) ? subChunkVersion : 9
+        return try MutableCommandSubChunk(BedrockSubChunk(version: persistentVersion, yIndex: y, storages: [storage], trailingData: Data()))
     }
 
-    static func emptyLegacy(y: Int8) throws -> MutableCommandSubChunk {
+    static func emptyLegacy(y: Int8, subChunkVersion: UInt8) throws -> MutableCommandSubChunk {
         let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
         let storage = SubChunkStorage(bitsPerBlock: 8, palette: [air], indices: Array(repeating: 0, count: 4096))
-        return try MutableCommandSubChunk(BedrockSubChunk(version: 7, yIndex: y, storages: [storage], trailingData: Data()))
+        let persistentVersion: UInt8 = [UInt8(2), 3, 4, 5, 6, 7].contains(subChunkVersion) ? subChunkVersion : 7
+        return try MutableCommandSubChunk(BedrockSubChunk(version: persistentVersion, yIndex: y, storages: [storage], trailingData: Data()))
     }
 
     var isLegacy: Bool { [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) }

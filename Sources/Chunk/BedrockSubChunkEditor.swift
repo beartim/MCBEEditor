@@ -999,17 +999,57 @@ final class BedrockBlockNBTStore {
                 dimension: block.dimension,
                 preferLegacy: false
             )
-            let createLegacy = profile.versionRecordType == .legacyVersion && initiallyRequested.nbt == nil
-            if createLegacy {
+            let targetVersion = try BedrockEmptyChunk.preferredSubChunkVersion(
+                database: database,
+                at: position,
+                fallback: profile.subChunkVersion
+            )
+            let targetIsNumeric = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(targetVersion)
+            let hasMetadata = try BedrockEmptyChunk.hasChunkMetadata(database: database, at: position)
+
+            if targetIsNumeric && initiallyRequested.nbt != nil {
+                // Only numeric-ID SubChunks require a whole-chunk format upgrade.
+                // LegacyVersion/Data2D paired with paletted v8 is already a valid
+                // native format and must not be rewritten as v9.
+                let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position)
+                let modernProfile = BedrockEmptyChunkProfile(
+                    versionRecordType: .version,
+                    versionValue: plan.metadataPuts.first(where: {
+                        BedrockDBKey.parse($0.key)?.recordType == .version
+                    })?.value ?? Data([40]),
+                    blockPaletteVersion: plan.paletteVersion,
+                    subChunkVersion: 9,
+                    terrainRecordType: .data3D,
+                    terrainValue: plan.metadataPuts.first(where: {
+                        BedrockDBKey.parse($0.key)?.recordType == .data3D
+                    })?.value
+                )
+                metadataPuts = plan.metadataPuts
+                metadataDeletes = plan.metadataDeletes
+                upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
+                replacement = try adaptedReplacement(
+                    initiallyRequested,
+                    legacy: false,
+                    paletteVersion: modernProfile.blockPaletteVersion
+                )
+                decoded = BedrockSubChunk(
+                    version: modernProfile.subChunkVersion,
+                    yIndex: subChunkY,
+                    storages: [.airFilled(with: .editableAir(version: modernProfile.blockPaletteVersion))],
+                    trailingData: Data()
+                )
+            } else if targetIsNumeric {
                 replacement = try adaptedReplacement(
                     initiallyRequested,
                     legacy: true,
                     paletteVersion: profile.blockPaletteVersion
                 )
-                metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
+                if !hasMetadata {
+                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
+                }
                 let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
                 decoded = BedrockSubChunk(
-                    version: 7,
+                    version: targetVersion == 0 ? 7 : targetVersion,
                     yIndex: subChunkY,
                     storages: [SubChunkStorage(
                         bitsPerBlock: 8,
@@ -1019,37 +1059,19 @@ final class BedrockBlockNBTStore {
                     trailingData: Data()
                 )
             } else {
-                let modernProfile: BedrockEmptyChunkProfile
-                if profile.versionRecordType == .version {
-                    modernProfile = profile
-                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
-                } else {
-                    let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position)
-                    modernProfile = BedrockEmptyChunkProfile(
-                        versionRecordType: .version,
-                        versionValue: plan.metadataPuts.first(where: {
-                            BedrockDBKey.parse($0.key)?.recordType == .version
-                        })?.value ?? Data([40]),
-                        blockPaletteVersion: plan.paletteVersion,
-                        terrainRecordType: .data3D,
-                        terrainValue: plan.metadataPuts.first(where: {
-                            BedrockDBKey.parse($0.key)?.recordType == .data3D
-                        })?.value
-                    )
-                    metadataPuts = plan.metadataPuts
-                    metadataDeletes = plan.metadataDeletes
-                    upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
-                }
                 replacement = try adaptedReplacement(
                     initiallyRequested,
                     legacy: false,
-                    paletteVersion: modernProfile.blockPaletteVersion
+                    paletteVersion: profile.blockPaletteVersion
                 )
-                let air = BedrockBlockState.editableAir(version: modernProfile.blockPaletteVersion)
+                if !hasMetadata {
+                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
+                }
+                let persistentVersion: UInt8 = [UInt8(1), 8, 9].contains(targetVersion) ? targetVersion : 9
                 decoded = BedrockSubChunk(
-                    version: 9,
+                    version: persistentVersion,
                     yIndex: subChunkY,
-                    storages: [.airFilled(with: air)],
+                    storages: [.airFilled(with: .editableAir(version: profile.blockPaletteVersion))],
                     trailingData: Data()
                 )
             }

@@ -21,31 +21,21 @@ enum NBTTagIcon {
         format.scale = UIScreen.main.scale
         let renderer = UIGraphicsImageRenderer(size: iconSize, format: format)
         let image = renderer.image { _ in
-            let body = UIBezierPath()
-            body.move(to: CGPoint(x: 3, y: 5))
-            body.addLine(to: CGPoint(x: 20, y: 5))
-            body.addLine(to: CGPoint(x: 27, y: 12))
-            body.addLine(to: CGPoint(x: 27, y: 25))
-            body.addQuadCurve(to: CGPoint(x: 23, y: 29), controlPoint: CGPoint(x: 27, y: 29))
-            body.addLine(to: CGPoint(x: 7, y: 29))
-            body.addQuadCurve(to: CGPoint(x: 3, y: 25), controlPoint: CGPoint(x: 3, y: 29))
-            body.close()
+            let outerRect = CGRect(x: 1.5, y: 1.5, width: 27, height: 27)
+            let body = UIBezierPath(roundedRect: outerRect, cornerRadius: 9)
             UIColor(red: 0.42, green: 0.22, blue: 0.74, alpha: 1).setFill()
             body.fill()
 
-            let fold = UIBezierPath()
-            fold.move(to: CGPoint(x: 20, y: 5))
-            fold.addLine(to: CGPoint(x: 20, y: 12))
-            fold.addLine(to: CGPoint(x: 27, y: 12))
-            fold.close()
-            UIColor(red: 0.68, green: 0.52, blue: 0.91, alpha: 1).setFill()
-            fold.fill()
+            let highlightRect = CGRect(x: 4, y: 4, width: 22, height: 8)
+            let highlight = UIBezierPath(roundedRect: highlightRect, cornerRadius: 4)
+            UIColor(red: 0.68, green: 0.52, blue: 0.91, alpha: 0.78).setFill()
+            highlight.fill()
 
             let bracesAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.monospacedSystemFont(ofSize: 11, weight: .bold),
-                .foregroundColor: UIColor.white.withAlphaComponent(0.92)
+                .font: UIFont.monospacedSystemFont(ofSize: 10.5, weight: .bold),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.96)
             ]
-            ("{}" as NSString).draw(at: CGPoint(x: 5.5, y: 7.5), withAttributes: bracesAttributes)
+            ("{}" as NSString).draw(at: CGPoint(x: 6.2, y: 5.2), withAttributes: bracesAttributes)
 
             let text = "NBT" as NSString
             let attributes: [NSAttributedString.Key: Any] = [
@@ -54,7 +44,7 @@ enum NBTTagIcon {
             ]
             let measured = text.size(withAttributes: attributes)
             text.draw(
-                at: CGPoint(x: (iconSize.width - measured.width) / 2, y: 17.2),
+                at: CGPoint(x: (iconSize.width - measured.width) / 2, y: 17.3),
                 withAttributes: attributes
             )
         }

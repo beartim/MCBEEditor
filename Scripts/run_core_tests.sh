@@ -29,6 +29,15 @@ struct Main {
         precondition(ordinaryJSON.count == 1)
         precondition(ordinaryJSON[0].root.type == .compound)
 
+        let entityJSON = try NBTJSONCodec.encodeEntityDocument(source)
+        let entityDocuments = try NBTJSONCodec.decodeEntityDocuments(entityJSON)
+        precondition(entityDocuments.count == 1)
+        precondition(entityDocuments[0].root.stringValue(named: "LevelName") == "测试世界")
+        let entityJSONObject = try JSONSerialization.jsonObject(with: entityJSON) as? [String: Any]
+        let entityTagDocuments = entityJSONObject?["documents"] as? [[String: Any]]
+        precondition(entityTagDocuments?.count == 4)
+        precondition(entityTagDocuments?.first?["name"] as? String == "LevelName")
+
 
         let clipboardDocuments = [
             NBTDocument(rootName: "First", root: .int(1)),
@@ -1920,6 +1929,58 @@ struct BlockNBTEditorTest {
         let missingDecoded = try BedrockSubChunk.decode(missingRaw, keyYIndex: 4)
         precondition(missingDecoded.storages[0].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:diamond_block")
 
+        // v1.1.17: LegacyVersion/Data2D can legitimately contain paletted
+        // SubChunk v8. Creating a missing Y=80 SubChunk must preserve v8 and
+        // must not migrate the existing chunk metadata to Version/Data3D.
+        let v8Session = WorldSession()
+        let v8DB = try v8Session.database()
+        let v8Position = ChunkPosition(x: 0, z: 0, dimension: 0)
+        let v8Terrain = Data(repeating: 0x33, count: 768)
+        try v8DB.put(Data([19]), for: BedrockDBKey(
+            position: v8Position, recordType: .legacyVersion, subChunkIndex: nil
+        ).encoded())
+        try v8DB.put(v8Terrain, for: BedrockDBKey(
+            position: v8Position, recordType: .data2D, subChunkIndex: nil
+        ).encoded())
+        let v8Sibling = BedrockSubChunk(
+            version: 8,
+            yIndex: 4,
+            storages: [.airFilled(with: .editableAir(version: 17_825_808))],
+            trailingData: Data()
+        )
+        try v8DB.put(try v8Sibling.encodePersistent(), for: BedrockDBKey.subChunk(
+            x: 0, z: 0, dimension: 0, index: 4
+        ))
+        let v8Block = BedrockBlockRecord(
+            x: 0, y: 80, z: 0, dimension: 0,
+            layers: [.editableAir(version: 17_825_808)],
+            isGenerated: false
+        )
+        _ = try BedrockBlockNBTStore(session: v8Session).save(
+            block: v8Block,
+            storageIndex: 0,
+            document: NBTDocument(rootName: "", root: diamond.nbt!)
+        )
+        let v8CreatedKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 5)
+        guard let v8CreatedRaw = try v8DB.get(v8CreatedKey) else {
+            preconditionFailure("v8 Y=80 SubChunk was not created")
+        }
+        let v8Created = try BedrockSubChunk.decode(v8CreatedRaw, keyYIndex: 5)
+        precondition(v8Created.version == 8)
+        precondition(v8Created.storages[0].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:diamond_block")
+        let preservedV8LegacyVersion = try v8DB.get(BedrockDBKey(
+            position: v8Position, recordType: .legacyVersion, subChunkIndex: nil
+        ).encoded())
+        let preservedV8Terrain = try v8DB.get(BedrockDBKey(
+            position: v8Position, recordType: .data2D, subChunkIndex: nil
+        ).encoded())
+        let unexpectedV8ModernVersion = try v8DB.get(BedrockDBKey(
+            position: v8Position, recordType: .version, subChunkIndex: nil
+        ).encoded())
+        precondition(preservedV8LegacyVersion == Data([19]))
+        precondition(preservedV8Terrain == v8Terrain)
+        precondition(unexpectedV8ModernVersion == nil)
+
         let missingLegacyBlock = BedrockBlockRecord(
             x: 176, y: 64, z: -32, dimension: 0,
             layers: [BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)],
@@ -2414,9 +2475,10 @@ final class MojangLevelDB {
 struct EmptyChunkPaletteState { let paletteVersion: Int32? }
 struct SubChunkStorage { let palette: [EmptyChunkPaletteState] }
 struct BedrockSubChunk {
+    let version: UInt8
     let storages: [SubChunkStorage]
     static func decode(_ data: Data, keyYIndex: Int8? = nil) throws -> BedrockSubChunk {
-        BedrockSubChunk(storages: [])
+        BedrockSubChunk(version: data.first ?? 9, storages: [])
     }
 }
 SWIFT
@@ -2433,6 +2495,7 @@ enum PureAirChunkTests {
             versionRecordType: .version,
             versionValue: Data([40]),
             blockPaletteVersion: 18_153_728,
+            subChunkVersion: 9,
             terrainRecordType: .data3D,
             terrainValue: terrain
         )
@@ -2983,17 +3046,17 @@ done
 for tag in '"Air"' '"Motion"' '"Rotation"' '"IsEating"' '"Tags"' '"PortalCooldown"' '"Persistent"'; do
   grep -qF "$tag" "$ENTITY_COMMON" || { echo "error: common entity NBT tag missing: $tag" >&2; exit 1; }
 done
-grep -qF 'decoded.documents.count >= 2' "$ENTITY_CREATE_UI" && \
+grep -qF 'NBTJSONCodec.decodeEntityDocuments' "$ENTITY_CREATE_UI" && \
 grep -qF 'EntityNBTImportReviewViewController' "$ENTITY_CREATE_UI" && \
 grep -qF 'StandaloneNBTEditorViewController' "$ENTITY_IMPORT_UI" && \
 grep -qF 'createEntity(from:' "$ENTITY_IMPORT_UI" || {
-  echo 'error: consecutive entity NBT review/import flow is incomplete' >&2
+  echo 'error: entity NBT/JSON review and import flow is incomplete' >&2
   exit 1
 }
-grep -qF '导出连续多根 NBT' "$ENTITY_BROWSER_UI" && \
-grep -qF 'sourceDocuments(for:' "$ENTITY_BROWSER_UI" && \
-grep -qF 'exportConsecutiveLittleEndian' "$ENTITY_BROWSER_UI" || {
-  echo 'error: consecutive entity NBT export is incomplete' >&2
+grep -qF '导出实体 NBT' "$ENTITY_BROWSER_UI" && \
+grep -qF 'objectStore.document(for:' "$ENTITY_BROWSER_UI" && \
+grep -qF 'presentEntityFormatChooser' "$ENTITY_BROWSER_UI" || {
+  echo 'error: selected-entity format export is incomplete' >&2
   exit 1
 }
 grep -qF 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$BLOCK_STORE" && \

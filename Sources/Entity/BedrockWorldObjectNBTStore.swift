@@ -56,6 +56,28 @@ final class BedrockWorldObjectNBTStore {
         return documents
     }
 
+    /// Returns only the selected object's root NBT, even when several legacy
+    /// entities share one consecutive-NBT LevelDB value.
+    func document(for object: BedrockWorldObject) throws -> NBTDocument {
+        let database = try session.database()
+        let key: Data
+        let preferredIndex: Int
+        switch object.storage {
+        case .modernActor(let actorKey, _, let recordIndex, _):
+            key = actorKey
+            preferredIndex = recordIndex
+        case .chunkRecord(let sourceKey, let recordIndex, _):
+            key = sourceKey
+            preferredIndex = recordIndex
+        }
+        guard let raw = try database.get(key) else {
+            throw BlocktopographError.unsupported("对象的源 NBT 记录已经不存在。")
+        }
+        let records = try ConsecutiveNBTCodec.decode(raw)
+        let index = try locateRecord(object: object, in: records, preferredIndex: preferredIndex)
+        return records[index].document
+    }
+
     func save(object: BedrockWorldObject, document: NBTDocument) throws -> BedrockWorldObjectSaveResult {
         try validateDocument(document, for: object)
         switch object.storage {

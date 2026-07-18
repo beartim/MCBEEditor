@@ -664,8 +664,8 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
                 self?.duplicateObject(object)
             })
             if object.kind == .entity {
-                actions.append(UIAction(title: "导出连续多根 NBT", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
-                    self?.exportEntitySource(object)
+                actions.append(UIAction(title: "导出实体 NBT", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+                    self?.exportEntity(object)
                 })
             }
             if object.position != nil {
@@ -705,8 +705,8 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
             self?.duplicateObject(object)
         })
         if object.kind == .entity {
-            alert.addAction(UIAlertAction(title: "导出连续多根 NBT", style: .default) { [weak self] _ in
-                self?.exportEntitySource(object)
+            alert.addAction(UIAlertAction(title: "导出实体 NBT", style: .default) { [weak self] _ in
+                self?.exportEntity(object)
             })
         }
         alert.addAction(UIAlertAction(title: "删除\(object.kind.displayName)", style: .destructive) { [weak self] _ in
@@ -724,15 +724,16 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         present(alert, animated: true)
     }
 
-    private func exportEntitySource(_ object: BedrockWorldObject) {
+    private func exportEntity(_ object: BedrockWorldObject) {
         do {
-            let documents = try objectStore.sourceDocuments(for: object)
+            let document = try objectStore.document(for: object)
             let identifier = object.identifier.replacingOccurrences(of: ":", with: "_")
             let suffix = object.uniqueID.map(String.init) ?? "entity"
-            NBTExportUI.exportConsecutiveLittleEndian(
+            NBTExportUI.presentEntityFormatChooser(
                 from: self,
-                documents: documents,
-                baseFilename: "\(identifier)-\(suffix)"
+                document: document,
+                baseFilename: "\(identifier)-\(suffix)",
+                sourceView: tableView
             )
         } catch {
             showError(error, title: "导出实体 NBT 失败")

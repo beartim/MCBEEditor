@@ -108,7 +108,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         noticeLabel.translatesAutoresizingMaskIntoConstraints = false
         if template == nil {
             noticeLabel.text = kind == .entity
-                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板包含实体通用 NBT 标签；类型专属数据可从现有同类实体复制或从连续 NBT 文件导入。"
+                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板包含实体通用 NBT 标签；类型专属数据可从现有同类实体复制，或从实体 NBT／JSON 文件导入。"
                 : "方块实体会写入目标区块的 BlockEntity(0x31) 记录。请确保目标坐标的方块类型与方块实体 ID 相匹配。"
         } else {
             noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并根据目标世界及原对象自动选择区块 Entity 或 actorprefix；原对象不会被修改。"
@@ -123,7 +123,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         selectedButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
         selectedButton.translatesAutoresizingMaskIntoConstraints = false
 
-        importNBTButton.setTitle("从连续多根 NBT 文件导入…", for: .normal)
+        importNBTButton.setTitle("从实体 NBT／JSON 文件导入…", for: .normal)
         importNBTButton.setImage(UIImage(systemName: "doc.badge.plus"), for: .normal)
         importNBTButton.addTarget(self, action: #selector(selectEntityNBTFile), for: .touchUpInside)
         importNBTButton.backgroundColor = .secondarySystemGroupedBackground
@@ -245,24 +245,31 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
-        guard url.pathExtension.lowercased() == "nbt" else {
-            showError(BlocktopographError.unsupported("请选择包含连续多根标签的 .nbt 文件。"), title: "文件格式错误")
+        let fileExtension = url.pathExtension.lowercased()
+        guard fileExtension == "nbt" || fileExtension == "json" else {
+            showError(BlocktopographError.unsupported("请选择 .nbt 或 .json 实体文件。"), title: "文件格式错误")
             return
         }
         do {
             let configuration = try entityImportConfiguration()
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            let decoded = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: url), filename: url.lastPathComponent)
-            guard decoded.documents.count >= 2 else {
-                throw BlocktopographError.unsupported("实体导入文件必须是连续多根 NBT，至少包含两个根标签。")
+            let fileData = try Data(contentsOf: url)
+            let documents: [NBTDocument]
+            if fileExtension == "json" {
+                documents = try NBTJSONCodec.decodeEntityDocuments(fileData)
+            } else {
+                documents = try StandaloneNBTFileCodec.decode(data: fileData, filename: url.lastPathComponent).documents
+            }
+            guard !documents.isEmpty else {
+                throw BlocktopographError.unsupported("实体文件不包含可导入的 NBT 根标签。")
             }
             var prepared = [NBTDocument]()
-            prepared.reserveCapacity(decoded.documents.count)
-            for (index, document) in decoded.documents.enumerated() {
+            prepared.reserveCapacity(documents.count)
+            for (index, document) in documents.enumerated() {
                 let addition = configuration.uniqueID.addingReportingOverflow(Int64(index))
                 guard !addition.overflow, addition.partialValue != 0 else {
-                    throw BlocktopographError.malformedData("连续实体 UniqueID 超出 Int64 范围。")
+                    throw BlocktopographError.malformedData("批量实体 UniqueID 超出 Int64 范围。")
                 }
                 prepared.append(try store.prepareEntityDocument(
                     document,
@@ -290,7 +297,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
             )
             navigationController?.pushViewController(review, animated: true)
         } catch {
-            showError(error, title: "读取实体 NBT 失败")
+            showError(error, title: "读取实体文件失败")
         }
     }
 
@@ -301,7 +308,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         uniqueID: Int64
     ) {
         guard kind == .entity, template == nil else {
-            throw BlocktopographError.unsupported("只有空白新建实体支持从连续 NBT 文件导入。")
+            throw BlocktopographError.unsupported("只有空白新建实体支持从 NBT／JSON 文件导入。")
         }
         let identifier = identifierField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !identifier.isEmpty else { throw BlocktopographError.malformedData("请先填写实体 ID。") }

@@ -65,6 +65,47 @@ enum NBTExportUI {
         presenter.present(sheet, animated: true)
     }
 
+    static func presentEntityFormatChooser(
+        from presenter: UIViewController,
+        document: NBTDocument,
+        baseFilename: String,
+        sourceView: UIView? = nil
+    ) {
+        let sheet = UIAlertController(
+            title: "导出实体 NBT",
+            message: "仅导出当前选中实体的全部标签。请选择格式。",
+            preferredStyle: .actionSheet
+        )
+        sheet.addAction(UIAlertAction(title: "实体 JSON (.json)", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + ".json") {
+                try NBTJSONCodec.encodeEntityDocument(document)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Little Endian NBT", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + "-little-endian.nbt") {
+                try StandaloneNBTFileCodec.encode([document], encoding: .littleEndian)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Little Endian VarInt NBT", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + "-little-varint.nbt") {
+                try StandaloneNBTFileCodec.encode([document], encoding: .littleEndianVarInt)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Big Endian NBT", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + "-big-endian.nbt") {
+                try StandaloneNBTFileCodec.encode([document], encoding: .bigEndian)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let popover = sheet.popoverPresentationController {
+            presenter.loadViewIfNeeded()
+            let anchor = sourceView ?? presenter.viewIfLoaded
+            popover.sourceView = anchor
+            popover.sourceRect = CGRect(x: anchor?.bounds.midX ?? 0, y: anchor?.bounds.midY ?? 0, width: 1, height: 1)
+        }
+        presenter.present(sheet, animated: true)
+    }
+
     static func exportConsecutiveLittleEndian(
         from presenter: UIViewController,
         documents: [NBTDocument],

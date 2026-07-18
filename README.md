@@ -1,12 +1,20 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.17 SubChunk v8 写入与实体格式导入导出
+
+- 修复 `LegacyVersion/Data2D + SubChunk v8` 世界在缺失高层 SubChunk 中修改方块后被游戏忽略或重新生成的问题。
+- 缺失 SubChunk 优先沿用目标区块已有兄弟 SubChunk 的持久化版本；例如 Y=80 缺失时可创建兼容的 v8 SubChunk，而不混写 v7/v9。
+- 实体导出只包含当前选中实体的全部标签，并支持实体 JSON、Little Endian、Little Endian VarInt 和 Big Endian NBT。
+- 实体 JSON 采用 `blocktopograph-nbt-json` 的 `documents` 标签数组格式；导入同时支持单根/连续 NBT 与实体 JSON。
+- 命令终端初始保持空白；主页 NBT 工具图标改为更圆润的圆角卡片样式。
+
 ## v1.1.16 构建回归修复与分维度默认中心
 
 - 修复便携核心测试仍匹配 v1.1.13 旧写入表达式，导致完整的未加载区块生成逻辑被误报为不完整、GitHub Actions 在 Xcode 编译前退出的问题。
 - 地图初次打开默认切换到本地玩家所在维度，并以玩家实际坐标为中心。
 - 切换到玩家所在维度时默认回到玩家坐标；切换到另外两个维度时默认以方块坐标 `(0,0)` 为中心。
 - 三个维度仍保留用户设置的图层、对象开关与缩放比例，但不再把其他维度沿用玩家维度的视口中心。
-- 当前版本：**1.1.16 (126)**。
+- 当前版本：**1.1.17 (127)**。
 
 ## v1.1.15 旧版 SubChunk 自动升级与完整命令 NBT
 

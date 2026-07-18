@@ -38,9 +38,6 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         configureViews()
         configureLayout()
         startCursorBlinking()
-        appendOutput(
-            "Blocktopograph 世界命令行\n输入 help 查看全部命令。维度名称：overworld、nether、the_end。"
-        )
     }
 
     private func configureNavigation() {

@@ -26,6 +26,67 @@ enum NBTJSONCodec {
         return try JSONSerialization.data(withJSONObject: object, options: options)
     }
 
+
+    /// Encodes one entity compound in the tag-list JSON layout used by
+    /// Blocktopograph's selected-entity exports. Each child tag becomes one
+    /// entry in `documents`, preserving the entity's complete tag set.
+    static func encodeEntityDocument(_ document: NBTDocument, prettyPrinted: Bool = true) throws -> Data {
+        guard case .compound(let tags) = document.root else {
+            throw BlocktopographError.malformedData("实体 JSON 的 NBT 根标签必须是 Compound")
+        }
+        let documents: [[String: Any]] = tags.map { tag in
+            var encoded = encodeTag(tag.value)
+            encoded["name"] = tag.name
+            return encoded
+        }
+        let object: [String: Any] = [
+            "documents": documents,
+            "format": "blocktopograph-nbt-json",
+            "version": 1
+        ]
+        var options: JSONSerialization.WritingOptions = [.sortedKeys]
+        if prettyPrinted { options.insert(.prettyPrinted) }
+        return try JSONSerialization.data(withJSONObject: object, options: options)
+    }
+
+    /// Decodes both selected-entity JSON (where `documents` are the entity's
+    /// child tags) and the normal typed/ordinary JSON formats supported by the
+    /// standalone NBT tool.
+    static func decodeEntityDocuments(_ data: Data) throws -> [NBTDocument] {
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        } catch {
+            throw BlocktopographError.malformedData("JSON 解析失败：\(error.localizedDescription)")
+        }
+        if let wrapper = object as? [String: Any],
+           wrapper["format"] as? String == "blocktopograph-nbt-json",
+           let rawDocuments = wrapper["documents"] as? [Any],
+           !rawDocuments.isEmpty {
+            let dictionaries = rawDocuments.compactMap { $0 as? [String: Any] }
+            let commonEntityNames: Set<String> = [
+                "UniqueID", "identifier", "definitions", "Pos", "Motion", "Rotation", "Attributes"
+            ]
+            let isSelectedEntityLayout = dictionaries.count == rawDocuments.count && dictionaries.allSatisfy {
+                $0["name"] is String && $0["type"] is String && $0["value"] != nil
+            } && (dictionaries.contains { commonEntityNames.contains($0["name"] as? String ?? "") }
+                  || dictionaries.contains { ($0["type"] as? String)?.lowercased() != "compound" })
+            if isSelectedEntityLayout {
+                let tags = try dictionaries.enumerated().map { index, dictionary -> NBTNamedTag in
+                    guard let name = dictionary["name"] as? String else {
+                        throw BlocktopographError.malformedData("实体 JSON documents[\(index)] 缺少 name")
+                    }
+                    return NBTNamedTag(
+                        name: name,
+                        value: try decodeTag(dictionary, path: "$.documents[\(index)]")
+                    )
+                }
+                return [NBTDocument(rootName: "", root: .compound(tags))]
+            }
+        }
+        return try decode(data)
+    }
+
     static func decode(_ data: Data) throws -> [NBTDocument] {
         guard !data.isEmpty else {
             throw BlocktopographError.malformedData("JSON 文件为空")
