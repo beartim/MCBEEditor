@@ -230,7 +230,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func clearTerminal() {
-        outputView.text = ""
+        outputView.textStorage.setAttributedString(NSAttributedString())
     }
 
     @objc private func runCommand() {
@@ -254,13 +254,13 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     if result.changedWorld {
                         self.session.notifyAfterDatabaseMutation()
                     }
-                    self.appendOutput(result.message)
+                    self.appendOutput(result.message, color: .systemGreen)
                     self.setRunning(false)
                 }
             } catch {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
-                    self.appendOutput("错误：\(error.localizedDescription)")
+                    self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
                     self.setRunning(false)
                 }
             }
@@ -276,10 +276,14 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         navigationItem.prompt = value ? "正在修改世界，请勿同时打开 Minecraft" : nil
     }
 
-    private func appendOutput(_ text: String) {
-        if outputView.text.isEmpty { outputView.text = text }
-        else { outputView.text += "\n\(text)" }
-        let end = NSRange(location: outputView.text.utf16.count, length: 0)
+    private func appendOutput(_ text: String, color: UIColor? = nil) {
+        let prefix = outputView.textStorage.length == 0 ? "" : "\n"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: outputView.font ?? UIFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+            .foregroundColor: color ?? outputView.textColor ?? UIColor(white: 0.92, alpha: 1)
+        ]
+        outputView.textStorage.append(NSAttributedString(string: prefix + text, attributes: attributes))
+        let end = NSRange(location: outputView.textStorage.length, length: 0)
         outputView.scrollRangeToVisible(end)
     }
 

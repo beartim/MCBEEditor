@@ -78,17 +78,84 @@ final class BedrockWorldObjectNBTStore {
     }
 
     func delete(object: BedrockWorldObject) throws {
-        switch object.storage {
-        case .modernActor(let actorKey, let digestKey, let recordIndex, _):
-            try deleteModernActor(
-                object: object,
-                actorKey: actorKey,
-                digestKey: digestKey,
-                recordIndex: recordIndex
-            )
-        case .chunkRecord(let key, let recordIndex, _):
-            try deleteChunkRecord(object: object, key: key, recordIndex: recordIndex)
+        _ = try delete(objects: [object])
+    }
+
+    /// Deletes a scanned set in one LevelDB batch. Multiple legacy entities may
+    /// share one consecutive-NBT value; rewriting that value once per entity makes
+    /// later scanned indexes stale and used to produce partial `kill @e` results.
+    @discardableResult
+    func delete(objects: [BedrockWorldObject]) throws -> Int {
+        guard !objects.isEmpty else { return 0 }
+        let database = try session.database()
+        var puts = [(key: Data, value: Data)]()
+        var deletes = Set<Data>()
+        var removedIDs = Set<Int64>()
+        var deletedCount = 0
+
+        var chunkGroups = [Data: [(BedrockWorldObject, Int)]]()
+        var actorGroups = [Data: [(BedrockWorldObject, Int)]]()
+        for object in objects {
+            switch object.storage {
+            case .chunkRecord(let key, let recordIndex, _):
+                chunkGroups[key, default: []].append((object, recordIndex))
+            case .modernActor(let actorKey, _, let recordIndex, _):
+                actorGroups[actorKey, default: []].append((object, recordIndex))
+            }
         }
+
+        for (key, group) in chunkGroups {
+            guard let original = try database.get(key) else {
+                throw BlocktopographError.malformedData("区块实体记录已不存在，请重新扫描。")
+            }
+            var records = try ConsecutiveNBTCodec.decode(original)
+            var indexes = Set<Int>()
+            for (object, preferredIndex) in group {
+                indexes.insert(try locateRecord(object: object, in: records, preferredIndex: preferredIndex))
+                if let id = object.uniqueID { removedIDs.insert(id) }
+            }
+            for index in indexes.sorted(by: >) { records.remove(at: index) }
+            deletedCount += indexes.count
+            if records.isEmpty {
+                deletes.insert(key)
+            } else {
+                puts.append((key: key, value: try ConsecutiveNBTCodec.encode(records)))
+            }
+        }
+
+        for (key, group) in actorGroups {
+            guard let original = try database.get(key) else {
+                throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描。")
+            }
+            var records = try ConsecutiveNBTCodec.decode(original)
+            var indexes = Set<Int>()
+            for (object, preferredIndex) in group {
+                indexes.insert(try locateRecord(object: object, in: records, preferredIndex: preferredIndex))
+                if let id = object.uniqueID { removedIDs.insert(id) }
+            }
+            for index in indexes.sorted(by: >) { records.remove(at: index) }
+            deletedCount += indexes.count
+            if records.isEmpty {
+                deletes.insert(key)
+            } else {
+                puts.append((key: key, value: try ConsecutiveNBTCodec.encode(records)))
+            }
+        }
+
+        if !removedIDs.isEmpty {
+            for entry in try database.entries(prefix: Data("digp".utf8), includeValues: true) {
+                guard let raw = entry.value else { continue }
+                var ids = try decodeActorIDs(raw)
+                let originalCount = ids.count
+                ids.removeAll { removedIDs.contains($0) }
+                guard ids.count != originalCount else { continue }
+                if ids.isEmpty { deletes.insert(entry.key) }
+                else { puts.append((key: entry.key, value: encodeActorIDs(ids))) }
+            }
+        }
+
+        try database.applyBatch(puts: puts, deletes: Array(deletes), sync: true)
+        return deletedCount
     }
 
     /// Migrates the non-canonical overworld digest keys written by v1.1.3-v1.1.5.

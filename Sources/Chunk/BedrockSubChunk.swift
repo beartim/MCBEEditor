@@ -1,6 +1,10 @@
 import Foundation
 
 struct BedrockBlockState {
+    /// Fallback block-state schema version used when a world does not yet
+    /// contain a palette from which the exact version can be inferred.
+    static let defaultPaletteVersion: Int32 = 18_153_728 // 1.21.1.0
+
     let nbt: NBTValue?
     let legacyID: UInt16?
     let legacyData: UInt8?
@@ -37,9 +41,7 @@ struct BedrockBlockState {
             NBTNamedTag(name: "name", value: .string("minecraft:air")),
             NBTNamedTag(name: "states", value: .compound([]))
         ]
-        if let version = version {
-            tags.append(NBTNamedTag(name: "version", value: .int(version)))
-        }
+        tags.append(NBTNamedTag(name: "version", value: .int(version ?? defaultPaletteVersion)))
         return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
     }
 }

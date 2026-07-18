@@ -88,7 +88,7 @@ struct CommandBlockStateSpec {
             NBTNamedTag(name: "name", value: .string(name)),
             NBTNamedTag(name: "states", value: .compound(states))
         ]
-        if let version = version { tags.append(NBTNamedTag(name: "version", value: .int(version))) }
+        tags.append(NBTNamedTag(name: "version", value: .int(version ?? BedrockBlockState.defaultPaletteVersion)))
         return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
     }
 
@@ -155,7 +155,7 @@ enum WorldCommandParser {
         "give": "give 目标 物品 数目\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:redstone_wire 97",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。",
-        "summon": "summon 实体类型 实体维度 x y z NBT标签\n实体维度必须为 overworld、nether 或 the_end；最后一个参数必须使用 '类型'\"键\"=\"值\" 格式且不能为 NULL。命令会先建立实体通用 NBT，再用指定标签增补或覆盖。\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
+        "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则必须严格使用 '类型'\"键\"=\"值\" 格式且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -207,9 +207,14 @@ enum WorldCommandParser {
             let identifier = try parseNamespacedIdentifier(arguments[0], kind: "实体")
             let dimension = try parseDimension(arguments[1])
             let position = try parseCoordinates(Array(arguments[2...4]))[0]
-            let additions = try parseStates(arguments[5])
-            guard !additions.isEmpty else {
-                throw BlocktopographError.malformedData("summon 的 NBT 标签不能为 NULL")
+            let additions: [NBTNamedTag]
+            if arguments[5] == "default" {
+                additions = []
+            } else {
+                additions = try parseStates(arguments[5])
+                guard !additions.isEmpty else {
+                    throw BlocktopographError.malformedData("summon 的最后一个参数只能是 default 或非空 NBT 标签")
+                }
             }
             let protected = Set(["uniqueid", "pos", "dimensionid", "dimension", "identifier", "id", "definitions"])
             if let invalid = additions.first(where: { protected.contains($0.name.lowercased()) }) {

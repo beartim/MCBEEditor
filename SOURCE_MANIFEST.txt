@@ -6,6 +6,8 @@ CHANGES_v1.1.1.md
 CHANGES_v1.1.10.md
 CHANGES_v1.1.11.md
 CHANGES_v1.1.12.md
+CHANGES_v1.1.13.md
+CHANGES_v1.1.14.md
 CHANGES_v1.1.2.md
 CHANGES_v1.1.3.md
 CHANGES_v1.1.4.md
@@ -68,6 +70,7 @@ Sources/Chunk/HardcodedSpawners.swift
 Sources/Chunk/MapCoordinate.swift
 Sources/Command/WorldCommand.swift
 Sources/Command/WorldCommandExecutor.swift
+Sources/Entity/BedrockEntityCommonNBT.swift
 Sources/Entity/BedrockWorldObject.swift
 Sources/Entity/BedrockWorldObjectNBTStore.swift
 Sources/Entity/BedrockWorldObjectScanner.swift
@@ -94,6 +97,7 @@ Sources/UI/ChunkListViewController.swift
 Sources/UI/DatabaseBrowserViewController.swift
 Sources/UI/DatabaseValueViewController.swift
 Sources/UI/EntityBrowserViewController.swift
+Sources/UI/EntityNBTImportReviewViewController.swift
 Sources/UI/HardcodedSpawnersViewController.swift
 Sources/UI/MapBlockDetailPanelView.swift
 Sources/UI/MapExportOptionsViewController.swift

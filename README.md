@@ -1,5 +1,15 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.14 命令结果、区块持久化、批量 kill 与实体模板修复
+
+- 所有成功执行的命令结果使用绿色文字显示，错误结果继续使用红色。
+- 未加载区块/SubChunk 写入时会匹配当前维度的 Version/LegacyVersion、Data3D/Data2D 和方块调色板格式；元数据、生成完成状态与目标 SubChunk 写入后逐项读回验证。
+- 修复 `kill @e 1` 对同一连续 Entity 记录逐个删除导致索引失效、部分实体已删除后再报数据格式错误的问题；现在统一原子批量删除。
+- `give` 仅把包含空字符串 `Name` 的 Compound 视为空槽；对非玩家实体写入主手物品时增加 `WasPickedUp=1`。
+- `summon` 最后一个参数支持 `default`，表示不覆盖实体通用 NBT。
+- 调整实体通用 NBT：`IsAutonomous=0`、`ShowBottom=0`，新增 `IsEating=0`，移除 LinksTag、FireImmune、HasCollision、HasGravity、HasOwner 和 Age。
+- 当前版本：**1.1.14 (124)**。
+
 ## v1.1.13 实体通用 NBT、连续实体导入导出、summon 与空气区块补写
 
 - 新建与复制实体会补齐基岩版实体通用 NBT 标签，同时保留模板或导入文件中的实体专用标签。

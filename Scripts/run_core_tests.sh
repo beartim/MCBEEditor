@@ -197,6 +197,7 @@ struct Main {
         _ = try WorldCommandParser.parse("kill @a 1")
         _ = try WorldCommandParser.parse("kick @a")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"")
+        _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 default")
         do {
             _ = try WorldCommandParser.parse("clear")
             preconditionFailure("clear must require one target")
@@ -1415,7 +1416,15 @@ struct WorldObjectNBTTest {
         precondition(createdActorDocument.root.int64Value(namedAny: ["DimensionId"]) == 0)
         precondition(createdActorDocument.root.value(namedAny: ["Motion"])?.listValues?.count == 3)
         precondition(createdActorDocument.root.value(namedAny: ["Rotation"])?.listValues?.count == 2)
-        precondition(createdActorDocument.root.value(namedAny: ["LinksTag"])?.listValues?.isEmpty == true)
+        precondition(createdActorDocument.root.int64Value(namedAny: ["IsAutonomous"]) == 0)
+        precondition(createdActorDocument.root.int64Value(namedAny: ["ShowBottom"]) == 0)
+        precondition(createdActorDocument.root.int64Value(namedAny: ["IsEating"]) == 0)
+        precondition(createdActorDocument.root.value(namedAny: ["LinksTag"]) == nil)
+        precondition(createdActorDocument.root.value(namedAny: ["FireImmune"]) == nil)
+        precondition(createdActorDocument.root.value(namedAny: ["HasCollision"]) == nil)
+        precondition(createdActorDocument.root.value(namedAny: ["HasGravity"]) == nil)
+        precondition(createdActorDocument.root.value(namedAny: ["HasOwner"]) == nil)
+        precondition(createdActorDocument.root.value(namedAny: ["Age"]) == nil)
         precondition(createdActorDocument.root.value(namedAny: ["Tags"])?.listValues?.isEmpty == true)
 
         // The game removes an actor ID from digp when the actor dies. A stale
@@ -1503,7 +1512,44 @@ struct WorldObjectNBTTest {
         }
         precondition(legacyNumericID == 11)
 
-        print("Entity/block-entity create, delete, UniqueID, storage mode and position migration tests passed")
+        // v1.1.14: kill @e may target several entities stored as consecutive
+        // roots in the same Entity(0x32) value. They must be removed from one
+        // decoded snapshot and committed in a single batch, otherwise indexes
+        // from the original scan become stale after the first deletion.
+        let crowdedKey = BedrockDBKey(
+            position: ChunkPosition(x: 7, z: 7, dimension: 0),
+            recordType: .entity,
+            subChunkIndex: nil
+        ).encoded()
+        func crowdedEntity(_ identifier: String, _ uniqueID: Int64, _ x: Float) -> NBTDocument {
+            NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "identifier", value: .string(identifier)),
+                NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
+                NBTNamedTag(name: "UniqueID", value: .long(uniqueID)),
+                NBTNamedTag(name: "DimensionId", value: .int(0)),
+                NBTNamedTag(name: "Pos", value: .list(.float, [.float(x), .float(70), .float(113)]))
+            ]))
+        }
+        let crowdedDocuments = [
+            crowdedEntity("minecraft:pig", 8101, 113),
+            crowdedEntity("minecraft:cow", 8102, 114),
+            crowdedEntity("minecraft:sheep", 8103, 115)
+        ]
+        let crowdedRecords = try crowdedDocuments.map { document -> ConsecutiveNBTRecord in
+            let raw = try BedrockNBTCodec.encode(document)
+            return ConsecutiveNBTRecord(document: document, rawData: raw, encoding: .littleEndian)
+        }
+        database.values[crowdedKey] = try ConsecutiveNBTCodec.encode(crowdedRecords)
+        let crowdedObjects = try scanner.scanRegion(
+            centerX: 7, centerZ: 7, dimension: 0, radius: 0,
+            includeEntities: true, includeBlockEntities: false
+        ).objects.filter { [8101, 8102, 8103].contains($0.uniqueID ?? 0) }
+        precondition(crowdedObjects.count == 3)
+        let crowdedDeleted = try store.delete(objects: crowdedObjects)
+        precondition(crowdedDeleted == 3)
+        precondition(database.values[crowdedKey] == nil)
+
+        print("Entity/block-entity create, atomic multi-delete, UniqueID, storage mode and position migration tests passed")
     }
 }
 SWIFT
@@ -1613,25 +1659,6 @@ enum AtomicFile { static func write(_ data: Data, to url: URL) throws { try data
 enum MapCoordinate {
     static func chunk(fromBlock coordinate: Int64) -> Int32 { Int32(floor(Double(coordinate) / 16.0)) }
     static func blockOrigin(ofChunk chunk: Int32) -> Int64 { Int64(chunk) * 16 }
-}
-struct ChunkPosition: Hashable { let x: Int32; let z: Int32; let dimension: Int32 }
-enum ChunkRecordType: UInt8 { case legacyVersion = 0x76; case finalizedState = 0x36 }
-struct BedrockDBKey {
-    let position: ChunkPosition
-    let recordType: ChunkRecordType
-    let subChunkIndex: Int8?
-    init(position: ChunkPosition, recordType: ChunkRecordType, subChunkIndex: Int8?) {
-        self.position = position; self.recordType = recordType; self.subChunkIndex = subChunkIndex
-    }
-    func encoded() -> Data {
-        var result = Data(); result.appendLE(position.x); result.appendLE(position.z); result.appendLE(position.dimension)
-        result.append(recordType.rawValue)
-        if let subChunkIndex = subChunkIndex { result.append(UInt8(bitPattern: subChunkIndex)) }
-        return result
-    }
-    static func subChunk(x: Int32, z: Int32, dimension: Int32, index: Int8) -> Data {
-        var result = Data(); result.appendLE(x); result.appendLE(z); result.appendLE(dimension); result.append(UInt8(bitPattern: index)); return result
-    }
 }
 struct BedrockBlockRecord {
     static let editableLayerCount = 2
@@ -1837,10 +1864,23 @@ struct BlockNBTEditorTest {
         precondition(clearedLayer0.subChunk.storages[0].blockState(x: 2, y: 3, z: 4)?.isAir == true)
         precondition(clearedLayer0.subChunk.trailingData == v1.trailingData)
 
-        // v1.1.13: editing a block in an unloaded chunk first writes the
-        // pure-air chunk metadata and FinalizedState=2, then creates the target
-        // SubChunk in the same database batch.
+        // v1.1.14: editing a block in an unloaded chunk copies a compatible
+        // version/palette/terrain profile from the same dimension, writes
+        // FinalizedState=2, and persists the target SubChunk in one batch.
         let missingSession = WorldSession()
+        let missingDB = try missingSession.database()
+        let templatePosition = ChunkPosition(x: 0, z: 0, dimension: 0)
+        let templateVersion = Data([42])
+        let templateTerrain = Data(repeating: 0x2a, count: 640)
+        try missingDB.put(templateVersion, for: BedrockDBKey(
+            position: templatePosition, recordType: .version, subChunkIndex: nil
+        ).encoded())
+        try missingDB.put(templateTerrain, for: BedrockDBKey(
+            position: templatePosition, recordType: .data3D, subChunkIndex: nil
+        ).encoded())
+        try missingDB.put(try chunk.encodePersistent(), for: BedrockDBKey.subChunk(
+            x: 0, z: 0, dimension: 0, index: 0
+        ))
         let missingBlock = BedrockBlockRecord(
             x: 160, y: 64, z: -32, dimension: 0,
             layers: [.editableAir(version: 18168865)],
@@ -1853,11 +1893,16 @@ struct BlockNBTEditorTest {
             document: NBTDocument(rootName: "", root: diamond.nbt!)
         )
         precondition(missingResult.block.isGenerated)
-        let missingDB = try missingSession.database()
         let missingPosition = ChunkPosition(x: 10, z: -2, dimension: 0)
-        for record in BedrockEmptyChunk.metadataRecords(at: missingPosition) {
-            let exists = try missingDB.get(record.key) != nil
-            precondition(exists)
+        let selectedProfile = try BedrockEmptyChunk.profile(
+            database: missingDB, dimension: 0, preferLegacy: false
+        )
+        precondition(selectedProfile.versionValue == templateVersion)
+        precondition(selectedProfile.terrainRecordType == .data3D)
+        precondition(selectedProfile.terrainValue == templateTerrain)
+        for record in BedrockEmptyChunk.metadataRecords(at: missingPosition, profile: selectedProfile) {
+            let storedMetadata = try missingDB.get(record.key)
+            precondition(storedMetadata == record.value)
         }
         let missingSubKey = BedrockDBKey.subChunk(x: 10, z: -2, dimension: 0, index: 4)
         guard let missingRaw = try missingDB.get(missingSubKey) else {
@@ -1885,9 +1930,53 @@ struct BlockNBTEditorTest {
         }
         let missingLegacyDecoded = try BedrockSubChunk.decode(missingLegacyRaw, keyYIndex: 4)
         let missingLegacyState = missingLegacyDecoded.storages[0].blockState(x: 0, y: 0, z: 0)
-        precondition(missingLegacyState?.legacyID == 5)
-        precondition(missingLegacyState?.legacyData == 2)
-        print("Editable block NBT, typed states, generated missing chunks and bulk layer operations passed")
+        // The dimension is modern, so a numeric placeholder is converted to a
+        // compatible modern palette state instead of mixing v7 data with Version.
+        precondition(missingLegacyDecoded.version == 9)
+        precondition(missingLegacyState?.name == "minecraft:planks")
+        precondition(missingLegacyState?.legacyID == nil)
+
+        // A genuinely legacy-only dimension keeps LegacyVersion/Data2D and v7
+        // numeric SubChunks when an unloaded chunk is materialized.
+        let legacyOnlySession = WorldSession()
+        let legacyOnlyDB = try legacyOnlySession.database()
+        let legacyTemplate = ChunkPosition(x: 0, z: 0, dimension: 0)
+        try legacyOnlyDB.put(Data([15]), for: BedrockDBKey(
+            position: legacyTemplate, recordType: .legacyVersion, subChunkIndex: nil
+        ).encoded())
+        let legacyTerrain = Data(repeating: 0x11, count: 768)
+        try legacyOnlyDB.put(legacyTerrain, for: BedrockDBKey(
+            position: legacyTemplate, recordType: .data2D, subChunkIndex: nil
+        ).encoded())
+        let legacyOnlyBlock = BedrockBlockRecord(
+            x: 192, y: 64, z: -32, dimension: 0,
+            layers: [BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)],
+            isGenerated: false
+        )
+        _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
+            block: legacyOnlyBlock, storageIndex: 0, document: legacyDocument
+        )
+        let legacyOnlyPosition = ChunkPosition(x: 12, z: -2, dimension: 0)
+        let legacyVersionKey = BedrockDBKey(
+            position: legacyOnlyPosition, recordType: .legacyVersion, subChunkIndex: nil
+        ).encoded()
+        let legacyTerrainKey = BedrockDBKey(
+            position: legacyOnlyPosition, recordType: .data2D, subChunkIndex: nil
+        ).encoded()
+        let persistedLegacyVersion = try legacyOnlyDB.get(legacyVersionKey)
+        let persistedLegacyTerrain = try legacyOnlyDB.get(legacyTerrainKey)
+        precondition(persistedLegacyVersion == Data([15]))
+        precondition(persistedLegacyTerrain == legacyTerrain)
+        let legacyOnlySubKey = BedrockDBKey.subChunk(x: 12, z: -2, dimension: 0, index: 4)
+        guard let legacyOnlyRaw = try legacyOnlyDB.get(legacyOnlySubKey) else {
+            preconditionFailure("legacy-only missing SubChunk was not created")
+        }
+        let legacyOnlyDecoded = try BedrockSubChunk.decode(legacyOnlyRaw, keyYIndex: 4)
+        let legacyOnlyState = legacyOnlyDecoded.storages[0].blockState(x: 0, y: 0, z: 0)
+        precondition(legacyOnlyDecoded.version == 7)
+        precondition(legacyOnlyState?.legacyID == 5)
+        precondition(legacyOnlyState?.legacyData == 2)
+        print("Editable block NBT, typed states, format-matched generated chunks and bulk layer operations passed")
     }
 }
 SWIFT
@@ -1899,6 +1988,7 @@ swiftc \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
+  "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
@@ -2102,8 +2192,8 @@ grep -q 'actorRecordsForRemoval' "$ROOT/Sources/Chunk/BedrockChunkStore.swift" &
 grep -q 'Data("actorprefix".utf8)' "$ROOT/Sources/Chunk/BedrockChunkStore.swift" || {
   echo 'error: chunk clear/regeneration does not remove referenced modern actors' >&2; exit 1;
 }
-grep -q 'BedrockEmptyChunk.metadataRecords(at: position)' "$ROOT/Sources/Chunk/BedrockChunkStore.swift" && \
-grep -q 'value: Data(\[0x0f\])' "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" && \
+grep -q 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$ROOT/Sources/Chunk/BedrockChunkStore.swift" && \
+grep -q 'static let legacyDefault' "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" && \
 grep -q 'finalizedValue.appendLE(Int32(2))' "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" || {
   echo 'error: clear chunk does not recreate the Android-style minimal pure-air skeleton' >&2; exit 1;
 }
@@ -2256,6 +2346,22 @@ swiftc \
   -o "$TMP/chunk-auxiliary-data-tests"
 "$TMP/chunk-auxiliary-data-tests"
 
+cat > "$TMP/EmptyChunkProfileStubs.swift" <<'SWIFT'
+import Foundation
+
+final class MojangLevelDB {
+    func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] { [] }
+}
+struct EmptyChunkPaletteState { let paletteVersion: Int32? }
+struct SubChunkStorage { let palette: [EmptyChunkPaletteState] }
+struct BedrockSubChunk {
+    let storages: [SubChunkStorage]
+    static func decode(_ data: Data, keyYIndex: Int8? = nil) throws -> BedrockSubChunk {
+        BedrockSubChunk(storages: [])
+    }
+}
+SWIFT
+
 cat > "$TMP/pure_air_chunk_test.swift" <<'SWIFT'
 import Foundation
 
@@ -2263,12 +2369,22 @@ import Foundation
 enum PureAirChunkTests {
     static func main() throws {
         let position = ChunkPosition(x: 4, z: -2, dimension: 0)
-        let records = BedrockEmptyChunk.metadataRecords(at: position)
-        precondition(records.count == 2)
+        let terrain = Data(repeating: 0x2a, count: 640)
+        let profile = BedrockEmptyChunkProfile(
+            versionRecordType: .version,
+            versionValue: Data([40]),
+            blockPaletteVersion: 18_153_728,
+            terrainRecordType: .data3D,
+            terrainValue: terrain
+        )
+        let records = BedrockEmptyChunk.metadataRecords(at: position, profile: profile)
+        precondition(records.count == 3)
 
-        let version = records.first(where: { $0.recordType == .legacyVersion })
+        let version = records.first(where: { $0.recordType == .version })
         let finalized = records.first(where: { $0.recordType == .finalizedState })
-        precondition(version?.value == Data([0x0f]))
+        let data3D = records.first(where: { $0.recordType == .data3D })
+        precondition(version?.value == Data([40]))
+        precondition(data3D?.value == terrain)
         let finalizedValue = try finalized?.value.littleEndianInt32(at: 0)
         precondition(finalizedValue == 2)
 
@@ -2276,7 +2392,7 @@ enum PureAirChunkTests {
         let parsedFinalized = finalized.flatMap { BedrockDBKey.parse($0.key) }
         precondition(parsedVersion?.position == position)
         precondition(parsedFinalized?.position == position)
-        precondition(parsedVersion?.recordType == .legacyVersion)
+        precondition(parsedVersion?.recordType == .version)
         precondition(parsedFinalized?.recordType == .finalizedState)
         print("Pure-air chunk metadata test passed")
     }
@@ -2287,6 +2403,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
+  "$TMP/EmptyChunkProfileStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
   "$TMP/pure_air_chunk_test.swift" \
   -o "$TMP/pure-air-chunk-tests"
@@ -2796,7 +2913,7 @@ BLOCK_STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
 for required in "$ENTITY_COMMON" "$ENTITY_IMPORT_UI"; do
   [[ -f "$required" ]] || { echo "error: v1.1.13 source missing: ${required#$ROOT/}" >&2; exit 1; }
 done
-for tag in '"Air"' '"Motion"' '"Rotation"' '"LinksTag"' '"Tags"' '"PortalCooldown"' '"Persistent"'; do
+for tag in '"Air"' '"Motion"' '"Rotation"' '"IsEating"' '"Tags"' '"PortalCooldown"' '"Persistent"'; do
   grep -qF "$tag" "$ENTITY_COMMON" || { echo "error: common entity NBT tag missing: $tag" >&2; exit 1; }
 done
 grep -qF 'decoded.documents.count >= 2' "$ENTITY_CREATE_UI" && \
@@ -2812,7 +2929,7 @@ grep -qF 'exportConsecutiveLittleEndian' "$ENTITY_BROWSER_UI" || {
   echo 'error: consecutive entity NBT export is incomplete' >&2
   exit 1
 }
-grep -qF 'BedrockEmptyChunk.metadataRecords(at: position)' "$BLOCK_STORE" && \
+grep -qF 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$BLOCK_STORE" && \
 grep -qF 'metadataPuts + [(key: key, value: encoded)]' "$BLOCK_STORE" && \
 grep -qF 'ensureGenerated(sourceStore.chunks(in: source))' "$COMMAND_EXECUTOR" && \
 grep -qF 'ensureGenerated(chunks(in: targetRegion))' "$COMMAND_EXECUTOR" || {
@@ -2829,10 +2946,24 @@ grep -qF 'notifyAfterDatabaseMutation()' "$ROOT/Sources/World/WorldSession.swift
   echo 'error: top terminal cursor or safe command refresh is incomplete' >&2
   exit 1
 }
-grep -qF '(0...35).first(where:' "$COMMAND_EXECUTOR" && \
+grep -qF 'isEmptyInventorySlot' "$COMMAND_EXECUTOR" && \
+grep -qF 'wasPickedUp: 1' "$COMMAND_EXECUTOR" && \
 grep -qF 'case .summon' "$COMMAND_EXECUTOR" && \
 grep -qF 'BedrockEntityCommonNBT.mergingTopLevel' "$COMMAND_EXECUTOR" || {
   echo 'error: first-empty-slot give or summon implementation is incomplete' >&2
   exit 1
 }
+grep -qF 'color: .systemGreen' "$COMMAND_UI" && \
+grep -qF 'delete(objects: targets.entities)' "$COMMAND_EXECUTOR" && \
+grep -qF 'terrainRecordType' "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" && \
+grep -qF 'summon minecraft:pig overworld 0 64 0 default' "$ROOT/Sources/Command/WorldCommand.swift" || {
+  echo 'error: v1.1.14 command color, bulk kill, complete chunk metadata or summon default is incomplete' >&2
+  exit 1
+}
+for removed in '"LinksTag"' '"FireImmune"' '"HasCollision"' '"HasGravity"' '"HasOwner"' '"Age"'; do
+  if grep -qF "$removed" "$ENTITY_COMMON"; then
+    echo "error: removed common entity tag still exists: $removed" >&2
+    exit 1
+  fi
+done
 echo 'Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed'

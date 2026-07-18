@@ -213,14 +213,19 @@ final class BedrockChunkStore {
     /// treats the coordinate as an already generated chunk.
     func clearChunk(_ position: ChunkPosition) throws -> BedrockChunkClearResult {
         let database = try session.database()
-        let chunkRecords = try rawChunkRecords(at: position, includeValues: false)
+        let chunkRecords = try rawChunkRecords(at: position, includeValues: true)
         let actorRecords = try actorRecordsForRemoval(at: position, database: database)
 
         guard !chunkRecords.isEmpty || !actorRecords.digestKeys.isEmpty else {
             throw BlocktopographError.unsupported("该区块没有可清空的记录")
         }
 
-        let metadata = BedrockEmptyChunk.metadataRecords(at: position)
+        let parsedTypes = Set(chunkRecords.compactMap { BedrockDBKey.parse($0.key)?.recordType })
+        let preferLegacy = parsedTypes.contains(.legacyVersion) && !parsedTypes.contains(.version)
+        let profile = try BedrockEmptyChunk.profile(
+            database: database, dimension: position.dimension, preferLegacy: preferLegacy
+        )
+        let metadata = BedrockEmptyChunk.metadataRecords(at: position, profile: profile)
 
         var deleteKeys = Set(chunkRecords.map(\.key))
         deleteKeys.formUnion(actorRecords.digestKeys)
@@ -248,7 +253,7 @@ final class BedrockChunkStore {
     /// generated empty chunk instead of regenerating it from the seed.
     func regenerateChunk(_ position: ChunkPosition) throws -> BedrockChunkRegenerateResult {
         let database = try session.database()
-        let chunkRecords = try rawChunkRecords(at: position, includeValues: false)
+        let chunkRecords = try rawChunkRecords(at: position, includeValues: true)
         let actorRecords = try actorRecordsForRemoval(at: position, database: database)
 
         var deleteKeys = Set(chunkRecords.map(\.key))

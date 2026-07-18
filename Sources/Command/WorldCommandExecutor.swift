@@ -279,12 +279,17 @@ final class WorldCommandExecutor {
         return "give 完成：向 \(changedPlayers) 个玩家物品栏第一个空槽位写入（满时替换最后一格）、替换 \(changedEntities) 个实体主手物品；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有 Mainhand 标签的实体。"
     }
 
-    private func itemStack(identifier: String, count: Int64, slot: Int8? = nil) -> NBTValue {
+    private func itemStack(
+        identifier: String,
+        count: Int64,
+        slot: Int8? = nil,
+        wasPickedUp: Int8 = 0
+    ) -> NBTValue {
         var tags = [
             NBTNamedTag(name: "Name", value: .string(identifier)),
             NBTNamedTag(name: "Count", value: unboundedCountValue(count)),
             NBTNamedTag(name: "Damage", value: .short(0)),
-            NBTNamedTag(name: "WasPickedUp", value: .byte(0))
+            NBTNamedTag(name: "WasPickedUp", value: .byte(wasPickedUp))
         ]
         if let slot = slot { tags.append(NBTNamedTag(name: "Slot", value: .byte(slot))) }
         return .compound(tags)
@@ -306,17 +311,29 @@ final class WorldCommandExecutor {
         let inventoryNames: Set<String> = ["inventory", "playerinventory"]
         for index in tags.indices where inventoryNames.contains(normalized(tags[index].name)) {
             if case .list(let type, var values) = tags[index].value, type == .compound || values.isEmpty {
-                let occupiedSlots = Set(values.compactMap(itemSlot).filter { (0...35).contains($0) })
-                let chosenSlot = Int64((0...35).first(where: { !occupiedSlots.contains(Int64($0)) }) ?? 35)
-                let stack = itemStack(identifier: identifier, count: count, slot: Int8(chosenSlot))
-                if let slotIndex = values.firstIndex(where: { itemSlot($0) == chosenSlot }) {
-                    // All normal slots are occupied only when chosenSlot is 35;
-                    // replacing that entry implements the requested full-inventory behavior.
-                    values[slotIndex] = stack
+                // Bedrock player inventories commonly retain one Compound for every
+                // slot. A slot is empty only when that Compound's Name tag is an
+                // empty string; a missing Slot number alone is not considered empty.
+                let emptyCandidates = values.indices.compactMap { valueIndex -> (Int, Int64)? in
+                    guard isEmptyInventorySlot(values[valueIndex]),
+                          let slot = itemSlot(values[valueIndex]),
+                          (0...35).contains(slot) else { return nil }
+                    return (valueIndex, slot)
+                }.sorted { $0.1 < $1.1 }
+                if let firstEmpty = emptyCandidates.first {
+                    values[firstEmpty.0] = itemStack(
+                        identifier: identifier,
+                        count: count,
+                        slot: Int8(firstEmpty.1)
+                    )
+                } else if let slot35 = values.firstIndex(where: { itemSlot($0) == 35 }) {
+                    values[slot35] = itemStack(identifier: identifier, count: count, slot: 35)
+                } else if !values.isEmpty {
+                    // Malformed/non-slot-indexed inventory: replace the physical last
+                    // entry rather than inventing an additional slot.
+                    values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35)
                 } else {
-                    // Slot-indexed Bedrock inventories do not require list order to
-                    // match the slot number, so an actually empty slot is appended.
-                    values.append(stack)
+                    values.append(itemStack(identifier: identifier, count: count, slot: 0))
                 }
                 tags[index].value = .list(.compound, values)
                 return (.compound(tags), true)
@@ -337,6 +354,14 @@ final class WorldCommandExecutor {
         numericTag(in: value, names: ["Slot", "slot"])
     }
 
+    private func isEmptyInventorySlot(_ value: NBTValue) -> Bool {
+        guard case .compound(let tags) = value else { return false }
+        return tags.contains { tag in
+            guard normalized(tag.name) == "name", case .string(let name) = tag.value else { return false }
+            return name.isEmpty
+        }
+    }
+
     private func replacingMainhandItem(
         in value: NBTValue,
         identifier: String,
@@ -345,7 +370,7 @@ final class WorldCommandExecutor {
         guard case .compound(var tags) = value else { return (value, false) }
         let names: Set<String> = ["mainhand", "mainhanditem", "mainhandinventory"]
         for index in tags.indices where names.contains(normalized(tags[index].name)) {
-            let stack = itemStack(identifier: identifier, count: count)
+            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1)
             switch tags[index].value {
             case .compound:
                 tags[index].value = stack
@@ -396,9 +421,8 @@ final class WorldCommandExecutor {
             try playerStore.save(record: record, document: document)
             killedPlayers += 1
         }
-        for object in targets.entities {
-            try entityStore.delete(object: object)
-            deletedEntities += 1
+        if !targets.entities.isEmpty {
+            deletedEntities = try entityStore.delete(objects: targets.entities)
         }
         guard killedPlayers + deletedEntities > 0 else {
             throw BlocktopographError.unsupported("没有可杀死的目标；跳过 \(skippedCreative) 个创造模式玩家，\(playersWithoutHealth) 个玩家缺少 Health Current")
@@ -630,6 +654,7 @@ private final class CommandBlockStore {
     private var changedKeys = Set<SubKey>()
     private var globalPaletteVersion: Int32?
     private var chunkLegacyFormat = [ChunkPosition: Bool]()
+    private var emptyChunkProfiles = [Bool: BedrockEmptyChunkProfile]()
 
     init(session: WorldSession, dimension: Int32) throws {
         self.session = session
@@ -655,12 +680,32 @@ private final class CommandBlockStore {
             if lhs.z != rhs.z { return lhs.z < rhs.z }
             return lhs.x < rhs.x
         }) {
-            puts.append(contentsOf: BedrockEmptyChunk.metadataRecords(at: chunk).map { ($0.key, $0.value) })
+            let probe = SubKey(chunk: chunk, y: 0)
+            let legacy = try isLegacyTarget(probe)
+            let profile = try emptyChunkProfile(preferLegacy: legacy)
+            puts.append(contentsOf: BedrockEmptyChunk.metadataRecords(at: chunk, profile: profile).map { ($0.key, $0.value) })
+            chunkLegacyFormat[chunk] = legacy
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
+        for put in puts {
+            guard try database.get(put.key) == put.value else {
+                throw BlocktopographError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
+            }
+        }
         availableChunks.formUnion(missing)
-        for chunk in missing { chunkLegacyFormat[chunk] = false }
         return missing.count
+    }
+
+    private func emptyChunkProfile(preferLegacy: Bool) throws -> BedrockEmptyChunkProfile {
+        if let cached = emptyChunkProfiles[preferLegacy] { return cached }
+        let profile = try BedrockEmptyChunk.profile(
+            database: database,
+            dimension: dimension,
+            preferLegacy: preferLegacy
+        )
+        emptyChunkProfiles[preferLegacy] = profile
+        if globalPaletteVersion == nil { globalPaletteVersion = profile.blockPaletteVersion }
+        return profile
     }
 
     func fill(region: CommandBlockBox, layer0: CommandBlockStateSpec, layer1: CommandBlockStateSpec) throws -> String {
@@ -1030,8 +1075,9 @@ private final class CommandBlockStore {
                 }
                 return legacy
             }
-            chunkLegacyFormat[key.chunk] = false
-            return false
+            let legacy = try emptyChunkProfile(preferLegacy: false).versionRecordType == .legacyVersion
+            chunkLegacyFormat[key.chunk] = legacy
+            return legacy
         }
     }
 
@@ -1054,7 +1100,7 @@ private final class CommandBlockStore {
                 return version
             }
         }
-        return nil
+        return BedrockEmptyChunk.currentBlockPaletteVersion
     }
 
 
@@ -1084,6 +1130,21 @@ private final class CommandBlockStore {
             puts.append((BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: key.y), data))
         }
         try database.applyBatch(puts: puts, deletes: extraDeletes, sync: true)
+        // Verify every changed SubChunk through the same LevelDB handle before a
+        // success result is returned. This catches rejected/corrupt new records
+        // instead of leaving the UI to report a successful but missing change.
+        for key in changedKeys {
+            let dbKey = BedrockDBKey.subChunk(
+                x: key.chunk.x,
+                z: key.chunk.z,
+                dimension: key.chunk.dimension,
+                index: key.y
+            )
+            guard let stored = try database.get(dbKey) else {
+                throw BlocktopographError.malformedData("SubChunk 写入后未能从 LevelDB 读回")
+            }
+            _ = try BedrockSubChunk.decode(stored, keyYIndex: key.y)
+        }
         return changedKeys.count
     }
 
