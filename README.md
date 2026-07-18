@@ -1,5 +1,13 @@
 # Blocktopograph iOS 13 rewrite
 
+## v1.1.19 世界、结构与常加载区域命令
+
+- 新增 `setblock`、`setworldspawn`、`spawnpoint`、`structure` 与 `tickingarea` 命令，全部严格检查参数数量和格式。
+- `structure save/load/delete` 支持 `structuretemplate_namespace:name` 的覆盖保存、跨维度加载、单项删除和 `ALL` 清空。
+- `tickingarea add/delete/list` 支持矩形、圆形、预加载、三维度筛选和纵向列表输出。
+- `setblock` 沿用 `fill` 的双层方块、递归 states、旧版 SubChunk 升级及未加载区块生成逻辑。
+- 当前版本：**1.1.19 (129)**。
+
 ## v1.1.18 状态效果命令
 
 - 新增 `effect give 目标 状态效果ID或ALL 持续时间 效果等级` 和 `effect clear 目标 状态效果ID或ALL`。

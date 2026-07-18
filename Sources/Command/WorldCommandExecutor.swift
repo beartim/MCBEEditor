@@ -60,7 +60,182 @@ final class WorldCommandExecutor {
             let result = try CommandBlockStore(session: session, dimension: targetDimension)
                 .fill(region: region, layer0: layer0, layer1: layer1)
             return WorldCommandExecutionResult(message: result, changedWorld: true)
+        case .setBlock(let targetDimension, let position, let layer0, let layer1):
+            let region = CommandBlockBox(position, position)
+            let result = try CommandBlockStore(session: session, dimension: targetDimension)
+                .fill(region: region, layer0: layer0, layer1: layer1)
+            return WorldCommandExecutionResult(
+                message: result.replacingOccurrences(of: "fill 完成", with: "setblock 完成"),
+                changedWorld: true
+            )
+        case .setWorldSpawn(let position):
+            return WorldCommandExecutionResult(message: try setWorldSpawn(position), changedWorld: true)
+        case .spawnPoint(let target, let dimension, let position):
+            return WorldCommandExecutionResult(
+                message: try setPlayerSpawnPoints(target: target, dimension: dimension, position: position),
+                changedWorld: true
+            )
+        case .structure(let operation):
+            let result = try executeStructure(operation)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
+        case .tickingArea(let operation):
+            let result = try executeTickingArea(operation)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         }
+    }
+
+    // MARK: world spawn / player spawn
+
+    private func setWorldSpawn(_ position: CommandBlockCoordinate) throws -> String {
+        guard let x = Int32(exactly: position.x), let z = Int32(exactly: position.z) else {
+            throw BlocktopographError.malformedData("世界重生点 X/Z 必须在 Int32 范围内")
+        }
+        var file = try session.document.readLevelDat()
+        guard case .compound(var tags) = file.document.root else {
+            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+        }
+        setTopLevelTag(name: "SpawnX", value: .int(x), in: &tags)
+        setTopLevelTag(name: "SpawnY", value: .int(position.y), in: &tags)
+        setTopLevelTag(name: "SpawnZ", value: .int(z), in: &tags)
+        file.document.root = .compound(tags)
+        try session.document.writeLevelDat(file)
+        return "setworldspawn 完成：世界重生点设为 \(x) \(position.y) \(z)。"
+    }
+
+    private func setPlayerSpawnPoints(
+        target: CommandTarget,
+        dimension: Int32,
+        position: CommandBlockCoordinate
+    ) throws -> String {
+        guard let x = Int32(exactly: position.x), let z = Int32(exactly: position.z) else {
+            throw BlocktopographError.malformedData("玩家重生点 X/Z 必须在 Int32 范围内")
+        }
+        let targets = try resolveTargets(target)
+        guard !targets.players.isEmpty else {
+            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；spawnpoint 不能用于普通实体")
+        }
+        var puts = [(key: Data, value: Data)]()
+        puts.reserveCapacity(targets.players.count)
+        for record in targets.players {
+            guard case .compound(var tags) = record.document.root else {
+                throw BlocktopographError.malformedData("玩家 \(playerIdentity(record)) 的 NBT 根不是 Compound")
+            }
+            setTopLevelTag(name: "SpawnX", value: .int(x), in: &tags)
+            setTopLevelTag(name: "SpawnY", value: .int(position.y), in: &tags)
+            setTopLevelTag(name: "SpawnZ", value: .int(z), in: &tags)
+            setTopLevelTag(name: "SpawnDimension", value: .int(dimension), in: &tags)
+            setTopLevelTag(name: "SpawnForced", value: .byte(1), in: &tags)
+            let document = NBTDocument(rootName: record.document.rootName, root: .compound(tags))
+            puts.append((record.key, try BedrockNBTCodec.encode(document, encoding: .littleEndian)))
+        }
+        try session.database().applyBatch(puts: puts, deletes: [], sync: true)
+        return "spawnpoint 完成：设置 \(puts.count) 个玩家的重生点为 \(WorldCommandParser.dimensionName(for: dimension)) \(x) \(position.y) \(z)。"
+    }
+
+    private func setTopLevelTag(name: String, value: NBTValue, in tags: inout [NBTNamedTag]) {
+        let matches = tags.indices.filter { tags[$0].name.caseInsensitiveCompare(name) == .orderedSame }
+        if let first = matches.first {
+            tags[first] = NBTNamedTag(name: name, value: value)
+            for index in matches.dropFirst().reversed() { tags.remove(at: index) }
+        } else {
+            tags.append(NBTNamedTag(name: name, value: value))
+        }
+    }
+
+    // MARK: structure
+
+    private func executeStructure(_ operation: CommandStructureOperation) throws -> (message: String, changed: Bool) {
+        let store = StructureNBTStore(session: session)
+        switch operation {
+        case .save(let name, let dimension, let region):
+            let document = try CommandBlockStore.makeStructureDocument(
+                session: session,
+                dimension: dimension,
+                region: region
+            )
+            try store.save(document: document, named: name, overwrite: true)
+            return (
+                "structure save 完成：\(name)，维度 \(WorldCommandParser.dimensionName(for: dimension))，范围 \(region.minimum.x) \(region.minimum.y) \(region.minimum.z) 至 \(region.maximum.x) \(region.maximum.y) \(region.maximum.z)。",
+                true
+            )
+        case .load(let name, let dimension, let destination):
+            guard let record = try store.record(named: name), let document = record.document else {
+                throw BlocktopographError.unsupported("不存在结构：\(name)")
+            }
+            let message = try CommandBlockStore.loadStructure(
+                session: session,
+                document: document,
+                targetDimension: dimension,
+                destination: destination
+            )
+            return ("structure load 完成：\(name)。\n\(message)", true)
+        case .delete(let name):
+            if let name = name {
+                guard try store.delete(named: name) else {
+                    throw BlocktopographError.unsupported("不存在结构：\(name)")
+                }
+                return ("structure delete 完成：已删除 \(name)。", true)
+            }
+            let count = try store.deleteAll()
+            return ("structure delete 完成：删除全部 \(count) 个已保存结构。", count > 0)
+        }
+    }
+
+    // MARK: tickingarea
+
+    private func executeTickingArea(_ operation: CommandTickingAreaOperation) throws -> (message: String, changed: Bool) {
+        let store = TickingAreaStore(session: session)
+        var records = try store.records(migratingLegacy: true)
+        switch operation {
+        case .add(let spec):
+            let area = BedrockTickingArea(
+                dimension: spec.dimension,
+                isCircle: spec.isCircle,
+                minimumX: spec.minimumX,
+                minimumZ: spec.minimumZ,
+                maximumX: spec.maximumX,
+                maximumZ: spec.maximumZ,
+                name: spec.name,
+                preload: spec.preload
+            ).normalized
+            guard !records.contains(where: { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }) else {
+                throw BlocktopographError.malformedData("已存在同名常加载区域：\(area.name)")
+            }
+            records.append(try store.makeRecord(area: area))
+            try store.save(records)
+            return ("tickingarea add 完成：\(tickingAreaLine(area, index: records.count))", true)
+        case .delete(let name):
+            if let name = name {
+                let originalCount = records.count
+                records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }
+                guard records.count != originalCount else {
+                    throw BlocktopographError.unsupported("不存在常加载区域：\(name)")
+                }
+                try store.save(records)
+                return ("tickingarea delete 完成：删除名称为 \(name) 的 \(originalCount - records.count) 个区域。", true)
+            }
+            let count = records.count
+            try store.save([])
+            return ("tickingarea delete 完成：删除全部 \(count) 个常加载区域。", count > 0)
+        case .list(let dimension):
+            let filtered = records.filter { dimension == nil || $0.area.dimension == dimension }
+            if filtered.isEmpty {
+                let scope = dimension.map { WorldCommandParser.dimensionName(for: $0) } ?? "ALL"
+                return ("tickingarea list：\(scope) 没有常加载区域。", false)
+            }
+            let lines = filtered.enumerated().map { tickingAreaLine($0.element.area, index: $0.offset + 1) }
+            return (lines.joined(separator: "\n"), false)
+        }
+    }
+
+    private func tickingAreaLine(_ area: BedrockTickingArea, index: Int) -> String {
+        let name = area.name.isEmpty ? "未命名" : area.name
+        if area.isCircle {
+            let center = area.centerChunk
+            return "[\(index)]\(name): \(center.x) \(center.z) radius: \(area.radius)"
+        }
+        let value = area.normalized
+        return "[\(index)]\(name): \(value.minimumX) \(value.minimumZ) to \(value.maximumX) \(value.maximumZ)"
     }
 
     private func summon(
@@ -876,6 +1051,309 @@ private final class CommandBlockStore {
         emptyChunkProfiles[preferLegacy] = profile
         if globalPaletteVersion == nil { globalPaletteVersion = profile.blockPaletteVersion }
         return profile
+    }
+
+    // MARK: structure save / load
+
+    static func makeStructureDocument(
+        session: WorldSession,
+        dimension: Int32,
+        region: CommandBlockBox
+    ) throws -> NBTDocument {
+        let store = try CommandBlockStore(session: session, dimension: dimension)
+        try store.validateVolume(region)
+        guard let volumeValue = region.volume, volumeValue <= 16_777_216 else {
+            throw BlocktopographError.unsupported("structure save 一次最多保存 16,777,216 个方块")
+        }
+        let sizeX = try structureSpan(region.minimum.x, region.maximum.x, name: "X")
+        let sizeY = try structureSpan(Int64(region.minimum.y), Int64(region.maximum.y), name: "Y")
+        let sizeZ = try structureSpan(region.minimum.z, region.maximum.z, name: "Z")
+        let volume = Int(volumeValue)
+        var primary = [Int32](repeating: -1, count: volume)
+        var secondary = [Int32](repeating: -1, count: volume)
+        var palette = [NBTValue]()
+        var paletteLookup = [Data: Int32]()
+
+        func paletteIndex(for state: BedrockBlockState, coordinate: CommandBlockCoordinate) throws -> Int32 {
+            let key = try store.subKey(for: coordinate)
+            let modern = state.nbt != nil
+                ? store.normalizedModernState(state, version: try store.paletteVersion(for: key))
+                : store.modernState(from: state, version: try store.paletteVersion(for: key))
+            guard let nbt = modern.nbt else {
+                throw BlocktopographError.malformedData("结构调色板方块缺少现代 NBT 状态")
+            }
+            let encoded = try BedrockNBTCodec.encode(
+                NBTDocument(rootName: "", root: nbt),
+                encoding: .littleEndian
+            )
+            if let existing = paletteLookup[encoded] { return existing }
+            guard palette.count < Int(Int32.max) else {
+                throw BlocktopographError.unsupported("结构调色板条目过多")
+            }
+            let index = Int32(palette.count)
+            palette.append(nbt)
+            paletteLookup[encoded] = index
+            return index
+        }
+
+        var x = region.minimum.x
+        while x <= region.maximum.x {
+            var y = region.minimum.y
+            while y <= region.maximum.y {
+                var z = region.minimum.z
+                while z <= region.maximum.z {
+                    let coordinate = CommandBlockCoordinate(x: x, y: y, z: z)
+                    let dx = Int(x - region.minimum.x)
+                    let dy = Int(Int64(y) - Int64(region.minimum.y))
+                    let dz = Int(z - region.minimum.z)
+                    let flat = dx * sizeY * sizeZ + dy * sizeZ + dz
+                    primary[flat] = try paletteIndex(for: store.state(layer: 0, at: coordinate), coordinate: coordinate)
+                    secondary[flat] = try paletteIndex(for: store.state(layer: 1, at: coordinate), coordinate: coordinate)
+                    if z == Int64.max { break }
+                    z += 1
+                }
+                if y == Int32.max { break }
+                y += 1
+            }
+            if x == Int64.max { break }
+            x += 1
+        }
+
+        let blockEntityState = try store.loadBlockEntities(for: store.chunks(in: region))
+        var positionData = [NBTNamedTag]()
+        for (coordinate, document) in blockEntityState.documents {
+            let commandCoordinate = CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
+            guard region.contains(commandCoordinate) else { continue }
+            let dx = Int(coordinate.x - region.minimum.x)
+            let dy = Int(Int64(coordinate.y) - Int64(region.minimum.y))
+            let dz = Int(coordinate.z - region.minimum.z)
+            let flat = dx * sizeY * sizeZ + dy * sizeZ + dz
+            positionData.append(NBTNamedTag(
+                name: String(flat),
+                value: .compound([
+                    NBTNamedTag(name: "block_entity_data", value: document.root)
+                ])
+            ))
+        }
+        positionData.sort { (Int($0.name) ?? 0) < (Int($1.name) ?? 0) }
+        guard let originX = Int32(exactly: region.minimum.x),
+              let originZ = Int32(exactly: region.minimum.z) else {
+            throw BlocktopographError.malformedData("structure save 的世界原点 X/Z 必须在 Int32 范围内")
+        }
+
+        return NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "format_version", value: .int(1)),
+            NBTNamedTag(name: "size", value: .list(.int, [
+                .int(Int32(sizeX)), .int(Int32(sizeY)), .int(Int32(sizeZ))
+            ])),
+            NBTNamedTag(name: "structure_world_origin", value: .list(.int, [
+                .int(originX),
+                .int(region.minimum.y),
+                .int(originZ)
+            ])),
+            NBTNamedTag(name: "structure", value: .compound([
+                NBTNamedTag(name: "block_indices", value: .list(.list, [
+                    .list(.int, primary.map(NBTValue.int)),
+                    .list(.int, secondary.map(NBTValue.int))
+                ])),
+                NBTNamedTag(name: "entities", value: .list(.end, [])),
+                NBTNamedTag(name: "palette", value: .compound([
+                    NBTNamedTag(name: "default", value: .compound([
+                        NBTNamedTag(name: "block_palette", value: .list(.compound, palette)),
+                        NBTNamedTag(name: "block_position_data", value: .compound(positionData))
+                    ]))
+                ]))
+            ]))
+        ]))
+    }
+
+    static func loadStructure(
+        session: WorldSession,
+        document: NBTDocument,
+        targetDimension: Int32,
+        destination: CommandBlockCoordinate
+    ) throws -> String {
+        let normalized = try JavaStructureConverter.convertIfNeeded(document).document
+        let parsed = try parseStructure(normalized)
+        let maxX = destination.x.addingReportingOverflow(Int64(parsed.sizeX - 1))
+        let maxY = destination.y.addingReportingOverflow(Int32(parsed.sizeY - 1))
+        let maxZ = destination.z.addingReportingOverflow(Int64(parsed.sizeZ - 1))
+        guard !maxX.overflow, !maxY.overflow, !maxZ.overflow else {
+            throw BlocktopographError.malformedData("structure load 目标坐标溢出")
+        }
+        let targetRegion = CommandBlockBox(
+            destination,
+            CommandBlockCoordinate(x: maxX.partialValue, y: maxY.partialValue, z: maxZ.partialValue)
+        )
+        let store = try CommandBlockStore(session: session, dimension: targetDimension)
+        try store.validateVolume(targetRegion)
+        let generatedCount = try store.ensureGenerated(store.chunks(in: targetRegion))
+        let targetEntityState = try store.loadBlockEntities(for: store.chunks(in: targetRegion))
+        var targetBlockEntities = targetEntityState.documents
+        var changedEntityChunks = Set<ChunkPosition>()
+        var changedBlocks: UInt64 = 0
+
+        for dx in 0..<parsed.sizeX {
+            for dy in 0..<parsed.sizeY {
+                for dz in 0..<parsed.sizeZ {
+                    let flat = dx * parsed.sizeY * parsed.sizeZ + dy * parsed.sizeZ + dz
+                    let coordinate = CommandBlockCoordinate(
+                        x: destination.x + Int64(dx),
+                        y: destination.y + Int32(dy),
+                        z: destination.z + Int64(dz)
+                    )
+                    let targetKey = try store.subKey(for: coordinate)
+                    var wroteAnyLayer = false
+                    if let state = try parsed.state(layer: 0, flatIndex: flat) {
+                        let adapted = try store.adaptedState(state, layer: 0, for: targetKey)
+                        if try store.setState(adapted, layer: 0, at: coordinate, createWhenAir: false) {
+                            changedBlocks += 1
+                        }
+                        wroteAnyLayer = true
+                    }
+                    if let state = try parsed.state(layer: 1, flatIndex: flat) {
+                        let adapted = try store.adaptedState(state, layer: 1, for: targetKey)
+                        if try store.setState(adapted, layer: 1, at: coordinate, createWhenAir: false) {
+                            changedBlocks += 1
+                        }
+                        wroteAnyLayer = true
+                    }
+                    guard wroteAnyLayer else { continue }
+                    let entityCoordinate = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
+                    targetBlockEntities.removeValue(forKey: entityCoordinate)
+                    if let sourceEntity = parsed.blockEntities[flat] {
+                        targetBlockEntities[entityCoordinate] = store.offsetBlockEntity(sourceEntity, to: coordinate)
+                    }
+                    changedEntityChunks.insert(store.chunkPosition(x: coordinate.x, z: coordinate.z))
+                }
+            }
+        }
+
+        let entityWrites = try store.encodeBlockEntities(
+            documents: targetBlockEntities,
+            changedChunks: changedEntityChunks,
+            originalKeys: targetEntityState.keysByChunk
+        )
+        let written = try store.commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
+        guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty || generatedCount > 0 else {
+            throw BlocktopographError.unsupported("结构没有产生任何方块变化")
+        }
+        return "写入 \(written) 个 SubChunk，修改 \(changedBlocks) 个图层方块，处理 \(changedEntityChunks.count) 个方块实体区块，先生成 \(generatedCount) 个空气区块。"
+    }
+
+    private struct ParsedStructure {
+        let sizeX: Int
+        let sizeY: Int
+        let sizeZ: Int
+        let layers: [[Int32]]
+        let palette: [BedrockBlockState]
+        let blockEntities: [Int: NBTDocument]
+
+        func state(layer: Int, flatIndex: Int) throws -> BedrockBlockState? {
+            guard layers.indices.contains(layer), layers[layer].indices.contains(flatIndex) else { return nil }
+            let raw = layers[layer][flatIndex]
+            if raw == -1 { return nil }
+            guard raw >= 0, palette.indices.contains(Int(raw)) else {
+                throw BlocktopographError.malformedData("结构方块索引超出调色板范围：\(raw)")
+            }
+            return palette[Int(raw)]
+        }
+    }
+
+    private static func parseStructure(_ document: NBTDocument) throws -> ParsedStructure {
+        guard case .compound = document.root,
+              let sizeValue = document.root.compoundValue(named: "size"),
+              let size = integerVector(sizeValue), size.count >= 3,
+              size[0] > 0, size[1] > 0, size[2] > 0,
+              size[0] <= Int64(Int32.max), size[1] <= Int64(Int32.max), size[2] <= Int64(Int32.max),
+              let structure = document.root.compoundValue(named: "structure"),
+              let indicesValue = structure.compoundValue(named: "block_indices"),
+              case .list(.list, let layerValues) = indicesValue,
+              let paletteContainer = structure.compoundValue(named: "palette")?.compoundValue(named: "default"),
+              case .list(.compound, let paletteValues)? = paletteContainer.compoundValue(named: "block_palette") else {
+            throw BlocktopographError.malformedData("结构缺少 size、structure.block_indices 或 default.block_palette")
+        }
+        let sizeX = Int(size[0]), sizeY = Int(size[1]), sizeZ = Int(size[2])
+        let volumeResult = sizeX.multipliedReportingOverflow(by: sizeY)
+        let volumeFinal = volumeResult.partialValue.multipliedReportingOverflow(by: sizeZ)
+        guard !volumeResult.overflow, !volumeFinal.overflow, volumeFinal.partialValue <= 16_777_216 else {
+            throw BlocktopographError.unsupported("结构体积过大")
+        }
+        let volume = volumeFinal.partialValue
+        var layers = [[Int32]]()
+        for value in layerValues.prefix(2) {
+            guard case .list(.int, let values) = value else {
+                throw BlocktopographError.malformedData("structure.block_indices 图层必须是 Int List")
+            }
+            let numbers = values.compactMap { item -> Int32? in
+                if case .int(let number) = item { return number }
+                return nil
+            }
+            guard numbers.count == values.count else {
+                throw BlocktopographError.malformedData("structure.block_indices 包含非 Int 值")
+            }
+            var normalized = numbers
+            if normalized.count < volume { normalized.append(contentsOf: repeatElement(-1, count: volume - normalized.count)) }
+            if normalized.count > volume { normalized = Array(normalized.prefix(volume)) }
+            layers.append(normalized)
+        }
+        while layers.count < 2 { layers.append([Int32](repeating: -1, count: volume)) }
+        let palette = try paletteValues.map { value -> BedrockBlockState in
+            guard case .compound = value else {
+                throw BlocktopographError.malformedData("结构 block_palette 条目不是 Compound")
+            }
+            return BedrockBlockState(nbt: value, legacyID: nil, legacyData: nil)
+        }
+        guard !palette.isEmpty else { throw BlocktopographError.malformedData("结构调色板为空") }
+
+        var blockEntities = [Int: NBTDocument]()
+        if case .compound(let positions)? = paletteContainer.compoundValue(named: "block_position_data") {
+            for position in positions {
+                guard let flat = Int(position.name), (0..<volume).contains(flat),
+                      let entityRoot = position.value.compoundValue(named: "block_entity_data"),
+                      case .compound = entityRoot else { continue }
+                blockEntities[flat] = NBTDocument(rootName: "", root: entityRoot)
+            }
+        }
+        return ParsedStructure(
+            sizeX: sizeX,
+            sizeY: sizeY,
+            sizeZ: sizeZ,
+            layers: layers,
+            palette: palette,
+            blockEntities: blockEntities
+        )
+    }
+
+    private static func integerVector(_ value: NBTValue) -> [Int64]? {
+        switch value {
+        case .intArray(let values): return values.map(Int64.init)
+        case .longArray(let values): return values
+        case .list(_, let values):
+            let result = values.compactMap { item -> Int64? in
+                switch item {
+                case .byte(let value): return Int64(value)
+                case .short(let value): return Int64(value)
+                case .int(let value): return Int64(value)
+                case .long(let value): return value
+                default: return nil
+                }
+            }
+            return result.count == values.count ? result : nil
+        default: return nil
+        }
+    }
+
+    private static func structureSpan(_ minimum: Int64, _ maximum: Int64, name: String) throws -> Int {
+        let difference = maximum.subtractingReportingOverflow(minimum)
+        guard !difference.overflow, difference.partialValue >= 0 else {
+            throw BlocktopographError.malformedData("structure \(name) 轴尺寸溢出")
+        }
+        let inclusive = difference.partialValue.addingReportingOverflow(1)
+        guard !inclusive.overflow, let value = Int(exactly: inclusive.partialValue), value > 0 else {
+            throw BlocktopographError.malformedData("structure \(name) 轴尺寸无效")
+        }
+        return value
     }
 
     func fill(region: CommandBlockBox, layer0: CommandBlockStateSpec, layer1: CommandBlockStateSpec) throws -> String {

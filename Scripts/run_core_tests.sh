@@ -226,6 +226,16 @@ struct Main {
         guard case .effect(.clear, .allEntities, .all) = effectClear else {
             preconditionFailure("effect clear parsed as wrong command")
         }
+        _ = try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL")
+        _ = try WorldCommandParser.parse("setworldspawn 0 80 0")
+        _ = try WorldCommandParser.parse("spawnpoint @a the_end 0 100 0")
+        _ = try WorldCommandParser.parse("structure save mystructure:1 overworld 0 0 0 50 50 50")
+        _ = try WorldCommandParser.parse("structure load mystructure:1 nether 9 50 9")
+        _ = try WorldCommandParser.parse("structure delete ALL")
+        _ = try WorldCommandParser.parse("tickingarea add square nether 0 0 1 1 Base 1")
+        _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 4 0 Circle 0")
+        _ = try WorldCommandParser.parse("tickingarea delete ALL")
+        _ = try WorldCommandParser.parse("tickingarea list overworld")
         let effectRoot = NBTValue.compound([
             NBTNamedTag(name: "UniqueID", value: .long(99))
         ])
@@ -893,6 +903,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
+  "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
@@ -3222,6 +3233,13 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
 
+# v1.1.19: strict world spawn, single-block, structure and ticking-area commands.
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+  echo 'error: v1.1.19 world/structure/tickingarea command support is incomplete' >&2
+  exit 1
+}
+echo 'World spawn, setblock, structure and tickingarea command support passed'
+
 # v1.1.18: effect command with status-effect IDs and complete ActiveEffects NBT.
 grep -qF 'case effect(operation: CommandEffectOperation' "$COMMAND_PARSER" && grep -qF 'case "effect"' "$COMMAND_PARSER" && grep -qF 'effect give @a strength 12000 50' "$COMMAND_PARSER" && grep -qF 'effect clear @e ALL' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationEasy"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationNormal"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationHard"' "$COMMAND_PARSER" && ! grep -qF 'FactorCalculationData' "$COMMAND_PARSER" && grep -qF 'encodedUnmovedEntityReplacements' "$COMMAND_EXECUTOR" && grep -qF 'session.database().applyBatch(puts: allPuts' "$COMMAND_EXECUTOR" || {
   echo 'error: effect command parser, NBT schema or atomic target update is incomplete' >&2
@@ -3235,6 +3253,8 @@ import Foundation
 struct ImportedWorld { let id: UUID }
 final class MojangLevelDB {
     var values: [Data: Data] = [:]
+    init() {}
+    convenience init(path: URL, readOnly: Bool) throws { self.init() }
     func get(_ key: Data) throws -> Data? { values[key] }
     func put(_ value: Data, for key: Data, sync: Bool = true) throws { values[key] = value }
     func delete(_ key: Data, sync: Bool = true) throws { values.removeValue(forKey: key) }
@@ -3247,16 +3267,41 @@ final class MojangLevelDB {
         return keys.map { ($0, includeValues ? values[$0] : nil) }
     }
 }
+enum AtomicFile {
+    static func write(_ data: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url)
+    }
+}
+enum BTCompressionBridge {
+    static func inflateWrapped(_ data: Data, expectedSize: UInt) throws -> Data {
+        throw BlocktopographError.unsupported("portable test does not inflate compressed NBT")
+    }
+}
 final class WorldSession {
     let world = ImportedWorld(id: UUID())
     let db = MojangLevelDB()
+    let document: WorldDocument
+    init() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("bt-command-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        document = WorldDocument(rootURL: root)
+        let initial = LevelDatFile(
+            version: 10,
+            document: NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "SpawnX", value: .int(0)),
+                NBTNamedTag(name: "SpawnY", value: .int(64)),
+                NBTNamedTag(name: "SpawnZ", value: .int(0))
+            ]))
+        )
+        try? document.writeLevelDat(initial)
+    }
     func database() throws -> MojangLevelDB { db }
 }
 final class WorldStore {
     static let shared = WorldStore()
     func metadataURL(for world: ImportedWorld) -> URL { FileManager.default.temporaryDirectory }
 }
-enum AtomicFile { static func write(_ data: Data, to url: URL) throws { try data.write(to: url) } }
 struct BedrockBlockRecord {
     static let editableLayerCount = 2
     let x: Int64
@@ -3329,7 +3374,51 @@ struct EffectCommandTest {
         precondition(effectCount(localAfterAll) == BedrockDataValueCatalog.statusEffects.count)
         let allEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
         precondition(allEntities.allSatisfy { effectCount($0.document.root) == BedrockDataValueCatalog.statusEffects.count })
-        print("Effect command executor tests passed")
+
+        let worldSpawn = try executor.execute(try WorldCommandParser.parse("setworldspawn 7 80 -9"))
+        precondition(worldSpawn.changedWorld)
+        let level = try session.document.readLevelDat().document.root
+        precondition(level.intValue(named: "SpawnX") == 7)
+        precondition(level.intValue(named: "SpawnY") == 80)
+        precondition(level.intValue(named: "SpawnZ") == -9)
+
+        let spawnPoint = try executor.execute(try WorldCommandParser.parse("spawnpoint @s the_end 2 100 3"))
+        precondition(spawnPoint.changedWorld)
+        let localAfterSpawn = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(localAfterSpawn.intValue(named: "SpawnDimension") == 2)
+        precondition(localAfterSpawn.intValue(named: "SpawnX") == 2)
+        precondition(localAfterSpawn.intValue(named: "SpawnY") == 100)
+        precondition(localAfterSpawn.intValue(named: "SpawnZ") == 3)
+
+        let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
+        precondition(setBlock.changedWorld)
+        let sourceKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)
+        let sourceRaw = try session.db.get(sourceKey)!
+        let sourceSub = try BedrockSubChunk.decode(sourceRaw, keyYIndex: 0)
+        precondition(sourceSub.storages[0].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:stone")
+
+        let saved = try executor.execute(try WorldCommandParser.parse("structure save test:one overworld 0 0 0 0 0 0"))
+        precondition(saved.changedWorld)
+        let savedStructureValue = try session.db.get(Data("structuretemplate_test:one".utf8))
+        precondition(savedStructureValue != nil)
+        let loaded = try executor.execute(try WorldCommandParser.parse("structure load test:one overworld 1 0 0"))
+        precondition(loaded.changedWorld)
+        let loadedSub = try BedrockSubChunk.decode(try session.db.get(sourceKey)!, keyYIndex: 0)
+        precondition(loadedSub.storages[0].blockState(x: 1, y: 0, z: 0)?.name == "minecraft:stone")
+        let deletedStructure = try executor.execute(try WorldCommandParser.parse("structure delete test:one"))
+        precondition(deletedStructure.changedWorld)
+        let deletedStructureValue = try session.db.get(Data("structuretemplate_test:one".utf8))
+        precondition(deletedStructureValue == nil)
+
+        let addedArea = try executor.execute(try WorldCommandParser.parse("tickingarea add square overworld 0 0 1 1 Base 1"))
+        precondition(addedArea.changedWorld)
+        let listedArea = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
+        precondition(!listedArea.changedWorld)
+        precondition(listedArea.message.contains("[1]Base: 0 0 to 1 1"))
+        let deletedArea = try executor.execute(try WorldCommandParser.parse("tickingarea delete ALL"))
+        precondition(deletedArea.changedWorld)
+
+        print("Effect and world command executor tests passed")
     }
 }
 SWIFT
@@ -3344,6 +3433,7 @@ swiftc \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/NBT/ConsecutiveNBTCodec.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
+  "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
@@ -3357,6 +3447,10 @@ swiftc \
   "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \
   "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+  "$ROOT/Sources/World/WorldDocument.swift" \
+  "$ROOT/Sources/World/JavaStructureConverter.swift" \
+  "$ROOT/Sources/World/StructureNBTStore.swift" \
+  "$ROOT/Sources/World/TickingAreaStore.swift" \
   "$ROOT/Sources/World/PlayerNBTStore.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \

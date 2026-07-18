@@ -109,6 +109,46 @@ final class StructureNBTStore {
         try session.database().get(key(forStructureName: name)) != nil
     }
 
+    func record(named name: String) throws -> StructureNBTRecord? {
+        let target = try key(forStructureName: name)
+        return try records().first(where: { $0.key == target })
+    }
+
+    func save(document: NBTDocument, named name: String, overwrite: Bool = true) throws {
+        let key = try key(forStructureName: name)
+        let database = try session.database()
+        if !overwrite, try database.get(key) != nil {
+            throw BlocktopographError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
+        }
+        let normalized = try JavaStructureConverter.convertIfNeeded(document).document
+        let encoded = try BedrockNBTCodec.encode(normalized, encoding: .littleEndian)
+        try database.put(encoded, for: key, sync: true)
+        guard try database.get(key) == encoded else {
+            throw BlocktopographError.malformedData("结构写入后未能从 LevelDB 读回")
+        }
+    }
+
+    @discardableResult
+    func delete(named name: String) throws -> Bool {
+        let key = try key(forStructureName: name)
+        let database = try session.database()
+        guard try database.get(key) != nil else { return false }
+        try database.delete(key, sync: true)
+        return true
+    }
+
+    @discardableResult
+    func deleteAll() throws -> Int {
+        let entries = try session.database().entries(
+            prefix: Data(Self.keyPrefix.utf8),
+            includeValues: false,
+            limit: 0
+        )
+        guard !entries.isEmpty else { return 0 }
+        try session.database().applyBatch(puts: [], deletes: entries.map(\.key), sync: true)
+        return entries.count
+    }
+
     func isSameStructure(_ record: StructureNBTRecord, named name: String) -> Bool {
         guard let target = try? key(forStructureName: name) else { return false }
         return target == record.key

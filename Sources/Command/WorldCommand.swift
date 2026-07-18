@@ -148,6 +148,39 @@ enum ParsedWorldCommand {
         layer0: CommandBlockStateSpec,
         layer1: CommandBlockStateSpec
     )
+    case setBlock(
+        targetDimension: Int32,
+        position: CommandBlockCoordinate,
+        layer0: CommandBlockStateSpec,
+        layer1: CommandBlockStateSpec
+    )
+    case setWorldSpawn(position: CommandBlockCoordinate)
+    case spawnPoint(target: CommandTarget, dimension: Int32, position: CommandBlockCoordinate)
+    case structure(operation: CommandStructureOperation)
+    case tickingArea(operation: CommandTickingAreaOperation)
+}
+
+enum CommandStructureOperation {
+    case save(name: String, dimension: Int32, region: CommandBlockBox)
+    case load(name: String, dimension: Int32, destination: CommandBlockCoordinate)
+    case delete(name: String?)
+}
+
+struct CommandTickingAreaSpec {
+    let dimension: Int32
+    let isCircle: Bool
+    let minimumX: Int32
+    let minimumZ: Int32
+    let maximumX: Int32
+    let maximumZ: Int32
+    let name: String
+    let preload: Bool
+}
+
+enum CommandTickingAreaOperation {
+    case add(CommandTickingAreaSpec)
+    case delete(name: String?)
+    case list(dimension: Int32?)
 }
 
 enum CommandEffectSelection {
@@ -293,7 +326,10 @@ enum CommandEffectNBT {
 }
 
 enum WorldCommandParser {
-    static let commandNames = ["help", "clear", "clearspawnpoint", "clone", "effect", "fill", "give", "kill", "kick", "summon"]
+    static let commandNames = [
+        "help", "clear", "clearspawnpoint", "clone", "effect", "fill", "give", "kill", "kick",
+        "setblock", "setworldspawn", "spawnpoint", "structure", "summon", "tickingarea"
+    ]
 
     static let usage: [String: String] = [
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
@@ -305,7 +341,12 @@ enum WorldCommandParser {
         "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。",
-        "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""
+        "setblock": "setblock 目标维度 x y z 层0方块名 层0states 层1方块名 层1states\nfill 的单方块版本。维度必须为 overworld、nether 或 the_end；states 格式与 fill 完全相同。\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:air NULL",
+        "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
+        "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
+        "structure": "structure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\n名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50",
+        "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"",
+        "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 中心区块X 中心区块Z 边界区块X 边界区块Z 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形半径由中心区块到边界区块的最大轴向距离计算，最多 4 区块；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea list overworld"
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -425,6 +466,123 @@ enum WorldCommandParser {
                 layer0: layer0,
                 layer1: layer1
             )
+        case "setblock":
+            guard arguments.count == 8 else { throw usageError(command) }
+            return .setBlock(
+                targetDimension: try parseDimension(arguments[0]),
+                position: try parseCoordinates(Array(arguments[1...3]))[0],
+                layer0: CommandBlockStateSpec(
+                    name: try parseBlockName(arguments[4]),
+                    states: try parseStates(arguments[5])
+                ),
+                layer1: CommandBlockStateSpec(
+                    name: try parseBlockName(arguments[6]),
+                    states: try parseStates(arguments[7])
+                )
+            )
+        case "setworldspawn":
+            guard arguments.count == 3 else { throw usageError(command) }
+            return .setWorldSpawn(position: try parseCoordinates(arguments)[0])
+        case "spawnpoint":
+            guard arguments.count == 5 else { throw usageError(command) }
+            return .spawnPoint(
+                target: try parseTarget(arguments[0]),
+                dimension: try parseDimension(arguments[1]),
+                position: try parseCoordinates(Array(arguments[2...4]))[0]
+            )
+        case "structure":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "save":
+                guard arguments.count == 9 else { throw usageError(command) }
+                let name = try parseNamespacedIdentifier(arguments[1], kind: "结构名称")
+                let dimension = try parseDimension(arguments[2])
+                let coordinates = try parseCoordinates(Array(arguments[3...8]))
+                return .structure(operation: .save(
+                    name: name,
+                    dimension: dimension,
+                    region: CommandBlockBox(coordinates[0], coordinates[1])
+                ))
+            case "load":
+                guard arguments.count == 6 else { throw usageError(command) }
+                return .structure(operation: .load(
+                    name: try parseNamespacedIdentifier(arguments[1], kind: "结构名称"),
+                    dimension: try parseDimension(arguments[2]),
+                    destination: try parseCoordinates(Array(arguments[3...5]))[0]
+                ))
+            case "delete":
+                guard arguments.count == 2 else { throw usageError(command) }
+                if arguments[1] == "ALL" { return .structure(operation: .delete(name: nil)) }
+                return .structure(operation: .delete(
+                    name: try parseNamespacedIdentifier(arguments[1], kind: "结构名称")
+                ))
+            default:
+                throw usageError(command)
+            }
+        case "tickingarea":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "add":
+                guard arguments.count == 9 else { throw usageError(command) }
+                let shape = arguments[1]
+                guard shape == "square" || shape == "circle" else { throw usageError(command) }
+                let dimension = try parseDimension(arguments[2])
+                let x1 = try parseChunkCoordinate(arguments[3], name: "X1")
+                let z1 = try parseChunkCoordinate(arguments[4], name: "Z1")
+                let x2 = try parseChunkCoordinate(arguments[5], name: "X2")
+                let z2 = try parseChunkCoordinate(arguments[6], name: "Z2")
+                let name = try parseTickingAreaName(arguments[7])
+                let preload = try parseBooleanFlag(arguments[8], name: "是否预加载")
+                let area: CommandTickingAreaSpec
+                if shape == "square" {
+                    area = CommandTickingAreaSpec(
+                        dimension: dimension,
+                        isCircle: false,
+                        minimumX: min(x1, x2),
+                        minimumZ: min(z1, z2),
+                        maximumX: max(x1, x2),
+                        maximumZ: max(z1, z2),
+                        name: name,
+                        preload: preload
+                    )
+                } else {
+                    let dx = abs(Int64(x2) - Int64(x1))
+                    let dz = abs(Int64(z2) - Int64(z1))
+                    let radius = max(dx, dz)
+                    guard radius <= 4 else {
+                        throw BlocktopographError.malformedData("圆形常加载区域半径最多为 4 个区块")
+                    }
+                    let centerBlockX = Int64(x1) * 16
+                    let centerBlockZ = Int64(z1) * 16
+                    let blockRadius = radius * 16
+                    guard let minX = Int32(exactly: centerBlockX - blockRadius),
+                          let maxX = Int32(exactly: centerBlockX + blockRadius),
+                          let minZ = Int32(exactly: centerBlockZ - blockRadius),
+                          let maxZ = Int32(exactly: centerBlockZ + blockRadius) else {
+                        throw BlocktopographError.malformedData("圆形常加载区域坐标溢出")
+                    }
+                    area = CommandTickingAreaSpec(
+                        dimension: dimension,
+                        isCircle: true,
+                        minimumX: minX,
+                        minimumZ: minZ,
+                        maximumX: maxX,
+                        maximumZ: maxZ,
+                        name: name,
+                        preload: preload
+                    )
+                }
+                try validateTickingAreaSpec(area)
+                return .tickingArea(operation: .add(area))
+            case "delete":
+                guard arguments.count == 2 else { throw usageError(command) }
+                return .tickingArea(operation: .delete(name: arguments[1] == "ALL" ? nil : try parseTickingAreaName(arguments[1])))
+            case "list":
+                guard arguments.count == 2 else { throw usageError(command) }
+                return .tickingArea(operation: .list(dimension: arguments[1] == "ALL" ? nil : try parseDimension(arguments[1])))
+            default:
+                throw usageError(command)
+            }
         default:
             throw BlocktopographError.malformedData("不存在的命令：\(command)。输入 help 查看全部命令。")
         }
@@ -458,6 +616,50 @@ enum WorldCommandParser {
                 "维度名称无效：\(text)。只能使用 overworld、nether 或 the_end"
             )
         }
+    }
+
+    private static func validateTickingAreaSpec(_ area: CommandTickingAreaSpec) throws {
+        let count: Int64
+        if area.isCircle {
+            let centerX = (Int64(area.minimumX) + Int64(area.maximumX)) / 2
+            let centerZ = (Int64(area.minimumZ) + Int64(area.maximumZ)) / 2
+            let radiusBlocks = max(
+                abs(Int64(area.maximumX) - centerX),
+                abs(Int64(area.maximumZ) - centerZ)
+            )
+            let radius = (radiusBlocks + 15) / 16
+            guard radius <= 4 else {
+                throw BlocktopographError.unsupported("圆形常加载区域半径最多为 4 个区块")
+            }
+            var total: Int64 = 0
+            for dz in -radius...radius {
+                for dx in -radius...radius where dx * dx + dz * dz <= radius * radius { total += 1 }
+            }
+            count = total
+        } else {
+            count = (Int64(abs(Int64(area.maximumX) - Int64(area.minimumX))) + 1)
+                * (Int64(abs(Int64(area.maximumZ) - Int64(area.minimumZ))) + 1)
+        }
+        guard count > 0, count <= 100 else {
+            throw BlocktopographError.unsupported("每个常加载区域最多包含 100 个区块")
+        }
+    }
+
+    private static func parseChunkCoordinate(_ text: String, name: String) throws -> Int32 {
+        guard let value = Int32(text) else {
+            throw BlocktopographError.malformedData("\(name) 必须是 Int32 区块坐标：\(text)")
+        }
+        return value
+    }
+
+    private static func parseTickingAreaName(_ text: String) throws -> String {
+        guard !text.isEmpty, text != "ALL" else {
+            throw BlocktopographError.malformedData("常加载区域名称不能为空，也不能使用保留字 ALL")
+        }
+        guard text.range(of: "^[A-Za-z0-9_.:-]+$", options: .regularExpression) != nil else {
+            throw BlocktopographError.malformedData("常加载区域名称只能包含字母、数字、下划线、点、冒号和连字符")
+        }
+        return text
     }
 
     private static func parseTarget(_ text: String) throws -> CommandTarget {
