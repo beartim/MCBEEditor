@@ -229,11 +229,16 @@ struct Main {
         _ = try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL")
         _ = try WorldCommandParser.parse("setworldspawn 0 80 0")
         _ = try WorldCommandParser.parse("spawnpoint @a the_end 0 100 0")
+        _ = try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10")
+        _ = try WorldCommandParser.parse("teleport @a overworld 0 Auto 0")
+        _ = try WorldCommandParser.parse("weather clear 1")
+        _ = try WorldCommandParser.parse("weather rain 6000 0.5 1")
+        _ = try WorldCommandParser.parse("weather thunder 12000 1.0 0")
         _ = try WorldCommandParser.parse("structure save mystructure:1 overworld 0 0 0 50 50 50")
         _ = try WorldCommandParser.parse("structure load mystructure:1 nether 9 50 9")
         _ = try WorldCommandParser.parse("structure delete ALL")
         _ = try WorldCommandParser.parse("tickingarea add square nether 0 0 1 1 Base 1")
-        _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 4 0 Circle 0")
+        _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 Circle 0")
         _ = try WorldCommandParser.parse("tickingarea delete ALL")
         _ = try WorldCommandParser.parse("tickingarea list overworld")
         let effectRoot = NBTValue.compound([
@@ -291,6 +296,18 @@ struct Main {
         do {
             _ = try WorldCommandParser.parse("effect clear @e ALL 1")
             preconditionFailure("effect clear must reject extra parameters")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0")
+            preconditionFailure("teleport identifier target should fail")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("weather rain 12000 1.1 0")
+            preconditionFailure("weather intensity above one should fail")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 4 0 Circle 0")
+            preconditionFailure("legacy tickingarea circle arguments should fail")
         } catch {}
         do {
             _ = try WorldCommandParser.parse("effect give @a unknown_effect 20 0")
@@ -373,6 +390,12 @@ if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 if [[ ! "$CURRENT_PROJECT_VERSION" =~ ^[0-9]+$ ]]; then
   echo "error: CURRENT_PROJECT_VERSION must be an integer, got: ${CURRENT_PROJECT_VERSION:-<missing>}" >&2
+  exit 1
+fi
+
+if [[ "$MARKETING_VERSION" != "1.0.0" || "$CURRENT_PROJECT_VERSION" != "100" ]]; then
+  printf 'error: Blocktopograph version is fixed at 1.0.0 (100), got version=%s build=%s\n' \
+    "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" >&2
   exit 1
 fi
 
@@ -3233,12 +3256,12 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
 
-# v1.1.19: strict world spawn, single-block, structure and ticking-area commands.
-grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
-  echo 'error: v1.1.19 world/structure/tickingarea command support is incomplete' >&2
+# Fixed v1.0.0: world/structure/tickingarea plus teleport and weather commands.
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count == 7 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+  echo 'error: world/structure/tickingarea/teleport/weather command support is incomplete' >&2
   exit 1
 }
-echo 'World spawn, setblock, structure and tickingarea command support passed'
+echo 'World spawn, setblock, structure, tickingarea, teleport and weather command support passed'
 
 # v1.1.18: effect command with status-effect IDs and complete ActiveEffects NBT.
 grep -qF 'case effect(operation: CommandEffectOperation' "$COMMAND_PARSER" && grep -qF 'case "effect"' "$COMMAND_PARSER" && grep -qF 'effect give @a strength 12000 50' "$COMMAND_PARSER" && grep -qF 'effect clear @e ALL' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationEasy"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationNormal"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationHard"' "$COMMAND_PARSER" && ! grep -qF 'FactorCalculationData' "$COMMAND_PARSER" && grep -qF 'encodedUnmovedEntityReplacements' "$COMMAND_EXECUTOR" && grep -qF 'session.database().applyBatch(puts: allPuts' "$COMMAND_EXECUTOR" || {
@@ -3310,6 +3333,31 @@ struct BedrockBlockRecord {
     let dimension: Int32
     let layers: [BedrockBlockState]
     let isGenerated: Bool
+}
+struct BedrockBlockColumnResult {
+    let blocks: [BedrockBlockRecord]
+    let diagnostics: [String]
+}
+final class ChunkSurfaceRenderer {
+    init(database: MojangLevelDB) {}
+    func blockColumn(blockX: Int64, blockZ: Int64, dimension: Int32) throws -> BedrockBlockColumnResult {
+        let stone = BedrockBlockState(
+            nbt: .compound([
+                NBTNamedTag(name: "name", value: .string("minecraft:stone")),
+                NBTNamedTag(name: "states", value: .compound([])),
+                NBTNamedTag(name: "version", value: .int(BedrockBlockState.defaultPaletteVersion))
+            ]),
+            legacyID: nil,
+            legacyData: nil
+        )
+        return BedrockBlockColumnResult(
+            blocks: [BedrockBlockRecord(
+                x: blockX, y: 70, z: blockZ, dimension: dimension,
+                layers: [stone], isGenerated: true
+            )],
+            diagnostics: []
+        )
+    }
 }
 SWIFT
 
@@ -3390,6 +3438,32 @@ struct EffectCommandTest {
         precondition(localAfterSpawn.intValue(named: "SpawnY") == 100)
         precondition(localAfterSpawn.intValue(named: "SpawnZ") == 3)
 
+        let teleported = try executor.execute(try WorldCommandParser.parse("teleport @s nether 10 72 -4"))
+        precondition(teleported.changedWorld)
+        let localAfterTeleport = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(localAfterTeleport.intValue(named: "DimensionId") == 1)
+        guard let teleportedPos = localAfterTeleport.value(namedAny: ["Pos"])?.listValues else {
+            preconditionFailure("teleport did not write Pos")
+        }
+        precondition(teleportedPos[0].numericDoubleValue == 10)
+        precondition(teleportedPos[1].numericDoubleValue == 72)
+        precondition(teleportedPos[2].numericDoubleValue == -4)
+
+        let autoTeleported = try executor.execute(try WorldCommandParser.parse("teleport @s overworld 0 Auto 0"))
+        precondition(autoTeleported.changedWorld)
+        let localAfterAuto = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        guard let autoPos = localAfterAuto.value(namedAny: ["Pos"])?.listValues else {
+            preconditionFailure("Auto teleport did not write Pos")
+        }
+        precondition(autoPos[1].numericDoubleValue == 71)
+
+        let weather = try executor.execute(try WorldCommandParser.parse("weather thunder 12000 1.0 0"))
+        precondition(weather.changedWorld)
+        let weatherRoot = try session.document.readLevelDat().document.root
+        precondition(weatherRoot.intValue(named: "rainTime") == 12000)
+        precondition(weatherRoot.intValue(named: "lightningTime") == 12000)
+        precondition(weatherRoot.intValue(named: "doWeatherCycle") == 0)
+
         let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
         precondition(setBlock.changedWorld)
         let sourceKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)
@@ -3415,6 +3489,10 @@ struct EffectCommandTest {
         let listedArea = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
         precondition(!listedArea.changedWorld)
         precondition(listedArea.message.contains("[1]Base: 0 0 to 1 1"))
+        let addedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea add circle overworld 3 -2 Circle 0"))
+        precondition(addedCircle.changedWorld)
+        let listedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
+        precondition(listedCircle.message.contains("Circle: 3 -2 radius: 0"))
         let deletedArea = try executor.execute(try WorldCommandParser.parse("tickingarea delete ALL"))
         precondition(deletedArea.changedWorld)
 
@@ -3451,6 +3529,7 @@ swiftc \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
   "$ROOT/Sources/World/TickingAreaStore.swift" \
+  "$ROOT/Sources/World/WeatherStore.swift" \
   "$ROOT/Sources/World/PlayerNBTStore.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \

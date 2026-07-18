@@ -75,6 +75,13 @@ final class WorldCommandExecutor {
                 message: try setPlayerSpawnPoints(target: target, dimension: dimension, position: position),
                 changedWorld: true
             )
+        case .teleport(let target, let dimension, let x, let y, let z):
+            return WorldCommandExecutionResult(
+                message: try teleport(target: target, dimension: dimension, x: x, y: y, z: z),
+                changedWorld: true
+            )
+        case .weather(let settings):
+            return WorldCommandExecutionResult(message: try setWeather(settings), changedWorld: true)
         case .structure(let operation):
             let result = try executeStructure(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
@@ -139,6 +146,145 @@ final class WorldCommandExecutor {
             for index in matches.dropFirst().reversed() { tags.remove(at: index) }
         } else {
             tags.append(NBTNamedTag(name: name, value: value))
+        }
+    }
+
+    // MARK: teleport / weather
+
+    private func teleport(
+        target: CommandTarget,
+        dimension: Int32,
+        x: Int64,
+        y: CommandTeleportY,
+        z: Int64
+    ) throws -> String {
+        let resolvedY: Int32
+        switch y {
+        case .fixed(let value):
+            resolvedY = value
+        case .automatic:
+            resolvedY = try automaticTeleportY(x: x, z: z, dimension: dimension)
+        }
+
+        let targets = try resolveTargets(target)
+        let position = BedrockWorldObjectPosition(x: Double(x), y: Double(resolvedY), z: Double(z))
+        var playerPuts = [(key: Data, value: Data)]()
+        playerPuts.reserveCapacity(targets.players.count)
+        for record in targets.players {
+            let document = try teleportedDocument(
+                record.document,
+                position: position,
+                dimension: dimension
+            )
+            playerPuts.append((
+                key: record.key,
+                value: try BedrockNBTCodec.encode(document, encoding: .littleEndian)
+            ))
+        }
+        if !playerPuts.isEmpty {
+            try session.database().applyBatch(puts: playerPuts, deletes: [], sync: true)
+        }
+
+        let entityStore = BedrockWorldObjectNBTStore(session: session)
+        var movedEntities = 0
+        for object in targets.entities {
+            let document = try teleportedDocument(
+                object.document,
+                position: position,
+                dimension: dimension
+            )
+            _ = try entityStore.save(object: object, document: document)
+            movedEntities += 1
+        }
+
+        let yText = y.displayText == "Auto" ? "Auto→\(resolvedY)" : String(resolvedY)
+        return "teleport 完成：将 \(targets.players.count) 个玩家和 \(movedEntities) 个实体传送到 \(WorldCommandParser.dimensionName(for: dimension)) 的 \(x) \(yText) \(z)。"
+    }
+
+    private func automaticTeleportY(x: Int64, z: Int64, dimension: Int32) throws -> Int32 {
+        let minimum = Int64(Int32.min) * 16
+        let maximum = Int64(Int32.max) * 16 + 15
+        guard (minimum...maximum).contains(x), (minimum...maximum).contains(z) else {
+            throw BlocktopographError.malformedData("Auto 的 X/Z 超出 Bedrock Int32 区块坐标范围")
+        }
+        let renderer = ChunkSurfaceRenderer(database: try session.database())
+        let column = try renderer.blockColumn(blockX: x, blockZ: z, dimension: dimension)
+        guard let highest = column.blocks.first(where: { block in
+            block.isGenerated && block.layers.contains(where: { !$0.isAir })
+        }) else {
+            let diagnostic = column.diagnostics.first.map { "；\($0)" } ?? ""
+            throw BlocktopographError.unsupported("Auto 未在 \(x) \(z) 找到已加载的非空气方块\(diagnostic)")
+        }
+        guard highest.y < Int32.max else {
+            throw BlocktopographError.malformedData("最高非空气方块上方的 Y 坐标溢出")
+        }
+        return highest.y + 1
+    }
+
+    private func teleportedDocument(
+        _ source: NBTDocument,
+        position: BedrockWorldObjectPosition,
+        dimension: Int32
+    ) throws -> NBTDocument {
+        guard case .compound(var tags) = source.root else {
+            throw BlocktopographError.malformedData("玩家或实体 NBT 根必须是 Compound")
+        }
+        setTopLevelTag(
+            name: "Pos",
+            value: .list(.float, [
+                .float(Float(position.x)),
+                .float(Float(position.y)),
+                .float(Float(position.z))
+            ]),
+            in: &tags
+        )
+        setTopLevelTag(name: "DimensionId", value: .int(dimension), in: &tags)
+        setTopLevelTag(name: "LastDimensionId", value: .int(dimension), in: &tags)
+        setTopLevelTag(
+            name: "Motion",
+            value: .list(.float, [.float(0), .float(0), .float(0)]),
+            in: &tags
+        )
+        return NBTDocument(rootName: source.rootName, root: .compound(tags))
+    }
+
+    private func setWeather(_ command: CommandWeatherSettings) throws -> String {
+        let settings: BedrockWeatherSettings
+        switch command.condition {
+        case .clear:
+            settings = .clear(automaticChange: command.automaticChange)
+        case .rain:
+            guard let duration = command.duration, let intensity = command.intensity else {
+                throw BlocktopographError.malformedData("weather rain 缺少持续时间或强度")
+            }
+            settings = .rain(
+                duration: duration,
+                intensity: intensity,
+                automaticChange: command.automaticChange
+            )
+        case .thunder:
+            guard let duration = command.duration, let intensity = command.intensity else {
+                throw BlocktopographError.malformedData("weather thunder 缺少持续时间或强度")
+            }
+            settings = .thunder(
+                duration: duration,
+                intensity: intensity,
+                automaticChange: command.automaticChange
+            )
+        }
+        try WeatherStore(session: session).save(settings)
+        let automatic = settings.automaticChange ? "允许自动变化" : "禁止自动变化"
+        switch command.condition {
+        case .clear:
+            return "weather 完成：天气设为晴朗，\(automatic)。"
+        case .rain, .thunder:
+            return String(
+                format: "weather 完成：天气设为%@，持续 %d 游戏刻，强度 %.3g，%@。",
+                settings.conditionName,
+                settings.rainTime,
+                Double(settings.rainLevel),
+                automatic
+            )
         }
     }
 

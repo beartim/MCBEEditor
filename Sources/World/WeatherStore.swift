@@ -5,11 +5,44 @@ struct BedrockWeatherSettings {
     var rainTime: Int32
     var lightningLevel: Float
     var lightningTime: Int32
+    var automaticChange: Bool
 
     var conditionName: String {
         if lightningLevel > 0.01 { return "雷暴" }
         if rainLevel > 0.01 { return "下雨" }
         return "晴朗"
+    }
+
+    static func clear(automaticChange: Bool, duration: Int32 = 12_000) -> BedrockWeatherSettings {
+        BedrockWeatherSettings(
+            rainLevel: 0,
+            rainTime: max(0, duration),
+            lightningLevel: 0,
+            lightningTime: max(0, duration),
+            automaticChange: automaticChange
+        )
+    }
+
+    static func rain(duration: Int32, intensity: Float, automaticChange: Bool) -> BedrockWeatherSettings {
+        let level = min(1, max(0, intensity))
+        return BedrockWeatherSettings(
+            rainLevel: level,
+            rainTime: max(0, duration),
+            lightningLevel: 0,
+            lightningTime: max(0, duration),
+            automaticChange: automaticChange
+        )
+    }
+
+    static func thunder(duration: Int32, intensity: Float, automaticChange: Bool) -> BedrockWeatherSettings {
+        let level = min(1, max(0, intensity))
+        return BedrockWeatherSettings(
+            rainLevel: level,
+            rainTime: max(0, duration),
+            lightningLevel: level,
+            lightningTime: max(0, duration),
+            automaticChange: automaticChange
+        )
     }
 }
 
@@ -43,11 +76,16 @@ final class WeatherStore {
             default: return 0
             }
         }
+        func boolean(_ name: String, default defaultValue: Bool) -> Bool {
+            guard value(name) != nil else { return defaultValue }
+            return integer(name) != 0
+        }
         return BedrockWeatherSettings(
             rainLevel: min(1, max(0, float("rainLevel"))),
             rainTime: max(0, integer("rainTime")),
             lightningLevel: min(1, max(0, float("lightningLevel"))),
-            lightningTime: max(0, integer("lightningTime"))
+            lightningTime: max(0, integer("lightningTime")),
+            automaticChange: boolean("doWeatherCycle", default: true)
         )
     }
 
@@ -67,6 +105,7 @@ final class WeatherStore {
         set("rainTime", .int(max(0, settings.rainTime)))
         set("lightningLevel", .float(min(1, max(0, settings.lightningLevel))))
         set("lightningTime", .int(max(0, settings.lightningTime)))
+        set("doWeatherCycle", .byte(settings.automaticChange ? 1 : 0))
         file.document.root = .compound(tags)
         try session.document.writeLevelDat(file)
     }

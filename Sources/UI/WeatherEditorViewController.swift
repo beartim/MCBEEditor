@@ -13,6 +13,7 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
     private let lightningSlider = UISlider()
     private let lightningValueLabel = UILabel()
     private let lightningTimeField = UITextField()
+    private let automaticChangeSwitch = UISwitch()
 
     init(session: WorldSession) {
         self.session = session
@@ -56,6 +57,7 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         presets.addArrangedSubview(presetButton(title: "下雨", action: #selector(setRain)))
         presets.addArrangedSubview(presetButton(title: "雷暴", action: #selector(setThunder)))
         stack.addArrangedSubview(presets)
+        stack.addArrangedSubview(switchRow(title: "天气自动变化", control: automaticChangeSwitch))
 
         rainSlider.minimumValue = 0
         rainSlider.maximumValue = 1
@@ -82,7 +84,7 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         note.font = .preferredFont(forTextStyle: .footnote)
         note.textColor = .secondaryLabel
         note.numberOfLines = 0
-        note.text = "等级范围为 0～1。20 游戏刻约为 1 秒。修改前请确保 Minecraft 已完全退出；保存时只更新 level.dat 中 rainLevel、rainTime、lightningLevel 和 lightningTime。"
+        note.text = "等级范围为 0～1。20 游戏刻约为 1 秒。天气自动变化对应 level.dat 的 doWeatherCycle。修改前请确保 Minecraft 已完全退出。"
         stack.addArrangedSubview(note)
     }
 
@@ -111,6 +113,18 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         row.axis = .horizontal
         row.spacing = 10
         row.alignment = .center
+        return row
+    }
+
+    private func switchRow(title: String, control: UISwitch) -> UIStackView {
+        let label = UILabel()
+        label.text = title
+        label.font = .preferredFont(forTextStyle: .body)
+        let row = UIStackView(arrangedSubviews: [label, control])
+        row.axis = .horizontal
+        row.spacing = 12
+        row.alignment = .center
+        row.distribution = .equalSpacing
         return row
     }
 
@@ -151,31 +165,20 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         rainTimeField.text = String(settings.rainTime)
         lightningSlider.value = settings.lightningLevel
         lightningTimeField.text = String(settings.lightningTime)
+        automaticChangeSwitch.isOn = settings.automaticChange
         updateLabels()
     }
 
     @objc private func setClear() {
-        rainSlider.value = 0
-        lightningSlider.value = 0
-        rainTimeField.text = "12000"
-        lightningTimeField.text = "12000"
-        updateLabels()
+        apply(.clear(automaticChange: automaticChangeSwitch.isOn))
     }
 
     @objc private func setRain() {
-        rainSlider.value = 1
-        lightningSlider.value = 0
-        rainTimeField.text = "12000"
-        lightningTimeField.text = "12000"
-        updateLabels()
+        apply(.rain(duration: 12_000, intensity: 1, automaticChange: automaticChangeSwitch.isOn))
     }
 
     @objc private func setThunder() {
-        rainSlider.value = 1
-        lightningSlider.value = 1
-        rainTimeField.text = "12000"
-        lightningTimeField.text = "12000"
-        updateLabels()
+        apply(.thunder(duration: 12_000, intensity: 1, automaticChange: automaticChangeSwitch.isOn))
     }
 
     @objc private func levelChanged() { updateLabels() }
@@ -198,7 +201,8 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
             rainLevel: rainSlider.value,
             rainTime: Int32(rainTime64),
             lightningLevel: lightningSlider.value,
-            lightningTime: Int32(lightningTime64)
+            lightningTime: Int32(lightningTime64),
+            automaticChange: automaticChangeSwitch.isOn
         )
         let overlay = showBusy("保存天气数据…")
         workQueue.async { [weak self] in

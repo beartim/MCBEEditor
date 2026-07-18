@@ -1,12 +1,12 @@
 # iOS 移植状态
 
-- 当前版本：1.1.19 (129)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
-- 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、effect、fill、give、kill、kick、setblock、setworldspawn、spawnpoint、structure、summon、tickingarea。
+- 当前版本：1.0.0 (100)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
+- 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、effect、fill、give、kill、kick、setblock、setworldspawn、spawnpoint、structure、summon、teleport、tickingarea、weather。
 - clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度和不同 Y 偏移。命令目标支持 @s、@a、@e、UniqueID 与实体 identifier。
 - 地图打开时默认使用本地玩家所在维度与实际坐标；切换到玩家所在维度时默认回到玩家坐标，另外两个维度默认以方块坐标 (0,0) 为中心；命令输入行位于终端大屏上方并保留空格宽度和闪烁光标。
 - v1.1.14：成功命令结果改为绿色；`kill @e 1` 使用原子批量删除；未加载区块按维度实际 Version/LegacyVersion、Data3D/Data2D 与 SubChunk 格式补写并读回验证；`give`、`summon default` 和实体通用模板规则同步修正。
 - v1.1.15：旧版数字 ID 区块遇到现代方块状态时原子迁移为 Version/Data3D/v9；命令 NBT 支持全部标签类型和任意嵌套；`give` 增加第四个物品标签参数。
-- v1.1.19：新增 `setblock`、`setworldspawn`、`spawnpoint`、`structure save/load/delete` 与 `tickingarea add/delete/list`，支持结构模板和常加载区域直接存档操作。
+- 固定版 1.0.0：新增 `teleport`、`weather`，简化 `tickingarea add circle` 参数，并在天气栏目加入 `doWeatherCycle` 开关。
 - v1.1.18：新增 `effect give/clear`，支持状态效果数字 ID 映射、`ALL`、完整 ActiveEffects 标签与玩家/实体原子批量写入。
 - v1.1.17：按存档实际格式补建缺失 SubChunk（包括 LegacyVersion/Data2D + v8）；实体导入导出支持选中实体 JSON/多种 NBT 格式；命令终端取消初始提示并圆润化主页 NBT 图标。
 - v1.1.16：修复未加载区块生成回归检查误报；地图按玩家所在维度使用玩家坐标、其他维度使用 (0,0) 作为默认中心。
@@ -23,7 +23,7 @@
 
 ## 当前版本
 
-- 版本：1.1.19 (129)
+- 版本：1.0.0 (100)
 - Bundle ID：`com.wzn.blocktopograph`
 - 最低系统：iOS / iPadOS 13.0
 - 工具链：Xcode 15.4
