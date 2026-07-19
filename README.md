@@ -1,4 +1,4 @@
-# MCBEEditor iOS 13 rewrite
+# MCBEEditor iOS 13 Built from Scratch By ChatGPT
 
 ## 1.0.0 代码审计与优化
 
