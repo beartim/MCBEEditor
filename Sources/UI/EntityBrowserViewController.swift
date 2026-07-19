@@ -256,18 +256,22 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         radiusYRow.addArrangedSubview(radiusY)
         radiusYRow.addArrangedSubview(UIView())
 
-        let radiusRows = UIStackView(arrangedSubviews: [center, radiusValueRow, radiusYRow])
-        radiusRows.axis = .vertical
-        radiusRows.spacing = 6
-        radiusRows.setContentHuggingPriority(.required, for: .horizontal)
-        radiusRows.setContentCompressionResistancePriority(.required, for: .horizontal)
+        // The four action buttons align only with the “中心” and “半径” rows.
+        // Keep the optional Y controls on their own full-width row below so
+        // enabling them cannot stretch or vertically misalign the button grid.
+        let primaryRadiusRows = UIStackView(arrangedSubviews: [center, radiusValueRow])
+        primaryRadiusRows.axis = .vertical
+        primaryRadiusRows.spacing = 6
+        primaryRadiusRows.setContentHuggingPriority(.required, for: .horizontal)
+        primaryRadiusRows.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        let topArea = UIStackView(arrangedSubviews: [radiusRows, makeRangeActionGrid()])
+        let topArea = UIStackView(arrangedSubviews: [primaryRadiusRows, makeRangeActionGrid()])
         topArea.axis = .horizontal
         topArea.spacing = 14
         topArea.alignment = .fill
         topArea.distribution = .fill
         radiusPanel.addArrangedSubview(topArea)
+        radiusPanel.addArrangedSubview(radiusYRow)
     }
 
     private func makeRangeActionGrid() -> UIStackView {

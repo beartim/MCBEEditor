@@ -251,7 +251,13 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     if result.changedWorld {
                         self.session.notifyAfterDatabaseMutation()
                     }
-                    self.appendOutput(result.message, color: .systemGreen)
+                    if result.outputLines.isEmpty {
+                        self.appendOutput(result.message, color: .systemGreen)
+                    } else {
+                        for line in result.outputLines {
+                            self.appendOutput(line.text, color: self.outputColor(for: line.style))
+                        }
+                    }
                     self.setRunning(false)
                 }
             } catch {
@@ -271,6 +277,14 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         executeButton.setTitle(value ? "运行中…" : "运行", for: .normal)
         executeButton.isEnabled = !value && !currentInput.isEmpty
         navigationItem.prompt = value ? "正在修改世界，请勿同时打开 Minecraft" : nil
+    }
+
+    private func outputColor(for style: WorldCommandOutputStyle) -> UIColor {
+        switch style {
+        case .success, .entity: return .systemGreen
+        case .localPlayer: return .systemYellow
+        case .onlinePlayer: return .systemBlue
+        }
     }
 
     private func appendOutput(_ text: String, color: UIColor? = nil) {

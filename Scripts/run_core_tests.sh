@@ -232,6 +232,10 @@ struct Main {
         _ = try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10")
         _ = try WorldCommandParser.parse("teleport @a overworld 0 Auto 0")
         _ = try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0")
+        _ = try WorldCommandParser.parse("spread @e")
+        _ = try WorldCommandParser.parse("spread minecraft:cow")
+        _ = try WorldCommandParser.parse("daylock 0")
+        _ = try WorldCommandParser.parse("daylock 1")
         _ = try WorldCommandParser.parse("time query daytime")
         _ = try WorldCommandParser.parse("time query gametime")
         _ = try WorldCommandParser.parse("time query day")
@@ -308,6 +312,14 @@ struct Main {
         do {
             _ = try WorldCommandParser.parse("time set -1")
             preconditionFailure("time set must reject negative values")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("daylock 2")
+            preconditionFailure("daylock must accept only zero or one")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("spread @e extra")
+            preconditionFailure("spread must accept exactly one target")
         } catch {}
         do {
             _ = try WorldCommandParser.parse("time ceil dusk")
@@ -2353,9 +2365,10 @@ for expected in \
 done
 echo 'Numeric entity ID mapping, selected-position filters and chunk batch processing passed'
 
-# v0.11.2: zoom-driven dynamic chunk windows and coordinate-aware layered search/replace.
-grep -q 'private let maximumDynamicRadius = 31' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'dynamicRenderRadius(forZoomScale:' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'refreshForZoomDrivenRadiusIfNeeded()' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
-  echo 'error: zoom-driven dynamic chunk rendering is missing' >&2; exit 1;
+# v0.11.2 / v1.0.0: zoom-driven dynamic chunk windows, now capped at an
+# exact even-or-odd side length of 64×64 chunks.
+grep -q 'private let maximumDynamicSideChunks = 64' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'dynamicRenderSideChunks(forZoomScale:' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'refreshForZoomDrivenRadiusIfNeeded()' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'let rightChunks = sideChunks - leftChunks - 1' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
+  echo 'error: 64x64 zoom-driven dynamic chunk rendering is missing' >&2; exit 1;
 }
 grep -q 'private let searchScopeControl = UISegmentedControl(items: \["层 0", "层 1", "层 0 和层 1"\])' "$ROOT/Sources/UI/ChunkListViewController.swift" && grep -q 'private let changeLayer1Switch = UISwitch()' "$ROOT/Sources/UI/ChunkListViewController.swift" || {
   echo 'error: layered search scope or layer-1 replacement switch is missing' >&2; exit 1;
@@ -2368,6 +2381,25 @@ grep -q 'replacementLayer1.setEditorEnabled(false)' "$ROOT/Sources/UI/ChunkListV
 }
 
 echo 'Zoom-driven chunk expansion and coordinated layered replacement passed'
+
+# Fixed v1.0.0 follow-up: viewport state is kept only in memory per dimension,
+# the radius filter buttons occupy exactly the center/radius rows, and spread
+# output exposes the requested player colors.
+grep -qF 'private var dimensionViewportStates = [Int32: MapDimensionViewportState]()' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
+grep -qF 'rememberCurrentViewportState(for: activeDimension)' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
+grep -qF 'for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"]' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
+grep -qF 'dimensionViewportStates.removeAll()' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
+  echo 'error: session-only per-dimension map viewport state is incomplete' >&2; exit 1;
+}
+grep -qF 'let primaryRadiusRows = UIStackView(arrangedSubviews: [center, radiusValueRow])' "$ROOT/Sources/UI/EntityBrowserViewController.swift" && \
+grep -qF 'radiusPanel.addArrangedSubview(radiusYRow)' "$ROOT/Sources/UI/EntityBrowserViewController.swift" || {
+  echo 'error: radius-mode action buttons are not aligned to the center/radius rows' >&2; exit 1;
+}
+grep -qF 'case .localPlayer: return .systemYellow' "$ROOT/Sources/UI/WorldCommandViewController.swift" && \
+grep -qF 'case .onlinePlayer: return .systemBlue' "$ROOT/Sources/UI/WorldCommandViewController.swift" || {
+  echo 'error: spread player output colors are incomplete' >&2; exit 1;
+}
+echo 'Session-only map viewport, radius layout and spread output colors passed'
 
 # v0.11.3: persistent backup mechanisms are removed and the current chunk
 # exposes full-layer replacement tools without persistent backup.
@@ -3272,12 +3304,13 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
 
-# Fixed v1.0.0: world/structure/tickingarea plus teleport, time and weather commands.
-grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count == 8 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
-  echo 'error: world/structure/tickingarea/teleport/time/weather command support is incomplete' >&2
+# Fixed v1.0.0: world/structure/tickingarea plus teleport, spread, daylock,
+# time and weather commands.
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case spread(target:' "$COMMAND_PARSER" && grep -qF 'case dayLock(enabled:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count == 8 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'randomSpreadDestination' "$COMMAND_EXECUTOR" && grep -qF 'setTopLevelTag(name: "dodaylightcycle"' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+  echo 'error: world/structure/tickingarea/teleport/spread/daylock/time/weather command support is incomplete' >&2
   exit 1
 }
-echo 'World spawn, setblock, structure, tickingarea, teleport, time and weather command support passed'
+echo 'World spawn, setblock, structure, tickingarea, teleport, spread, daylock, time and weather command support passed'
 
 # v1.1.18: effect command with status-effect IDs and complete ActiveEffects NBT.
 grep -qF 'case effect(operation: CommandEffectOperation' "$COMMAND_PARSER" && grep -qF 'case "effect"' "$COMMAND_PARSER" && grep -qF 'effect give @a strength 12000 50' "$COMMAND_PARSER" && grep -qF 'effect clear @e ALL' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationEasy"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationNormal"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationHard"' "$COMMAND_PARSER" && ! grep -qF 'FactorCalculationData' "$COMMAND_PARSER" && grep -qF 'encodedUnmovedEntityReplacements' "$COMMAND_EXECUTOR" && grep -qF 'session.database().applyBatch(puts: allPuts' "$COMMAND_EXECUTOR" || {
@@ -3408,6 +3441,12 @@ struct EffectCommandTest {
             NBTNamedTag(name: "UniqueID", value: .long(1)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)]))
         ])))
+        let onlineKey = Data("player_server_5".utf8)
+        session.db.values[onlineKey] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "UniqueID", value: .long(5)),
+            NBTNamedTag(name: "DimensionId", value: .int(0)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(4), .float(64), .float(4)]))
+        ])))
         let entityKey = BedrockDBKey(
             position: ChunkPosition(x: 0, z: 0, dimension: 0),
             recordType: .entity,
@@ -3534,12 +3573,37 @@ struct EffectCommandTest {
         precondition(weatherRoot.intValue(named: "lightningTime") == 12000)
         precondition(weatherRoot.intValue(named: "doWeatherCycle") == 0)
 
+        let daylock = try executor.execute(try WorldCommandParser.parse("daylock 0"))
+        precondition(daylock.changedWorld)
+        let daylockRoot = try session.document.readLevelDat().document.root
+        precondition(daylockRoot.intValue(named: "dodaylightcycle") == 0)
+        precondition(daylockRoot.int64Value(namedAny: ["Time"]) == 12_000_000)
+
         let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
         precondition(setBlock.changedWorld)
         let sourceKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)
         let sourceRaw = try session.db.get(sourceKey)!
         let sourceSub = try BedrockSubChunk.decode(sourceRaw, keyYIndex: 0)
         precondition(sourceSub.storages[0].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:stone")
+
+        let spread = try executor.execute(try WorldCommandParser.parse("spread @e"))
+        precondition(spread.changedWorld)
+        precondition(spread.outputLines.count == 5)
+        switch spread.outputLines[0].style {
+        case .localPlayer: break
+        default: preconditionFailure("spread must display the local player first")
+        }
+        switch spread.outputLines[1].style {
+        case .onlinePlayer: break
+        default: preconditionFailure("spread must display online players after the local player")
+        }
+        precondition(spread.outputLines.allSatisfy { $0.text.contains("主世界") && $0.text.contains(" 71 ") })
+        let localAfterSpread = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        let onlineAfterSpread = try BedrockNBTCodec.decode(session.db.values[onlineKey]!).root
+        precondition(localAfterSpread.intValue(named: "DimensionId") == 0)
+        precondition(onlineAfterSpread.intValue(named: "DimensionId") == 0)
+        precondition(localAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue == 71)
+        precondition(onlineAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue == 71)
 
         let saved = try executor.execute(try WorldCommandParser.parse("structure save test:one overworld 0 0 0 0 0 0"))
         precondition(saved.changedWorld)
@@ -3561,8 +3625,12 @@ struct EffectCommandTest {
         precondition(listedArea.message.contains("[1]Base: 0 0 to 1 1"))
         let addedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea add circle overworld 3 -2 4 Circle 0"))
         precondition(addedCircle.changedWorld)
-        let listedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
-        precondition(listedCircle.message.contains("Circle: 3 -2 radius: 4"))
+        let overwrittenCircle = try executor.execute(try WorldCommandParser.parse("tickingarea add circle nether -8 7 2 Circle 1"))
+        precondition(overwrittenCircle.changedWorld)
+        precondition(overwrittenCircle.message.contains("覆盖"))
+        let listedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea list ALL"))
+        precondition(!listedCircle.message.contains("Circle: 3 -2 radius: 4"))
+        precondition(listedCircle.message.contains("Circle: -8 7 radius: 2"))
         let deletedArea = try executor.execute(try WorldCommandParser.parse("tickingarea delete ALL"))
         precondition(deletedArea.changedWorld)
 
@@ -3571,7 +3639,7 @@ struct EffectCommandTest {
 }
 SWIFT
 
-swiftc \
+swiftc -j 4 \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \

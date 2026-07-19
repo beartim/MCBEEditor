@@ -1,8 +1,34 @@
 import Foundation
 
+enum WorldCommandOutputStyle {
+    case success
+    case localPlayer
+    case onlinePlayer
+    case entity
+}
+
+struct WorldCommandOutputLine {
+    let text: String
+    let style: WorldCommandOutputStyle
+}
+
 struct WorldCommandExecutionResult {
     let message: String
     let changedWorld: Bool
+    let outputLines: [WorldCommandOutputLine]
+
+    init(message: String, changedWorld: Bool, outputLines: [WorldCommandOutputLine] = []) {
+        self.message = message
+        self.changedWorld = changedWorld
+        self.outputLines = outputLines
+    }
+}
+
+private struct SpreadDestination {
+    let dimension: Int32
+    let x: Int64
+    let y: Int32
+    let z: Int64
 }
 
 private struct ResolvedCommandTargets {
@@ -80,6 +106,10 @@ final class WorldCommandExecutor {
                 message: try teleport(target: target, dimension: dimension, x: x, y: y, z: z),
                 changedWorld: true
             )
+        case .spread(let target):
+            return try spread(target: target)
+        case .dayLock(let enabled):
+            return WorldCommandExecutionResult(message: try setDayLock(enabled), changedWorld: true)
         case .weather(let settings):
             return WorldCommandExecutionResult(message: try setWeather(settings), changedWorld: true)
         case .time(let operation):
@@ -205,18 +235,25 @@ final class WorldCommandExecutor {
     }
 
     private func automaticTeleportY(x: Int64, z: Int64, dimension: Int32) throws -> Int32 {
+        let renderer = ChunkSurfaceRenderer(database: try session.database())
+        return try nonAirTeleportY(x: x, z: z, dimension: dimension, renderer: renderer) ?? 63
+    }
+
+    private func nonAirTeleportY(
+        x: Int64,
+        z: Int64,
+        dimension: Int32,
+        renderer: ChunkSurfaceRenderer
+    ) throws -> Int32? {
         let minimum = Int64(Int32.min) * 16
         let maximum = Int64(Int32.max) * 16 + 15
         guard (minimum...maximum).contains(x), (minimum...maximum).contains(z) else {
             throw BlocktopographError.malformedData("Auto 的 X/Z 超出 Bedrock Int32 区块坐标范围")
         }
-        let renderer = ChunkSurfaceRenderer(database: try session.database())
         let column = try renderer.blockColumn(blockX: x, blockZ: z, dimension: dimension)
         guard let highest = column.blocks.first(where: { block in
             block.isGenerated && block.layers.contains(where: { !$0.isAir })
-        }) else {
-            return 63
-        }
+        }) else { return nil }
         guard highest.y < Int32.max else {
             throw BlocktopographError.malformedData("最高非空气方块上方的 Y 坐标溢出")
         }
@@ -248,6 +285,149 @@ final class WorldCommandExecutor {
             in: &tags
         )
         return NBTDocument(rootName: source.rootName, root: .compound(tags))
+    }
+
+    private func spread(target: CommandTarget) throws -> WorldCommandExecutionResult {
+        let targets = try resolveTargets(target)
+        let supportedDimensions: Set<Int32> = [0, 1, 2]
+        let summaries = try BedrockChunkStore(session: session).listChunks().filter {
+            $0.subChunkCount > 0 && supportedDimensions.contains($0.position.dimension)
+        }
+        let grouped = Dictionary(grouping: summaries, by: { $0.position.dimension })
+            .mapValues { $0.map(\.position) }
+        let dimensions = grouped.keys.sorted()
+        guard !dimensions.isEmpty else {
+            throw BlocktopographError.unsupported("世界中没有包含方块数据的已加载区块，无法执行 spread。")
+        }
+
+        let renderer = ChunkSurfaceRenderer(database: try session.database())
+        var generator = SystemRandomNumberGenerator()
+        var lines = [WorldCommandOutputLine]()
+        var playerPuts = [(key: Data, value: Data)]()
+        playerPuts.reserveCapacity(targets.players.count)
+
+        // PlayerNBTStore already sorts the local player before online players.
+        for record in targets.players {
+            let destination = try randomSpreadDestination(
+                groupedChunks: grouped,
+                dimensions: dimensions,
+                renderer: renderer,
+                generator: &generator
+            )
+            let position = BedrockWorldObjectPosition(
+                x: Double(destination.x), y: Double(destination.y), z: Double(destination.z)
+            )
+            let document = try teleportedDocument(
+                record.document,
+                position: position,
+                dimension: destination.dimension
+            )
+            playerPuts.append((
+                key: record.key,
+                value: try BedrockNBTCodec.encode(document, encoding: .littleEndian)
+            ))
+            let style: WorldCommandOutputStyle = isLocalPlayer(record) ? .localPlayer : .onlinePlayer
+            lines.append(WorldCommandOutputLine(
+                text: spreadOutputLine(identifier: "minecraft:player", destination: destination),
+                style: style
+            ))
+        }
+        if !playerPuts.isEmpty {
+            try session.database().applyBatch(puts: playerPuts, deletes: [], sync: true)
+        }
+
+        let entityStore = BedrockWorldObjectNBTStore(session: session)
+        for object in targets.entities {
+            let destination = try randomSpreadDestination(
+                groupedChunks: grouped,
+                dimensions: dimensions,
+                renderer: renderer,
+                generator: &generator
+            )
+            let position = BedrockWorldObjectPosition(
+                x: Double(destination.x), y: Double(destination.y), z: Double(destination.z)
+            )
+            let document = try teleportedDocument(
+                object.document,
+                position: position,
+                dimension: destination.dimension
+            )
+            _ = try entityStore.save(object: object, document: document)
+            lines.append(WorldCommandOutputLine(
+                text: spreadOutputLine(identifier: selectableIdentifier(object), destination: destination),
+                style: .entity
+            ))
+        }
+
+        return WorldCommandExecutionResult(
+            message: lines.map(\.text).joined(separator: "\n"),
+            changedWorld: true,
+            outputLines: lines
+        )
+    }
+
+    private func randomSpreadDestination<R: RandomNumberGenerator>(
+        groupedChunks: [Int32: [ChunkPosition]],
+        dimensions: [Int32],
+        renderer: ChunkSurfaceRenderer,
+        generator: inout R
+    ) throws -> SpreadDestination {
+        guard let firstDimension = dimensions.randomElement(using: &generator) else {
+            throw BlocktopographError.unsupported("没有可用于 spread 的维度。")
+        }
+        var dimensionOrder = [firstDimension]
+        dimensionOrder.append(contentsOf: dimensions.filter { $0 != firstDimension }.shuffled(using: &generator))
+
+        for dimension in dimensionOrder {
+            guard let chunks = groupedChunks[dimension], !chunks.isEmpty else { continue }
+            for chunk in chunks.shuffled(using: &generator) {
+                var columns = Array(0..<256)
+                columns.shuffle(using: &generator)
+                for columnIndex in columns {
+                    let localX = columnIndex & 15
+                    let localZ = columnIndex >> 4
+                    let x = MapCoordinate.blockOrigin(ofChunk: chunk.x) + Int64(localX)
+                    let z = MapCoordinate.blockOrigin(ofChunk: chunk.z) + Int64(localZ)
+                    do {
+                        if let y = try nonAirTeleportY(
+                            x: x,
+                            z: z,
+                            dimension: dimension,
+                            renderer: renderer
+                        ) {
+                            return SpreadDestination(dimension: dimension, x: x, y: y, z: z)
+                        }
+                    } catch {
+                        // A damaged column must not prevent trying the remaining
+                        // loaded chunks and coordinates.
+                        continue
+                    }
+                }
+            }
+        }
+        throw BlocktopographError.unsupported("所有已加载区块都没有可用的非空气方块列，无法执行 spread。")
+    }
+
+    private func spreadOutputLine(identifier: String, destination: SpreadDestination) -> String {
+        let dimensionName: String
+        switch destination.dimension {
+        case 0: dimensionName = "主世界"
+        case 1: dimensionName = "下界"
+        case 2: dimensionName = "末地"
+        default: dimensionName = "维度 \(destination.dimension)"
+        }
+        return "\(identifier) \(dimensionName) \(destination.x) \(destination.y) \(destination.z)"
+    }
+
+    private func setDayLock(_ enabled: Bool) throws -> String {
+        var file = try session.document.readLevelDat()
+        guard case .compound(var tags) = file.document.root else {
+            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+        }
+        setTopLevelTag(name: "dodaylightcycle", value: .byte(enabled ? 1 : 0), in: &tags)
+        file.document.root = .compound(tags)
+        try session.document.writeLevelDat(file)
+        return "daylock 完成：dodaylightcycle=\(enabled ? 1 : 0)"
     }
 
     private func setWeather(_ command: CommandWeatherSettings) throws -> String {
@@ -464,12 +644,13 @@ final class WorldCommandExecutor {
                 name: spec.name,
                 preload: spec.preload
             ).normalized
-            guard !records.contains(where: { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }) else {
-                throw BlocktopographError.malformedData("已存在同名常加载区域：\(area.name)")
-            }
+            let removedCount = records.count
+            records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }
+            let replaced = records.count != removedCount
             records.append(try store.makeRecord(area: area))
             try store.save(records)
-            return ("tickingarea add 完成：\(tickingAreaLine(area, index: records.count))", true)
+            let action = replaced ? "覆盖" : "创建"
+            return ("tickingarea add 完成：已\(action) \(tickingAreaLine(area, index: records.count))", true)
         case .delete(let name):
             if let name = name {
                 let originalCount = records.count

@@ -25,6 +25,12 @@ private struct MapViewportAnchor {
     let zoomScale: CGFloat
 }
 
+private struct MapDimensionViewportState {
+    let centerX: Int32
+    let centerZ: Int32
+    let anchor: MapViewportAnchor
+}
+
 private enum MapSpawnKind: Equatable {
     case world
     case player
@@ -593,12 +599,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private let panMarginFactor: CGFloat = 0.75
     // The render window is derived entirely from the current viewport and
     // zoom level. A two-chunk border remains preloaded around the visible
-    // area. 63×63 is the safe image/memory ceiling for the current monolithic
-    // renderer (8064 px at the 8× source scale); panning continues indefinitely
-    // by recentering.
-    private let minimumDynamicRadius = 1
+    // area. Dynamic loading is capped at exactly 64×64 chunks; panning
+    // continues indefinitely by recentering the in-memory window.
+    private let minimumDynamicSideChunks = 3
     private let dynamicPreloadBorderChunks = 2
-    private let maximumDynamicRadius = 31
+    private let maximumDynamicSideChunks = 64
     private let xField = UITextField()
     private let zField = UITextField()
     private let coordinateModeControl = UISegmentedControl(items: ["区块坐标", "方块坐标"])
@@ -663,9 +668,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private var lastWorldObjectHits: [MapWorldObjectHit] = []
     private var lastHardcodedSpawnerHits: [MapHardcodedSpawnerHit] = []
     private var lastVillageHits: [MapVillageHit] = []
-    private var renderedRadius = 2
+    private var renderedSideChunks = 5
     private var lastCenterX: Int32 = 0
     private var lastCenterZ: Int32 = 0
+    private var activeDimension: Int32 = BedrockDimension.overworld.rawValue
+    private var dimensionViewportStates = [Int32: MapDimensionViewportState]()
+    private var renderedLeftChunks: Int { max(0, (renderedSideChunks - 1) / 2) }
+    private var renderedRightChunks: Int { max(0, renderedSideChunks - renderedLeftChunks - 1) }
+    private var renderedScanRadius: Int { max(renderedLeftChunks, renderedRightChunks) }
+    private var renderedStartChunkX: Int32 { lastCenterX - Int32(renderedLeftChunks) }
+    private var renderedStartChunkZ: Int32 { lastCenterZ - Int32(renderedLeftChunks) }
     private var currentMode: MapRenderMode = .surface
     private var renderGeneration = 0
     private var isApplyingViewport = false
@@ -756,7 +768,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             object: session
         )
         loadSpawn()
-        if !restoreMapState() { jumpToDefaultCenter() }
+        _ = restoreMapState()
+        jumpToDefaultCenter()
     }
 
     deinit {
@@ -798,6 +811,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         selectedBlock = nil
         selectedChunk = nil
         selectedRegion = nil
+        dimensionViewportStates.removeAll()
+        activeDimension = BedrockDimension.overworld.rawValue
         session.clearRememberedSelections()
         blockDetailPanel.clearBlock()
         setSelectionMode(false)
@@ -1206,6 +1221,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
            let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
             dimensionControl.selectedSegmentIndex = dimensionIndex
+            activeDimension = local.dimension
             renderDefaultCenter(
                 for: local.dimension,
                 zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
@@ -1215,6 +1231,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
 
         dimensionControl.selectedSegmentIndex = 0
+        activeDimension = BedrockDimension.overworld.rawValue
         renderDefaultCenter(
             for: BedrockDimension.overworld.rawValue,
             zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
@@ -1236,17 +1253,38 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     @objc private func dimensionChanged() {
+        rememberCurrentViewportState(for: activeDimension)
         setSelectionMode(false)
         selectedBlock = nil
         blockDetailPanel.clearBlock()
         let newDimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
         if selectedChunk?.dimension != newDimension { selectedChunk = nil }
-        renderDefaultCenter(
-            for: newDimension,
-            zoomScale: max(scrollView.zoomScale, CGFloat(0.0001)),
-            reason: "切换维度",
-            showOverlay: true
-        )
+        activeDimension = newDimension
+
+        if let state = dimensionViewportStates[newDimension] {
+            render(
+                centerX: state.centerX,
+                centerZ: state.centerZ,
+                anchor: state.anchor,
+                reason: "切换维度",
+                showOverlay: true
+            )
+        } else {
+            coordinateModeControl.selectedSegmentIndex = 1
+            xField.text = "0"
+            zField.text = "0"
+            render(
+                centerX: 0,
+                centerZ: 0,
+                anchor: MapViewportAnchor(
+                    blockX: 0.5,
+                    blockZ: 0.5,
+                    zoomScale: max(scrollView.zoomScale, CGFloat(0.0001))
+                ),
+                reason: "首次进入维度原点",
+                showOverlay: true
+            )
+        }
     }
 
     @objc private func autoRenderChanged() {
@@ -1340,10 +1378,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         activeRenderToken?.cancel()
 
         let requestedZoom = max(anchor?.zoomScale ?? scrollView.zoomScale, 0.0001)
-        let radius = dynamicRenderRadius(forZoomScale: requestedZoom)
+        let sideChunks = dynamicRenderSideChunks(forZoomScale: requestedZoom)
+        let leftChunks = (sideChunks - 1) / 2
+        let rightChunks = sideChunks - leftChunks - 1
+        let scanRadius = max(leftChunks, rightChunks)
         let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
+        if dimension != activeDimension {
+            rememberCurrentViewportState(for: activeDimension)
+            activeDimension = dimension
+        }
         let mode = MapRenderMode.allCases[modeControl.selectedSegmentIndex]
-        let sideChunks = radius * 2 + 1
         let generation = renderGeneration + 1
         renderGeneration = generation
         let token = MapRenderToken()
@@ -1392,7 +1436,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         centerX: centerX,
                         centerZ: centerZ,
                         dimension: dimension,
-                        radius: radius,
+                        radius: scanRadius,
                         includeEntities: true,
                         includeBlockEntities: false,
                         maximumObjects: 20_000,
@@ -1415,7 +1459,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         centerX: centerX,
                         centerZ: centerZ,
                         dimension: dimension,
-                        radius: radius,
+                        radius: scanRadius,
                         includeEntities: false,
                         includeBlockEntities: true,
                         shouldCancel: { token.isCancelled }
@@ -1430,7 +1474,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         centerX: centerX,
                         centerZ: centerZ,
                         dimension: dimension,
-                        radius: radius,
+                        sideChunks: sideChunks,
+                        leftChunks: leftChunks,
                         shouldCancel: { token.isCancelled }
                     )
                     : (hits: [MapHardcodedSpawnerHit](), diagnostics: [String]())
@@ -1445,7 +1490,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     centerX: centerX,
                     centerZ: centerZ,
                     dimension: dimension,
-                    radius: radius,
+                    sideChunks: sideChunks,
+                    leftChunks: leftChunks,
                     mode: mode,
                     drawGrid: drawGrid,
                     spawnCoordinates: spawns,
@@ -1475,14 +1521,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     self.lastVillageHits = result.villageHits
                     self.lastCenterX = centerX
                     self.lastCenterZ = centerZ
-                    self.renderedRadius = radius
+                    self.renderedSideChunks = sideChunks
                     self.currentMode = mode
+                    let rememberedAnchor = anchor ?? MapViewportAnchor(
+                        blockX: Double(MapCoordinate.blockOrigin(ofChunk: centerX)) + 8,
+                        blockZ: Double(MapCoordinate.blockOrigin(ofChunk: centerZ)) + 8,
+                        zoomScale: requestedZoom
+                    )
+                    self.dimensionViewportStates[dimension] = MapDimensionViewportState(
+                        centerX: centerX,
+                        centerZ: centerZ,
+                        anchor: rememberedAnchor
+                    )
                     self.shareButton.isEnabled = true
                     self.updateCoordinateFields(centerX: centerX, centerZ: centerZ, anchor: anchor)
                     self.applyViewport(anchor: anchor)
                     self.updateObjectOverlay()
                     let diagnosticHint = result.errors.isEmpty ? "" : "；点按状态查看错误"
-                    let cappedHint = radius == self.maximumDynamicRadius ? "；已达到当前设备安全渲染上限" : ""
+                    let cappedHint = sideChunks == self.maximumDynamicSideChunks ? "；已达到 64×64 区块渲染上限" : ""
                     let layerDetail: String
                     switch mode {
                     case .tickingAreas:
@@ -1499,19 +1555,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     }
                 }
 
-                // Render one extra border into the cache. The visible result is
-                // already delivered; this only reduces work after the next pan.
-                if mode != .tickingAreas && mode != .slime {
-                    self.prefetchBorder(
-                        renderer: renderer,
-                        centerX: centerX,
-                        centerZ: centerZ,
-                        dimension: dimension,
-                        radius: radius + 1,
-                        mode: mode,
-                        shouldCancel: { token.isCancelled || generation != self.renderGeneration }
-                    )
-                }
+                // The viewport already includes a preload border. Avoid an
+                // additional hidden border so no render pass exceeds 64×64 chunks.
             } catch is MapRenderCancelled {
                 DispatchQueue.main.async {
                     overlay?.removeFromSuperview()
@@ -1542,13 +1587,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         centerX: Int32,
         centerZ: Int32,
         dimension: Int32,
-        radius: Int,
+        sideChunks: Int,
+        leftChunks: Int,
         shouldCancel: () -> Bool
     ) throws -> (hits: [MapHardcodedSpawnerHit], diagnostics: [String]) {
         var hits = [MapHardcodedSpawnerHit]()
         var diagnostics = [String]()
-        for dz in -radius...radius {
-            for dx in -radius...radius {
+        let rightChunks = sideChunks - leftChunks - 1
+        for dz in -leftChunks...rightChunks {
+            for dx in -leftChunks...rightChunks {
                 if shouldCancel() { throw MapRenderCancelled() }
                 let position = ChunkPosition(
                     x: centerX + Int32(dx),
@@ -1612,7 +1659,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         centerX: Int32,
         centerZ: Int32,
         dimension: Int32,
-        radius: Int,
+        sideChunks: Int,
+        leftChunks: Int,
         mode: MapRenderMode,
         drawGrid: Bool,
         spawnCoordinates: [MapSpawnCoordinate],
@@ -1625,7 +1673,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         additionalErrors: [String],
         shouldCancel: () -> Bool
     ) throws -> RenderedMapRegion {
-        let sideChunks = radius * 2 + 1
+        let rightChunks = sideChunks - leftChunks - 1
         let sideBlocks = sideChunks * 16
         var names = Array(repeating: "minecraft:air", count: sideBlocks * sideBlocks)
         var heights = Array(repeating: Int16.min, count: sideBlocks * sideBlocks)
@@ -1636,9 +1684,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         var cacheMisses = 0
         var visibleTickingChunkCount = 0
 
-        // Center-first order gives the cache and later prefetching the most
-        // useful chunks first, while the final region remains deterministic.
-        let offsets = (-radius...radius).flatMap { dz in (-radius...radius).map { dx in (dx, dz) } }
+        // Center-first order gives the cache the most useful chunks first,
+        // while the final region remains deterministic for odd or even sides.
+        let offsets = (-leftChunks...rightChunks).flatMap { dz in
+            (-leftChunks...rightChunks).map { dx in (dx, dz) }
+        }
             .sorted { lhs, rhs in
                 let left = lhs.0 * lhs.0 + lhs.1 * lhs.1
                 let right = rhs.0 * rhs.0 + rhs.1 * rhs.1
@@ -1649,8 +1699,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             if shouldCancel() { throw MapRenderCancelled() }
             let chunkX = centerX + Int32(dx)
             let chunkZ = centerZ + Int32(dz)
-            let chunkColumn = dx + radius
-            let chunkRow = dz + radius
+            let chunkColumn = dx + leftChunks
+            let chunkRow = dz + leftChunks
             let originX = chunkColumn * 16
             let originZ = chunkRow * 16
 
@@ -1686,8 +1736,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             }
         }
 
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: centerX - Int32(radius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ - Int32(radius))
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: centerX - Int32(leftChunks))
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ - Int32(leftChunks))
         let endBlockX = startBlockX + Int64(sideBlocks)
         let endBlockZ = startBlockZ + Int64(sideBlocks)
         let spawnHits = spawnCoordinates.compactMap { spawn -> MapSpawnHit? in
@@ -2045,8 +2095,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             objectOverlayView.clear()
             return
         }
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius))
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX)
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ)
         let poiLinks = showVillages && showEntities
             ? villagePOILinks(villages: lastVillageHits, worldObjects: lastWorldObjectHits)
             : []
@@ -2065,7 +2115,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             currentDimension: BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue,
             startBlockX: startBlockX,
             startBlockZ: startBlockZ,
-            sideBlocks: (renderedRadius * 2 + 1) * 16,
+            sideBlocks: renderedSideChunks * 16,
             imageView: imageView
         )
     }
@@ -2101,7 +2151,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func currentViewportAnchor() -> MapViewportAnchor? {
         guard lastRenderedImage != nil, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
-        let sideBlocks = Double((renderedRadius * 2 + 1) * 16)
+        let sideBlocks = Double(renderedSideChunks * 16)
         let zoom = max(scrollView.zoomScale, 0.0001)
         let centerContentX = scrollView.contentOffset.x + scrollView.bounds.width / 2
         let centerContentZ = scrollView.contentOffset.y + scrollView.bounds.height / 2
@@ -2109,8 +2159,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let pointZ = centerContentZ / zoom
         let localBlockX = Double(pointX / imageView.bounds.width) * sideBlocks
         let localBlockZ = Double(pointZ / imageView.bounds.height) * sideBlocks
-        let startChunkX = lastCenterX - Int32(renderedRadius)
-        let startChunkZ = lastCenterZ - Int32(renderedRadius)
+        let startChunkX = renderedStartChunkX
+        let startChunkZ = renderedStartChunkZ
         return MapViewportAnchor(
             blockX: Double(MapCoordinate.blockOrigin(ofChunk: startChunkX)) + localBlockX,
             blockZ: Double(MapCoordinate.blockOrigin(ofChunk: startChunkZ)) + localBlockZ,
@@ -2136,9 +2186,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         scrollView.setZoomScale(targetZoom, animated: false)
         view.layoutIfNeeded()
 
-        let sideBlocks = Double((renderedRadius * 2 + 1) * 16)
-        let startChunkX = lastCenterX - Int32(renderedRadius)
-        let startChunkZ = lastCenterZ - Int32(renderedRadius)
+        let sideBlocks = Double(renderedSideChunks * 16)
+        let startChunkX = renderedStartChunkX
+        let startChunkZ = renderedStartChunkZ
         let targetX = anchor?.blockX ?? Double(MapCoordinate.blockOrigin(ofChunk: lastCenterX)) + 8
         let targetZ = anchor?.blockZ ?? Double(MapCoordinate.blockOrigin(ofChunk: lastCenterZ)) + 8
         let localX = (targetX - Double(MapCoordinate.blockOrigin(ofChunk: startChunkX))) / sideBlocks
@@ -2185,22 +2235,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private func autoRenderAtViewportCenter() {
         guard autoRenderSwitch.isOn, !isApplyingViewport, !isZooming, let anchor = currentViewportAnchor() else { return }
         let center = chunkCenter(for: anchor)
-        let requiredRadius = dynamicRenderRadius(forZoomScale: anchor.zoomScale)
+        let requiredSideChunks = dynamicRenderSideChunks(forZoomScale: anchor.zoomScale)
         let centerChanged = center.0 != lastCenterX || center.1 != lastCenterZ
-        let radiusChanged = requiredRadius != renderedRadius
-        guard centerChanged || radiusChanged else { return }
+        let sideChanged = requiredSideChunks != renderedSideChunks
+        guard centerChanged || sideChanged else { return }
         updateCoordinateFields(centerX: center.0, centerZ: center.1, anchor: anchor)
         let reason = centerChanged ? "移动续载" : "缩放续载"
         render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: reason, showOverlay: false)
     }
 
     private func mapPosition(at point: CGPoint) -> (localX: Int, localZ: Int, absoluteX: Int64, absoluteZ: Int64)? {
-        let side = (renderedRadius * 2 + 1) * 16
+        let side = renderedSideChunks * 16
         guard !lastBlockNames.isEmpty, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
         let localX = min(side - 1, max(0, Int(point.x / imageView.bounds.width * CGFloat(side))))
         let localZ = min(side - 1, max(0, Int(point.y / imageView.bounds.height * CGFloat(side))))
-        let startChunkX = lastCenterX - Int32(renderedRadius)
-        let startChunkZ = lastCenterZ - Int32(renderedRadius)
+        let startChunkX = renderedStartChunkX
+        let startChunkZ = renderedStartChunkZ
         return (
             localX,
             localZ,
@@ -2424,13 +2474,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
               imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
         let first = selectionOverlayView.convert(CGPoint(x: visibleRect.minX, y: visibleRect.minY), to: imageView)
         let second = selectionOverlayView.convert(CGPoint(x: visibleRect.maxX, y: visibleRect.maxY), to: imageView)
-        let side = CGFloat((renderedRadius * 2 + 1) * 16)
+        let side = CGFloat(renderedSideChunks * 16)
         let minLocalX = max(0, min(side, min(first.x, second.x) / imageView.bounds.width * side))
         let maxLocalX = max(0, min(side, max(first.x, second.x) / imageView.bounds.width * side))
         let minLocalZ = max(0, min(side, min(first.y, second.y) / imageView.bounds.height * side))
         let maxLocalZ = max(0, min(side, max(first.y, second.y) / imageView.bounds.height * side))
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius))
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX)
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ)
         let minX = startBlockX + Int64(floor(minLocalX))
         let maxX = startBlockX + Int64(max(0, Int(ceil(maxLocalX)) - 1))
         let minZ = startBlockZ + Int64(floor(minLocalZ))
@@ -2441,9 +2491,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func overlayRect(for region: BedrockMapRegion) -> CGRect? {
         guard imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
-        let side = CGFloat((renderedRadius * 2 + 1) * 16)
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius))
+        let side = CGFloat(renderedSideChunks * 16)
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX)
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ)
         let x0 = CGFloat(region.minimumX - startBlockX) / side * imageView.bounds.width
         let x1 = CGFloat(region.maximumX - startBlockX + 1) / side * imageView.bounds.width
         let z0 = CGFloat(region.minimumZ - startBlockZ) / side * imageView.bounds.height
@@ -2475,10 +2525,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private var renderedMapRegion: BedrockMapRegion {
         let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
         return BedrockMapRegion(
-            minimumX: MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius)),
-            minimumZ: MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius)),
-            maximumX: MapCoordinate.blockOrigin(ofChunk: lastCenterX + Int32(renderedRadius)) + 15,
-            maximumZ: MapCoordinate.blockOrigin(ofChunk: lastCenterZ + Int32(renderedRadius)) + 15,
+            minimumX: MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX),
+            minimumZ: MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ),
+            maximumX: MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX + Int32(renderedSideChunks - 1)) + 15,
+            maximumZ: MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ + Int32(renderedSideChunks - 1)) + 15,
             dimension: dimension
         )
     }
@@ -2511,7 +2561,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             return
         }
         let imageFrame = imageView.convert(imageView.bounds, to: selectionOverlayView)
-        let side = CGFloat((renderedRadius * 2 + 1) * 16)
+        let side = CGFloat(renderedSideChunks * 16)
         guard imageFrame.width > 0, imageFrame.height > 0 else { return }
         let deltaX = Int64((translation.x / imageFrame.width * side).rounded())
         let deltaZ = Int64((translation.y / imageFrame.height * side).rounded())
@@ -2793,7 +2843,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
 
         clearSelectedWorldObject()
-        let side = (renderedRadius * 2 + 1) * 16
+        let side = renderedSideChunks * 16
         let index = position.localZ * side + position.localX
         let initialY: Int32? = lastBlockHeights.indices.contains(index) && lastBlockHeights[index] != Int16.min
             ? Int32(lastBlockHeights[index])
@@ -2844,9 +2894,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func pointOfInterestHit(at imagePoint: CGPoint) -> MapVillagePOIHit? {
         guard showVillages, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
-        let sideBlocks = CGFloat((renderedRadius * 2 + 1) * 16)
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius))
+        let sideBlocks = CGFloat(renderedSideChunks * 16)
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX)
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ)
         let tap = imageView.convert(imagePoint, to: objectOverlayView)
         var candidates = [(hit: MapVillagePOIHit, distance: CGFloat)]()
         for village in lastVillageHits {
@@ -2873,7 +2923,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func spawnPointHits(at imagePoint: CGPoint) -> [MapSpawnHit] {
         guard showSpawnPoints, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return [] }
-        let sideBlocks = CGFloat((renderedRadius * 2 + 1) * 16)
+        let sideBlocks = CGFloat(renderedSideChunks * 16)
         let tap = imageView.convert(imagePoint, to: objectOverlayView)
         return lastSpawnHits.compactMap { hit -> (MapSpawnHit, CGFloat)? in
             let candidateInImage = CGPoint(
@@ -2974,9 +3024,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func villageCenterHit(at imagePoint: CGPoint) -> MapVillageHit? {
         guard showVillages, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
-        let sideBlocks = CGFloat((renderedRadius * 2 + 1) * 16)
-        let startBlockX = MapCoordinate.blockOrigin(ofChunk: lastCenterX - Int32(renderedRadius))
-        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ - Int32(renderedRadius))
+        let sideBlocks = CGFloat(renderedSideChunks * 16)
+        let startBlockX = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkX)
+        let startBlockZ = MapCoordinate.blockOrigin(ofChunk: renderedStartChunkZ)
         let tap = imageView.convert(imagePoint, to: objectOverlayView)
         var candidates = [(hit: MapVillageHit, distance: CGFloat)]()
         for hit in lastVillageHits {
@@ -3570,29 +3620,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         present(alert, animated: true)
     }
 
-    /// Calculates an odd chunk window from the actual viewport and zoom.
-    /// No fixed N×N selector is used; the map always loads enough chunks for
-    /// the visible area plus the preload border.
-    private func dynamicRenderRadius(forZoomScale zoomScale: CGFloat) -> Int {
-        let minimumRadius = minimumDynamicRadius
+    /// Calculates the dynamic chunk window from the actual viewport and zoom.
+    /// The result may be even and is capped at exactly 64×64 chunks.
+    private func dynamicRenderSideChunks(forZoomScale zoomScale: CGFloat) -> Int {
         guard scrollView.bounds.width > 0, scrollView.bounds.height > 0 else {
-            return minimumRadius
+            return minimumDynamicSideChunks
         }
         let pointsPerBlock = max(0.01, basePointsPerBlock * max(zoomScale, 0.0001))
         let visibleBlocksWide = Int(ceil(scrollView.bounds.width / pointsPerBlock))
         let visibleBlocksHigh = Int(ceil(scrollView.bounds.height / pointsPerBlock))
         let visibleChunks = Int(ceil(Double(max(visibleBlocksWide, visibleBlocksHigh)) / 16.0))
-        let minimumSide = minimumRadius * 2 + 1
-        var desiredSide = max(minimumSide, visibleChunks + dynamicPreloadBorderChunks * 2)
-        if desiredSide.isMultiple(of: 2) { desiredSide += 1 }
-        let desiredRadius = max(minimumRadius, (desiredSide - 1) / 2)
-        return min(maximumDynamicRadius, desiredRadius)
+        let desiredSide = max(minimumDynamicSideChunks, visibleChunks + dynamicPreloadBorderChunks * 2)
+        return min(maximumDynamicSideChunks, desiredSide)
     }
 
     private func refreshForZoomDrivenRadiusIfNeeded() {
         guard !isRendering, !isApplyingViewport, let anchor = currentViewportAnchor() else { return }
-        let requiredRadius = dynamicRenderRadius(forZoomScale: anchor.zoomScale)
-        guard requiredRadius != renderedRadius else {
+        let requiredSideChunks = dynamicRenderSideChunks(forZoomScale: anchor.zoomScale)
+        guard requiredSideChunks != renderedSideChunks else {
             scheduleAutoRender(immediate: true)
             return
         }
@@ -3621,7 +3666,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private func setZoomScale(_ scale: CGFloat, animated: Bool) {
         let target = pixelAlignedZoomScale(scale)
         scrollView.setZoomScale(target, animated: animated)
-        UserDefaults.standard.set(Double(target), forKey: mapStatePrefix + "zoomScale")
         showZoomHUD(autoHide: true)
         saveMapState()
     }
@@ -3632,7 +3676,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let height = scrollView.bounds.height / target
         let rect = CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
         scrollView.zoom(to: rect, animated: animated)
-        UserDefaults.standard.set(Double(target), forKey: mapStatePrefix + "zoomScale")
         showZoomHUD(autoHide: true)
         saveMapState()
     }
@@ -3896,7 +3939,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let drawGrid = gridSwitch.isOn
         let centerX = lastCenterX
         let centerZ = lastCenterZ
-        let radius = renderedRadius
+        let sideChunks = renderedSideChunks
+        let leftChunks = renderedLeftChunks
+        let scanRadius = renderedScanRadius
         let selectedSpawns = layers.spawnPoints ? spawnCoordinates.filter { $0.dimension == dimension } : []
 
         renderQueue.async { [weak self] in
@@ -3927,7 +3972,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                             centerX: centerX,
                             centerZ: centerZ,
                             dimension: dimension,
-                            radius: radius,
+                            radius: scanRadius,
                             includeEntities: layers.entities,
                             includeBlockEntities: layers.blockEntities,
                             maximumObjects: 100_000
@@ -3944,7 +3989,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                             centerX: centerX,
                             centerZ: centerZ,
                             dimension: dimension,
-                            radius: radius,
+                            sideChunks: sideChunks,
+                            leftChunks: leftChunks,
                             shouldCancel: { false }
                         )
                         : (hits: [MapHardcodedSpawnerHit](), diagnostics: [String]())
@@ -3953,7 +3999,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         centerX: centerX,
                         centerZ: centerZ,
                         dimension: dimension,
-                        radius: radius,
+                        sideChunks: sideChunks,
+                        leftChunks: leftChunks,
                         mode: mode,
                         drawGrid: drawGrid,
                         spawnCoordinates: selectedSpawns,
@@ -3966,8 +4013,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         additionalErrors: spawnerScan.diagnostics,
                         shouldCancel: { false }
                     )
-                    let startBlockX = MapCoordinate.blockOrigin(ofChunk: centerX - Int32(radius))
-                    let startBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ - Int32(radius))
+                    let startBlockX = MapCoordinate.blockOrigin(ofChunk: centerX - Int32(leftChunks))
+                    let startBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ - Int32(leftChunks))
                     image = self.composeExportImage(
                         base: rendered.image,
                         startBlockX: startBlockX,
@@ -4222,10 +4269,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private var mapStatePrefix: String { "Blocktopograph.Map.\(session.world.id.uuidString)." }
 
+    /// Restores display preferences only. Viewport center, selected dimension
+    /// and zoom are intentionally session-local and are never restored after
+    /// the world workspace is closed.
+    @discardableResult
     private func restoreMapState() -> Bool {
         let defaults = UserDefaults.standard
-        guard defaults.object(forKey: mapStatePrefix + "centerX") != nil else { return false }
-        dimensionControl.selectedSegmentIndex = min(BedrockDimension.allCases.count - 1, max(0, defaults.integer(forKey: mapStatePrefix + "dimension")))
         modeControl.selectedSegmentIndex = min(modeControl.numberOfSegments - 1, max(0, defaults.integer(forKey: mapStatePrefix + "mode")))
         coordinateModeControl.selectedSegmentIndex = min(1, max(0, defaults.integer(forKey: mapStatePrefix + "coordinateMode")))
         if defaults.object(forKey: mapStatePrefix + "autoRender") != nil {
@@ -4242,34 +4291,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                 showSpawnPoints = defaults.bool(forKey: mapStatePrefix + "showSpawnPoints")
             }
         }
-        let storedZoom = defaults.double(forKey: mapStatePrefix + "zoomScale")
-        let zoom = storedZoom > 0 ? CGFloat(storedZoom) : 1
-        if let local = try? PlayerNBTStore(session: session).localPlayerPosition(),
-           let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == local.dimension }) {
-            dimensionControl.selectedSegmentIndex = dimensionIndex
-            renderDefaultCenter(
-                for: local.dimension,
-                zoomScale: zoom,
-                showOverlay: true
-            )
-            return true
+        for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
+            defaults.removeObject(forKey: mapStatePrefix + key)
         }
-
-        dimensionControl.selectedSegmentIndex = 0
-        renderDefaultCenter(
-            for: BedrockDimension.overworld.rawValue,
-            zoomScale: zoom,
-            showOverlay: true
-        )
         return true
     }
 
     private func saveMapState() {
         let defaults = UserDefaults.standard
-        defaults.set(Int(lastCenterX), forKey: mapStatePrefix + "centerX")
-        defaults.set(Int(lastCenterZ), forKey: mapStatePrefix + "centerZ")
-        defaults.set(dimensionControl.selectedSegmentIndex, forKey: mapStatePrefix + "dimension")
-        defaults.removeObject(forKey: mapStatePrefix + "radius")
         defaults.set(modeControl.selectedSegmentIndex, forKey: mapStatePrefix + "mode")
         defaults.set(coordinateModeControl.selectedSegmentIndex, forKey: mapStatePrefix + "coordinateMode")
         defaults.set(autoRenderSwitch.isOn, forKey: mapStatePrefix + "autoRender")
@@ -4280,7 +4309,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         defaults.set(showHardcodedSpawners, forKey: mapStatePrefix + "showHardcodedSpawners")
         defaults.set(showVillages, forKey: mapStatePrefix + "showVillages")
         defaults.set(showSpawnPoints, forKey: mapStatePrefix + "showSpawnPoints")
-        defaults.set(Double(scrollView.zoomScale), forKey: mapStatePrefix + "zoomScale")
+        for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
+            defaults.removeObject(forKey: mapStatePrefix + key)
+        }
+    }
+
+    private func rememberCurrentViewportState(for dimension: Int32) {
+        guard lastRenderedImage != nil else { return }
+        let anchor = currentViewportAnchor() ?? MapViewportAnchor(
+            blockX: Double(MapCoordinate.blockOrigin(ofChunk: lastCenterX)) + 8,
+            blockZ: Double(MapCoordinate.blockOrigin(ofChunk: lastCenterZ)) + 8,
+            zoomScale: max(scrollView.zoomScale, CGFloat(0.0001))
+        )
+        let center = chunkCenter(for: anchor)
+        dimensionViewportStates[dimension] = MapDimensionViewportState(
+            centerX: center.0,
+            centerZ: center.1,
+            anchor: anchor
+        )
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
