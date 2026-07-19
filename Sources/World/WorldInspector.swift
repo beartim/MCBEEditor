@@ -40,6 +40,20 @@ final class WorldInspector {
         rows.append(WorldInfoRow(title: "level.dat 版本", value: String(file.version)))
         appendInt(named: "StorageVersion", title: "存储版本", root: root, to: &rows)
         appendInt(named: "NetworkVersion", title: "网络版本", root: root, to: &rows)
+        rows.append(WorldInfoRow(
+            title: "最后打开的游戏版本",
+            value: versionString(
+                namedAny: ["lastOpenedWithVersion", "LastOpenedWithVersion", "last_opened_with_version"],
+                root: root
+            ) ?? "未记录"
+        ))
+        rows.append(WorldInfoRow(
+            title: "最小兼容的游戏版本",
+            value: versionString(
+                namedAny: ["MinimumCompatibleClientVersion", "minimumCompatibleClientVersion", "MinimumCompatibleVersion"],
+                root: root
+            ) ?? "未记录"
+        ))
         if let gameType = root.intValue(named: "GameType") { rows.append(WorldInfoRow(title: "游戏模式", value: gameTypeName(gameType))) }
         if let difficulty = root.intValue(named: "Difficulty") { rows.append(WorldInfoRow(title: "难度", value: difficultyName(difficulty))) }
         if let x = root.intValue(named: "SpawnX"), let y = root.intValue(named: "SpawnY"), let z = root.intValue(named: "SpawnZ") {
@@ -63,6 +77,30 @@ final class WorldInspector {
             result.size += Int64(values.fileSize ?? 0)
         }
         return result
+    }
+
+    private func versionString(namedAny names: [String], root: NBTValue) -> String? {
+        guard let value = root.value(namedAny: names) else { return nil }
+        switch value {
+        case .string(let text):
+            return text.isEmpty ? nil : text
+        case .intArray(let values):
+            return formatVersion(values.map(Int64.init))
+        case .longArray(let values):
+            return formatVersion(values)
+        case .list(_, let values):
+            let numbers = values.compactMap(\.numericInt64Value)
+            return numbers.count == values.count ? formatVersion(numbers) : nil
+        default:
+            return value.numericInt64Value.map(String.init)
+        }
+    }
+
+    private func formatVersion(_ values: [Int64]) -> String? {
+        guard !values.isEmpty else { return nil }
+        var components = values
+        while components.count > 3 && components.last == 0 { components.removeLast() }
+        return components.map(String.init).joined(separator: ".")
     }
 
     private func appendInt(named name: String, title: String, root: NBTValue, to rows: inout [WorldInfoRow]) {

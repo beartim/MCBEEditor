@@ -103,6 +103,7 @@ Sources/UI/DatabaseBrowserViewController.swift
 Sources/UI/DatabaseValueViewController.swift
 Sources/UI/EntityBrowserViewController.swift
 Sources/UI/EntityNBTImportReviewViewController.swift
+Sources/UI/ExperienceEditorViewController.swift
 Sources/UI/HardcodedSpawnersViewController.swift
 Sources/UI/MapBlockDetailPanelView.swift
 Sources/UI/MapExportOptionsViewController.swift
@@ -125,6 +126,7 @@ Sources/UI/StandaloneNBTFileViewController.swift
 Sources/UI/StructureNBTEditorViewController.swift
 Sources/UI/StructureNBTListViewController.swift
 Sources/UI/TickingAreaViewControllers.swift
+Sources/UI/TimeEditorViewController.swift
 Sources/UI/UIHelpers.swift
 Sources/UI/VillageNBTEditorViewController.swift
 Sources/UI/VillageNBTListViewController.swift
@@ -137,6 +139,7 @@ Sources/UI/WorldMapViewController.swift
 Sources/UI/WorldObjectCreationViewController.swift
 Sources/UI/WorldObjectNBTEditorViewController.swift
 Sources/UI/WorldToolsViewController.swift
+Sources/World/ExperienceStore.swift
 Sources/World/JavaStructureConverter.swift
 Sources/World/MetadataNBTStore.swift
 Sources/World/MiniZipArchive.swift
@@ -144,6 +147,7 @@ Sources/World/PlayerNBTStore.swift
 Sources/World/StandaloneNBTFile.swift
 Sources/World/StructureNBTStore.swift
 Sources/World/TickingAreaStore.swift
+Sources/World/TimeStore.swift
 Sources/World/VillageNBTStore.swift
 Sources/World/WeatherStore.swift
 Sources/World/WorldDocument.swift

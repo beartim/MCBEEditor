@@ -44,7 +44,8 @@ final class WorldToolsViewController: UITableViewController {
         switch section {
         case 0: return infoRows.count
         case 1: return 5
-        case 2, 3, 4: return 1
+        case 2: return 3
+        case 3, 4: return 1
         default: return 0
         }
     }
@@ -93,9 +94,15 @@ final class WorldToolsViewController: UITableViewController {
             cell.textLabel?.text = rows[indexPath.row].0
             cell.detailTextLabel?.text = rows[indexPath.row].1
         case 2:
-            cell.textLabel?.text = "天气"
-            cell.detailTextLabel?.text = "查看并修改降雨、雷暴等级与持续时间"
-            cell.imageView?.image = UIImage(systemName: "cloud.rain")
+            let rows: [(String, String, String)] = [
+                ("天气", "查看并修改降雨、雷暴等级、持续时间与自动变化", "cloud.rain"),
+                ("时间", "查看并修改 time 与时间自动流逝", "clock"),
+                ("经验", "查看并修改玩家经验总数、等级与经验条进度", "star.circle")
+            ]
+            let row = rows[indexPath.row]
+            cell.textLabel?.text = row.0
+            cell.detailTextLabel?.text = row.1
+            cell.imageView?.image = UIImage(systemName: row.2)
         case 3:
             cell.textLabel?.text = "数据库浏览器"
             cell.detailTextLabel?.text = "查看、搜索和导出 LevelDB 原始键值"
@@ -116,7 +123,16 @@ final class WorldToolsViewController: UITableViewController {
         case 1:
             showBedrockDataValues(row: indexPath.row)
         case 2:
-            navigationController?.pushViewController(WeatherEditorViewController(session: session), animated: true)
+            switch indexPath.row {
+            case 0:
+                navigationController?.pushViewController(WeatherEditorViewController(session: session), animated: true)
+            case 1:
+                navigationController?.pushViewController(TimeEditorViewController(session: session), animated: true)
+            case 2:
+                navigationController?.pushViewController(ExperienceEditorViewController(session: session), animated: true)
+            default:
+                break
+            }
         case 3:
             navigationController?.pushViewController(DatabaseBrowserViewController(session: session), animated: true)
         case 4:

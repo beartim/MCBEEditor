@@ -5,12 +5,14 @@
 - 软件版本固定为 **1.0.0 (100)**，后续功能修改不再提升版本号。
 - 所有实体目标选择器支持完整 identifier，例如 `minecraft:cow`；实体没有 `identifier` 标签时读取 `definitions[0]`，并识别 `+minecraft:cow` 形式。
 - `tickingarea add circle` 格式为 `tickingarea add circle 维度 x1 z1 半径 名称 0或1`；x1/z1 是中心区块坐标，半径单位为区块。同名区域会先删除再重新创建。
-- `teleport 目标 维度 x y或Auto z` 支持 identifier；`Auto` 定位到最高已加载非空气方块上方，未找到时使用 Y=63。
+- `teleport 目标 维度 x y或Auto z` 支持 identifier；主世界/末地的 `Auto` 定位到最高已加载非空气方块上方，下界则按“顶层非空气 a → 下方空气 b → 更低非空气 c”优先使用 c+1，缺少 b/c 时使用 a+1，整列无非空气方块时使用 Y=63。
 - 新增 `time query/add/set/ceil/floor`，支持 day、sunset、night、sunrise、noon、midnight 六个时间点及 daytime 时段百分比输出。
+- 新增 `experience amount/level/percent/query/set`，仅作用于玩家，并与世界编辑中的经验栏目共用 `XpTotal`、`XpLevel`、`XpP`；经验总数按 Int32 原值读写。
 - `weather clear/rain/thunder` 的天气等级、持续时间和 `doWeatherCycle` 与信息页天气栏目共用同一套读写逻辑。
 - 天气栏目包含“天气自动变化”开关。
-- 新增 `daylock 0或1`，只把参数写入 `dodaylightcycle`，不联动修改当前时间。
-- 新增 `spread 目标`：按玩家优先顺序，为每个选中对象随机选择主世界/下界/末地中的已加载区块和非全空气坐标列，再按 Auto 高度传送；本地玩家结果为黄色、在线玩家为蓝色。
+- 世界信息显示最后打开的游戏版本和最小兼容游戏版本；世界编辑新增时间栏目（含 `dodaylightcycle` 开关）和玩家经验栏目。
+- 新增 `daylock 0或1`：`1` 锁定时间并写入 `dodaylightcycle=0`，`0` 解除锁定并写入 `dodaylightcycle=1`，不联动修改当前时间。
+- 新增 `spread 目标`：按玩家优先顺序，为每个选中对象随机选择主世界/下界/末地中的已加载区块和非全空气坐标列，再按 Auto 高度传送；逐行显示 identifier、UniqueID、维度和坐标，本地玩家结果为黄色、在线玩家为蓝色。
 - 地图单次动态渲染上限改为精确的 **64×64 区块**。打开存档时以本地玩家为中心；其他维度首次进入以 X=0/Z=0 为中心；每个维度的中心和缩放只在当前存档会话内保留，退出存档后不写入持久化设置。
 - 实体栏目选择“半径”时，四个蓝色操作按钮只与“中心”和“半径”两行对齐，Y 计算控件独立占用下一行。
 

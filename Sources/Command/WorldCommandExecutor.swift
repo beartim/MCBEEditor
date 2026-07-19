@@ -38,6 +38,12 @@ private struct ResolvedCommandTargets {
     var isEmpty: Bool { players.isEmpty && entities.isEmpty }
 }
 
+private enum EntitySelectionIdentity: Hashable {
+    case uniqueID(Int64)
+    case modernActor(Data, Int)
+    case chunkRecord(Data, Int)
+}
+
 final class WorldCommandExecutor {
     private let session: WorldSession
 
@@ -108,13 +114,15 @@ final class WorldCommandExecutor {
             )
         case .spread(let target):
             return try spread(target: target)
-        case .dayLock(let enabled):
-            return WorldCommandExecutionResult(message: try setDayLock(enabled), changedWorld: true)
+        case .dayLock(let locked):
+            return WorldCommandExecutionResult(message: try setDayLock(locked), changedWorld: true)
         case .weather(let settings):
             return WorldCommandExecutionResult(message: try setWeather(settings), changedWorld: true)
         case .time(let operation):
             let result = try executeTime(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
+        case .experience(let operation):
+            return try executeExperience(operation)
         case .structure(let operation):
             let result = try executeStructure(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
@@ -220,7 +228,7 @@ final class WorldCommandExecutor {
 
         let entityStore = BedrockWorldObjectNBTStore(session: session)
         var movedEntities = 0
-        for object in targets.entities {
+        for object in stableEntityMutationOrder(targets.entities) {
             let document = try teleportedDocument(
                 object.document,
                 position: position,
@@ -251,13 +259,35 @@ final class WorldCommandExecutor {
             throw BlocktopographError.malformedData("Auto 的 X/Z 超出 Bedrock Int32 区块坐标范围")
         }
         let column = try renderer.blockColumn(blockX: x, blockZ: z, dimension: dimension)
-        guard let highest = column.blocks.first(where: { block in
-            block.isGenerated && block.layers.contains(where: { !$0.isAir })
-        }) else { return nil }
-        guard highest.y < Int32.max else {
-            throw BlocktopographError.malformedData("最高非空气方块上方的 Y 坐标溢出")
+        let blocks = column.blocks
+        guard let highestIndex = blocks.firstIndex(where: isGeneratedNonAirBlock) else { return nil }
+        let highest = blocks[highestIndex]
+
+        if dimension == 1 {
+            let belowHighest = blocks.index(after: highestIndex)..<blocks.endIndex
+            if let airIndex = belowHighest.first(where: { isGeneratedAirBlock(blocks[$0]) }) {
+                let belowAir = blocks.index(after: airIndex)..<blocks.endIndex
+                if let lowerSolidIndex = belowAir.first(where: { isGeneratedNonAirBlock(blocks[$0]) }) {
+                    return try blockAboveY(blocks[lowerSolidIndex], context: "下界内部最高非空气方块")
+                }
+            }
         }
-        return highest.y + 1
+        return try blockAboveY(highest, context: "最高非空气方块")
+    }
+
+    private func isGeneratedNonAirBlock(_ block: BedrockBlockRecord) -> Bool {
+        block.isGenerated && block.layers.contains(where: { !$0.isAir })
+    }
+
+    private func isGeneratedAirBlock(_ block: BedrockBlockRecord) -> Bool {
+        block.isGenerated && !block.layers.contains(where: { !$0.isAir })
+    }
+
+    private func blockAboveY(_ block: BedrockBlockRecord, context: String) throws -> Int32 {
+        guard block.y < Int32.max else {
+            throw BlocktopographError.malformedData("\(context)上方的 Y 坐标溢出")
+        }
+        return block.y + 1
     }
 
     private func teleportedDocument(
@@ -328,7 +358,11 @@ final class WorldCommandExecutor {
             ))
             let style: WorldCommandOutputStyle = isLocalPlayer(record) ? .localPlayer : .onlinePlayer
             lines.append(WorldCommandOutputLine(
-                text: spreadOutputLine(identifier: "minecraft:player", destination: destination),
+                text: spreadOutputLine(
+                    identifier: "minecraft:player",
+                    uniqueID: playerUniqueID(record),
+                    destination: destination
+                ),
                 style: style
             ))
         }
@@ -337,7 +371,7 @@ final class WorldCommandExecutor {
         }
 
         let entityStore = BedrockWorldObjectNBTStore(session: session)
-        for object in targets.entities {
+        for object in stableEntityMutationOrder(targets.entities) {
             let destination = try randomSpreadDestination(
                 groupedChunks: grouped,
                 dimensions: dimensions,
@@ -354,7 +388,11 @@ final class WorldCommandExecutor {
             )
             _ = try entityStore.save(object: object, document: document)
             lines.append(WorldCommandOutputLine(
-                text: spreadOutputLine(identifier: selectableIdentifier(object), destination: destination),
+                text: spreadOutputLine(
+                    identifier: selectableIdentifier(object),
+                    uniqueID: object.uniqueID,
+                    destination: destination
+                ),
                 style: .entity
             ))
         }
@@ -408,7 +446,7 @@ final class WorldCommandExecutor {
         throw BlocktopographError.unsupported("所有已加载区块都没有可用的非空气方块列，无法执行 spread。")
     }
 
-    private func spreadOutputLine(identifier: String, destination: SpreadDestination) -> String {
+    private func spreadOutputLine(identifier: String, uniqueID: Int64?, destination: SpreadDestination) -> String {
         let dimensionName: String
         switch destination.dimension {
         case 0: dimensionName = "主世界"
@@ -416,18 +454,19 @@ final class WorldCommandExecutor {
         case 2: dimensionName = "末地"
         default: dimensionName = "维度 \(destination.dimension)"
         }
-        return "\(identifier) \(dimensionName) \(destination.x) \(destination.y) \(destination.z)"
+        return "\(identifier) \(uniqueID.map(String.init) ?? "无UniqueID") \(dimensionName) \(destination.x) \(destination.y) \(destination.z)"
     }
 
-    private func setDayLock(_ enabled: Bool) throws -> String {
+    private func setDayLock(_ locked: Bool) throws -> String {
         var file = try session.document.readLevelDat()
         guard case .compound(var tags) = file.document.root else {
             throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
         }
-        setTopLevelTag(name: "dodaylightcycle", value: .byte(enabled ? 1 : 0), in: &tags)
+        let cycleEnabled = !locked
+        setTopLevelTag(name: "dodaylightcycle", value: .byte(cycleEnabled ? 1 : 0), in: &tags)
         file.document.root = .compound(tags)
         try session.document.writeLevelDat(file)
-        return "daylock 完成：dodaylightcycle=\(enabled ? 1 : 0)"
+        return "daylock 完成：锁定=\(locked ? 1 : 0)，dodaylightcycle=\(cycleEnabled ? 1 : 0)"
     }
 
     private func setWeather(_ command: CommandWeatherSettings) throws -> String {
@@ -470,14 +509,97 @@ final class WorldCommandExecutor {
         }
     }
 
+    // MARK: experience
+
+    private func executeExperience(_ operation: CommandExperienceOperation) throws -> WorldCommandExecutionResult {
+        let target: CommandTarget
+        switch operation {
+        case .amount(let value, _), .level(let value, _), .percent(let value, _), .query(let value), .set(let value, _):
+            target = value
+        }
+        let targets = try resolveTargets(target)
+        guard !targets.players.isEmpty else {
+            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；experience 不能用于普通实体")
+        }
+
+        let store = ExperienceStore(session: session)
+        if case .query = operation {
+            let lines = try targets.players.map { record -> WorldCommandOutputLine in
+                let experience = try ExperienceStore.read(from: record.document)
+                let uniqueID = playerUniqueID(record).map(String.init) ?? "无UniqueID"
+                let text = String(
+                    format: "minecraft:player %@ 经验总数 %d 经验等级 %d 当前经验条进度 %.3f",
+                    uniqueID,
+                    experience.total,
+                    experience.level,
+                    Double(experience.progress)
+                )
+                return WorldCommandOutputLine(
+                    text: text,
+                    style: isLocalPlayer(record) ? .localPlayer : .onlinePlayer
+                )
+            }
+            return WorldCommandExecutionResult(
+                message: lines.map(\.text).joined(separator: "\n"),
+                changedWorld: false,
+                outputLines: lines
+            )
+        }
+
+        var updates = [(record: PlayerNBTRecord, experience: BedrockPlayerExperience)]()
+        updates.reserveCapacity(targets.players.count)
+        for record in targets.players {
+            var experience = try ExperienceStore.read(from: record.document)
+            switch operation {
+            case .amount(_, let delta):
+                let current = Int64(experience.total)
+                let (sum, overflow) = current.addingReportingOverflow(delta)
+                guard !overflow else {
+                    throw BlocktopographError.malformedData("experience amount 结果超出 Int64 范围")
+                }
+                guard let total = Int32(exactly: sum) else {
+                    throw BlocktopographError.malformedData("experience amount 结果必须在 Int32 范围内")
+                }
+                experience.total = total
+            case .level(_, let delta):
+                let current = Int64(experience.level)
+                let (sum, overflow) = current.addingReportingOverflow(delta)
+                guard !overflow else {
+                    throw BlocktopographError.malformedData("experience level 结果超出 Int64 范围")
+                }
+                experience.level = Int32(clamping: min(Int64(BedrockPlayerExperience.maximumLevel), max(0, sum)))
+            case .percent(_, let progress):
+                experience.progress = progress
+            case .set(_, let total):
+                guard let exactTotal = Int32(exactly: total) else {
+                    throw BlocktopographError.malformedData("experience set 的经验总数必须在 Int32 范围内")
+                }
+                experience.total = exactTotal
+            case .query:
+                break
+            }
+            updates.append((record, experience))
+        }
+        try store.saveBatch(updates)
+
+        let action: String
+        switch operation {
+        case .amount(_, let delta): action = "amount \(delta)"
+        case .level(_, let delta): action = "level \(delta)"
+        case .percent(_, let progress): action = String(format: "percent %.3f", Double(progress))
+        case .set(_, let total): action = "set \(total)"
+        case .query: action = "query"
+        }
+        return WorldCommandExecutionResult(
+            message: "experience \(action) 完成：修改 \(updates.count) 个玩家。",
+            changedWorld: true
+        )
+    }
+
     // MARK: time
 
     private func executeTime(_ operation: CommandTimeOperation) throws -> (message: String, changed: Bool) {
-        var file = try session.document.readLevelDat()
-        guard case .compound(var tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
-        }
-        let current = try worldTime(in: tags)
+        let current = try BedrockTimeStore.read(session: session).time
 
         switch operation {
         case .query(let query):
@@ -485,16 +607,9 @@ final class WorldCommandExecutor {
             case .gametime:
                 return ("gametime=\(current)", false)
             case .day:
-                return ("day=\(floorDivision(current, by: 24_000))", false)
+                return ("day=\(BedrockTimeStore.floorDivision(current, by: 24_000))", false)
             case .daytime:
-                let daytime = positiveRemainder(current, divisor: 24_000)
-                let segment = daytimeSegment(for: daytime)
-                let segmentPercent = roundedPercent(
-                    numerator: daytime - segment.start,
-                    denominator: segment.end - segment.start
-                )
-                let wholePercent = roundedPercent(numerator: daytime, denominator: 24_000)
-                return ("daytime=\(daytime)，\(segment.name)\(segmentPercent)%，全天\(wholePercent)%", false)
+                return (BedrockTimeStore.daytimeSummary(current), false)
             }
 
         case .add(let delta):
@@ -502,90 +617,23 @@ final class WorldCommandExecutor {
             guard !overflow else {
                 throw BlocktopographError.malformedData("time add 结果超出 Int64 范围")
             }
-            try saveWorldTime(updated, tags: &tags, file: &file)
+            try BedrockTimeStore.saveTime(updated, session: session)
             return ("time add 完成：time=\(updated)", true)
 
         case .set(let value):
-            try saveWorldTime(value, tags: &tags, file: &file)
+            try BedrockTimeStore.saveTime(value, session: session)
             return ("time set 完成：time=\(value)", true)
 
         case .ceil(let period):
-            let value = try alignedTime(current, period: period, roundingUp: true)
-            try saveWorldTime(value, tags: &tags, file: &file)
+            let value = try BedrockTimeStore.alignedTime(current, startTick: period.startTick, roundingUp: true)
+            try BedrockTimeStore.saveTime(value, session: session)
             return ("time ceil \(period.rawValue) 完成：time=\(value)", true)
 
         case .floor(let period):
-            let value = try alignedTime(current, period: period, roundingUp: false)
-            try saveWorldTime(value, tags: &tags, file: &file)
+            let value = try BedrockTimeStore.alignedTime(current, startTick: period.startTick, roundingUp: false)
+            try BedrockTimeStore.saveTime(value, session: session)
             return ("time floor \(period.rawValue) 完成：time=\(value)", true)
         }
-    }
-
-    private func worldTime(in tags: [NBTNamedTag]) throws -> Int64 {
-        guard let value = tags.first(where: { $0.name.caseInsensitiveCompare("Time") == .orderedSame })?.value else {
-            return 0
-        }
-        switch value {
-        case .byte(let number): return Int64(number)
-        case .short(let number): return Int64(number)
-        case .int(let number): return Int64(number)
-        case .long(let number): return number
-        default:
-            throw BlocktopographError.malformedData("level.dat 的 Time 标签必须是整数类型")
-        }
-    }
-
-    private func saveWorldTime(_ value: Int64, tags: inout [NBTNamedTag], file: inout LevelDatFile) throws {
-        setTopLevelTag(name: "Time", value: .long(value), in: &tags)
-        file.document.root = .compound(tags)
-        try session.document.writeLevelDat(file)
-    }
-
-    private func alignedTime(_ current: Int64, period: CommandTimePeriod, roundingUp: Bool) throws -> Int64 {
-        let dayIndex = roundingUp
-            ? ceilingDivision(current, by: 24_000)
-            : floorDivision(current, by: 24_000)
-        let (dayBase, multiplyOverflow) = dayIndex.multipliedReportingOverflow(by: 24_000)
-        guard !multiplyOverflow else {
-            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
-        }
-        let (result, addOverflow) = dayBase.addingReportingOverflow(period.startTick)
-        guard !addOverflow else {
-            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
-        }
-        return result
-    }
-
-    private func floorDivision(_ value: Int64, by divisor: Int64) -> Int64 {
-        let quotient = value / divisor
-        let remainder = value % divisor
-        return remainder < 0 ? quotient - 1 : quotient
-    }
-
-    private func ceilingDivision(_ value: Int64, by divisor: Int64) -> Int64 {
-        let quotient = value / divisor
-        let remainder = value % divisor
-        return remainder > 0 ? quotient + 1 : quotient
-    }
-
-    private func positiveRemainder(_ value: Int64, divisor: Int64) -> Int64 {
-        let remainder = value % divisor
-        return remainder >= 0 ? remainder : remainder + divisor
-    }
-
-    private func daytimeSegment(for daytime: Int64) -> (name: String, start: Int64, end: Int64) {
-        switch daytime {
-        case 0...12_000: return ("白天", 0, 12_000)
-        case 12_001...13_800: return ("日落", 12_001, 13_800)
-        case 13_801...22_200: return ("夜晚", 13_801, 22_200)
-        default: return ("日出", 22_201, 23_999)
-        }
-    }
-
-    private func roundedPercent(numerator: Int64, denominator: Int64) -> Int {
-        guard denominator > 0 else { return 100 }
-        let value = (Double(numerator) * 100.0 / Double(denominator)).rounded()
-        return min(100, max(0, Int(value)))
     }
 
     // MARK: structure
@@ -865,7 +913,9 @@ final class WorldCommandExecutor {
                 includeBlockEntities: false,
                 maximumObjects: Int.max
             )
-            allEntities = scan.objects.filter { $0.kind == .entity && !isPlayerEntity($0) }
+            allEntities = deduplicatedEntities(
+                scan.objects.filter { $0.kind == .entity && !isPlayerEntity($0) }
+            )
         }
 
         let players: [PlayerNBTRecord]
@@ -898,6 +948,37 @@ final class WorldCommandExecutor {
             throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家或实体")
         }
         return resolved
+    }
+
+    private func deduplicatedEntities(_ entities: [BedrockWorldObject]) -> [BedrockWorldObject] {
+        var seen = Set<EntitySelectionIdentity>()
+        return entities.filter { seen.insert(entitySelectionIdentity($0)).inserted }
+    }
+
+    private func stableEntityMutationOrder(_ entities: [BedrockWorldObject]) -> [BedrockWorldObject] {
+        entities.sorted { lhs, rhs in
+            let left = entityStoragePosition(lhs)
+            let right = entityStoragePosition(rhs)
+            if left.key != right.key { return left.key.lexicographicallyPrecedes(right.key) }
+            return left.recordIndex > right.recordIndex
+        }
+    }
+
+    private func entitySelectionIdentity(_ object: BedrockWorldObject) -> EntitySelectionIdentity {
+        if let uniqueID = object.uniqueID { return .uniqueID(uniqueID) }
+        switch object.storage {
+        case .modernActor(let actorKey, _, let recordIndex, _):
+            return .modernActor(actorKey, recordIndex)
+        case .chunkRecord(let sourceKey, let recordIndex, _):
+            return .chunkRecord(sourceKey, recordIndex)
+        }
+    }
+
+    private func entityStoragePosition(_ object: BedrockWorldObject) -> (key: Data, recordIndex: Int) {
+        switch object.storage {
+        case .modernActor(let actorKey, _, let recordIndex, _): return (actorKey, recordIndex)
+        case .chunkRecord(let sourceKey, let recordIndex, _): return (sourceKey, recordIndex)
+        }
     }
 
     private func isPlayerEntity(_ object: BedrockWorldObject) -> Bool {

@@ -186,6 +186,14 @@ enum CommandTimeOperation {
     case floor(CommandTimePeriod)
 }
 
+enum CommandExperienceOperation {
+    case amount(target: CommandTarget, delta: Int64)
+    case level(target: CommandTarget, delta: Int64)
+    case percent(target: CommandTarget, progress: Float)
+    case query(target: CommandTarget)
+    case set(target: CommandTarget, total: Int64)
+}
+
 enum ParsedWorldCommand {
     case help(command: String?)
     case clear(target: CommandTarget)
@@ -217,9 +225,10 @@ enum ParsedWorldCommand {
     case spawnPoint(target: CommandTarget, dimension: Int32, position: CommandBlockCoordinate)
     case teleport(target: CommandTarget, dimension: Int32, x: Int64, y: CommandTeleportY, z: Int64)
     case spread(target: CommandTarget)
-    case dayLock(enabled: Bool)
+    case dayLock(locked: Bool)
     case weather(settings: CommandWeatherSettings)
     case time(operation: CommandTimeOperation)
+    case experience(operation: CommandExperienceOperation)
     case structure(operation: CommandStructureOperation)
     case tickingArea(operation: CommandTickingAreaOperation)
 }
@@ -391,7 +400,7 @@ enum CommandEffectNBT {
 
 enum WorldCommandParser {
     static let commandNames = [
-        "help", "clear", "clearspawnpoint", "clone", "daylock", "effect", "fill", "give", "kill", "kick",
+        "help", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "give", "kill", "kick",
         "setblock", "setworldspawn", "spawnpoint", "spread", "structure", "summon", "teleport",
         "tickingarea", "time", "weather"
     ]
@@ -400,9 +409,10 @@ enum WorldCommandParser {
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
-        "daylock": "daylock 0或1\n参数直接写入 level.dat 的 dodaylightcycle 标签；0 表示关闭昼夜循环，1 表示开启，不进行其他时间修改。\n示例：daylock 0",
+        "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
         "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间写入 Duration、DurationEasy、DurationNormal、DurationHard，效果等级为零基数（输入 50 表示 51 级）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect clear @e ALL",
+        "experience": "experience amount 目标 整数\nexperience level 目标 整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 整数\n目标只能匹配玩家。amount 增减 XpTotal（最低为 0）；level 增减 XpLevel并限制在 0～24791；percent 写入 XpP；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 直接设置 Int32 范围内的经验总数。\n示例：experience amount @a 100\n示例：experience level -4294967270 -3\n示例：experience percent @s 0.5\n示例：experience query @a",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
         "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
@@ -410,10 +420,10 @@ enum WorldCommandParser {
         "setblock": "setblock 目标维度 x y z 层0方块名 层0states 层1方块名 层1states\nfill 的单方块版本。维度必须为 overworld、nether 或 the_end；states 格式与 fill 完全相同。\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:air NULL",
         "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
-        "spread": "spread 目标\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier。每个匹配对象会独立随机选择一个有已加载区块的维度、一个已加载区块及其中一列非全空气的 X/Z，再按 teleport Auto 逻辑传送。输出优先显示玩家。\n示例：spread @e\n示例：spread minecraft:cow",
+        "spread": "spread 目标\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier。每个匹配对象会独立随机选择一个有已加载区块的维度、一个已加载区块及其中一列非全空气的 X/Z，再按 teleport Auto 逻辑传送。输出格式为 identifier UniqueID 维度 X Y Z，并优先显示玩家。\n示例：spread @e\n示例：spread minecraft:cow",
         "structure": "structure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\n名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50",
         "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"",
-        "teleport": "teleport 目标 维度 x y或Auto z\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier；维度必须为 overworld、nether 或 the_end。实体缺少 identifier 标签时会读取 definitions[0]（例如 +minecraft:cow）。Y 输入 Auto 时读取目标 X/Z 列最高非空气方块的上方，未找到非空气方块时使用 Y=63。\n示例：teleport -4294967270 the_end 10 70 10\n示例：teleport @a overworld 0 Auto 0\n示例：teleport minecraft:cow overworld 0 64 0",
+        "teleport": "teleport 目标 维度 x y或Auto z\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier；维度必须为 overworld、nether 或 the_end。实体缺少 identifier 标签时会读取 definitions[0]（例如 +minecraft:cow）。Y 输入 Auto 时，主世界和末地使用最高非空气方块上方；下界会越过最上层非空气方块与其下方空气层，优先落在更低一层非空气方块上方。回退规则为最高非空气方块上方，整列无非空气方块时使用 Y=63。\n示例：teleport -4294967270 the_end 10 70 10\n示例：teleport @a overworld 0 Auto 0\n示例：teleport minecraft:cow overworld 0 64 0",
         "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 x1 z1 半径 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形 add 的 x1/z1 是中心区块坐标，半径单位为区块，允许 0～4；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 4 Spawn 1\n示例：tickingarea list overworld",
         "time": "time query daytime|gametime|day\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nday=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201；24000 等价于下一天的 0。query daytime 同时显示当前时段进度和全天进度。\n示例：time query daytime\n示例：time add -1000\n示例：time ceil sunset\n示例：time floor midnight",
         "weather": "weather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0"
@@ -443,7 +453,7 @@ enum WorldCommandParser {
             return .clearSpawnPoint(target: try parseTarget(arguments[0]))
         case "daylock":
             guard arguments.count == 1 else { throw usageError(command) }
-            return .dayLock(enabled: try parseBooleanFlag(arguments[0], name: "昼夜循环是否启用"))
+            return .dayLock(locked: try parseBooleanFlag(arguments[0], name: "是否锁定时间"))
         case "effect":
             guard let action = arguments.first else { throw usageError(command) }
             switch action {
@@ -464,6 +474,39 @@ enum WorldCommandParser {
                     target: try parseTarget(arguments[1]),
                     selection: try parseEffectSelection(arguments[2])
                 )
+            default:
+                throw usageError(command)
+            }
+        case "experience":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "amount":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .experience(operation: .amount(
+                    target: try parseTarget(arguments[1]),
+                    delta: try parseExperienceInteger(arguments[2], name: "经验值变化量", allowNegative: true)
+                ))
+            case "level":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .experience(operation: .level(
+                    target: try parseTarget(arguments[1]),
+                    delta: try parseExperienceInteger(arguments[2], name: "经验等级变化量", allowNegative: true)
+                ))
+            case "percent":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .experience(operation: .percent(
+                    target: try parseTarget(arguments[1]),
+                    progress: try parseExperiencePercent(arguments[2])
+                ))
+            case "query":
+                guard arguments.count == 2 else { throw usageError(command) }
+                return .experience(operation: .query(target: try parseTarget(arguments[1])))
+            case "set":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .experience(operation: .set(
+                    target: try parseTarget(arguments[1]),
+                    total: try parseExperienceInteger(arguments[2], name: "经验总数", allowNegative: true)
+                ))
             default:
                 throw usageError(command)
             }
@@ -802,6 +845,21 @@ enum WorldCommandParser {
         guard let value = Int64(text), allowNegative || value >= 0 else {
             let range = allowNegative ? "Int64 整数" : "0…9223372036854775807 的非负整数"
             throw BlocktopographError.malformedData("time 参数必须是\(range)：\(text)")
+        }
+        return value
+    }
+
+    private static func parseExperienceInteger(_ text: String, name: String, allowNegative: Bool) throws -> Int64 {
+        guard let value = Int64(text), allowNegative || value >= 0 else {
+            let range = allowNegative ? "Int64 整数" : "非负 Int64 整数"
+            throw BlocktopographError.malformedData("\(name)必须是\(range)：\(text)")
+        }
+        return value
+    }
+
+    private static func parseExperiencePercent(_ text: String) throws -> Float {
+        guard let value = Float(text), value.isFinite, value >= 0, value <= 1 else {
+            throw BlocktopographError.malformedData("经验条进度必须是 0～1 的浮点数")
         }
         return value
     }
