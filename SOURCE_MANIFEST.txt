@@ -1,6 +1,7 @@
 .github/workflows/build-ios.yml
 .gitignore
 APPLY.md
+CHANGES_GIVE_EXISTING_MAINHAND.md
 CHANGES_v1.1.0.md
 CHANGES_v1.1.1.md
 CHANGES_v1.1.10.md

@@ -1090,13 +1090,7 @@ final class WorldCommandExecutor {
 
     // MARK: give
 
-    private func give(
-        target: CommandTarget,
-        slot: CommandGiveSlot,
-        itemIdentifier: String,
-        count: Int64,
-        itemTags: [NBTNamedTag]
-    ) throws -> String {
+    private func give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag]) throws -> String {
         let targets = try resolveTargets(target)
         let playerStore = PlayerNBTStore(session: session)
         let entityStore = BedrockWorldObjectNBTStore(session: session)
@@ -1128,6 +1122,10 @@ final class WorldCommandExecutor {
         }
 
         for object in targets.entities {
+            guard hasWritableMainhandTag(in: object.document.root) else {
+                skippedEntities += 1
+                continue
+            }
             let mutation: (value: NBTValue, changed: Bool, chestWritten: Bool, mainhandWritten: Bool, exceededChestSlots: Bool)
             switch slot {
             case .automatic:
@@ -1160,10 +1158,10 @@ final class WorldCommandExecutor {
             if mutation.exceededChestSlots { chestOverflowWrites += 1 }
         }
 
-        guard changedPlayers + changedEntities > 0 else {
-            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory、实体 ChestItems 或 Mainhand 标签")
+        if changedPlayers + changedEntities == 0 && skippedEntities == 0 {
+            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory；非玩家实体必须已有 Mainhand 标签")
         }
-        return "give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个无法写入的实体。"
+        return "give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与已有 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有可写入 Mainhand 的实体。"
     }
 
     private func itemStack(
@@ -1301,21 +1299,22 @@ final class WorldCommandExecutor {
             guard chest.exceededSlots else {
                 return (chest.value, true, true, false, false)
             }
-            let mainhand = settingMainhandItem(
+            let mainhand = replacingMainhandItem(
                 in: chest.value,
                 identifier: identifier,
                 count: count,
-                itemTags: itemTags,
-                createIfMissing: true
+                itemTags: itemTags
             )
-            return (mainhand.value, true, true, mainhand.changed, true)
+            guard mainhand.changed else {
+                return (value, false, false, false, false)
+            }
+            return (mainhand.value, true, true, true, true)
         }
-        let mainhand = settingMainhandItem(
+        let mainhand = replacingMainhandItem(
             in: value,
             identifier: identifier,
             count: count,
-            itemTags: itemTags,
-            createIfMissing: true
+            itemTags: itemTags
         )
         return (mainhand.value, mainhand.changed, false, mainhand.changed, false)
     }
@@ -1378,50 +1377,22 @@ final class WorldCommandExecutor {
         return (value, false, false)
     }
 
-    private func settingMainhandItem(
-        in value: NBTValue,
-        identifier: String,
-        count: Int64,
-        itemTags: [NBTNamedTag],
-        createIfMissing: Bool
-    ) -> (value: NBTValue, changed: Bool) {
-        guard case .compound(var tags) = value else { return (value, false) }
+    private func hasWritableMainhandTag(in value: NBTValue) -> Bool {
+        guard case .compound(let tags) = value else { return false }
         let names: Set<String> = ["mainhand", "mainhanditem", "mainhandinventory"]
-        for index in tags.indices where names.contains(normalized(tags[index].name)) {
-            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1, itemTags: itemTags)
-            switch tags[index].value {
-            case .compound:
-                tags[index].value = stack
-                return (.compound(tags), true)
-            case .list(_, var values):
-                if values.isEmpty { values.append(stack) }
-                else { values[0] = stack }
-                tags[index].value = .list(.compound, values)
-                return (.compound(tags), true)
+        for tag in tags where names.contains(normalized(tag.name)) {
+            switch tag.value {
+            case .compound, .list:
+                return true
             default:
                 continue
             }
         }
-        for index in tags.indices {
-            if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
-            let nested = settingMainhandItem(
-                in: tags[index].value,
-                identifier: identifier,
-                count: count,
-                itemTags: itemTags,
-                createIfMissing: false
-            )
-            if nested.changed {
-                tags[index].value = nested.value
-                return (.compound(tags), true)
-            }
+        for tag in tags {
+            if tradeContainerNames.contains(normalized(tag.name)) { continue }
+            if hasWritableMainhandTag(in: tag.value) { return true }
         }
-        if createIfMissing {
-            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1, itemTags: itemTags)
-            tags.append(NBTNamedTag(name: "Mainhand", value: .list(.compound, [stack])))
-            return (.compound(tags), true)
-        }
-        return (value, false)
+        return false
     }
 
     private func replacingMainhandItem(

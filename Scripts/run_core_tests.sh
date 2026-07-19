@@ -3373,8 +3373,10 @@ grep -qF 'entries: BedrockLegacyBlockCatalog.blocks' "$ROOT/Sources/UI/WorldList
 grep -qF 'placingChestItem(' "$COMMAND_EXECUTOR" && \
 grep -qF 'requestedSlot: Int8?' "$COMMAND_EXECUTOR" && \
 grep -qF 'exceededChestSlots' "$COMMAND_EXECUTOR" && \
-grep -qF 'createIfMissing: true' "$COMMAND_EXECUTOR" || {
-  echo 'error: Slot-aware player Inventory / entity ChestItems / Mainhand give logic is incomplete' >&2
+grep -qF 'hasWritableMainhandTag(' "$COMMAND_EXECUTOR" && \
+! grep -qF 'createIfMissing' "$COMMAND_EXECUTOR" && \
+! grep -qF 'tags.append(NBTNamedTag(name: "Mainhand"' "$COMMAND_EXECUTOR" || {
+  echo 'error: Slot-aware give must require an existing entity Mainhand and must never create it' >&2
   exit 1
 }
 
@@ -3769,16 +3771,24 @@ struct EffectCommandTest {
         precondition(itemName(in: cowWithChest, container: "ChestItems", slot: 1) == "minecraft:gold_ingot")
         precondition(itemName(in: cowWithChest, container: "Mainhand") == "")
 
-        _ = try executor.execute(try WorldCommandParser.parse("give 4 5 minecraft:emerald 1 NULL"))
+        _ = try executor.execute(try WorldCommandParser.parse("give 2 5 minecraft:emerald 1 NULL"))
         giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
-        let overflowingCow = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 4 }!.document.root
-        precondition(itemName(in: overflowingCow, container: "ChestItems", slot: 1) == "minecraft:emerald")
+        let overflowingCow = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 2 }!.document.root
+        precondition(itemName(in: overflowingCow, container: "ChestItems", slot: 2) == "minecraft:emerald")
         precondition(itemName(in: overflowingCow, container: "Mainhand") == "minecraft:emerald")
 
-        _ = try executor.execute(try WorldCommandParser.parse("give 3 2 minecraft:apple 1 NULL"))
+        let missingMainhandChestResult = try executor.execute(try WorldCommandParser.parse("give 4 1 minecraft:iron_ingot 1 NULL"))
+        precondition(missingMainhandChestResult.message.contains("跳过 1 个没有可写入 Mainhand 的实体"))
+        giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        let cowWithoutMainhand = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 4 }!.document.root
+        precondition(itemName(in: cowWithoutMainhand, container: "ChestItems", slot: 1) == "")
+        precondition(itemName(in: cowWithoutMainhand, container: "Mainhand") == nil)
+
+        let missingMainhandResult = try executor.execute(try WorldCommandParser.parse("give 3 2 minecraft:apple 1 NULL"))
+        precondition(missingMainhandResult.message.contains("跳过 1 个没有可写入 Mainhand 的实体"))
         giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
         let pigWithoutChest = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 3 }!.document.root
-        precondition(itemName(in: pigWithoutChest, container: "Mainhand") == "minecraft:apple")
+        precondition(itemName(in: pigWithoutChest, container: "Mainhand") == nil)
 
         let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
         precondition(setBlock.changedWorld)

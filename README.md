@@ -8,7 +8,7 @@
 - `teleport 目标 维度 x y或Auto z` 支持 identifier；主世界/末地的 `Auto` 定位到最高已加载非空气方块上方，下界则按“顶层非空气 a → 下方空气 b → 更低非空气 c”优先使用 c+1，缺少 b/c 时使用 a+1，整列无非空气方块时使用 Y=63。
 - 新增 `time query/add/set/ceil/floor`，支持 day、sunset、night、sunrise、noon、midnight 六个时间点及 daytime 时段百分比输出。
 - `experience` 提供 `add/addlevel/level/percent/query/set`：仅作用于玩家，直接读写基岩版实际使用的 `PlayerLevel` 与 `PlayerLevelProgress`。`add` 增减总经验，`addlevel` 增减等级并保留经验条百分比，`level` 直接设定 0～24791 级并把进度归零；`query` 使用 `经验总数=… 经验等级=… 当前经验条进度=…` 格式输出。
-- `give` 格式为 `give 目标 Slot 物品 数目 物品标签`。Slot 支持 `Auto` 或 0～35：玩家固定写入对应 Inventory 槽位；实体优先写入 ChestItems，对超范围 Slot 同时写入最后槽位与 Mainhand，没有 ChestItems 时写入 Mainhand；Auto 保留原自动选槽逻辑。
+- `give` 格式为 `give 目标 Slot 物品 数目 物品标签`。Slot 支持 `Auto` 或 0～35：玩家写入 Inventory；非玩家实体必须已有可写入的 Mainhand，否则直接跳过。实体有 ChestItems 时整数 Slot 写入对应槽位，超范围时写入最后槽位并同步已有 Mainhand；没有 ChestItems 时写入已有 Mainhand。命令任何时候都不会创建 Mainhand 标签。
 - `weather clear/rain/thunder` 的天气等级、持续时间和 `doWeatherCycle` 与信息页天气栏目共用同一套读写逻辑。
 - 天气栏目包含“天气自动变化”开关。
 - 世界信息显示最后打开的游戏版本和最小兼容游戏版本；世界编辑新增时间栏目（含 `dodaylightcycle` 开关）和玩家经验栏目。
