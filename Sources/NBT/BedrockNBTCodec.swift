@@ -10,7 +10,7 @@ enum BedrockNBTCodec {
     static func decodeDocument(cursor: inout BinaryCursor, encoding: NBTEncoding = .littleEndian, maximumDepth: Int = 256) throws -> NBTDocument {
         let rawType = try cursor.readByte()
         guard let type = NBTTagType(rawValue: rawType), type != .end else {
-            throw BlocktopographError.malformedData("NBT 根标签类型无效：\(rawType)")
+            throw MCBEEditorError.malformedData("NBT 根标签类型无效：\(rawType)")
         }
         let name = try readString(cursor: &cursor, encoding: encoding)
         let value = try readPayload(type: type, cursor: &cursor, encoding: encoding, depth: 0, maximumDepth: maximumDepth)
@@ -26,10 +26,10 @@ enum BedrockNBTCodec {
     }
 
     private static func readPayload(type: NBTTagType, cursor: inout BinaryCursor, encoding: NBTEncoding, depth: Int, maximumDepth: Int) throws -> NBTValue {
-        guard depth <= maximumDepth else { throw BlocktopographError.malformedData("NBT 嵌套超过 \(maximumDepth) 层") }
+        guard depth <= maximumDepth else { throw MCBEEditorError.malformedData("NBT 嵌套超过 \(maximumDepth) 层") }
         switch type {
         case .end:
-            throw BlocktopographError.malformedData("End 标签不能作为值")
+            throw MCBEEditorError.malformedData("End 标签不能作为值")
         case .byte:
             return .byte(Int8(bitPattern: try cursor.readByte()))
         case .short:
@@ -58,11 +58,11 @@ enum BedrockNBTCodec {
         case .list:
             let elementRaw = try cursor.readByte()
             guard let elementType = NBTTagType(rawValue: elementRaw) else {
-                throw BlocktopographError.malformedData("NBT List 元素类型无效：\(elementRaw)")
+                throw MCBEEditorError.malformedData("NBT List 元素类型无效：\(elementRaw)")
             }
             let count = try readLength(cursor: &cursor, encoding: encoding)
             if count > 0 && elementType == .end {
-                throw BlocktopographError.malformedData("非空 List 不能使用 End 元素类型")
+                throw MCBEEditorError.malformedData("非空 List 不能使用 End 元素类型")
             }
             var values = [NBTValue]()
             values.reserveCapacity(count)
@@ -75,7 +75,7 @@ enum BedrockNBTCodec {
             while true {
                 let raw = try cursor.readByte()
                 guard let childType = NBTTagType(rawValue: raw) else {
-                    throw BlocktopographError.malformedData("Compound 子标签类型无效：\(raw)")
+                    throw MCBEEditorError.malformedData("Compound 子标签类型无效：\(raw)")
                 }
                 if childType == .end { break }
                 let name = try readString(cursor: &cursor, encoding: encoding)
@@ -139,7 +139,7 @@ enum BedrockNBTCodec {
             try writeString(text, writer: &writer, encoding: encoding)
         case .list(let elementType, let values):
             guard values.allSatisfy({ $0.type == elementType }) else {
-                throw BlocktopographError.malformedData("NBT List 中存在不同类型元素")
+                throw MCBEEditorError.malformedData("NBT List 中存在不同类型元素")
             }
             writer.writeByte(elementType.rawValue)
             try writeLength(values.count, writer: &writer, encoding: encoding)
@@ -180,14 +180,14 @@ enum BedrockNBTCodec {
         case .littleEndianVarInt: raw = Int64(try cursor.readSignedVarInt32())
         }
         guard raw >= 0, raw <= Int64(Int.max), raw <= 100_000_000 else {
-            throw BlocktopographError.malformedData("NBT 长度无效：\(raw)")
+            throw MCBEEditorError.malformedData("NBT 长度无效：\(raw)")
         }
         return Int(raw)
     }
 
     private static func writeLength(_ count: Int, writer: inout BinaryWriter, encoding: NBTEncoding) throws {
         guard count >= 0, count <= Int(Int32.max) else {
-            throw BlocktopographError.malformedData("NBT 长度无法编码：\(count)")
+            throw MCBEEditorError.malformedData("NBT 长度无法编码：\(count)")
         }
         switch encoding {
         case .bigEndian: writer.writeInt32BE(Int32(count))
@@ -206,27 +206,27 @@ enum BedrockNBTCodec {
         case .littleEndianVarInt:
             let value = try cursor.readUnsignedVarInt(maxBytes: 5)
             guard value <= UInt64(Int.max), value <= 16_777_216 else {
-                throw BlocktopographError.malformedData("NBT 字符串过长")
+                throw MCBEEditorError.malformedData("NBT 字符串过长")
             }
             length = Int(value)
         }
         let data = try cursor.readData(count: length)
         guard let text = String(data: data, encoding: .utf8) else {
-            throw BlocktopographError.malformedData("NBT 字符串不是 UTF-8")
+            throw MCBEEditorError.malformedData("NBT 字符串不是 UTF-8")
         }
         return text
     }
 
     private static func writeString(_ value: String, writer: inout BinaryWriter, encoding: NBTEncoding) throws {
         guard let data = value.data(using: .utf8) else {
-            throw BlocktopographError.malformedData("字符串无法编码为 UTF-8")
+            throw MCBEEditorError.malformedData("字符串无法编码为 UTF-8")
         }
         switch encoding {
         case .bigEndian:
-            guard data.count <= Int(UInt16.max) else { throw BlocktopographError.malformedData("NBT 字符串超过 65535 字节") }
+            guard data.count <= Int(UInt16.max) else { throw MCBEEditorError.malformedData("NBT 字符串超过 65535 字节") }
             writer.writeUInt16BE(UInt16(data.count))
         case .littleEndian:
-            guard data.count <= Int(UInt16.max) else { throw BlocktopographError.malformedData("NBT 字符串超过 65535 字节") }
+            guard data.count <= Int(UInt16.max) else { throw MCBEEditorError.malformedData("NBT 字符串超过 65535 字节") }
             writer.writeUInt16LE(UInt16(data.count))
         case .littleEndianVarInt:
             writer.writeUnsignedVarInt(UInt64(data.count))

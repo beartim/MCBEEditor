@@ -47,7 +47,7 @@ final class MetadataNBTStore {
 
     func save(record: MetadataNBTRecord, roots: [ConsecutiveNBTRecord]) throws {
         guard !roots.isEmpty else {
-            throw BlocktopographError.malformedData("至少需要保留一个 NBT 根标签")
+            throw MCBEEditorError.malformedData("至少需要保留一个 NBT 根标签")
         }
         let encoded = try ConsecutiveNBTCodec.encode(roots)
         try session.database().put(encoded, for: record.key, sync: true)

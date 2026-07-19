@@ -142,11 +142,11 @@ final class WorldCommandExecutor {
 
     private func setWorldSpawn(_ position: CommandBlockCoordinate) throws -> String {
         guard let x = Int32(exactly: position.x), let z = Int32(exactly: position.z) else {
-            throw BlocktopographError.malformedData("世界重生点 X/Z 必须在 Int32 范围内")
+            throw MCBEEditorError.malformedData("世界重生点 X/Z 必须在 Int32 范围内")
         }
         var file = try session.document.readLevelDat()
         guard case .compound(var tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         setTopLevelTag(name: "SpawnX", value: .int(x), in: &tags)
         setTopLevelTag(name: "SpawnY", value: .int(position.y), in: &tags)
@@ -162,17 +162,17 @@ final class WorldCommandExecutor {
         position: CommandBlockCoordinate
     ) throws -> String {
         guard let x = Int32(exactly: position.x), let z = Int32(exactly: position.z) else {
-            throw BlocktopographError.malformedData("玩家重生点 X/Z 必须在 Int32 范围内")
+            throw MCBEEditorError.malformedData("玩家重生点 X/Z 必须在 Int32 范围内")
         }
         let targets = try resolveTargets(target)
         guard !targets.players.isEmpty else {
-            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；spawnpoint 不能用于普通实体")
+            throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有匹配到玩家；spawnpoint 不能用于普通实体")
         }
         var puts = [(key: Data, value: Data)]()
         puts.reserveCapacity(targets.players.count)
         for record in targets.players {
             guard case .compound(var tags) = record.document.root else {
-                throw BlocktopographError.malformedData("玩家 \(playerIdentity(record)) 的 NBT 根不是 Compound")
+                throw MCBEEditorError.malformedData("玩家 \(playerIdentity(record)) 的 NBT 根不是 Compound")
             }
             setTopLevelTag(name: "SpawnX", value: .int(x), in: &tags)
             setTopLevelTag(name: "SpawnY", value: .int(position.y), in: &tags)
@@ -262,7 +262,7 @@ final class WorldCommandExecutor {
         let minimum = Int64(Int32.min) * 16
         let maximum = Int64(Int32.max) * 16 + 15
         guard (minimum...maximum).contains(x), (minimum...maximum).contains(z) else {
-            throw BlocktopographError.malformedData("Auto 的 X/Z 超出 Bedrock Int32 区块坐标范围")
+            throw MCBEEditorError.malformedData("Auto 的 X/Z 超出 Bedrock Int32 区块坐标范围")
         }
         let column = try renderer.blockColumn(blockX: x, blockZ: z, dimension: dimension)
         let blocks = column.blocks
@@ -291,7 +291,7 @@ final class WorldCommandExecutor {
 
     private func blockAboveY(_ block: BedrockBlockRecord, context: String) throws -> Int32 {
         guard block.y < Int32.max else {
-            throw BlocktopographError.malformedData("\(context)上方的 Y 坐标溢出")
+            throw MCBEEditorError.malformedData("\(context)上方的 Y 坐标溢出")
         }
         return block.y + 1
     }
@@ -302,7 +302,7 @@ final class WorldCommandExecutor {
         dimension: Int32
     ) throws -> NBTDocument {
         guard case .compound(var tags) = source.root else {
-            throw BlocktopographError.malformedData("玩家或实体 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("玩家或实体 NBT 根必须是 Compound")
         }
         setTopLevelTag(
             name: "Pos",
@@ -333,7 +333,7 @@ final class WorldCommandExecutor {
             .mapValues { $0.map(\.position) }
         let dimensions = grouped.keys.sorted()
         guard !dimensions.isEmpty else {
-            throw BlocktopographError.unsupported("世界中没有包含方块数据的已加载区块，无法执行 spread。")
+            throw MCBEEditorError.unsupported("世界中没有包含方块数据的已加载区块，无法执行 spread。")
         }
 
         let renderer = ChunkSurfaceRenderer(database: try session.database())
@@ -417,7 +417,7 @@ final class WorldCommandExecutor {
         generator: inout R
     ) throws -> SpreadDestination {
         guard let firstDimension = dimensions.randomElement(using: &generator) else {
-            throw BlocktopographError.unsupported("没有可用于 spread 的维度。")
+            throw MCBEEditorError.unsupported("没有可用于 spread 的维度。")
         }
         var dimensionOrder = [firstDimension]
         dimensionOrder.append(contentsOf: dimensions.filter { $0 != firstDimension }.shuffled(using: &generator))
@@ -449,7 +449,7 @@ final class WorldCommandExecutor {
                 }
             }
         }
-        throw BlocktopographError.unsupported("所有已加载区块都没有可用的非空气方块列，无法执行 spread。")
+        throw MCBEEditorError.unsupported("所有已加载区块都没有可用的非空气方块列，无法执行 spread。")
     }
 
     private func spreadOutputLine(identifier: String, uniqueID: Int64?, destination: SpreadDestination) -> String {
@@ -466,7 +466,7 @@ final class WorldCommandExecutor {
     private func setDayLock(_ locked: Bool) throws -> String {
         var file = try session.document.readLevelDat()
         guard case .compound(var tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         let cycleEnabled = !locked
         setTopLevelTag(name: "dodaylightcycle", value: .byte(cycleEnabled ? 1 : 0), in: &tags)
@@ -482,7 +482,7 @@ final class WorldCommandExecutor {
             settings = .clear(automaticChange: command.automaticChange)
         case .rain:
             guard let duration = command.duration, let intensity = command.intensity else {
-                throw BlocktopographError.malformedData("weather rain 缺少持续时间或强度")
+                throw MCBEEditorError.malformedData("weather rain 缺少持续时间或强度")
             }
             settings = .rain(
                 duration: duration,
@@ -491,7 +491,7 @@ final class WorldCommandExecutor {
             )
         case .thunder:
             guard let duration = command.duration, let intensity = command.intensity else {
-                throw BlocktopographError.malformedData("weather thunder 缺少持续时间或强度")
+                throw MCBEEditorError.malformedData("weather thunder 缺少持续时间或强度")
             }
             settings = .thunder(
                 duration: duration,
@@ -526,7 +526,7 @@ final class WorldCommandExecutor {
         }
         let targets = try resolveTargets(target)
         guard !targets.players.isEmpty else {
-            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；experience 不能用于普通实体")
+            throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有匹配到玩家；experience 不能用于普通实体")
         }
 
         let store = ExperienceStore(session: session)
@@ -561,7 +561,7 @@ final class WorldCommandExecutor {
             case .add(_, let delta):
                 let (sum, overflow) = experience.total.addingReportingOverflow(delta)
                 guard !overflow else {
-                    throw BlocktopographError.malformedData("experience add 结果超出 Int64 范围")
+                    throw MCBEEditorError.malformedData("experience add 结果超出 Int64 范围")
                 }
                 let bounded = min(BedrockPlayerExperience.maximumTotal, max(0, sum))
                 experience = try BedrockPlayerExperience.fromTotal(bounded)
@@ -569,7 +569,7 @@ final class WorldCommandExecutor {
                 let current = Int64(experience.level)
                 let (sum, overflow) = current.addingReportingOverflow(delta)
                 guard !overflow else {
-                    throw BlocktopographError.malformedData("experience addlevel 结果超出 Int64 范围")
+                    throw MCBEEditorError.malformedData("experience addlevel 结果超出 Int64 范围")
                 }
                 let level = Int32(clamping: min(Int64(BedrockPlayerExperience.maximumLevel), max(0, sum)))
                 experience = BedrockPlayerExperience(level: level, progress: experience.progress)
@@ -620,7 +620,7 @@ final class WorldCommandExecutor {
         case .add(let delta):
             let (updated, overflow) = current.addingReportingOverflow(delta)
             guard !overflow else {
-                throw BlocktopographError.malformedData("time add 结果超出 Int64 范围")
+                throw MCBEEditorError.malformedData("time add 结果超出 Int64 范围")
             }
             try BedrockTimeStore.saveTime(updated, session: session)
             return ("time add 完成：time=\(updated)", true)
@@ -659,7 +659,7 @@ final class WorldCommandExecutor {
             )
         case .load(let name, let dimension, let destination):
             guard let record = try store.record(named: name), let document = record.document else {
-                throw BlocktopographError.unsupported("不存在结构：\(name)")
+                throw MCBEEditorError.unsupported("不存在结构：\(name)")
             }
             let message = try CommandBlockStore.loadStructure(
                 session: session,
@@ -671,7 +671,7 @@ final class WorldCommandExecutor {
         case .delete(let name):
             if let name = name {
                 guard try store.delete(named: name) else {
-                    throw BlocktopographError.unsupported("不存在结构：\(name)")
+                    throw MCBEEditorError.unsupported("不存在结构：\(name)")
                 }
                 return ("structure delete 完成：已删除 \(name)。", true)
             }
@@ -709,7 +709,7 @@ final class WorldCommandExecutor {
                 let originalCount = records.count
                 records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }
                 guard records.count != originalCount else {
-                    throw BlocktopographError.unsupported("不存在常加载区域：\(name)")
+                    throw MCBEEditorError.unsupported("不存在常加载区域：\(name)")
                 }
                 try store.save(records)
                 return ("tickingarea delete 完成：删除名称为 \(name) 的 \(originalCount - records.count) 个区域。", true)
@@ -861,7 +861,7 @@ final class WorldCommandExecutor {
         puts.reserveCapacity(groups.count)
         for (key, group) in groups {
             guard let original = try database.get(key) else {
-                throw BlocktopographError.malformedData("实体源 NBT 记录已不存在，请重新扫描。")
+                throw MCBEEditorError.malformedData("实体源 NBT 记录已不存在，请重新扫描。")
             }
             var records = try ConsecutiveNBTCodec.decode(original)
             var occupiedIndexes = Set<Int>()
@@ -879,15 +879,15 @@ final class WorldCommandExecutor {
                 } else if let located = records.firstIndex(where: { $0.rawData == object.rawData }) {
                     index = located
                 } else {
-                    throw BlocktopographError.malformedData("实体记录已经变化，无法应用状态效果；请重新扫描。")
+                    throw MCBEEditorError.malformedData("实体记录已经变化，无法应用状态效果；请重新扫描。")
                 }
                 guard occupiedIndexes.insert(index).inserted else {
-                    throw BlocktopographError.malformedData("同一实体在目标选择器中重复出现。")
+                    throw MCBEEditorError.malformedData("同一实体在目标选择器中重复出现。")
                 }
                 let originalID = object.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
                 let editedID = replacement.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
                 guard originalID == editedID else {
-                    throw BlocktopographError.malformedData("effect 命令不能修改实体 UniqueID。")
+                    throw MCBEEditorError.malformedData("effect 命令不能修改实体 UniqueID。")
                 }
                 records[index].document = replacement.document
                 records[index].rawData = try BedrockNBTCodec.encode(
@@ -950,7 +950,7 @@ final class WorldCommandExecutor {
         }
         let resolved = ResolvedCommandTargets(players: players, entities: entities)
         guard !resolved.isEmpty else {
-            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家或实体")
+            throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有匹配到玩家或实体")
         }
         return resolved
     }
@@ -1060,7 +1060,7 @@ final class WorldCommandExecutor {
             containerCount += mutation.containerCount
         }
         guard changedPlayers + changedEntities > 0 else {
-            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有可清除的物品容器")
+            throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有可清除的物品容器")
         }
         return "clear 完成：修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体，清除 \(removedItems) 个物品条目，处理 \(containerCount) 个容器；村民交易数据保持不变。"
     }
@@ -1068,7 +1068,7 @@ final class WorldCommandExecutor {
     private func clearSpawnPoints(target: CommandTarget) throws -> String {
         let targets = try resolveTargets(target)
         guard !targets.players.isEmpty else {
-            throw BlocktopographError.unsupported("目标 \(target.displayText) 没有匹配到玩家；实体不具有玩家出生点")
+            throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有匹配到玩家；实体不具有玩家出生点")
         }
         let store = PlayerNBTStore(session: session)
         var changed = 0
@@ -1083,7 +1083,7 @@ final class WorldCommandExecutor {
             removed += mutation.removedCount
         }
         guard changed > 0 else {
-            throw BlocktopographError.unsupported("目标玩家当前没有可清除的出生点标签")
+            throw MCBEEditorError.unsupported("目标玩家当前没有可清除的出生点标签")
         }
         return "clearspawnpoint 完成：清除 \(changed) 个玩家的出生点，移除 \(removed) 个相关标签。"
     }
@@ -1159,7 +1159,7 @@ final class WorldCommandExecutor {
         }
 
         if changedPlayers + changedEntities == 0 && skippedEntities == 0 {
-            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory；非玩家实体必须已有 Mainhand 标签")
+            throw MCBEEditorError.unsupported("目标没有可写入的玩家 Inventory；非玩家实体必须已有 Mainhand 标签")
         }
         return "give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与已有 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有可写入 Mainhand 的实体。"
     }
@@ -1459,7 +1459,7 @@ final class WorldCommandExecutor {
             deletedEntities = try entityStore.delete(objects: targets.entities)
         }
         guard killedPlayers + deletedEntities > 0 else {
-            throw BlocktopographError.unsupported("没有可杀死的目标；跳过 \(skippedCreative) 个创造模式玩家，\(playersWithoutHealth) 个玩家缺少 Health Current")
+            throw MCBEEditorError.unsupported("没有可杀死的目标；跳过 \(skippedCreative) 个创造模式玩家，\(playersWithoutHealth) 个玩家缺少 Health Current")
         }
         return "kill 完成：删除 \(deletedEntities) 个非玩家实体，将 \(killedPlayers) 个玩家的生命值 Current 设为 0.0；跳过 \(skippedCreative) 个创造模式玩家和 \(playersWithoutHealth) 个缺少生命值标签的玩家。"
     }
@@ -1474,9 +1474,9 @@ final class WorldCommandExecutor {
         case .uniqueID(let uniqueID):
             selected = records.filter { isOnlinePlayer($0) && playerUniqueID($0) == uniqueID }
         default:
-            throw BlocktopographError.malformedData("kick 目标只能是在线玩家 UniqueID 或 @a")
+            throw MCBEEditorError.malformedData("kick 目标只能是在线玩家 UniqueID 或 @a")
         }
-        guard !selected.isEmpty else { throw BlocktopographError.unsupported("没有匹配到在线玩家数据") }
+        guard !selected.isEmpty else { throw MCBEEditorError.unsupported("没有匹配到在线玩家数据") }
         let deletedKeys = try store.deleteOnlinePlayerData(records: selected)
         return "kick 完成：删除 \(selected.count) 个在线玩家的全部匹配数据，共移除 \(deletedKeys) 条 LevelDB 记录。"
     }
@@ -1728,7 +1728,7 @@ private final class CommandBlockStore {
         try database.applyBatch(puts: puts, deletes: [], sync: true)
         for put in puts {
             guard try database.get(put.key) == put.value else {
-                throw BlocktopographError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
+                throw MCBEEditorError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
             }
         }
         availableChunks.formUnion(missing)
@@ -1757,7 +1757,7 @@ private final class CommandBlockStore {
         let store = try CommandBlockStore(session: session, dimension: dimension)
         try store.validateVolume(region)
         guard let volumeValue = region.volume, volumeValue <= 16_777_216 else {
-            throw BlocktopographError.unsupported("structure save 一次最多保存 16,777,216 个方块")
+            throw MCBEEditorError.unsupported("structure save 一次最多保存 16,777,216 个方块")
         }
         let sizeX = try structureSpan(region.minimum.x, region.maximum.x, name: "X")
         let sizeY = try structureSpan(Int64(region.minimum.y), Int64(region.maximum.y), name: "Y")
@@ -1774,7 +1774,7 @@ private final class CommandBlockStore {
                 ? store.normalizedModernState(state, version: try store.paletteVersion(for: key))
                 : store.modernState(from: state, version: try store.paletteVersion(for: key))
             guard let nbt = modern.nbt else {
-                throw BlocktopographError.malformedData("结构调色板方块缺少现代 NBT 状态")
+                throw MCBEEditorError.malformedData("结构调色板方块缺少现代 NBT 状态")
             }
             let encoded = try BedrockNBTCodec.encode(
                 NBTDocument(rootName: "", root: nbt),
@@ -1782,7 +1782,7 @@ private final class CommandBlockStore {
             )
             if let existing = paletteLookup[encoded] { return existing }
             guard palette.count < Int(Int32.max) else {
-                throw BlocktopographError.unsupported("结构调色板条目过多")
+                throw MCBEEditorError.unsupported("结构调色板条目过多")
             }
             let index = Int32(palette.count)
             palette.append(nbt)
@@ -1832,7 +1832,7 @@ private final class CommandBlockStore {
         positionData.sort { (Int($0.name) ?? 0) < (Int($1.name) ?? 0) }
         guard let originX = Int32(exactly: region.minimum.x),
               let originZ = Int32(exactly: region.minimum.z) else {
-            throw BlocktopographError.malformedData("structure save 的世界原点 X/Z 必须在 Int32 范围内")
+            throw MCBEEditorError.malformedData("structure save 的世界原点 X/Z 必须在 Int32 范围内")
         }
 
         return NBTDocument(rootName: "", root: .compound([
@@ -1873,7 +1873,7 @@ private final class CommandBlockStore {
         let maxY = destination.y.addingReportingOverflow(Int32(parsed.sizeY - 1))
         let maxZ = destination.z.addingReportingOverflow(Int64(parsed.sizeZ - 1))
         guard !maxX.overflow, !maxY.overflow, !maxZ.overflow else {
-            throw BlocktopographError.malformedData("structure load 目标坐标溢出")
+            throw MCBEEditorError.malformedData("structure load 目标坐标溢出")
         }
         let targetRegion = CommandBlockBox(
             destination,
@@ -1930,7 +1930,7 @@ private final class CommandBlockStore {
         )
         let written = try store.commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty || generatedCount > 0 else {
-            throw BlocktopographError.unsupported("结构没有产生任何方块变化")
+            throw MCBEEditorError.unsupported("结构没有产生任何方块变化")
         }
         return "写入 \(written) 个 SubChunk，修改 \(changedBlocks) 个图层方块，处理 \(changedEntityChunks.count) 个方块实体区块，先生成 \(generatedCount) 个空气区块。"
     }
@@ -1948,7 +1948,7 @@ private final class CommandBlockStore {
             let raw = layers[layer][flatIndex]
             if raw == -1 { return nil }
             guard raw >= 0, palette.indices.contains(Int(raw)) else {
-                throw BlocktopographError.malformedData("结构方块索引超出调色板范围：\(raw)")
+                throw MCBEEditorError.malformedData("结构方块索引超出调色板范围：\(raw)")
             }
             return palette[Int(raw)]
         }
@@ -1965,26 +1965,26 @@ private final class CommandBlockStore {
               case .list(.list, let layerValues) = indicesValue,
               let paletteContainer = structure.compoundValue(named: "palette")?.compoundValue(named: "default"),
               case .list(.compound, let paletteValues)? = paletteContainer.compoundValue(named: "block_palette") else {
-            throw BlocktopographError.malformedData("结构缺少 size、structure.block_indices 或 default.block_palette")
+            throw MCBEEditorError.malformedData("结构缺少 size、structure.block_indices 或 default.block_palette")
         }
         let sizeX = Int(size[0]), sizeY = Int(size[1]), sizeZ = Int(size[2])
         let volumeResult = sizeX.multipliedReportingOverflow(by: sizeY)
         let volumeFinal = volumeResult.partialValue.multipliedReportingOverflow(by: sizeZ)
         guard !volumeResult.overflow, !volumeFinal.overflow, volumeFinal.partialValue <= 16_777_216 else {
-            throw BlocktopographError.unsupported("结构体积过大")
+            throw MCBEEditorError.unsupported("结构体积过大")
         }
         let volume = volumeFinal.partialValue
         var layers = [[Int32]]()
         for value in layerValues.prefix(2) {
             guard case .list(.int, let values) = value else {
-                throw BlocktopographError.malformedData("structure.block_indices 图层必须是 Int List")
+                throw MCBEEditorError.malformedData("structure.block_indices 图层必须是 Int List")
             }
             let numbers = values.compactMap { item -> Int32? in
                 if case .int(let number) = item { return number }
                 return nil
             }
             guard numbers.count == values.count else {
-                throw BlocktopographError.malformedData("structure.block_indices 包含非 Int 值")
+                throw MCBEEditorError.malformedData("structure.block_indices 包含非 Int 值")
             }
             var normalized = numbers
             if normalized.count < volume { normalized.append(contentsOf: repeatElement(-1, count: volume - normalized.count)) }
@@ -1994,11 +1994,11 @@ private final class CommandBlockStore {
         while layers.count < 2 { layers.append([Int32](repeating: -1, count: volume)) }
         let palette = try paletteValues.map { value -> BedrockBlockState in
             guard case .compound = value else {
-                throw BlocktopographError.malformedData("结构 block_palette 条目不是 Compound")
+                throw MCBEEditorError.malformedData("结构 block_palette 条目不是 Compound")
             }
             return BedrockBlockState(nbt: value, legacyID: nil, legacyData: nil)
         }
-        guard !palette.isEmpty else { throw BlocktopographError.malformedData("结构调色板为空") }
+        guard !palette.isEmpty else { throw MCBEEditorError.malformedData("结构调色板为空") }
 
         var blockEntities = [Int: NBTDocument]()
         if case .compound(let positions)? = paletteContainer.compoundValue(named: "block_position_data") {
@@ -2041,11 +2041,11 @@ private final class CommandBlockStore {
     private static func structureSpan(_ minimum: Int64, _ maximum: Int64, name: String) throws -> Int {
         let difference = maximum.subtractingReportingOverflow(minimum)
         guard !difference.overflow, difference.partialValue >= 0 else {
-            throw BlocktopographError.malformedData("structure \(name) 轴尺寸溢出")
+            throw MCBEEditorError.malformedData("structure \(name) 轴尺寸溢出")
         }
         let inclusive = difference.partialValue.addingReportingOverflow(1)
         guard !inclusive.overflow, let value = Int(exactly: inclusive.partialValue), value > 0 else {
-            throw BlocktopographError.malformedData("structure \(name) 轴尺寸无效")
+            throw MCBEEditorError.malformedData("structure \(name) 轴尺寸无效")
         }
         return value
     }
@@ -2090,7 +2090,7 @@ private final class CommandBlockStore {
         let entityResult = try removeBlockEntities(in: region, onlyLoadedChunks: false)
         let written = try commit(extraPuts: entityResult.puts, extraDeletes: entityResult.deletes)
         guard written > 0 || entityResult.changedCount > 0 || generatedCount > 0 else {
-            throw BlocktopographError.unsupported("区域内没有产生任何方块变化")
+            throw MCBEEditorError.unsupported("区域内没有产生任何方块变化")
         }
         return "fill 完成：修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体；处理 \(touchedChunks.count) 个区块，其中先生成 \(generatedCount) 个空气区块。"
     }
@@ -2128,7 +2128,7 @@ private final class CommandBlockStore {
         let deltaYResult = destination.y.subtractingReportingOverflow(source.minimum.y)
         let deltaZResult = destination.z.subtractingReportingOverflow(source.minimum.z)
         guard !deltaXResult.overflow, !deltaYResult.overflow, !deltaZResult.overflow else {
-            throw BlocktopographError.malformedData("clone 目标坐标偏移溢出")
+            throw MCBEEditorError.malformedData("clone 目标坐标偏移溢出")
         }
         let deltaX = deltaXResult.partialValue
         let deltaY = deltaYResult.partialValue
@@ -2171,7 +2171,7 @@ private final class CommandBlockStore {
                     let targetY = y.addingReportingOverflow(deltaY)
                     let targetZ = z.addingReportingOverflow(deltaZ)
                     guard !targetX.overflow, !targetY.overflow, !targetZ.overflow else {
-                        throw BlocktopographError.malformedData("clone 目标坐标溢出")
+                        throw MCBEEditorError.malformedData("clone 目标坐标溢出")
                     }
                     let sourceCoordinate = CommandBlockCoordinate(x: x, y: y, z: z)
                     let targetCoordinate = CommandBlockCoordinate(
@@ -2217,7 +2217,7 @@ private final class CommandBlockStore {
         let written = try commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty
                 || generatedSourceChunks > 0 || generatedTargetChunks > 0 else {
-            throw BlocktopographError.unsupported("源区域内没有可复制的方块变化")
+            throw MCBEEditorError.unsupported("源区域内没有可复制的方块变化")
         }
         return "clone 完成：从 \(WorldCommandParser.dimensionName(for: sourceStore.dimension)) 复制到 \(WorldCommandParser.dimensionName(for: dimension))；修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk；处理 \(touchedDestinationChunks.count) 个目标区块，先生成 \(generatedSourceChunks) 个源空气区块和 \(generatedTargetChunks) 个目标空气区块。重叠区域和不同 Y 偏移均按命令开始时的原始源数据复制。"
     }
@@ -2230,13 +2230,13 @@ private final class CommandBlockStore {
         let height = source.maximum.y.subtractingReportingOverflow(source.minimum.y)
         let depth = source.maximum.z.subtractingReportingOverflow(source.minimum.z)
         guard !width.overflow, !height.overflow, !depth.overflow else {
-            throw BlocktopographError.malformedData("clone 源区域尺寸溢出")
+            throw MCBEEditorError.malformedData("clone 源区域尺寸溢出")
         }
         let maximumX = destination.x.addingReportingOverflow(width.partialValue)
         let maximumY = destination.y.addingReportingOverflow(height.partialValue)
         let maximumZ = destination.z.addingReportingOverflow(depth.partialValue)
         guard !maximumX.overflow, !maximumY.overflow, !maximumZ.overflow else {
-            throw BlocktopographError.malformedData("clone 目标区域坐标溢出")
+            throw MCBEEditorError.malformedData("clone 目标区域坐标溢出")
         }
         return CommandBlockBox(
             destination,
@@ -2266,9 +2266,9 @@ private final class CommandBlockStore {
         try validateHorizontal(region.maximum.x, name: "X2")
         try validateHorizontal(region.minimum.z, name: "Z1")
         try validateHorizontal(region.maximum.z, name: "Z2")
-        guard let volume = region.volume else { throw BlocktopographError.malformedData("区域体积溢出") }
+        guard let volume = region.volume else { throw MCBEEditorError.malformedData("区域体积溢出") }
         guard volume <= 67_108_864 else {
-            throw BlocktopographError.unsupported("一次命令最多处理 67,108,864 个方块；当前为 \(volume)")
+            throw MCBEEditorError.unsupported("一次命令最多处理 67,108,864 个方块；当前为 \(volume)")
         }
         _ = try subChunkY(for: region.minimum.y)
         _ = try subChunkY(for: region.maximum.y)
@@ -2278,7 +2278,7 @@ private final class CommandBlockStore {
         let minimum = Int64(Int32.min) * 16
         let maximum = Int64(Int32.max) * 16 + 15
         guard (minimum...maximum).contains(coordinate) else {
-            throw BlocktopographError.malformedData("\(name)=\(coordinate) 超出 Bedrock 区块坐标范围")
+            throw MCBEEditorError.malformedData("\(name)=\(coordinate) 超出 Bedrock 区块坐标范围")
         }
     }
 
@@ -2294,7 +2294,7 @@ private final class CommandBlockStore {
         let wide = Int64(y)
         let quotient = wide >= 0 ? wide / 16 : (wide - 15) / 16
         guard let value = Int8(exactly: quotient) else {
-            throw BlocktopographError.unsupported("Y=\(y) 超出可编码的 SubChunk 范围")
+            throw MCBEEditorError.unsupported("Y=\(y) 超出可编码的 SubChunk 范围")
         }
         return value
     }
@@ -2411,7 +2411,7 @@ private final class CommandBlockStore {
         if mutable.isLegacy, writable.nbt != nil {
             try upgradeChunkToModern(key.chunk)
             guard case .value(let upgraded) = try load(key) else {
-                throw BlocktopographError.malformedData("旧版 SubChunk 升级后未能重新载入")
+                throw MCBEEditorError.malformedData("旧版 SubChunk 升级后未能重新载入")
             }
             mutable = upgraded
         }
@@ -2578,12 +2578,12 @@ private final class CommandBlockStore {
         try database.applyBatch(puts: puts, deletes: deletes, sync: true)
         for (key, value) in pendingMetadataPuts {
             guard try database.get(key) == value else {
-                throw BlocktopographError.malformedData("升级后的区块元数据写入后未能从 LevelDB 读回")
+                throw MCBEEditorError.malformedData("升级后的区块元数据写入后未能从 LevelDB 读回")
             }
         }
         for key in pendingMetadataDeletes where pendingMetadataPuts[key] == nil {
             guard try database.get(key) == nil else {
-                throw BlocktopographError.malformedData("升级前的旧版区块元数据仍然存在")
+                throw MCBEEditorError.malformedData("升级前的旧版区块元数据仍然存在")
             }
         }
         // Verify every changed SubChunk through the same LevelDB handle before a
@@ -2597,7 +2597,7 @@ private final class CommandBlockStore {
                 index: key.y
             )
             guard let stored = try database.get(dbKey) else {
-                throw BlocktopographError.malformedData("SubChunk 写入后未能从 LevelDB 读回")
+                throw MCBEEditorError.malformedData("SubChunk 写入后未能从 LevelDB 读回")
             }
             _ = try BedrockSubChunk.decode(stored, keyYIndex: key.y)
         }
@@ -2748,7 +2748,7 @@ private struct MutableCommandStorage {
             paletteIndex = existing
         } else {
             guard palette.count < Int(UInt16.max) else {
-                throw BlocktopographError.unsupported("方块调色板条目过多")
+                throw MCBEEditorError.unsupported("方块调色板条目过多")
             }
             paletteIndex = UInt16(palette.count)
             palette.append(state)
@@ -2787,11 +2787,11 @@ private struct MutableCommandStorage {
     }
 
     private static func bitsRequired(paletteCount: Int) throws -> Int {
-        guard paletteCount > 0 else { throw BlocktopographError.malformedData("方块调色板不能为空") }
+        guard paletteCount > 0 else { throw MCBEEditorError.malformedData("方块调色板不能为空") }
         if paletteCount == 1 { return 0 }
         let needed = Int(ceil(log2(Double(paletteCount))))
         for allowed in [1, 2, 3, 4, 5, 6, 8, 16] where allowed >= needed { return allowed }
-        throw BlocktopographError.unsupported("方块调色板条目过多")
+        throw MCBEEditorError.unsupported("方块调色板条目过多")
     }
 }
 
@@ -2839,17 +2839,17 @@ private struct MutableCommandSubChunk {
     }
 
     mutating func setState(_ state: BedrockBlockState, layer: Int, linearIndex: Int) throws -> Bool {
-        guard layer == 0 || layer == 1 else { throw BlocktopographError.malformedData("只支持层 0 和层 1") }
+        guard layer == 0 || layer == 1 else { throw MCBEEditorError.malformedData("只支持层 0 和层 1") }
         if isLegacy {
             guard layer == 0 || state.isAir else {
-                throw BlocktopographError.unsupported("旧版数字 ID SubChunk 不支持非空气层 1")
+                throw MCBEEditorError.unsupported("旧版数字 ID SubChunk 不支持非空气层 1")
             }
             if layer == 1 { return false }
             guard state.nbt == nil else {
-                throw BlocktopographError.unsupported("不能把现代方块状态写入旧版数字 ID SubChunk")
+                throw MCBEEditorError.unsupported("不能把现代方块状态写入旧版数字 ID SubChunk")
             }
         } else if state.nbt == nil {
-            throw BlocktopographError.unsupported("不能把旧版数字 ID 方块写入现代 SubChunk")
+            throw MCBEEditorError.unsupported("不能把旧版数字 ID 方块写入现代 SubChunk")
         }
         if layer == 1, storages.count <= 1, state.isAir { return false }
         while storages.count <= layer {

@@ -34,7 +34,7 @@ struct BedrockPlayerExperience {
     /// pair. Binary search avoids precision loss at high levels.
     static func fromTotal(_ total: Int64) throws -> BedrockPlayerExperience {
         guard total >= 0, total <= maximumTotal else {
-            throw BlocktopographError.malformedData("经验总数必须是 0～\(maximumTotal) 的整数")
+            throw MCBEEditorError.malformedData("经验总数必须是 0～\(maximumTotal) 的整数")
         }
 
         var low: Int32 = 0
@@ -123,7 +123,7 @@ final class ExperienceStore {
 
     static func read(from document: NBTDocument) throws -> BedrockPlayerExperience {
         guard case .compound(let tags) = document.root else {
-            throw BlocktopographError.malformedData("玩家 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("玩家 NBT 根必须是 Compound")
         }
         return BedrockPlayerExperience(
             level: try integer(named: "PlayerLevel", in: tags, default: 0),
@@ -133,10 +133,10 @@ final class ExperienceStore {
 
     static func document(_ source: NBTDocument, setting experience: BedrockPlayerExperience) throws -> NBTDocument {
         guard case .compound(var tags) = source.root else {
-            throw BlocktopographError.malformedData("玩家 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("玩家 NBT 根必须是 Compound")
         }
 
-        // Remove fields written by older Blocktopograph builds. Bedrock does
+        // Remove fields written by older MCBEEditor builds. Bedrock does
         // not use them for player XP and leaving them behind is misleading.
         remove(names: ["XpTotal", "XpLevel", "XpP"], from: &tags)
         set(name: "PlayerLevel", value: .int(experience.level), in: &tags)
@@ -166,10 +166,10 @@ final class ExperienceStore {
         case .long(let number): raw = number
         case .float(let number): raw = Int64(number)
         case .double(let number): raw = Int64(number)
-        default: throw BlocktopographError.malformedData("玩家 \(name) 标签必须是数字类型")
+        default: throw MCBEEditorError.malformedData("玩家 \(name) 标签必须是数字类型")
         }
         guard let result = Int32(exactly: raw) else {
-            throw BlocktopographError.malformedData("玩家 \(name) 超出 Int32 范围")
+            throw MCBEEditorError.malformedData("玩家 \(name) 超出 Int32 范围")
         }
         return result
     }
@@ -185,7 +185,7 @@ final class ExperienceStore {
         case .long(let number): return Float(number)
         case .float(let number): return number
         case .double(let number): return Float(number)
-        default: throw BlocktopographError.malformedData("玩家 \(name) 标签必须是数字类型")
+        default: throw MCBEEditorError.malformedData("玩家 \(name) 标签必须是数字类型")
         }
     }
 

@@ -3,7 +3,7 @@ import UIKit
 final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let session: WorldSession
     private let executor: WorldCommandExecutor
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.world-command", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.world-command", qos: .userInitiated)
 
     private let terminalContainer = UIView()
     private let outputView = UITextView()

@@ -249,11 +249,11 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
     @objc private func save() {
         view.endEditing(true)
         guard let area = draftArea() else {
-            showError(BlocktopographError.malformedData("请输入完整的整数坐标"), title: "坐标错误")
+            showError(MCBEEditorError.malformedData("请输入完整的整数坐标"), title: "坐标错误")
             return
         }
         if isCreating, existingCount >= TickingAreaStore.maximumAreaCount {
-            showError(BlocktopographError.unsupported("世界中已有 \(existingCount) 个常加载区域，无法继续增加"), title: "数量已达上限")
+            showError(MCBEEditorError.unsupported("世界中已有 \(existingCount) 个常加载区域，无法继续增加"), title: "数量已达上限")
             return
         }
         do {
@@ -274,7 +274,7 @@ final class TickingAreaEditorViewController: UIViewController, UITextFieldDelega
 final class TickingAreaListViewController: UITableViewController, UISearchResultsUpdating {
     private let session: WorldSession
     private let store: TickingAreaStore
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.ticking-area", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.ticking-area", qos: .userInitiated)
     private let initialDimension: Int32
     private let selectionContext: TickingAreaSelectionContext?
     private let dimensionControl = UISegmentedControl(items: ["全部"] + BedrockDimension.allCases.map(\.displayName))

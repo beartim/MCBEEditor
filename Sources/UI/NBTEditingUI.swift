@@ -5,13 +5,17 @@ enum NBTEditingUI {
 
     typealias TagInsertionCompletion = (_ name: String?, _ value: NBTValue, _ replacingExisting: Bool) -> Void
 
-    private static let tagPasteboardType = "com.wzn.blocktopograph.nbt-tag"
-    private static let batchTagPasteboardType = "com.wzn.blocktopograph.nbt-tags-v1"
+    private static let tagPasteboardType = "com.wzn.mcbeeditor.nbt-tag"
+    private static let batchTagPasteboardType = "com.wzn.mcbeeditor.nbt-tags-v1"
+    private static let legacyTagPasteboardType = "com.wzn.blocktopograph.nbt-tag"
+    private static let legacyBatchTagPasteboardType = "com.wzn.blocktopograph.nbt-tags-v1"
     private static var importPickerCoordinators = [ObjectIdentifier: NBTTagImportPickerCoordinator]()
 
     static var hasCopiedTag: Bool {
         UIPasteboard.general.data(forPasteboardType: batchTagPasteboardType) != nil ||
-        UIPasteboard.general.data(forPasteboardType: tagPasteboardType) != nil
+        UIPasteboard.general.data(forPasteboardType: tagPasteboardType) != nil ||
+        UIPasteboard.general.data(forPasteboardType: legacyBatchTagPasteboardType) != nil ||
+        UIPasteboard.general.data(forPasteboardType: legacyTagPasteboardType) != nil
     }
 
     static func copyTag(_ node: NBTNode, from presenter: UIViewController? = nil) {
@@ -87,7 +91,7 @@ enum NBTEditingUI {
         completion: @escaping TagInsertionCompletion
     ) {
         guard container.isPasteContainer else {
-            presenter.showError(BlocktopographError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
+            presenter.showError(MCBEEditorError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
             return
         }
         let sheet = UIAlertController(title: "增加 NBT 标签", message: nil, preferredStyle: .actionSheet)
@@ -116,7 +120,7 @@ enum NBTEditingUI {
         do {
             let copied = try copiedTags()
             guard !copied.isEmpty else {
-                throw BlocktopographError.malformedData("剪贴板中没有 Blocktopograph NBT 标签")
+                throw MCBEEditorError.malformedData("剪贴板中没有 MCBEEditor NBT 标签")
             }
             presentInsertion(
                 from: presenter,
@@ -164,7 +168,7 @@ enum NBTEditingUI {
         completion: @escaping TagInsertionCompletion
     ) {
         guard !items.isEmpty else {
-            presenter.showError(BlocktopographError.malformedData("没有可\(operation)的 NBT 标签"), title: "\(operation)标签失败")
+            presenter.showError(MCBEEditorError.malformedData("没有可\(operation)的 NBT 标签"), title: "\(operation)标签失败")
             return
         }
         do {
@@ -230,7 +234,7 @@ enum NBTEditingUI {
                 }
                 guard items.allSatisfy({ $0.value.type == expectedType }) else {
                     let importedTypes = Set(items.map { $0.value.type.displayName }).sorted().joined(separator: "、")
-                    throw BlocktopographError.malformedData(
+                    throw MCBEEditorError.malformedData(
                         "该 List 只能\(operation) \(expectedType.displayName)，所选标签包含：\(importedTypes)"
                     )
                 }
@@ -239,7 +243,7 @@ enum NBTEditingUI {
                     ? "已\(operation) NBT 标签"
                     : "已\(operation) \(items.count) 个 NBT 标签"
             default:
-                throw BlocktopographError.unsupported("只能向 Compound 或 List \(operation)标签")
+                throw MCBEEditorError.unsupported("只能向 Compound 或 List \(operation)标签")
             }
         } catch {
             presenter.showError(error, title: "\(operation)标签失败")
@@ -263,12 +267,14 @@ enum NBTEditingUI {
     }
 
     private static func copiedTags() throws -> [(name: String, value: NBTValue)] {
-        if let batch = UIPasteboard.general.data(forPasteboardType: batchTagPasteboardType),
+        if let batch = UIPasteboard.general.data(forPasteboardType: batchTagPasteboardType)
+            ?? UIPasteboard.general.data(forPasteboardType: legacyBatchTagPasteboardType),
            NBTClipboardCodec.isBatchPayload(batch) {
             return try NBTClipboardCodec.decodeBatch(batch).map { ($0.rootName, $0.root) }
         }
-        guard let data = UIPasteboard.general.data(forPasteboardType: tagPasteboardType) else {
-            throw BlocktopographError.malformedData("剪贴板中没有 Blocktopograph NBT 标签")
+        guard let data = UIPasteboard.general.data(forPasteboardType: tagPasteboardType)
+            ?? UIPasteboard.general.data(forPasteboardType: legacyTagPasteboardType) else {
+            throw MCBEEditorError.malformedData("剪贴板中没有 MCBEEditor NBT 标签")
         }
         let document = try BedrockNBTCodec.decode(data, encoding: .littleEndian)
         return [(document.rootName, document.root)]
@@ -347,7 +353,7 @@ enum NBTEditingUI {
         completion: @escaping TagInsertionCompletion
     ) {
         guard container.isPasteContainer else {
-            presenter.showError(BlocktopographError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
+            presenter.showError(MCBEEditorError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
             return
         }
         let sheet = UIAlertController(title: "增加 NBT 标签", message: nil, preferredStyle: .actionSheet)
@@ -409,7 +415,7 @@ enum NBTEditingUI {
                 presentInput(from: presenter, type: elementType, listElementType: nil, requiresName: false, completion: finish)
             }
         default:
-            presenter.showError(BlocktopographError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
+            presenter.showError(MCBEEditorError.unsupported("只能向 Compound 或 List 增加节点"), title: "无法增加")
         }
     }
 
@@ -420,7 +426,7 @@ enum NBTEditingUI {
     ) {
         guard let initialText = node.value.editableText else {
             presenter.showError(
-                BlocktopographError.unsupported("Compound 和 List 请通过增加、删除或编辑子节点修改。"),
+                MCBEEditorError.unsupported("Compound 和 List 请通过增加、删除或编辑子节点修改。"),
                 title: "无法直接修改"
             )
             return
@@ -629,7 +635,7 @@ private final class NBTTagImportPickerCoordinator: NSObject, UIDocumentPickerDel
         let ext = url.pathExtension.lowercased()
         guard ext == "nbt" || ext == "mcstructure" || ext == "json" else {
             presenter.showError(
-                BlocktopographError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
+                MCBEEditorError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
                 title: "无法导入 NBT 标签"
             )
             return
@@ -641,7 +647,7 @@ private final class NBTTagImportPickerCoordinator: NSObject, UIDocumentPickerDel
             let data = try Data(contentsOf: url)
             let decoded = try StandaloneNBTFileCodec.decode(data: data, filename: url.lastPathComponent)
             guard !decoded.documents.isEmpty else {
-                throw BlocktopographError.malformedData("文件中没有 NBT 根标签")
+                throw MCBEEditorError.malformedData("文件中没有 NBT 根标签")
             }
             let baseName = url.deletingPathExtension().lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
             completion(decoded.documents, baseName.isEmpty ? "导入的标签" : baseName)

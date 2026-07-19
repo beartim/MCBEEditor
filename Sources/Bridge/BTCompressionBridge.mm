@@ -1,7 +1,7 @@
 #import "BTCompressionBridge.h"
 #include <zlib.h>
 
-static NSString * const BTCompressionErrorDomain = @"Blocktopograph.Compression";
+static NSString * const BTCompressionErrorDomain = @"MCBEEditor.Compression";
 
 @implementation BTCompressionBridge
 

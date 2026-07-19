@@ -86,7 +86,11 @@ final class PlayerNBTStore {
 
 
     func localPlayerPosition() throws -> PlayerCurrentPosition? {
-        guard let record = try records().first(where: { isLocalKey($0.keyText) }) else { return nil }
+        guard let record = try records().first(where: { isLocalPlayer($0) }) else { return nil }
+        return currentPosition(for: record)
+    }
+
+    func currentPosition(for record: PlayerNBTRecord) -> PlayerCurrentPosition? {
         let root = record.document.root
         guard let rawPosition = compoundValue(in: root, names: ["Pos", "pos", "Position", "position"]),
               let position = doubleCoordinateTuple(rawPosition) else { return nil }
@@ -99,6 +103,14 @@ final class PlayerNBTStore {
             z: position.z,
             dimension: parseDimension(dimensionValue) ?? 0
         )
+    }
+
+    func isLocalPlayer(_ record: PlayerNBTRecord) -> Bool {
+        isLocalKey(record.keyText)
+    }
+
+    func uniqueID(for record: PlayerNBTRecord) -> Int64? {
+        playerUniqueID(record)
     }
 
     @discardableResult

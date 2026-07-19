@@ -1,6 +1,6 @@
 import Foundation
 
-enum BlocktopographError: LocalizedError {
+enum MCBEEditorError: LocalizedError {
     case invalidWorld(String)
     case invalidArchive(String)
     case unsupported(String)

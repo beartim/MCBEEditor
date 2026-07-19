@@ -16,8 +16,8 @@ struct WorldSelectionCoordinate {
 }
 
 final class WorldSession {
-    static let worldDidChangeNotification = Notification.Name("BlocktopographWorldSessionDidChange")
-    static let mapBlockSelectionNotification = Notification.Name("BlocktopographMapBlockSelectionRequested")
+    static let worldDidChangeNotification = Notification.Name("MCBEEditorWorldSessionDidChange")
+    static let mapBlockSelectionNotification = Notification.Name("MCBEEditorMapBlockSelectionRequested")
 
     let world: ImportedWorld
     let document: WorldDocument

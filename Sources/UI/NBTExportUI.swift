@@ -10,7 +10,7 @@ enum NBTExportUI {
         sourceView: UIView? = nil
     ) {
         guard !documents.isEmpty else {
-            presenter.showError(BlocktopographError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
+            presenter.showError(MCBEEditorError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
             return
         }
         let sheet = UIAlertController(
@@ -112,7 +112,7 @@ enum NBTExportUI {
         baseFilename: String
     ) {
         guard !documents.isEmpty else {
-            presenter.showError(BlocktopographError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
+            presenter.showError(MCBEEditorError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
             return
         }
         export(from: presenter, filename: safeFilename(baseFilename) + "-consecutive.nbt") {

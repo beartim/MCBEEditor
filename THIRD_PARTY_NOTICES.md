@@ -1,8 +1,8 @@
 # Third-party notices
 
-## Blocktopograph Android
+## MCBEEditor Android
 
-This iOS rewrite is based on the behavior and data-format work of Blocktopograph.
+This iOS rewrite is based on the behavior and data-format work of MCBEEditor.
 Original project copyright includes Proto Lambda and later community contributors.
 The derivative project is distributed under GNU AGPL-3.0-or-later. See `LICENSE`.
 
@@ -10,7 +10,7 @@ The Bedrock slime-chunk coordinate algorithm in `BedrockSlimeChunk.swift` follow
 the original Android `SlimeChunkRenderer.java`. The MCPE algorithm comments credit
 the reverse-engineering work of `@protolambda` and `@jocopa3`.
 
-- Source: https://github.com/oO0oO0oO0o0o00/blocktopograph/blob/master/app/src/main/java/com/mithrilmania/blocktopograph/map/renderer/SlimeChunkRenderer.java
+- Source: https://github.com/oO0oO0oO0o0o00/mcbeeditor/blob/master/app/src/main/java/com/mithrilmania/mcbeeditor/map/renderer/SlimeChunkRenderer.java
 
 ## leveldb-mcpe
 

@@ -64,7 +64,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
 
     private let statusLabel = UILabel()
     private let searchController = UISearchController(searchResultsController: nil)
-    private let scanQueue = DispatchQueue(label: "com.wzn.blocktopograph.entity-scan", qos: .userInitiated)
+    private let scanQueue = DispatchQueue(label: "com.wzn.mcbeeditor.entity-scan", qos: .userInitiated)
     private lazy var objectStore = BedrockWorldObjectNBTStore(session: session)
     private var allObjects = [BedrockWorldObject]()
     private var shownObjects = [BedrockWorldObject]()
@@ -351,7 +351,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
     @objc private func useSelectedBlockPosition() {
         guard let coordinate = session.selectedBlockCoordinate else {
             showError(
-                BlocktopographError.unsupported("尚未在地图中选中方块。请先打开地图并选择一个具体 Y 高度的方块。"),
+                MCBEEditorError.unsupported("尚未在地图中选中方块。请先打开地图并选择一个具体 Y 高度的方块。"),
                 title: "没有选中方块"
             )
             return
@@ -362,7 +362,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
     @objc private func useSelectedWorldObjectPosition() {
         guard let coordinate = session.selectedWorldObjectCoordinate else {
             showError(
-                BlocktopographError.unsupported("尚未选中带坐标的实体或方块实体。可在地图或实体列表中先选择对象。"),
+                MCBEEditorError.unsupported("尚未选中带坐标的实体或方块实体。可在地图或实体列表中先选择对象。"),
                 title: "没有选中对象"
             )
             return
@@ -536,12 +536,12 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         case .box:
             guard let x0 = Double(rectangleX0.text ?? ""), let z0 = Double(rectangleZ0.text ?? ""),
                   let x1 = Double(rectangleX1.text ?? ""), let z1 = Double(rectangleZ1.text ?? "") else {
-                throw BlocktopographError.malformedData("坐标区域的 X0、Z0、X1、Z1 必须是数字")
+                throw MCBEEditorError.malformedData("坐标区域的 X0、Z0、X1、Z1 必须是数字")
             }
             let yRange: ClosedRange<Double>?
             if rectangleYSwitch.isOn {
                 guard let y0 = Double(rectangleY0.text ?? ""), let y1 = Double(rectangleY1.text ?? "") else {
-                    throw BlocktopographError.malformedData("Y0、Y1 必须是数字")
+                    throw MCBEEditorError.malformedData("Y0、Y1 必须是数字")
                 }
                 yRange = min(y0, y1)...max(y0, y1)
             } else {
@@ -558,12 +558,12 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         case .radius:
             guard let x = Double(radiusX.text ?? ""), let z = Double(radiusZ.text ?? ""),
                   let radius = Double(radiusValue.text ?? ""), radius >= 0 else {
-                throw BlocktopographError.malformedData("中心 X、Z 和半径必须是有效数字，且半径不能为负数")
+                throw MCBEEditorError.malformedData("中心 X、Z 和半径必须是有效数字，且半径不能为负数")
             }
             let y: Double?
             if radiusYSwitch.isOn {
                 guard let parsedY = Double(radiusY.text ?? "") else {
-                    throw BlocktopographError.malformedData("开启 Y 后必须填写中心 Y")
+                    throw MCBEEditorError.malformedData("开启 Y 后必须填写中心 Y")
                 }
                 y = parsedY
             } else {

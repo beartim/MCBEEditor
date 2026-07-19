@@ -135,7 +135,7 @@ extension BedrockDBKey: CustomStringConvertible {
 /// dimension-aware prefix (`x,z,dimension`). A one-byte LevelChunkTag follows
 /// the prefix; some records append one or two additional bytes (for example a
 /// SubChunk Y index). Matching by prefix and bounded suffix length mirrors the
-/// Android Blocktopograph `removeFullChunk` implementation and deliberately
+/// Android MCBEEditor `removeFullChunk` implementation and deliberately
 /// does not depend on a whitelist of currently known tags.
 enum BedrockRawChunkKey {
     static func prefixes(for position: ChunkPosition) -> [Data] {

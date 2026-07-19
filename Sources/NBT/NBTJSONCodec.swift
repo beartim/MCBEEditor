@@ -7,16 +7,24 @@ import Foundation
 /// Consecutive NBT files use a small wrapper with a `documents` array.
 /// The decoder also accepts ordinary JSON and infers compatible NBT types.
 enum NBTJSONCodec {
+    private static let formatIdentifier = "mcbeeditor-nbt-json"
+    private static let legacyFormatIdentifier = "blocktopograph-nbt-json"
+
+    private static func isSupportedFormat(_ value: Any?) -> Bool {
+        guard let format = value as? String else { return false }
+        return format == formatIdentifier || format == legacyFormatIdentifier
+    }
+
     static func encode(_ documents: [NBTDocument], prettyPrinted: Bool = true) throws -> Data {
         guard !documents.isEmpty else {
-            throw BlocktopographError.malformedData("没有可导出的 NBT 根标签")
+            throw MCBEEditorError.malformedData("没有可导出的 NBT 根标签")
         }
         let object: Any
         if documents.count == 1, let document = documents.first {
             object = encodeDocument(document)
         } else {
             object = [
-                "format": "blocktopograph-nbt-json",
+                "format": formatIdentifier,
                 "version": 1,
                 "documents": documents.map(encodeDocument)
             ] as [String: Any]
@@ -28,11 +36,11 @@ enum NBTJSONCodec {
 
 
     /// Encodes one entity compound in the tag-list JSON layout used by
-    /// Blocktopograph's selected-entity exports. Each child tag becomes one
+    /// MCBEEditor's selected-entity exports. Each child tag becomes one
     /// entry in `documents`, preserving the entity's complete tag set.
     static func encodeEntityDocument(_ document: NBTDocument, prettyPrinted: Bool = true) throws -> Data {
         guard case .compound(let tags) = document.root else {
-            throw BlocktopographError.malformedData("实体 JSON 的 NBT 根标签必须是 Compound")
+            throw MCBEEditorError.malformedData("实体 JSON 的 NBT 根标签必须是 Compound")
         }
         let documents: [[String: Any]] = tags.map { tag in
             var encoded = encodeTag(tag.value)
@@ -41,7 +49,7 @@ enum NBTJSONCodec {
         }
         let object: [String: Any] = [
             "documents": documents,
-            "format": "blocktopograph-nbt-json",
+            "format": formatIdentifier,
             "version": 1
         ]
         var options: JSONSerialization.WritingOptions = [.sortedKeys]
@@ -57,10 +65,10 @@ enum NBTJSONCodec {
         do {
             object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         } catch {
-            throw BlocktopographError.malformedData("JSON 解析失败：\(error.localizedDescription)")
+            throw MCBEEditorError.malformedData("JSON 解析失败：\(error.localizedDescription)")
         }
         if let wrapper = object as? [String: Any],
-           wrapper["format"] as? String == "blocktopograph-nbt-json",
+           isSupportedFormat(wrapper["format"]),
            let rawDocuments = wrapper["documents"] as? [Any],
            !rawDocuments.isEmpty {
             let dictionaries = rawDocuments.compactMap { $0 as? [String: Any] }
@@ -74,7 +82,7 @@ enum NBTJSONCodec {
             if isSelectedEntityLayout {
                 let tags = try dictionaries.enumerated().map { index, dictionary -> NBTNamedTag in
                     guard let name = dictionary["name"] as? String else {
-                        throw BlocktopographError.malformedData("实体 JSON documents[\(index)] 缺少 name")
+                        throw MCBEEditorError.malformedData("实体 JSON documents[\(index)] 缺少 name")
                     }
                     return NBTNamedTag(
                         name: name,
@@ -89,18 +97,18 @@ enum NBTJSONCodec {
 
     static func decode(_ data: Data) throws -> [NBTDocument] {
         guard !data.isEmpty else {
-            throw BlocktopographError.malformedData("JSON 文件为空")
+            throw MCBEEditorError.malformedData("JSON 文件为空")
         }
         let object: Any
         do {
             object = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         } catch {
-            throw BlocktopographError.malformedData("JSON 解析失败：\(error.localizedDescription)")
+            throw MCBEEditorError.malformedData("JSON 解析失败：\(error.localizedDescription)")
         }
 
         if let dictionary = object as? [String: Any], let documents = dictionary["documents"] as? [Any] {
             guard !documents.isEmpty else {
-                throw BlocktopographError.malformedData("JSON 中没有 NBT 根标签")
+                throw MCBEEditorError.malformedData("JSON 中没有 NBT 根标签")
             }
             return try documents.enumerated().map { index, item in
                 try decodeDocument(item, fallbackName: "root_\(index)")
@@ -155,7 +163,7 @@ enum NBTJSONCodec {
 
     private static func decodeDocument(_ object: Any, fallbackName: String) throws -> NBTDocument {
         guard let dictionary = object as? [String: Any] else {
-            throw BlocktopographError.malformedData("NBT JSON 根标签必须是对象")
+            throw MCBEEditorError.malformedData("NBT JSON 根标签必须是对象")
         }
         if let nested = dictionary["root"] {
             let name = dictionary["name"] as? String ?? dictionary["rootName"] as? String ?? fallbackName
@@ -170,13 +178,13 @@ enum NBTJSONCodec {
             return try inferValue(from: object, path: path)
         }
         guard let type = tagType(rawType) else {
-            throw BlocktopographError.malformedData("\(path) 使用了未知 NBT 类型 \(rawType)")
+            throw MCBEEditorError.malformedData("\(path) 使用了未知 NBT 类型 \(rawType)")
         }
         guard type != .end else {
-            throw BlocktopographError.malformedData("\(path) 不能使用 End 作为实际标签")
+            throw MCBEEditorError.malformedData("\(path) 不能使用 End 作为实际标签")
         }
         guard let payload = dictionary["value"] else {
-            throw BlocktopographError.malformedData("\(path) 缺少 value")
+            throw MCBEEditorError.malformedData("\(path) 缺少 value")
         }
         return try decodePayload(type: type, payload: payload, path: path)
     }
@@ -184,7 +192,7 @@ enum NBTJSONCodec {
     private static func decodePayload(type: NBTTagType, payload: Any, path: String) throws -> NBTValue {
         switch type {
         case .end:
-            throw BlocktopographError.malformedData("\(path) 的 End 类型没有值")
+            throw MCBEEditorError.malformedData("\(path) 的 End 类型没有值")
         case .byte:
             return .byte(Int8(try integer(payload, path: path, minimum: Int64(Int8.min), maximum: Int64(Int8.max))))
         case .short:
@@ -214,18 +222,18 @@ enum NBTJSONCodec {
         case .list:
             if let wrapper = payload as? [String: Any], let rawElementType = wrapper["type"] as? String {
                 guard let elementType = tagType(rawElementType) else {
-                    throw BlocktopographError.malformedData("\(path) 的 List 使用了未知元素类型 \(rawElementType)")
+                    throw MCBEEditorError.malformedData("\(path) 的 List 使用了未知元素类型 \(rawElementType)")
                 }
                 guard let items = wrapper["value"] as? [Any] else { throw typeError(path, expected: "List value 数组") }
                 if elementType == .end {
-                    guard items.isEmpty else { throw BlocktopographError.malformedData("\(path) 的非空 List 不能使用 End 元素类型") }
+                    guard items.isEmpty else { throw MCBEEditorError.malformedData("\(path) 的非空 List 不能使用 End 元素类型") }
                     return .list(.end, [])
                 }
                 let values = try items.enumerated().map { index, item in
                     if let tagged = item as? [String: Any], tagged["type"] != nil {
                         let value = try decodeTag(tagged, path: "\(path)[\(index)]")
                         guard value.type == elementType else {
-                            throw BlocktopographError.malformedData("\(path)[\(index)] 类型与 List 元素类型不一致")
+                            throw MCBEEditorError.malformedData("\(path)[\(index)] 类型与 List 元素类型不一致")
                         }
                         return value
                     }
@@ -237,7 +245,7 @@ enum NBTJSONCodec {
             if items.isEmpty { return .list(.end, []) }
             let values = try items.enumerated().map { try decodeTag($0.element, path: "\(path)[\($0.offset)]") }
             guard let elementType = values.first?.type, values.allSatisfy({ $0.type == elementType }) else {
-                throw BlocktopographError.malformedData("\(path) 的 List 元素类型不一致")
+                throw MCBEEditorError.malformedData("\(path) 的 List 元素类型不一致")
             }
             return .list(elementType, values)
         case .intArray:
@@ -255,7 +263,7 @@ enum NBTJSONCodec {
 
     private static func inferValue(from object: Any, path: String) throws -> NBTValue {
         if object is NSNull {
-            throw BlocktopographError.malformedData("\(path) 是 null；NBT 没有 null 标签")
+            throw MCBEEditorError.malformedData("\(path) 是 null；NBT 没有 null 标签")
         }
         if let text = object as? String { return .string(text) }
         if let number = object as? NSNumber {
@@ -276,11 +284,11 @@ enum NBTJSONCodec {
             if array.isEmpty { return .list(.end, []) }
             let values = try array.enumerated().map { try inferValue(from: $0.element, path: "\(path)[\($0.offset)]") }
             guard let type = values.first?.type, values.allSatisfy({ $0.type == type }) else {
-                throw BlocktopographError.malformedData("\(path) 是混合类型 JSON 数组；NBT List 必须使用相同元素类型")
+                throw MCBEEditorError.malformedData("\(path) 是混合类型 JSON 数组；NBT List 必须使用相同元素类型")
             }
             return .list(type, values)
         }
-        throw BlocktopographError.malformedData("\(path) 包含无法转换为 NBT 的 JSON 值")
+        throw MCBEEditorError.malformedData("\(path) 包含无法转换为 NBT 的 JSON 值")
     }
 
     private static func integer(_ object: Any, path: String, minimum: Int64, maximum: Int64) throws -> Int64 {
@@ -303,7 +311,7 @@ enum NBTJSONCodec {
     }
 
     private static func typeError(_ path: String, expected: String) -> Error {
-        BlocktopographError.malformedData("\(path) 应为\(expected)")
+        MCBEEditorError.malformedData("\(path) 应为\(expected)")
     }
 
     private static func typeName(_ type: NBTTagType) -> String {

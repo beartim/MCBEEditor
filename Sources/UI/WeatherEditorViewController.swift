@@ -3,7 +3,7 @@ import UIKit
 final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
     private let session: WorldSession
     private let store: WeatherStore
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.weather", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.weather", qos: .userInitiated)
 
     private let stack = UIStackView()
     private let conditionLabel = UILabel()
@@ -194,7 +194,7 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         view.endEditing(true)
         guard let rainTime64 = Int64(rainTimeField.text ?? ""), rainTime64 >= 0, rainTime64 <= Int64(Int32.max),
               let lightningTime64 = Int64(lightningTimeField.text ?? ""), lightningTime64 >= 0, lightningTime64 <= Int64(Int32.max) else {
-            showError(BlocktopographError.malformedData("天气时间必须是 0～\(Int32.max) 的整数"), title: "时间错误")
+            showError(MCBEEditorError.malformedData("天气时间必须是 0～\(Int32.max) 的整数"), title: "时间错误")
             return
         }
         let settings = BedrockWeatherSettings(

@@ -55,7 +55,7 @@ extension BedrockChunkStore {
         maximumResults: Int
     ) throws -> BedrockBlockSearchScanResult {
         guard operation.searchLayer0 != nil || operation.searchLayer1 != nil else {
-            throw BlocktopographError.malformedData("至少填写层 0 或层 1 的搜索条件")
+            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
         }
         let database = try session.database()
         var hits = [BedrockBlockSearchHit]()
@@ -96,7 +96,7 @@ extension BedrockChunkStore {
                             matchedLayers: match.matchedLayers
                         ))
                     }
-                } catch BlocktopographError.unsupported {
+                } catch MCBEEditorError.unsupported {
                     skipped += 1
                 }
             }

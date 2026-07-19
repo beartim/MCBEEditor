@@ -8,14 +8,14 @@ struct BinaryCursor {
     var isAtEnd: Bool { offset >= data.count }
 
     mutating func readByte() throws -> UInt8 {
-        guard offset < data.count else { throw BlocktopographError.malformedData("读取字节越界") }
+        guard offset < data.count else { throw MCBEEditorError.malformedData("读取字节越界") }
         defer { offset += 1 }
         return data[offset]
     }
 
     mutating func readData(count: Int) throws -> Data {
         guard count >= 0, offset + count <= data.count else {
-            throw BlocktopographError.malformedData("读取 \(count) 字节越界")
+            throw MCBEEditorError.malformedData("读取 \(count) 字节越界")
         }
         let result = data.subdata(in: offset..<(offset + count))
         offset += count
@@ -111,7 +111,7 @@ struct BinaryCursor {
             if byte & 0x80 == 0 { return result }
             shift += 7
         }
-        throw BlocktopographError.malformedData("VarInt 过长")
+        throw MCBEEditorError.malformedData("VarInt 过长")
     }
 
     mutating func readSignedVarInt32() throws -> Int32 {

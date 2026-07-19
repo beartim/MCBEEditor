@@ -51,12 +51,12 @@ rm -f "$ROOT/Sources/World/WorldBackupService.swift"
 
 # XcodeGen --project expects an output directory, not the .xcodeproj path.
 # Remove stale/partially generated output left by an interrupted previous run.
-rm -rf "$ROOT/Blocktopograph.xcodeproj"
+rm -rf "$ROOT/MCBEEditor.xcodeproj"
 xcodegen generate --spec "$PROJECT_SPEC" --project "$ROOT"
 
-PBXPROJ="$ROOT/Blocktopograph.xcodeproj/project.pbxproj"
+PBXPROJ="$ROOT/MCBEEditor.xcodeproj/project.pbxproj"
 [[ -f "$PBXPROJ" ]] || {
-  echo "错误：XcodeGen 未生成有效工程：$ROOT/Blocktopograph.xcodeproj" >&2
+  echo "错误：XcodeGen 未生成有效工程：$ROOT/MCBEEditor.xcodeproj" >&2
   exit 1
 }
 
@@ -77,7 +77,7 @@ if (( OBJECT_VERSION > MAX_XCODE15_OBJECT_VERSION )); then
   exit 1
 fi
 
-echo "完成：$ROOT/Blocktopograph.xcodeproj"
+echo "完成：$ROOT/MCBEEditor.xcodeproj"
 printf 'Xcode 工程格式：objectVersion=%s（Xcode 15 compatible）\n' \
   "${OBJECT_VERSION}"
 echo "工程配置：project.yml（iOS 13.0 only）"

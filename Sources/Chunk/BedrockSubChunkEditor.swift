@@ -74,7 +74,7 @@ struct BedrockBlockReplacement {
 
     func applying(to state: BedrockBlockState) throws -> BedrockBlockState {
         guard case .compound(var rootTags)? = state.nbt else {
-            throw BlocktopographError.unsupported("旧版数字 ID 方块不能进行 name/states 搜索替换")
+            throw MCBEEditorError.unsupported("旧版数字 ID 方块不能进行 name/states 搜索替换")
         }
 
         if let rawReplacementName = name?.trimmingCharacters(in: .whitespacesAndNewlines), !rawReplacementName.isEmpty {
@@ -142,22 +142,22 @@ struct BedrockBlockReplacement {
         case .byte:
             if unquoted.caseInsensitiveCompare("true") == .orderedSame { return .byte(1) }
             if unquoted.caseInsensitiveCompare("false") == .orderedSame { return .byte(0) }
-            guard let value = Int8(unquoted) else { throw BlocktopographError.malformedData("Byte 状态值无效：\(source)") }
+            guard let value = Int8(unquoted) else { throw MCBEEditorError.malformedData("Byte 状态值无效：\(source)") }
             return .byte(value)
         case .short:
-            guard let value = Int16(unquoted) else { throw BlocktopographError.malformedData("Short 状态值无效：\(source)") }
+            guard let value = Int16(unquoted) else { throw MCBEEditorError.malformedData("Short 状态值无效：\(source)") }
             return .short(value)
         case .int:
-            guard let value = Int32(unquoted) else { throw BlocktopographError.malformedData("Int 状态值无效：\(source)") }
+            guard let value = Int32(unquoted) else { throw MCBEEditorError.malformedData("Int 状态值无效：\(source)") }
             return .int(value)
         case .long:
-            guard let value = Int64(unquoted) else { throw BlocktopographError.malformedData("Long 状态值无效：\(source)") }
+            guard let value = Int64(unquoted) else { throw MCBEEditorError.malformedData("Long 状态值无效：\(source)") }
             return .long(value)
         case .float:
-            guard let value = Float(unquoted) else { throw BlocktopographError.malformedData("Float 状态值无效：\(source)") }
+            guard let value = Float(unquoted) else { throw MCBEEditorError.malformedData("Float 状态值无效：\(source)") }
             return .float(value)
         case .double:
-            guard let value = Double(unquoted) else { throw BlocktopographError.malformedData("Double 状态值无效：\(source)") }
+            guard let value = Double(unquoted) else { throw MCBEEditorError.malformedData("Double 状态值无效：\(source)") }
             return .double(value)
         case .string:
             return .string(unquoted)
@@ -184,11 +184,11 @@ extension SubChunkStorage {
         with newState: BedrockBlockState
     ) throws -> SubChunkStorage {
         guard (0..<16).contains(x), (0..<16).contains(y), (0..<16).contains(z) else {
-            throw BlocktopographError.malformedData("方块局部坐标越界")
+            throw MCBEEditorError.malformedData("方块局部坐标越界")
         }
         let blockIndex = (x << 8) | (z << 4) | y
         guard indices.indices.contains(blockIndex) else {
-            throw BlocktopographError.malformedData("方块索引越界")
+            throw MCBEEditorError.malformedData("方块索引越界")
         }
 
         var updatedPalette = palette
@@ -209,20 +209,20 @@ extension SubChunkStorage {
                 paletteIndex = UInt16(existing)
             } else {
                 guard updatedPalette.allSatisfy({ $0.nbt != nil }) else {
-                    throw BlocktopographError.unsupported("不能把现代 NBT 方块写入旧版数字 ID SubChunk")
+                    throw MCBEEditorError.unsupported("不能把现代 NBT 方块写入旧版数字 ID SubChunk")
                 }
                 guard updatedPalette.count < Int(UInt16.max) else {
-                    throw BlocktopographError.unsupported("方块调色板条目过多，无法追加新状态")
+                    throw MCBEEditorError.unsupported("方块调色板条目过多，无法追加新状态")
                 }
                 paletteIndex = UInt16(updatedPalette.count)
                 updatedPalette.append(newState)
             }
         } else if let newID = newState.legacyID {
             guard newID <= 255, (newState.legacyData ?? 0) <= 15 else {
-                throw BlocktopographError.malformedData("旧版方块数字 ID 必须为 0…255，数据值必须为 0…15")
+                throw MCBEEditorError.malformedData("旧版方块数字 ID 必须为 0…255，数据值必须为 0…15")
             }
             guard updatedPalette.allSatisfy({ $0.legacyID != nil }) else {
-                throw BlocktopographError.unsupported("不能把旧版数字 ID 方块写入现代持久化调色板")
+                throw MCBEEditorError.unsupported("不能把旧版数字 ID 方块写入现代持久化调色板")
             }
             if let existing = updatedPalette.firstIndex(where: {
                 $0.legacyID == newID && ($0.legacyData ?? 0) == (newState.legacyData ?? 0)
@@ -230,19 +230,19 @@ extension SubChunkStorage {
                 paletteIndex = UInt16(existing)
             } else {
                 guard updatedPalette.count < Int(UInt16.max) else {
-                    throw BlocktopographError.unsupported("方块调色板条目过多，无法追加新状态")
+                    throw MCBEEditorError.unsupported("方块调色板条目过多，无法追加新状态")
                 }
                 paletteIndex = UInt16(updatedPalette.count)
                 updatedPalette.append(newState)
             }
         } else {
-            throw BlocktopographError.malformedData("方块状态既没有 NBT，也没有旧版数字 ID")
+            throw MCBEEditorError.malformedData("方块状态既没有 NBT，也没有旧版数字 ID")
         }
 
         if updatedPalette.indices.contains(Int(paletteIndex)) {
             // already resolved above
         } else {
-            throw BlocktopographError.malformedData("方块调色板索引解析失败")
+            throw MCBEEditorError.malformedData("方块调色板索引解析失败")
         }
 
         var updatedIndices = indices
@@ -260,13 +260,13 @@ extension SubChunkStorage {
 
     private static func bitsRequired(paletteCount: Int, preferred: Int) throws -> Int {
         guard paletteCount > 0 else {
-            throw BlocktopographError.malformedData("方块调色板不能为空")
+            throw MCBEEditorError.malformedData("方块调色板不能为空")
         }
         if paletteCount == 1 { return 0 }
         let allowed = [1, 2, 3, 4, 5, 6, 8, 16]
         if allowed.contains(preferred), (1 << preferred) >= paletteCount { return preferred }
         guard let selected = allowed.first(where: { (1 << $0) >= paletteCount }) else {
-            throw BlocktopographError.unsupported("方块调色板大小超出持久化格式范围：\(paletteCount)")
+            throw MCBEEditorError.unsupported("方块调色板大小超出持久化格式范围：\(paletteCount)")
         }
         return selected
     }
@@ -291,7 +291,7 @@ extension BedrockSubChunk {
         with newState: BedrockBlockState
     ) throws -> BedrockSubChunk {
         guard (0..<BedrockBlockRecord.editableLayerCount).contains(storageIndex) else {
-            throw BlocktopographError.malformedData("仅支持编辑方块层 0 和层 1")
+            throw MCBEEditorError.malformedData("仅支持编辑方块层 0 和层 1")
         }
 
         if isLegacyNumeric {
@@ -314,13 +314,13 @@ extension BedrockSubChunk {
                 )
             }
             guard storageIndex == 0 else {
-                throw BlocktopographError.unsupported("旧版数字 ID SubChunk 只有层 0")
+                throw MCBEEditorError.unsupported("旧版数字 ID SubChunk 只有层 0")
             }
             guard newState.legacyID != nil, newState.nbt == nil else {
-                throw BlocktopographError.unsupported("旧版 SubChunk 只能写入数字 ID 与数据值")
+                throw MCBEEditorError.unsupported("旧版 SubChunk 只能写入数字 ID 与数据值")
             }
             guard storages.count == 1 else {
-                throw BlocktopographError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
+                throw MCBEEditorError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
             }
             var updatedStorages = storages
             updatedStorages[0] = try updatedStorages[0].replacingBlockState(
@@ -338,10 +338,10 @@ extension BedrockSubChunk {
         }
 
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("SubChunk v\(version) 暂不支持方块状态写回")
+            throw MCBEEditorError.unsupported("SubChunk v\(version) 暂不支持方块状态写回")
         }
         guard newState.nbt != nil else {
-            throw BlocktopographError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
+            throw MCBEEditorError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
         }
 
         var updatedStorages = storages
@@ -381,13 +381,13 @@ extension BedrockSubChunk {
             return try encodeLegacyPersistent()
         }
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("SubChunk v\(version) 暂不支持重新编码")
+            throw MCBEEditorError.unsupported("SubChunk v\(version) 暂不支持重新编码")
         }
         if version == 1, storages.count != 1 {
-            throw BlocktopographError.malformedData("SubChunk v1 必须恰好包含一个 storage")
+            throw MCBEEditorError.malformedData("SubChunk v1 必须恰好包含一个 storage")
         }
         guard storages.count <= Int(UInt8.max) else {
-            throw BlocktopographError.malformedData("SubChunk storage 数量过多")
+            throw MCBEEditorError.malformedData("SubChunk storage 数量过多")
         }
 
         var writer = BinaryWriter()
@@ -407,11 +407,11 @@ extension BedrockSubChunk {
 
     private func encodeLegacyPersistent() throws -> Data {
         guard storages.count == 1 else {
-            throw BlocktopographError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
+            throw MCBEEditorError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
         }
         let storage = storages[0]
         guard storage.indices.count == 4096, !storage.palette.isEmpty else {
-            throw BlocktopographError.malformedData("旧版 SubChunk 方块数据无效")
+            throw MCBEEditorError.malformedData("旧版 SubChunk 方块数据无效")
         }
 
         var ids = Data(repeating: 0, count: 4096)
@@ -421,11 +421,11 @@ extension BedrockSubChunk {
             guard storage.palette.indices.contains(paletteIndex),
                   let legacyID = storage.palette[paletteIndex].legacyID,
                   legacyID <= 255 else {
-                throw BlocktopographError.malformedData("旧版 SubChunk 调色板包含非数字 ID 方块")
+                throw MCBEEditorError.malformedData("旧版 SubChunk 调色板包含非数字 ID 方块")
             }
             let legacyData = storage.palette[paletteIndex].legacyData ?? 0
             guard legacyData <= 15 else {
-                throw BlocktopographError.malformedData("旧版方块数据值必须为 0…15")
+                throw MCBEEditorError.malformedData("旧版方块数据值必须为 0…15")
             }
             ids[blockIndex] = UInt8(legacyID)
             let metadataIndex = blockIndex / 2
@@ -447,17 +447,17 @@ extension BedrockSubChunk {
         let bits = storage.bitsPerBlock
         let allowed = [0, 1, 2, 3, 4, 5, 6, 8, 16]
         guard allowed.contains(bits) else {
-            throw BlocktopographError.malformedData("不支持的每方块位数：\(bits)")
+            throw MCBEEditorError.malformedData("不支持的每方块位数：\(bits)")
         }
         guard storage.indices.count == 4096 else {
-            throw BlocktopographError.malformedData("storage 必须包含 4096 个方块索引")
+            throw MCBEEditorError.malformedData("storage 必须包含 4096 个方块索引")
         }
         guard !storage.palette.isEmpty, storage.palette.count <= Int(Int32.max) else {
-            throw BlocktopographError.malformedData("方块调色板大小无效")
+            throw MCBEEditorError.malformedData("方块调色板大小无效")
         }
         let capacity = bits == 0 ? 1 : (1 << bits)
         guard storage.palette.count <= capacity else {
-            throw BlocktopographError.malformedData("调色板大小超过 \(bits) 位索引容量")
+            throw MCBEEditorError.malformedData("调色板大小超过 \(bits) 位索引容量")
         }
 
         // Persistence palette: low bit is 0. The high seven bits store bits-per-block.
@@ -473,7 +473,7 @@ extension BedrockSubChunk {
                     guard sourceIndex < storage.indices.count else { break }
                     let paletteIndex = UInt32(storage.indices[sourceIndex])
                     guard paletteIndex < UInt32(storage.palette.count) else {
-                        throw BlocktopographError.malformedData("方块调色板索引越界：\(paletteIndex)")
+                        throw MCBEEditorError.malformedData("方块调色板索引越界：\(paletteIndex)")
                     }
                     word |= (paletteIndex & mask) << UInt32(slot * bits)
                 }
@@ -484,7 +484,7 @@ extension BedrockSubChunk {
         writer.writeInt32LE(Int32(storage.palette.count))
         for state in storage.palette {
             guard let nbt = state.nbt else {
-                throw BlocktopographError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
+                throw MCBEEditorError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
             }
             writer.writeData(try BedrockNBTCodec.encode(
                 NBTDocument(rootName: "", root: nbt),
@@ -586,7 +586,7 @@ extension SubChunkStorage {
                 targetIndex = UInt16(existing)
             } else {
                 guard updatedPalette.count < Int(UInt16.max) else {
-                    throw BlocktopographError.unsupported("方块调色板条目过多，无法追加替换状态")
+                    throw MCBEEditorError.unsupported("方块调色板条目过多，无法追加替换状态")
                 }
                 targetIndex = UInt16(updatedPalette.count)
                 updatedPalette.append(replacementState)
@@ -615,7 +615,7 @@ extension SubChunkStorage {
 
     private static func encodedState(_ state: BedrockBlockState) throws -> Data {
         guard let nbt = state.nbt else {
-            throw BlocktopographError.unsupported("旧版数字 ID 方块不能进行调色板搜索替换")
+            throw MCBEEditorError.unsupported("旧版数字 ID 方块不能进行调色板搜索替换")
         }
         return try BedrockNBTCodec.encode(
             NBTDocument(rootName: "", root: nbt),
@@ -673,7 +673,7 @@ extension SubChunkStorage {
             } else {
                 let sourcePaletteIndex = Int(sourceIndex)
                 guard palette.indices.contains(sourcePaletteIndex) else {
-                    throw BlocktopographError.malformedData("方块调色板索引越界：\(sourceIndex)")
+                    throw MCBEEditorError.malformedData("方块调色板索引越界：\(sourceIndex)")
                 }
                 let replacementState = try transform(palette[sourcePaletteIndex])
                 let encodedReplacement = try Self.encodedState(replacementState)
@@ -683,7 +683,7 @@ extension SubChunkStorage {
                     targetIndex = UInt16(existing)
                 } else {
                     guard updatedPalette.count < Int(UInt16.max) else {
-                        throw BlocktopographError.unsupported("方块调色板条目过多，无法追加替换状态")
+                        throw MCBEEditorError.unsupported("方块调色板条目过多，无法追加替换状态")
                     }
                     targetIndex = UInt16(updatedPalette.count)
                     updatedPalette.append(replacementState)
@@ -721,7 +721,7 @@ extension BedrockSubChunk {
         coordinatedOperation operation: BedrockCoordinatedBlockOperation
     ) throws -> BedrockSubChunkReplaceResult {
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持区块搜索替换")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持区块搜索替换")
         }
 
         var updatedStorages = storages
@@ -789,7 +789,7 @@ extension BedrockSubChunk {
 
     func replacingBlocks(operations: [BedrockLayerBlockOperation]) throws -> BedrockSubChunkReplaceResult {
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持区块搜索替换")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持区块搜索替换")
         }
 
         var updatedStorages = storages
@@ -843,10 +843,10 @@ extension BedrockSubChunk {
         localZRange: ClosedRange<Int> = 0...15
     ) throws -> BedrockSubChunkBulkEditResult {
         guard (0..<BedrockBlockRecord.editableLayerCount).contains(layer) else {
-            throw BlocktopographError.malformedData("只支持层 0 和层 1")
+            throw MCBEEditorError.malformedData("只支持层 0 和层 1")
         }
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持批量层替换")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持批量层替换")
         }
 
         var updatedStorages = storages
@@ -896,10 +896,10 @@ extension BedrockSubChunk {
     /// indexes.
     func clearingLayer(_ layer: Int) throws -> BedrockSubChunkBulkEditResult {
         guard (0..<BedrockBlockRecord.editableLayerCount).contains(layer) else {
-            throw BlocktopographError.malformedData("只支持层 0 和层 1")
+            throw MCBEEditorError.malformedData("只支持层 0 和层 1")
         }
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持清空方块层")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持清空方块层")
         }
         var updatedStorages = storages
         let fallbackVersion = updatedStorages.flatMap(\.palette).compactMap(\.paletteVersion).first
@@ -941,7 +941,7 @@ final class BedrockBlockNBTStore {
         document: NBTDocument
     ) throws -> BedrockBlockSaveResult {
         guard document.root.type == .compound else {
-            throw BlocktopographError.malformedData("方块状态 NBT 根节点必须是 Compound")
+            throw MCBEEditorError.malformedData("方块状态 NBT 根节点必须是 Compound")
         }
         let chunkX = MapCoordinate.chunk(fromBlock: block.x)
         let chunkZ = MapCoordinate.chunk(fromBlock: block.z)
@@ -1096,22 +1096,22 @@ final class BedrockBlockNBTStore {
         }
         for metadata in metadataPuts {
             guard try database.get(metadata.key) == metadata.value else {
-                throw BlocktopographError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
+                throw MCBEEditorError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
             }
         }
         for upgraded in upgradedSubChunkPuts {
             guard let stored = try database.get(upgraded.key) else {
-                throw BlocktopographError.malformedData("升级后的 SubChunk 写入后未能从 LevelDB 读回")
+                throw MCBEEditorError.malformedData("升级后的 SubChunk 写入后未能从 LevelDB 读回")
             }
             _ = try BedrockSubChunk.decode(stored, keyYIndex: BedrockDBKey.parse(upgraded.key)?.subChunkIndex)
         }
         for deleted in metadataDeletes where metadataPuts.allSatisfy({ $0.key != deleted }) {
             guard try database.get(deleted) == nil else {
-                throw BlocktopographError.malformedData("旧版区块元数据删除后仍然存在")
+                throw MCBEEditorError.malformedData("旧版区块元数据删除后仍然存在")
             }
         }
         guard let persisted = try database.get(key) else {
-            throw BlocktopographError.malformedData("方块 SubChunk 写入后未能从 LevelDB 读回")
+            throw MCBEEditorError.malformedData("方块 SubChunk 写入后未能从 LevelDB 读回")
         }
         _ = try BedrockSubChunk.decode(persisted, keyYIndex: subChunkY)
 
@@ -1154,7 +1154,7 @@ final class BedrockBlockNBTStore {
 
     private func modernBlockState(from root: NBTValue, paletteVersion: Int32?) throws -> BedrockBlockState {
         guard case .compound(let tags) = root else {
-            throw BlocktopographError.malformedData("现代方块状态根必须是 Compound")
+            throw MCBEEditorError.malformedData("现代方块状态根必须是 Compound")
         }
         guard let name = tags.first(where: {
             ["name", "identifier"].contains($0.name.lowercased())
@@ -1162,12 +1162,12 @@ final class BedrockBlockNBTStore {
             guard case .string(let value) = tag.value else { return nil }
             return value
         }), !name.isEmpty else {
-            throw BlocktopographError.malformedData("升级为新版 SubChunk 时必须提供方块 name")
+            throw MCBEEditorError.malformedData("升级为新版 SubChunk 时必须提供方块 name")
         }
         let states: [NBTNamedTag]
         if let value = tags.first(where: { $0.name.caseInsensitiveCompare("states") == .orderedSame })?.value {
             guard case .compound(let values) = value else {
-                throw BlocktopographError.malformedData("方块 states 必须是 Compound")
+                throw MCBEEditorError.malformedData("方块 states 必须是 Compound")
             }
             states = values
         } else {
@@ -1199,7 +1199,7 @@ final class BedrockBlockNBTStore {
             if state.nbt == nil { return state }
             guard state.stateProperties.isEmpty,
                   let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) else {
-                throw BlocktopographError.unsupported("方块 \(state.name) 的现代 states 无法写入旧版数字 ID SubChunk")
+                throw MCBEEditorError.unsupported("方块 \(state.name) 的现代 states 无法写入旧版数字 ID SubChunk")
             }
             return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
         }
@@ -1237,7 +1237,7 @@ final class BedrockBlockNBTStore {
 
     private func legacyBlockState(from root: NBTValue) throws -> BedrockBlockState {
         guard case .compound = root else {
-            throw BlocktopographError.malformedData("旧版方块编辑根节点必须是 Compound")
+            throw MCBEEditorError.malformedData("旧版方块编辑根节点必须是 Compound")
         }
         let numericID = firstNumericValue(
             in: root,
@@ -1247,14 +1247,14 @@ final class BedrockBlockNBTStore {
             names: ["name", "Name", "identifier", "Identifier"]
         ).flatMap { BedrockLegacyBlockCatalog.block(forIdentifier: $0)?.id }.map(Int64.init)
         guard let numericID = numericID, (0...255).contains(numericID) else {
-            throw BlocktopographError.malformedData("legacy_id 必须是 0…255；也可以填写可对应的旧版字符串 ID")
+            throw MCBEEditorError.malformedData("legacy_id 必须是 0…255；也可以填写可对应的旧版字符串 ID")
         }
         let dataValue = firstNumericValue(
             in: root,
             names: ["legacy_data", "legacyData", "data", "Data"]
         ) ?? 0
         guard (0...15).contains(dataValue) else {
-            throw BlocktopographError.malformedData("legacy_data 必须是 0…15")
+            throw MCBEEditorError.malformedData("legacy_data 必须是 0…15")
         }
         return BedrockBlockState(
             nbt: nil,
@@ -1313,7 +1313,7 @@ extension SubChunkStorage {
         for (linearIndex, state) in replacements.sorted(by: { $0.key < $1.key }) {
             guard updatedIndices.indices.contains(linearIndex) else { continue }
             guard let nbt = state.nbt else {
-                throw BlocktopographError.unsupported("旧版数字 ID 方块不能复制到现代区域")
+                throw MCBEEditorError.unsupported("旧版数字 ID 方块不能复制到现代区域")
             }
             let encoded = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: nbt), encoding: .littleEndian)
             let paletteIndex: UInt16
@@ -1321,7 +1321,7 @@ extension SubChunkStorage {
                 paletteIndex = existing
             } else {
                 guard updatedPalette.count < Int(UInt16.max) else {
-                    throw BlocktopographError.unsupported("方块调色板条目过多，无法复制区域")
+                    throw MCBEEditorError.unsupported("方块调色板条目过多，无法复制区域")
                 }
                 paletteIndex = UInt16(updatedPalette.count)
                 updatedPalette.append(state)
@@ -1341,7 +1341,7 @@ extension BedrockSubChunk {
         localZRange: ClosedRange<Int>
     ) throws -> BedrockSubChunkReplaceResult {
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持区域搜索替换")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持区域搜索替换")
         }
         var updatedStorages = storages
         let fallbackVersion = updatedStorages.flatMap(\.palette).compactMap(\.paletteVersion).first
@@ -1381,7 +1381,7 @@ extension BedrockSubChunk {
 
     func replacingBlockStates(_ replacementsByLayer: [Int: [Int: BedrockBlockState]]) throws -> BedrockSubChunk {
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持区域复制")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持区域复制")
         }
         guard !replacementsByLayer.isEmpty else { return self }
         var updatedStorages = storages
@@ -1417,7 +1417,7 @@ extension BedrockSubChunk {
         localZRange: ClosedRange<Int> = 0...15
     ) throws -> [BedrockSubChunkSearchMatch] {
         guard [UInt8(1), 8, 9].contains(version) else {
-            throw BlocktopographError.unsupported("旧版 SubChunk v\(version) 暂不支持方块搜索")
+            throw MCBEEditorError.unsupported("旧版 SubChunk v\(version) 暂不支持方块搜索")
         }
         let fallbackVersion = storages.flatMap(\.palette).compactMap(\.paletteVersion).first
         let existingAir = storages.flatMap(\.palette).first(where: { $0.isAir && $0.nbt != nil })

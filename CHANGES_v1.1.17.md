@@ -1,4 +1,4 @@
-# Blocktopograph iOS 13 v1.1.17（127）
+# MCBEEditor iOS 13 v1.1.17（127）
 
 ## 存档实测与 SubChunk v8 修复
 
@@ -32,7 +32,7 @@
 - Little Endian VarInt NBT
 - Big Endian NBT
 
-实体 JSON 使用 `blocktopograph-nbt-json` version 1，实体根 Compound 的每个子标签作为 `documents` 数组中的一项保存。
+实体 JSON 使用 `mcbeeditor-nbt-json` version 1，实体根 Compound 的每个子标签作为 `documents` 数组中的一项保存。
 
 ## 实体导入
 
@@ -43,7 +43,7 @@
 - 单根 NBT；
 - 连续多根 NBT；
 - 实体标签数组 JSON；
-- 普通 Blocktopograph 类型化 JSON；
+- 普通 MCBEEditor 类型化 JSON；
 - 可推断类型的普通 JSON。
 
 仍需先指定实体类型、维度、坐标和起始 UniqueID。读取后进入实体 NBT 检查页面，用户可修改每个实体后再确认导入。
@@ -51,7 +51,7 @@
 ## 界面
 
 - 命令栏目打开后不再显示初始说明文字，终端输出区默认为空；
-- Blocktopograph 主页的 NBT 工具图标改为圆角半径更大的圆润卡片造型。
+- MCBEEditor 主页的 NBT 工具图标改为圆角半径更大的圆润卡片造型。
 
 ## 测试
 

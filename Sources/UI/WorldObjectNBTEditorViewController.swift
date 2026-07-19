@@ -190,7 +190,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
 
     private func rename(_ node: NBTNode, to name: String) {
         guard !isProtectedIdentityNode(node) else {
-            showError(BlocktopographError.unsupported("UniqueID 标签不能重命名。"), title: "受保护字段")
+            showError(MCBEEditorError.unsupported("UniqueID 标签不能重命名。"), title: "受保护字段")
             return
         }
         do {
@@ -205,7 +205,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
 
     private func delete(_ node: NBTNode) {
         guard !isProtectedIdentityNode(node) else {
-            showError(BlocktopographError.unsupported("UniqueID 标签不能删除。"), title: "受保护字段")
+            showError(MCBEEditorError.unsupported("UniqueID 标签不能删除。"), title: "受保护字段")
             return
         }
         do {

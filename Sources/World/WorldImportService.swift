@@ -38,7 +38,7 @@ final class WorldImportService {
                 defer { try? manager.removeItem(at: localArchive) }
                 try MiniZipArchive.extract(archiveURL: localArchive, to: staging)
             } else {
-                throw BlocktopographError.invalidWorld("请选择 .mcworld、ZIP 世界文件或包含 level.dat 与 db 的世界目录")
+                throw MCBEEditorError.invalidWorld("请选择 .mcworld、ZIP 世界文件或包含 level.dat 与 db 的世界目录")
             }
 
             let root = try locateWorldRoot(in: staging)
@@ -66,7 +66,7 @@ final class WorldImportService {
 
     func sharedImportCandidates() throws -> [URL] {
         guard let documentsURL = manager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            throw BlocktopographError.io("无法访问 App 的 Documents 目录")
+            throw MCBEEditorError.io("无法访问 App 的 Documents 目录")
         }
 
         var candidates: [URL] = []
@@ -131,10 +131,10 @@ final class WorldImportService {
 
     private func validateWorld(at url: URL) throws {
         guard manager.fileExists(atPath: url.appendingPathComponent("level.dat").path) else {
-            throw BlocktopographError.invalidWorld("缺少 level.dat")
+            throw MCBEEditorError.invalidWorld("缺少 level.dat")
         }
         guard manager.fileExists(atPath: url.appendingPathComponent("db", isDirectory: true).path) else {
-            throw BlocktopographError.invalidWorld("缺少 db 目录")
+            throw MCBEEditorError.invalidWorld("缺少 db 目录")
         }
     }
 
@@ -149,7 +149,7 @@ final class WorldImportService {
             manager.fileExists(atPath: $0.appendingPathComponent("level.dat").path)
         }
         guard candidates.count == 1 else {
-            throw BlocktopographError.invalidWorld("压缩包或所选目录中未找到唯一世界根目录")
+            throw MCBEEditorError.invalidWorld("压缩包或所选目录中未找到唯一世界根目录")
         }
         return candidates[0]
     }

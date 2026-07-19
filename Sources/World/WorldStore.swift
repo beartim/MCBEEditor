@@ -32,7 +32,7 @@ final class WorldStore {
 
     private init() {
         let applicationSupport = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        rootURL = applicationSupport.appendingPathComponent("Blocktopograph", isDirectory: true)
+        rootURL = applicationSupport.appendingPathComponent("MCBEEditor", isDirectory: true)
         worldsURL = rootURL.appendingPathComponent("Worlds", isDirectory: true)
         metadataRootURL = rootURL.appendingPathComponent("Metadata", isDirectory: true)
         indexURL = rootURL.appendingPathComponent("worlds.json")
@@ -81,7 +81,7 @@ final class WorldStore {
 
     func rename(_ world: ImportedWorld, to requestedName: String) throws {
         let name = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { throw BlocktopographError.io("世界名称不能为空") }
+        guard !name.isEmpty else { throw MCBEEditorError.io("世界名称不能为空") }
         try writeWorldName(name, at: worldURL(for: world))
 
         lock.lock()
@@ -100,7 +100,7 @@ final class WorldStore {
     func duplicate(_ world: ImportedWorld) throws -> ImportedWorld {
         let source = worldURL(for: world)
         guard manager.fileExists(atPath: source.path) else {
-            throw BlocktopographError.io("原世界目录不存在")
+            throw MCBEEditorError.io("原世界目录不存在")
         }
 
         let id = UUID()
@@ -148,7 +148,7 @@ final class WorldStore {
         let document = WorldDocument(rootURL: rootURL)
         var levelDat = try document.readLevelDat()
         guard case .compound(var tags) = levelDat.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根节点不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根节点不是 Compound")
         }
         if let index = tags.firstIndex(where: { $0.name == "LevelName" }) {
             tags[index].value = .string(name)

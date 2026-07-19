@@ -10,10 +10,10 @@ enum NBTClipboardCodec {
 
     static func encodeBatch(_ documents: [NBTDocument]) throws -> Data {
         guard !documents.isEmpty else {
-            throw BlocktopographError.malformedData("没有可复制的 NBT 标签")
+            throw MCBEEditorError.malformedData("没有可复制的 NBT 标签")
         }
         guard documents.count <= Int(UInt32.max) else {
-            throw BlocktopographError.malformedData("复制的 NBT 标签数量过多")
+            throw MCBEEditorError.malformedData("复制的 NBT 标签数量过多")
         }
 
         let encoded = try documents.map {
@@ -24,7 +24,7 @@ enum NBTClipboardCodec {
         appendUInt32(UInt32(encoded.count), to: &output)
         for item in encoded {
             guard item.count <= Int(UInt32.max) else {
-                throw BlocktopographError.malformedData("单个 NBT 标签过大，无法复制")
+                throw MCBEEditorError.malformedData("单个 NBT 标签过大，无法复制")
             }
             appendUInt32(UInt32(item.count), to: &output)
             output.append(item)
@@ -34,7 +34,7 @@ enum NBTClipboardCodec {
 
     static func decodeBatch(_ data: Data) throws -> [NBTDocument] {
         guard data.starts(with: magic) else {
-            throw BlocktopographError.malformedData("不是 Blocktopograph 批量 NBT 剪贴板数据")
+            throw MCBEEditorError.malformedData("不是 MCBEEditor 批量 NBT 剪贴板数据")
         }
         var offset = magic.count
         let count = try readUInt32(from: data, offset: &offset)
@@ -44,17 +44,17 @@ enum NBTClipboardCodec {
         for _ in 0..<count {
             let length = try readUInt32(from: data, offset: &offset)
             guard offset + Int(length) <= data.count else {
-                throw BlocktopographError.malformedData("批量 NBT 剪贴板数据长度无效")
+                throw MCBEEditorError.malformedData("批量 NBT 剪贴板数据长度无效")
             }
             let payload = data.subdata(in: offset..<(offset + Int(length)))
             offset += Int(length)
             documents.append(try BedrockNBTCodec.decode(payload, encoding: .littleEndian))
         }
         guard offset == data.count else {
-            throw BlocktopographError.malformedData("批量 NBT 剪贴板包含多余数据")
+            throw MCBEEditorError.malformedData("批量 NBT 剪贴板包含多余数据")
         }
         guard !documents.isEmpty else {
-            throw BlocktopographError.malformedData("批量 NBT 剪贴板中没有标签")
+            throw MCBEEditorError.malformedData("批量 NBT 剪贴板中没有标签")
         }
         return documents
     }
@@ -70,7 +70,7 @@ enum NBTClipboardCodec {
 
     private static func readUInt32(from data: Data, offset: inout Int) throws -> UInt32 {
         guard offset + 4 <= data.count else {
-            throw BlocktopographError.malformedData("批量 NBT 剪贴板数据不完整")
+            throw MCBEEditorError.malformedData("批量 NBT 剪贴板数据不完整")
         }
         let value = data[offset..<(offset + 4)].enumerated().reduce(UInt32(0)) { result, pair in
             result | (UInt32(pair.element) << UInt32(pair.offset * 8))

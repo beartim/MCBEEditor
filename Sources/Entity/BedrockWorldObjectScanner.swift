@@ -504,7 +504,7 @@ final class BedrockWorldObjectScanner {
 
     private func littleEndianInt64(_ data: Data, at offset: Int) throws -> Int64 {
         guard offset >= 0, offset + 8 <= data.count else {
-            throw BlocktopographError.malformedData("实体 ID 越界")
+            throw MCBEEditorError.malformedData("实体 ID 越界")
         }
         var value: UInt64 = 0
         for index in 0..<8 {

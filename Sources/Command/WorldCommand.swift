@@ -100,10 +100,10 @@ struct CommandBlockStateSpec {
 
     func legacyState() throws -> BedrockBlockState {
         guard states.isEmpty else {
-            throw BlocktopographError.unsupported("旧版数字 ID SubChunk 不能保存命令中的现代 states；请使用 NULL")
+            throw MCBEEditorError.unsupported("旧版数字 ID SubChunk 不能保存命令中的现代 states；请使用 NULL")
         }
         guard let block = BedrockLegacyBlockCatalog.block(forIdentifier: name) else {
-            throw BlocktopographError.unsupported("方块 \(name) 没有可用的旧版数字 ID")
+            throw MCBEEditorError.unsupported("方块 \(name) 没有可用的旧版数字 ID")
         }
         return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
     }
@@ -302,13 +302,13 @@ enum CommandEffectNBT {
         to root: NBTValue
     ) throws -> (value: NBTValue, changed: Bool) {
         guard case .compound(var rootTags) = root else {
-            throw BlocktopographError.malformedData("实体或玩家的 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("实体或玩家的 NBT 根必须是 Compound")
         }
         let matchingIndexes = rootTags.indices.filter {
             rootTags[$0].name.caseInsensitiveCompare(rootName) == .orderedSame
         }
         guard matchingIndexes.count <= 1 else {
-            throw BlocktopographError.malformedData("NBT 根中存在多个 ActiveEffects 标签")
+            throw MCBEEditorError.malformedData("NBT 根中存在多个 ActiveEffects 标签")
         }
         let activeIndex = matchingIndexes.first
 
@@ -379,21 +379,21 @@ enum CommandEffectNBT {
         switch value {
         case .list(.compound, let values):
             guard values.allSatisfy({ $0.type == .compound }) else {
-                throw BlocktopographError.malformedData("ActiveEffects 必须是 Compound List")
+                throw MCBEEditorError.malformedData("ActiveEffects 必须是 Compound List")
             }
             for value in values { _ = try effectID(in: value) }
             return values
         case .list(.end, let values) where values.isEmpty:
             return []
         default:
-            throw BlocktopographError.malformedData("ActiveEffects 必须是 Compound List")
+            throw MCBEEditorError.malformedData("ActiveEffects 必须是 Compound List")
         }
     }
 
     private static func effectID(in value: NBTValue) throws -> Int {
         guard case .compound(let tags) = value,
               let tag = tags.first(where: { $0.name.caseInsensitiveCompare("Id") == .orderedSame }) else {
-            throw BlocktopographError.malformedData("状态效果 Compound 缺少数字 Id 标签")
+            throw MCBEEditorError.malformedData("状态效果 Compound 缺少数字 Id 标签")
         }
         let raw: Int64
         switch tag.value {
@@ -402,10 +402,10 @@ enum CommandEffectNBT {
         case .int(let value): raw = Int64(value)
         case .long(let value): raw = value
         default:
-            throw BlocktopographError.malformedData("状态效果 Id 必须是数字标签")
+            throw MCBEEditorError.malformedData("状态效果 Id 必须是数字标签")
         }
         guard raw >= 0, raw <= Int64(Int.max) else {
-            throw BlocktopographError.malformedData("状态效果 Id 超出有效范围")
+            throw MCBEEditorError.malformedData("状态效果 Id 超出有效范围")
         }
         return Int(raw)
     }
@@ -444,18 +444,18 @@ enum WorldCommandParser {
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw BlocktopographError.malformedData("请输入命令") }
+        guard !trimmed.isEmpty else { throw MCBEEditorError.malformedData("请输入命令") }
         guard !trimmed.hasPrefix("/") else {
-            throw BlocktopographError.malformedData("命令不需要斜杠，请直接输入命令名称")
+            throw MCBEEditorError.malformedData("命令不需要斜杠，请直接输入命令名称")
         }
         let tokens = try tokenize(trimmed)
-        guard let command = tokens.first else { throw BlocktopographError.malformedData("请输入命令") }
+        guard let command = tokens.first else { throw MCBEEditorError.malformedData("请输入命令") }
         let arguments = Array(tokens.dropFirst())
         switch command {
         case "help":
             guard arguments.count <= 1 else { throw usageError(command) }
             if let target = arguments.first, !commandNames.contains(target) {
-                throw BlocktopographError.malformedData("不存在的命令：\(target)")
+                throw MCBEEditorError.malformedData("不存在的命令：\(target)")
             }
             return .help(command: arguments.first)
         case "clear":
@@ -564,12 +564,12 @@ enum WorldCommandParser {
             } else {
                 additions = try parseStates(arguments[5])
                 guard !additions.isEmpty else {
-                    throw BlocktopographError.malformedData("summon 的最后一个参数只能是 default 或非空 NBT 标签")
+                    throw MCBEEditorError.malformedData("summon 的最后一个参数只能是 default 或非空 NBT 标签")
                 }
             }
             let protected = Set(["uniqueid", "pos", "dimensionid", "dimension", "identifier", "id", "definitions"])
             if let invalid = additions.first(where: { protected.contains($0.name.lowercased()) }) {
-                throw BlocktopographError.malformedData("summon 不能覆盖由命令控制的标签：\(invalid.name)")
+                throw MCBEEditorError.malformedData("summon 不能覆盖由命令控制的标签：\(invalid.name)")
             }
             return .summon(identifier: identifier, dimension: dimension, position: position, additions: additions)
         case "clone":
@@ -751,7 +751,7 @@ enum WorldCommandParser {
                           let minimumZ = Int32(exactly: centerBlockZ - radiusBlocks),
                           let maximumX = Int32(exactly: centerBlockX + radiusBlocks),
                           let maximumZ = Int32(exactly: centerBlockZ + radiusBlocks) else {
-                        throw BlocktopographError.malformedData("圆形常加载区域坐标或半径溢出")
+                        throw MCBEEditorError.malformedData("圆形常加载区域坐标或半径溢出")
                     }
                     area = CommandTickingAreaSpec(
                         dimension: dimension,
@@ -776,7 +776,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         default:
-            throw BlocktopographError.malformedData("不存在的命令：\(command)。输入 help 查看全部命令。")
+            throw MCBEEditorError.malformedData("不存在的命令：\(command)。输入 help 查看全部命令。")
         }
     }
 
@@ -785,7 +785,7 @@ enum WorldCommandParser {
         return commandNames.compactMap { usage[$0] }.joined(separator: "\n\n")
     }
 
-    private static func usageError(_ command: String) -> BlocktopographError {
+    private static func usageError(_ command: String) -> MCBEEditorError {
         .malformedData("参数格式错误。\n\(usage[command] ?? command)")
     }
 
@@ -804,7 +804,7 @@ enum WorldCommandParser {
         case "nether": return 1
         case "the_end": return 2
         default:
-            throw BlocktopographError.malformedData(
+            throw MCBEEditorError.malformedData(
                 "维度名称无效：\(text)。只能使用 overworld、nether 或 the_end"
             )
         }
@@ -821,7 +821,7 @@ enum WorldCommandParser {
             )
             let radius = (radiusBlocks + 15) / 16
             guard radius <= 4 else {
-                throw BlocktopographError.unsupported("圆形常加载区域半径最多为 4 个区块")
+                throw MCBEEditorError.unsupported("圆形常加载区域半径最多为 4 个区块")
             }
             var total: Int64 = 0
             for dz in -radius...radius {
@@ -833,30 +833,30 @@ enum WorldCommandParser {
                 * (Int64(abs(Int64(area.maximumZ) - Int64(area.minimumZ))) + 1)
         }
         guard count > 0, count <= 100 else {
-            throw BlocktopographError.unsupported("每个常加载区域最多包含 100 个区块")
+            throw MCBEEditorError.unsupported("每个常加载区域最多包含 100 个区块")
         }
     }
 
     private static func parseChunkCoordinate(_ text: String, name: String) throws -> Int32 {
         guard let value = Int32(text) else {
-            throw BlocktopographError.malformedData("\(name) 必须是 Int32 区块坐标：\(text)")
+            throw MCBEEditorError.malformedData("\(name) 必须是 Int32 区块坐标：\(text)")
         }
         return value
     }
 
     private static func parseTickingAreaName(_ text: String) throws -> String {
         guard !text.isEmpty, text != "ALL" else {
-            throw BlocktopographError.malformedData("常加载区域名称不能为空，也不能使用保留字 ALL")
+            throw MCBEEditorError.malformedData("常加载区域名称不能为空，也不能使用保留字 ALL")
         }
         guard text.range(of: "^[A-Za-z0-9_.:-]+$", options: .regularExpression) != nil else {
-            throw BlocktopographError.malformedData("常加载区域名称只能包含字母、数字、下划线、点、冒号和连字符")
+            throw MCBEEditorError.malformedData("常加载区域名称只能包含字母、数字、下划线、点、冒号和连字符")
         }
         return text
     }
 
     private static func parseTickingAreaRadius(_ text: String) throws -> Int32 {
         guard let value = Int32(text), value >= 0, value <= 4 else {
-            throw BlocktopographError.malformedData("圆形常加载区域半径必须是 0～4 的区块数整数")
+            throw MCBEEditorError.malformedData("圆形常加载区域半径必须是 0～4 的区块数整数")
         }
         return value
     }
@@ -864,7 +864,7 @@ enum WorldCommandParser {
     private static func parseTimeInteger(_ text: String, allowNegative: Bool) throws -> Int64 {
         guard let value = Int64(text), allowNegative || value >= 0 else {
             let range = allowNegative ? "Int64 整数" : "0…9223372036854775807 的非负整数"
-            throw BlocktopographError.malformedData("time 参数必须是\(range)：\(text)")
+            throw MCBEEditorError.malformedData("time 参数必须是\(range)：\(text)")
         }
         return value
     }
@@ -872,28 +872,28 @@ enum WorldCommandParser {
     private static func parseExperienceInteger(_ text: String, name: String, allowNegative: Bool) throws -> Int64 {
         guard let value = Int64(text), allowNegative || value >= 0 else {
             let range = allowNegative ? "Int64 整数" : "非负 Int64 整数"
-            throw BlocktopographError.malformedData("\(name)必须是\(range)：\(text)")
+            throw MCBEEditorError.malformedData("\(name)必须是\(range)：\(text)")
         }
         return value
     }
 
     private static func parseExperienceLevel(_ text: String) throws -> Int32 {
         guard let value = Int32(text), (0...24_791).contains(value) else {
-            throw BlocktopographError.malformedData("经验等级必须是 0～24791 的整数")
+            throw MCBEEditorError.malformedData("经验等级必须是 0～24791 的整数")
         }
         return value
     }
 
     private static func parseExperiencePercent(_ text: String) throws -> Float {
         guard let value = Float(text), value.isFinite, value >= 0, value <= 1 else {
-            throw BlocktopographError.malformedData("经验条进度必须是 0～1 的浮点数")
+            throw MCBEEditorError.malformedData("经验条进度必须是 0～1 的浮点数")
         }
         return value
     }
 
     private static func parseTeleportHorizontalCoordinate(_ text: String, name: String) throws -> Int64 {
         guard let value = Int64(text) else {
-            throw BlocktopographError.malformedData("teleport 的 \(name) 坐标必须是 Int64 整数：\(text)")
+            throw MCBEEditorError.malformedData("teleport 的 \(name) 坐标必须是 Int64 整数：\(text)")
         }
         return value
     }
@@ -901,21 +901,21 @@ enum WorldCommandParser {
     private static func parseTeleportY(_ text: String) throws -> CommandTeleportY {
         if text == "Auto" { return .automatic }
         guard let value = Int32(text) else {
-            throw BlocktopographError.malformedData("teleport 的 Y 坐标必须是 Int32 整数或 Auto：\(text)")
+            throw MCBEEditorError.malformedData("teleport 的 Y 坐标必须是 Int32 整数或 Auto：\(text)")
         }
         return .fixed(value)
     }
 
     private static func parseWeatherDuration(_ text: String) throws -> Int32 {
         guard let value = Int32(text), value >= 0 else {
-            throw BlocktopographError.malformedData("天气持续时间必须是 0…2147483647 的游戏刻整数")
+            throw MCBEEditorError.malformedData("天气持续时间必须是 0…2147483647 的游戏刻整数")
         }
         return value
     }
 
     private static func parseWeatherIntensity(_ text: String) throws -> Float {
         guard let value = Float(text), value.isFinite, value >= 0, value <= 1 else {
-            throw BlocktopographError.malformedData("天气强度必须是 0.0～1.0 的浮点数")
+            throw MCBEEditorError.malformedData("天气强度必须是 0.0～1.0 的浮点数")
         }
         return value
     }
@@ -934,7 +934,7 @@ enum WorldCommandParser {
     private static func parseNamespacedIdentifier(_ text: String, kind: String) throws -> String {
         let pattern = "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
         guard text.range(of: pattern, options: .regularExpression) != nil else {
-            throw BlocktopographError.malformedData("\(kind)字符串 ID 格式无效：\(text)")
+            throw MCBEEditorError.malformedData("\(kind)字符串 ID 格式无效：\(text)")
         }
         return text
     }
@@ -942,7 +942,7 @@ enum WorldCommandParser {
     private static func parseEffectSelection(_ text: String) throws -> CommandEffectSelection {
         if text == "ALL" { return .all }
         guard let entry = BedrockDataValueCatalog.statusEffects.first(where: { $0.identifier == text }) else {
-            throw BlocktopographError.malformedData(
+            throw MCBEEditorError.malformedData(
                 "状态效果字符串 ID 没有对应的数字 ID：\(text)"
             )
         }
@@ -951,14 +951,14 @@ enum WorldCommandParser {
 
     private static func parseEffectDuration(_ text: String) throws -> Int32 {
         guard let value = Int32(text), value >= 0 else {
-            throw BlocktopographError.malformedData("状态效果持续时间必须是 0…2147483647 的整数")
+            throw MCBEEditorError.malformedData("状态效果持续时间必须是 0…2147483647 的整数")
         }
         return value
     }
 
     private static func parseEffectAmplifier(_ text: String) throws -> UInt8 {
         guard let value = UInt8(text) else {
-            throw BlocktopographError.malformedData("状态效果等级必须是 0…255 的整数；输入值为零基数")
+            throw MCBEEditorError.malformedData("状态效果等级必须是 0…255 的整数；输入值为零基数")
         }
         return value
     }
@@ -966,14 +966,14 @@ enum WorldCommandParser {
     private static func parseGiveSlot(_ text: String) throws -> CommandGiveSlot {
         if text == "Auto" { return .automatic }
         guard let value = Int8(text), (0...35).contains(Int(value)) else {
-            throw BlocktopographError.malformedData("give 的 Slot 必须是 Auto 或 0～35 的整数")
+            throw MCBEEditorError.malformedData("give 的 Slot 必须是 Auto 或 0～35 的整数")
         }
         return .indexed(value)
     }
 
     private static func parseItemCount(_ text: String) throws -> Int64 {
         guard let value = Int64(text), value > 0 else {
-            throw BlocktopographError.malformedData("物品数目必须是大于 0 的 Int64 整数")
+            throw MCBEEditorError.malformedData("物品数目必须是大于 0 的 Int64 整数")
         }
         return value
     }
@@ -982,18 +982,18 @@ enum WorldCommandParser {
         switch text {
         case "0": return false
         case "1": return true
-        default: throw BlocktopographError.malformedData("\(name)只能输入 0 或 1")
+        default: throw MCBEEditorError.malformedData("\(name)只能输入 0 或 1")
         }
     }
 
     private static func parseCoordinates(_ values: [String]) throws -> [CommandBlockCoordinate] {
-        guard values.count % 3 == 0 else { throw BlocktopographError.malformedData("坐标必须每组三个整数") }
+        guard values.count % 3 == 0 else { throw MCBEEditorError.malformedData("坐标必须每组三个整数") }
         var result = [CommandBlockCoordinate]()
         for offset in stride(from: 0, to: values.count, by: 3) {
             guard let x = Int64(values[offset]),
                   let y = Int32(values[offset + 1]),
                   let z = Int64(values[offset + 2]) else {
-                throw BlocktopographError.malformedData("坐标必须是整数：\(values[offset...offset + 2].joined(separator: " "))")
+                throw MCBEEditorError.malformedData("坐标必须是整数：\(values[offset...offset + 2].joined(separator: " "))")
             }
             result.append(CommandBlockCoordinate(x: x, y: y, z: z))
         }
@@ -1003,7 +1003,7 @@ enum WorldCommandParser {
     private static func parseBlockName(_ text: String) throws -> String {
         let pattern = "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
         guard text.range(of: pattern, options: .regularExpression) != nil else {
-            throw BlocktopographError.malformedData("方块名称格式无效：\(text)")
+            throw MCBEEditorError.malformedData("方块名称格式无效：\(text)")
         }
         return text
     }
@@ -1011,13 +1011,13 @@ enum WorldCommandParser {
     static func parseStates(_ text: String) throws -> [NBTNamedTag] {
         if text == "NULL" { return [] }
         guard !text.isEmpty else {
-            throw BlocktopographError.malformedData("NBT 标签不能为空；不添加标签请填写 NULL")
+            throw MCBEEditorError.malformedData("NBT 标签不能为空；不添加标签请填写 NULL")
         }
         var parser = CommandNBTTextParser(text: text)
         let tags = try parser.parseNamedTags()
         parser.skipWhitespace()
         guard parser.isAtEnd else {
-            throw BlocktopographError.malformedData("NBT 标签末尾存在无法识别的内容：\(parser.remainingText)")
+            throw MCBEEditorError.malformedData("NBT 标签末尾存在无法识别的内容：\(parser.remainingText)")
         }
         return tags
     }
@@ -1036,7 +1036,7 @@ enum WorldCommandParser {
                 _ = try parser.parseNamedTags()
                 index = parser.index
                 if index < text.endIndex, !text[index].isWhitespace {
-                    throw BlocktopographError.malformedData("NBT 参数后必须使用空格分隔下一个命令参数")
+                    throw MCBEEditorError.malformedData("NBT 参数后必须使用空格分隔下一个命令参数")
                 }
             } else {
                 while index < text.endIndex, !text[index].isWhitespace {
@@ -1084,7 +1084,7 @@ enum WorldCommandParser {
             while true {
                 let tag = try parseNamedTag()
                 guard names.insert(tag.name).inserted else {
-                    throw BlocktopographError.malformedData("同一 Compound 中存在重复 NBT 标签：\(tag.name)")
+                    throw MCBEEditorError.malformedData("同一 Compound 中存在重复 NBT 标签：\(tag.name)")
                 }
                 tags.append(tag)
                 let endOfTag = index
@@ -1101,7 +1101,7 @@ enum WorldCommandParser {
                 advance()
                 skipWhitespace()
                 if isAtEnd || (closing != nil && peek == closing) {
-                    throw BlocktopographError.malformedData("NBT 标签列表末尾不能有逗号")
+                    throw MCBEEditorError.malformedData("NBT 标签列表末尾不能有逗号")
                 }
             }
             return tags
@@ -1110,7 +1110,7 @@ enum WorldCommandParser {
         private mutating func parseNamedTag() throws -> NBTNamedTag {
             let descriptor = try parseTypeDescriptor()
             let name = try parseQuotedString(quote: "\"")
-            guard !name.isEmpty else { throw BlocktopographError.malformedData("NBT 标签名称不能为空") }
+            guard !name.isEmpty else { throw MCBEEditorError.malformedData("NBT 标签名称不能为空") }
             try expect("=")
             try expect("\"")
             let value = try parsePayload(descriptor, listTerminator: "\"")
@@ -1121,7 +1121,7 @@ enum WorldCommandParser {
         private mutating func parseTypeDescriptor() throws -> CommandNBTTypeDescriptor {
             let name = try parseQuotedString(quote: "'")
             guard let type = tagType(named: name), type != .end else {
-                throw BlocktopographError.malformedData("不支持的 NBT 类型：\(name)")
+                throw MCBEEditorError.malformedData("不支持的 NBT 类型：\(name)")
             }
             if type == .list {
                 return .list(try parseTypeDescriptor())
@@ -1197,7 +1197,7 @@ enum WorldCommandParser {
                     try expect("}")
                     return .compound(tags)
                 case .list, .end:
-                    throw BlocktopographError.malformedData("NBT 类型描述无效")
+                    throw MCBEEditorError.malformedData("NBT 类型描述无效")
                 }
             }
         }
@@ -1214,12 +1214,12 @@ enum WorldCommandParser {
                 skipWhitespace()
                 if peek == terminator { break }
                 guard peek == "," else {
-                    throw BlocktopographError.malformedData("List 元素之间必须使用英文逗号分隔")
+                    throw MCBEEditorError.malformedData("List 元素之间必须使用英文逗号分隔")
                 }
                 advance()
                 skipWhitespace()
                 if peek == terminator {
-                    throw BlocktopographError.malformedData("List 末尾不能有逗号")
+                    throw MCBEEditorError.malformedData("List 末尾不能有逗号")
                 }
             }
             return values
@@ -1276,7 +1276,7 @@ enum WorldCommandParser {
                     guard let number = Double(raw), number.isFinite else { throw invalidValue(type, raw) }
                     return .double(number)
                 case .list, .end:
-                    throw BlocktopographError.malformedData("List 元素类型无效")
+                    throw MCBEEditorError.malformedData("List 元素类型无效")
                 }
             }
         }
@@ -1294,19 +1294,19 @@ enum WorldCommandParser {
                 guard !raw.isEmpty, let value = convert(raw) else { throw invalidValue(type, raw) }
                 values.append(value)
                 guard let character = peek else {
-                    throw BlocktopographError.malformedData("\(type.displayName) 缺少右中括号")
+                    throw MCBEEditorError.malformedData("\(type.displayName) 缺少右中括号")
                 }
                 if character == "]" { advance(); break }
                 advance()
                 skipWhitespace()
-                if peek == "]" { throw BlocktopographError.malformedData("数组末尾不能有逗号") }
+                if peek == "]" { throw MCBEEditorError.malformedData("数组末尾不能有逗号") }
             }
             return values
         }
 
         private mutating func readScalarUntilQuote() throws -> String {
             let raw = try readEscaped(until: "\"").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty else { throw BlocktopographError.malformedData("数值 NBT 标签不能为空") }
+            guard !raw.isEmpty else { throw MCBEEditorError.malformedData("数值 NBT 标签不能为空") }
             return raw
         }
 
@@ -1335,7 +1335,7 @@ enum WorldCommandParser {
             if escaped { result.append("\\") }
             let value = preserveWhitespace ? result : result.trimmingCharacters(in: .whitespacesAndNewlines)
             if value.isEmpty, !preserveWhitespace {
-                throw BlocktopographError.malformedData("List 中存在空元素")
+                throw MCBEEditorError.malformedData("List 中存在空元素")
             }
             return value
         }
@@ -1359,7 +1359,7 @@ enum WorldCommandParser {
                 result.append(character)
                 advance()
             }
-            throw BlocktopographError.malformedData("NBT 字符串缺少结束引号")
+            throw MCBEEditorError.malformedData("NBT 字符串缺少结束引号")
         }
 
         private mutating func readUntilAny(_ terminators: Set<Character>) throws -> String {
@@ -1368,7 +1368,7 @@ enum WorldCommandParser {
                 result.append(character)
                 advance()
             }
-            guard peek != nil else { throw BlocktopographError.malformedData("NBT 数组未闭合") }
+            guard peek != nil else { throw MCBEEditorError.malformedData("NBT 数组未闭合") }
             return result
         }
 
@@ -1379,7 +1379,7 @@ enum WorldCommandParser {
             return value
         }
 
-        private func invalidValue(_ type: NBTTagType, _ value: String) -> BlocktopographError {
+        private func invalidValue(_ type: NBTTagType, _ value: String) -> MCBEEditorError {
             .malformedData("\(type.displayName) 值无效：\(value)")
         }
 
@@ -1392,7 +1392,7 @@ enum WorldCommandParser {
 
         private mutating func expect(_ expected: Character) throws {
             guard peek == expected else {
-                throw BlocktopographError.malformedData("NBT 格式错误：应为 \(expected)，当前位置为 \(remainingText.prefix(24))")
+                throw MCBEEditorError.malformedData("NBT 格式错误：应为 \(expected)，当前位置为 \(remainingText.prefix(24))")
             }
             advance()
         }

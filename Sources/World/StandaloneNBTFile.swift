@@ -57,7 +57,7 @@ enum StandaloneNBTFileCodec {
 
     static func decode(data originalData: Data, filename: String) throws -> StandaloneNBTFile {
         guard !originalData.isEmpty else {
-            throw BlocktopographError.malformedData("NBT/JSON 文件为空")
+            throw MCBEEditorError.malformedData("NBT/JSON 文件为空")
         }
 
         let ext = URL(fileURLWithPath: filename).pathExtension.lowercased()
@@ -97,7 +97,7 @@ enum StandaloneNBTFileCodec {
                 do {
                     let documents = try decodeEveryRoot(payload.data, encoding: encoding)
                     guard !documents.isEmpty else {
-                        throw BlocktopographError.malformedData("没有发现 NBT 根标签")
+                        throw MCBEEditorError.malformedData("没有发现 NBT 根标签")
                     }
                     return StandaloneNBTFile(
                         originalFilename: filename,
@@ -114,7 +114,7 @@ enum StandaloneNBTFileCodec {
                 }
             }
         }
-        throw BlocktopographError.malformedData(
+        throw MCBEEditorError.malformedData(
             "无法识别该文件。支持 JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 以及 GZip/Zlib。\n" + failures.prefix(6).joined(separator: "\n")
         )
     }
@@ -125,7 +125,7 @@ enum StandaloneNBTFileCodec {
 
     static func encode(_ documents: [NBTDocument], encoding: NBTEncoding) throws -> Data {
         guard !documents.isEmpty else {
-            throw BlocktopographError.malformedData("没有可导出的 NBT 根标签")
+            throw MCBEEditorError.malformedData("没有可导出的 NBT 根标签")
         }
         var output = Data()
         for document in documents {
@@ -136,7 +136,7 @@ enum StandaloneNBTFileCodec {
 
     static func encodeAsMCStructure(_ documents: [NBTDocument]) throws -> (data: Data, result: StructureImportResult) {
         guard documents.count == 1, let document = documents.first else {
-            throw BlocktopographError.unsupported("只有单根 Java 结构 NBT 或 Bedrock mcstructure 可以转换为 mcstructure。连续 NBT 文件不能整体转换为结构。")
+            throw MCBEEditorError.unsupported("只有单根 Java 结构 NBT 或 Bedrock mcstructure 可以转换为 mcstructure。连续 NBT 文件不能整体转换为结构。")
         }
         let conversion = try JavaStructureConverter.convertIfNeeded(document)
         return (
@@ -160,7 +160,7 @@ enum StandaloneNBTFileCodec {
             if data[cursor.offset] == 0 {
                 let tail = data[cursor.offset..<data.count]
                 if tail.allSatisfy({ $0 == 0 }) { break }
-                throw BlocktopographError.malformedData("偏移 \(cursor.offset) 处不是有效的 NBT 根标签")
+                throw MCBEEditorError.malformedData("偏移 \(cursor.offset) 处不是有效的 NBT 根标签")
             }
             let before = cursor.offset
             let document = try BedrockNBTCodec.decodeDocument(
@@ -169,11 +169,11 @@ enum StandaloneNBTFileCodec {
                 maximumDepth: 256
             )
             guard cursor.offset > before else {
-                throw BlocktopographError.malformedData("NBT 解析器在偏移 \(before) 没有前进")
+                throw MCBEEditorError.malformedData("NBT 解析器在偏移 \(before) 没有前进")
             }
             documents.append(document)
             if documents.count > 2_000_000 {
-                throw BlocktopographError.malformedData("连续 NBT 根标签数量超过安全上限")
+                throw MCBEEditorError.malformedData("连续 NBT 根标签数量超过安全上限")
             }
         }
         return documents

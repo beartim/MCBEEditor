@@ -4,7 +4,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
     private let session: WorldSession
     private let initialDimension: Int32
     private let store: BedrockChunkStore
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.chunk-manager", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.chunk-manager", qos: .userInitiated)
     private let dimensionControl = UISegmentedControl(items: ["全部"] + BedrockDimension.allCases.map(\.displayName))
     private var summaries = [BedrockChunkSummary]()
     private var filtered = [BedrockChunkSummary]()
@@ -299,7 +299,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
 
     private func prepareTickingArea(from chunks: [ChunkPosition]) {
         guard let context = TickingAreaSelectionContext(chunks: chunks) else {
-            showError(BlocktopographError.unsupported("一次只能编辑同一维度区块对应的常加载区域"), title: "维度不一致")
+            showError(MCBEEditorError.unsupported("一次只能编辑同一维度区块对应的常加载区域"), title: "维度不一致")
             return
         }
         finishBatchMode()
@@ -375,12 +375,12 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
                         changed += result.changedChunkCount
                         skipped += result.skippedChunkCount
                         cells += result.detailCount
-                    } catch BlocktopographError.unsupported {
+                    } catch MCBEEditorError.unsupported {
                         skipped += 1
                     }
                 }
                 guard changed > 0 else {
-                    throw BlocktopographError.unsupported("所选区块中没有可修改的生物群系记录")
+                    throw MCBEEditorError.unsupported("所选区块中没有可修改的生物群系记录")
                 }
                 let message = "已修改 \(changed) 个区块、\(cells) 个生物群系位置；跳过 \(skipped) 个区块。"
                 DispatchQueue.main.async {
@@ -439,12 +439,12 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
                             _ = try self.store.regenerateChunk(chunk)
                         }
                         changed += 1
-                    } catch BlocktopographError.unsupported {
+                    } catch MCBEEditorError.unsupported {
                         skipped += 1
                     }
                 }
                 guard changed > 0 else {
-                    throw BlocktopographError.unsupported("所选区块中没有可执行该操作的记录")
+                    throw MCBEEditorError.unsupported("所选区块中没有可执行该操作的记录")
                 }
                 let message = "已\(kind.title) \(changed) 个区块；跳过 \(skipped) 个区块。"
                 DispatchQueue.main.async {
@@ -495,7 +495,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
 
 
 enum ChunkActionMenu {
-    private static let queue = DispatchQueue(label: "com.wzn.blocktopograph.chunk-actions", qos: .userInitiated)
+    private static let queue = DispatchQueue(label: "com.wzn.mcbeeditor.chunk-actions", qos: .userInitiated)
 
     static func present(
         from presenter: UIViewController,
@@ -624,7 +624,7 @@ enum ChunkActionMenu {
         sourceView: UIView? = nil,
         onMutation: @escaping (String, ChunkPosition?) -> Void
     ) {
-        let message = "将按安卓版 Blocktopograph 的原始区块前缀规则，删除该坐标全部已知和未知区块记录，包括 ConversionData、GenerationSeed、混合数据、LegacyVersion、digp 索引及其 Actor。Minecraft 下一次加载该位置时会把它视为从未生成，并依据当前种子和游戏版本重新生成。请确保 Minecraft 已完全退出；此操作不会自动备份。"
+        let message = "将按安卓版 MCBEEditor 的原始区块前缀规则，删除该坐标全部已知和未知区块记录，包括 ConversionData、GenerationSeed、混合数据、LegacyVersion、digp 索引及其 Actor。Minecraft 下一次加载该位置时会把它视为从未生成，并依据当前种子和游戏版本重新生成。请确保 Minecraft 已完全退出；此操作不会自动备份。"
         let alert = UIAlertController(title: "重新生成区块 \(summary.coordinateText)？", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))
         alert.addAction(UIAlertAction(title: "重新生成", style: .destructive) { [weak presenter] _ in
@@ -658,7 +658,7 @@ private final class ChunkCopyViewController: UIViewController, UITextFieldDelega
     private let xField = UITextField()
     private let zField = UITextField()
     private let dimensionControl = UISegmentedControl(items: BedrockDimension.allCases.map(\.displayName))
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.chunk-copy", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.chunk-copy", qos: .userInitiated)
     var onComplete: ((String, ChunkPosition) -> Void)?
 
     init(session: WorldSession, source: ChunkPosition) {
@@ -719,7 +719,7 @@ private final class ChunkCopyViewController: UIViewController, UITextFieldDelega
     @objc private func copyChunk() {
         guard let x = Int32(xField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""),
               let z = Int32(zField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else {
-            showError(BlocktopographError.malformedData("请输入有效的目标区块 X、Z"))
+            showError(MCBEEditorError.malformedData("请输入有效的目标区块 X、Z"))
             return
         }
         let destination = ChunkPosition(
@@ -778,7 +778,7 @@ final class ChunkSearchReplaceViewController: UIViewController {
     private let changeLayer1Switch = UISwitch()
     private let searchHelp = UILabel()
     private let replacementHelp = UILabel()
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.chunk-search-replace", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.chunk-search-replace", qos: .userInitiated)
     private var lastSearchContentMask = -1
     var onComplete: ((String) -> Void)?
 
@@ -1043,7 +1043,7 @@ final class ChunkSearchReplaceViewController: UIViewController {
                     } else if let chunk = self.chunk {
                         result = try store.searchBlocks(in: chunk, coordinatedOperation: plan)
                     } else {
-                        throw BlocktopographError.malformedData("缺少搜索范围")
+                        throw MCBEEditorError.malformedData("缺少搜索范围")
                     }
                     DispatchQueue.main.async {
                         overlay.removeFromSuperview()
@@ -1092,7 +1092,7 @@ final class ChunkSearchReplaceViewController: UIViewController {
         let criteria0 = searchLayer0.makeSearchCriteria()
         let criteria1 = searchLayer1.makeSearchCriteria()
         guard criteria0 != nil || criteria1 != nil else {
-            throw BlocktopographError.malformedData("至少填写层 0 或层 1 的搜索 name / states")
+            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索 name / states")
         }
 
         let scope: BedrockBlockSearchScope
@@ -1135,12 +1135,12 @@ final class ChunkSearchReplaceViewController: UIViewController {
                             matchedBlockCount += result.matchedBlockCount
                             modifiedSubChunkCount += result.modifiedSubChunkCount
                             skippedSubChunkCount += result.skippedSubChunkCount
-                        } catch BlocktopographError.unsupported {
+                        } catch MCBEEditorError.unsupported {
                             skippedChunks += 1
                         }
                     }
                     guard matchedBlockCount > 0 else {
-                        throw BlocktopographError.unsupported("所选区块中没有匹配搜索条件的方块")
+                        throw MCBEEditorError.unsupported("所选区块中没有匹配搜索条件的方块")
                     }
                 } else {
                     let result: BedrockChunkReplaceResult
@@ -1149,7 +1149,7 @@ final class ChunkSearchReplaceViewController: UIViewController {
                     } else if let chunk = self.chunk {
                         result = try store.replaceBlocks(in: chunk, coordinatedOperation: plan)
                     } else {
-                        throw BlocktopographError.malformedData("缺少搜索替换范围")
+                        throw MCBEEditorError.malformedData("缺少搜索替换范围")
                     }
                     matchedBlockCount = result.matchedBlockCount
                     modifiedSubChunkCount = result.modifiedSubChunkCount

@@ -10,7 +10,7 @@ final class BulkLayerReplaceViewController: UIViewController {
     private let layer0Editor = BlockSearchReplaceNBTEditorView(layerIndex: 0, mode: .replacement)
     private let layer1Editor = BlockSearchReplaceNBTEditorView(layerIndex: 1, mode: .replacement)
     private let editorContainer = UIView()
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.bulk-layer-replace", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.bulk-layer-replace", qos: .userInitiated)
 
     var onComplete: ((String) -> Void)?
 
@@ -155,7 +155,7 @@ final class BulkLayerReplaceViewController: UIViewController {
         let layer = targetLayerControl.selectedSegmentIndex
         let editor = layer == 0 ? layer0Editor : layer1Editor
         guard editor.explicitBlockName != nil else {
-            showError(BlocktopographError.malformedData("请在层 \(layer) 编辑器中填写目标方块 name"), title: "缺少目标方块")
+            showError(MCBEEditorError.malformedData("请在层 \(layer) 编辑器中填写目标方块 name"), title: "缺少目标方块")
             return
         }
         let airText = includeAirSwitch.isOn ? "包括双层皆为空气的位置" : "跳过双层皆为空气的位置"
@@ -201,12 +201,12 @@ final class BulkLayerReplaceViewController: UIViewController {
                             affectedBlockCount += result.affectedBlockCount
                             modifiedSubChunkCount += result.modifiedSubChunkCount
                             skippedSubChunkCount += result.skippedSubChunkCount
-                        } catch BlocktopographError.unsupported {
+                        } catch MCBEEditorError.unsupported {
                             skippedChunks += 1
                         }
                     }
                     guard modifiedSubChunkCount > 0 else {
-                        throw BlocktopographError.unsupported("所选区块中没有可批量替换的现代 SubChunk")
+                        throw MCBEEditorError.unsupported("所选区块中没有可批量替换的现代 SubChunk")
                     }
                 } else {
                     let result: BedrockChunkBulkLayerResult
@@ -225,7 +225,7 @@ final class BulkLayerReplaceViewController: UIViewController {
                             includeCompletelyAirCells: includeAir
                         )
                     } else {
-                        throw BlocktopographError.malformedData("缺少批量替换范围")
+                        throw MCBEEditorError.malformedData("缺少批量替换范围")
                     }
                     affectedBlockCount = result.affectedBlockCount
                     modifiedSubChunkCount = result.modifiedSubChunkCount

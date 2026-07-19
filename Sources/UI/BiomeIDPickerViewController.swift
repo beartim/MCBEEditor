@@ -76,7 +76,7 @@ final class BiomeIDPickerViewController: UITableViewController, UISearchResultsU
         alert.addAction(UIAlertAction(title: "使用", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let value = UInt32(text) else {
-                self?.showError(BlocktopographError.malformedData("请输入有效的 UInt32 生物群系 ID"))
+                self?.showError(MCBEEditorError.malformedData("请输入有效的 UInt32 生物群系 ID"))
                 return
             }
             self?.commit(value)

@@ -1,4 +1,4 @@
-# Blocktopograph iOS 13 v1.1.5
+# MCBEEditor iOS 13 v1.1.5
 
 ## NBT 多标签粘贴修复
 
@@ -23,7 +23,7 @@
   - GZip/Zlib 包装；
   - 连续多个根标签；
   - Bedrock `.mcstructure`；
-  - Blocktopograph 类型化 JSON NBT；
+  - MCBEEditor 类型化 JSON NBT；
   - 可推断为 NBT 的普通 JSON。
 - 导入到 Compound 时：
   - 优先使用文件内的根标签名称；

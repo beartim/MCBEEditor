@@ -164,7 +164,7 @@ extension BedrockSubChunk {
                     newIndex = existing
                 } else {
                     guard palette.count < Int(UInt16.max) else {
-                        throw BlocktopographError.unsupported("升级旧版 SubChunk 时调色板条目过多")
+                        throw MCBEEditorError.unsupported("升级旧版 SubChunk 时调色板条目过多")
                     }
                     newIndex = UInt16(palette.count)
                     palette.append(modern)
@@ -183,10 +183,10 @@ extension BedrockSubChunk {
     }
 
     private func modernBitsRequired(paletteCount: Int) throws -> Int {
-        guard paletteCount > 0 else { throw BlocktopographError.malformedData("升级后的方块调色板不能为空") }
+        guard paletteCount > 0 else { throw MCBEEditorError.malformedData("升级后的方块调色板不能为空") }
         if paletteCount == 1 { return 0 }
         let required = Int(ceil(log2(Double(paletteCount))))
         for bits in [1, 2, 3, 4, 5, 6, 8, 16] where bits >= required { return bits }
-        throw BlocktopographError.unsupported("升级后的方块调色板过大")
+        throw MCBEEditorError.unsupported("升级后的方块调色板过大")
     }
 }

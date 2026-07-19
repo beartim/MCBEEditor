@@ -76,21 +76,21 @@ struct BedrockSubChunk {
             return BedrockSubChunk(version: version, yIndex: keyYIndex, storages: [storage], trailingData: try cursor.readData(count: cursor.remaining))
         case 8:
             let count = Int(try cursor.readByte())
-            guard count <= 16 else { throw BlocktopographError.malformedData("SubChunk v8 storage 数量无效：\(count)") }
+            guard count <= 16 else { throw MCBEEditorError.malformedData("SubChunk v8 storage 数量无效：\(count)") }
             var storages = [SubChunkStorage]()
             for _ in 0..<count { storages.append(try decodePalettedStorage(cursor: &cursor)) }
             return BedrockSubChunk(version: version, yIndex: keyYIndex, storages: storages, trailingData: try cursor.readData(count: cursor.remaining))
         case 9:
             let count = Int(try cursor.readByte())
             let y = Int8(bitPattern: try cursor.readByte())
-            guard count <= 16 else { throw BlocktopographError.malformedData("SubChunk v9 storage 数量无效：\(count)") }
+            guard count <= 16 else { throw MCBEEditorError.malformedData("SubChunk v9 storage 数量无效：\(count)") }
             var storages = [SubChunkStorage]()
             for _ in 0..<count { storages.append(try decodePalettedStorage(cursor: &cursor)) }
             return BedrockSubChunk(version: version, yIndex: y, storages: storages, trailingData: try cursor.readData(count: cursor.remaining))
         case 0, 2...7:
             return try decodeLegacy(data, version: version, keyYIndex: keyYIndex)
         default:
-            throw BlocktopographError.unsupported("SubChunk 版本 \(version)")
+            throw MCBEEditorError.unsupported("SubChunk 版本 \(version)")
         }
     }
 
@@ -99,11 +99,11 @@ struct BedrockSubChunk {
         let bitsPerBlock = Int(header >> 1)
         let isRuntimePalette = (header & 1) != 0
         guard !isRuntimePalette else {
-            throw BlocktopographError.unsupported("网络运行时调色板不能从世界数据库独立解析")
+            throw MCBEEditorError.unsupported("网络运行时调色板不能从世界数据库独立解析")
         }
         let allowed = [0, 1, 2, 3, 4, 5, 6, 8, 16]
         guard allowed.contains(bitsPerBlock) else {
-            throw BlocktopographError.malformedData("每方块位数无效：\(bitsPerBlock)")
+            throw MCBEEditorError.malformedData("每方块位数无效：\(bitsPerBlock)")
         }
 
         var indices = Array(repeating: UInt16(0), count: 4096)
@@ -124,26 +124,26 @@ struct BedrockSubChunk {
 
         let paletteCount = Int(try cursor.readInt32LE())
         guard paletteCount > 0, paletteCount <= 65_536 else {
-            throw BlocktopographError.malformedData("调色板大小无效：\(paletteCount)")
+            throw MCBEEditorError.malformedData("调色板大小无效：\(paletteCount)")
         }
         var palette = [BedrockBlockState]()
         palette.reserveCapacity(paletteCount)
         for _ in 0..<paletteCount {
             let document = try BedrockNBTCodec.decodeDocument(cursor: &cursor, encoding: .littleEndian, maximumDepth: 64)
             guard document.root.type == .compound else {
-                throw BlocktopographError.malformedData("方块状态不是 Compound")
+                throw MCBEEditorError.malformedData("方块状态不是 Compound")
             }
             palette.append(BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil))
         }
         if let maxIndex = indices.max(), Int(maxIndex) >= palette.count {
-            throw BlocktopographError.malformedData("调色板索引越界：\(maxIndex) >= \(palette.count)")
+            throw MCBEEditorError.malformedData("调色板索引越界：\(maxIndex) >= \(palette.count)")
         }
         return SubChunkStorage(bitsPerBlock: bitsPerBlock, palette: palette, indices: indices)
     }
 
     private static func decodeLegacy(_ data: Data, version: UInt8, keyYIndex: Int8?) throws -> BedrockSubChunk {
         guard data.count >= 1 + 4096 else {
-            throw BlocktopographError.malformedData("旧版 SubChunk 长度不足")
+            throw MCBEEditorError.malformedData("旧版 SubChunk 长度不足")
         }
         let ids = data.subdata(in: 1..<(1 + 4096))
         let metadataStart = 1 + 4096

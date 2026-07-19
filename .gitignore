@@ -3,6 +3,6 @@ build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
-Blocktopograph.xcodeproj/
+MCBEEditor.xcodeproj/
 Vendor/leveldb-mcpe/
 Vendor/leveldb-mcpe.lock

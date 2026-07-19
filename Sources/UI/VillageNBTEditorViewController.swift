@@ -13,7 +13,7 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     private let residentOptionKinds: [VillageResidentEntityKind] = [.villager, .cat, .ironGolem]
     private var residentResolution: VillageResidentResolution?
     private var isLoadingResidents = false
-    private let residentQueue = DispatchQueue(label: "com.wzn.blocktopograph.village-residents", qos: .userInitiated)
+    private let residentQueue = DispatchQueue(label: "com.wzn.mcbeeditor.village-residents", qos: .userInitiated)
 
     init(record: VillageNBTRecord, store: VillageNBTStore, onSave: @escaping () -> Void) {
         self.record = record

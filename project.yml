@@ -1,4 +1,4 @@
-name: Blocktopograph
+name: MCBEEditor
 options:
   minimumXcodeGenVersion: "2.45.0"
   xcodeVersion: "15.4"
@@ -92,7 +92,7 @@ targets:
     dependencies:
       - sdk: libz.tbd
 
-  Blocktopograph:
+  MCBEEditor:
     type: application
     platform: iOS
     deploymentTarget: "13.0"
@@ -105,7 +105,7 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleDisplayName: Blocktopograph
+        CFBundleDisplayName: MCBEEditor
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchStoryboardName: LaunchScreen
@@ -176,11 +176,11 @@ targets:
               public.mime-type: application/octet-stream
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph
-        PRODUCT_NAME: Blocktopograph
+        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.mcbeeditor
+        PRODUCT_NAME: MCBEEditor
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        SWIFT_OBJC_BRIDGING_HEADER: Sources/Blocktopograph-Bridging-Header.h
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/MCBEEditor-Bridging-Header.h
         GCC_PREPROCESSOR_DEFINITIONS:
           - "$(inherited)"
           - "OS_MACOSX=1"
@@ -199,14 +199,14 @@ targets:
       - sdk: MobileCoreServices.framework
       - sdk: libz.tbd
 
-  BlocktopographTests:
+  MCBEEditorTests:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "13.0"
     sources:
       - path: Tests
     dependencies:
-      - target: Blocktopograph
+      - target: MCBEEditor
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.wzn.mcbeeditor.tests

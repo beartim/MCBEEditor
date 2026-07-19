@@ -1,8 +1,11 @@
-# Blocktopograph iOS 13 rewrite
+# MCBEEditor iOS 13 rewrite
 
 ## 固定版本 1.0.0：地图状态、随机传送与世界命令
 
 - 软件版本固定为 **1.0.0 (100)**，后续功能修改不再提升版本号。
+- 软件整体名称统一为 **MCBEEditor**：工程、Target、Scheme、Bundle ID、界面标题、启动页、构建产物、导入导出格式标识、剪贴板类型、临时文件名和错误类型均已同步；旧版 `blocktopograph-nbt-json` 与旧剪贴板类型仅保留为导入兼容。
+- 地图对象图层新增默认开启的“显示玩家”，排列在“显示实体”上方；本地玩家显示为黄色五角星，在线玩家显示为蓝色五角星，点击星标可打开对应玩家的 NBT/定位/复制坐标菜单。“显示出生点”移动到“显示方块实体”下方。
+- 地表、高度、矿物、生物群系、常加载区域等六种地图渲染模式只在当前世界会话中保留；退出存档后不持久化，下次打开恢复默认地表模式。
 - 所有实体目标选择器支持完整 identifier，例如 `minecraft:cow`；实体没有 `identifier` 标签时读取 `definitions[0]`，并识别 `+minecraft:cow` 形式。
 - `tickingarea add circle` 格式为 `tickingarea add circle 维度 x1 z1 半径 名称 0或1`；x1/z1 是中心区块坐标，半径单位为区块。同名区域会先删除再重新创建。
 - `teleport 目标 维度 x y或Auto z` 支持 identifier；主世界/末地的 `Auto` 定位到最高已加载非空气方块上方，下界则按“顶层非空气 a → 下方空气 b → 更低非空气 c”优先使用 c+1，缺少 b/c 时使用 a+1，整列无非空气方块时使用 Y=63。
@@ -33,7 +36,7 @@
 - 修复 `LegacyVersion/Data2D + SubChunk v8` 世界在缺失高层 SubChunk 中修改方块后被游戏忽略或重新生成的问题。
 - 缺失 SubChunk 优先沿用目标区块已有兄弟 SubChunk 的持久化版本；例如 Y=80 缺失时可创建兼容的 v8 SubChunk，而不混写 v7/v9。
 - 实体导出只包含当前选中实体的全部标签，并支持实体 JSON、Little Endian、Little Endian VarInt 和 Big Endian NBT。
-- 实体 JSON 采用 `blocktopograph-nbt-json` 的 `documents` 标签数组格式；导入同时支持单根/连续 NBT 与实体 JSON。
+- 实体 JSON 采用 `mcbeeditor-nbt-json` 的 `documents` 标签数组格式；导入同时支持单根/连续 NBT 与实体 JSON。
 - 命令终端初始保持空白；主页 NBT 工具图标改为更圆润的圆角卡片样式。
 
 ## v1.1.16 构建回归修复与分维度默认中心
@@ -245,14 +248,14 @@
 
 ## v0.10.0：统一 NBT 结构编辑与方块状态写回
 
-- Bundle ID 固定为 **`com.wzn.blocktopograph`**；测试 Target 为 `com.wzn.blocktopograph.tests`。
+- Bundle ID 固定为 **`com.wzn.mcbeeditor`**；测试 Target 为 `com.wzn.mcbeeditor.tests`。
 - 世界、玩家、村庄、结构、实体和方块实体 NBT 统一支持增加、删除、重命名及标量/数组修改。
 - Compound/List 可增加子节点；所有非根节点可删除；Compound 标签可重命名。
 - 地图右侧方块详情改为完整 NBT 树，展示 `name`、`states`、`version` 等全部调色板属性。
 - 方块 NBT 修改会为目标方块复用或新增调色板项，仅重定向所选方块格，并重新编码 v1/v8/v9 SubChunk。
 - 旧版数字 ID SubChunk 继续只读，遇到不支持格式时拒绝写回而不是冒险损坏世界。
 
-这是对 Android 版 Blocktopograph 的原生 iOS 重写工程。
+这是对 Android 版 MCBEEditor 的原生 iOS 重写工程。
 
 - 最低系统：**iOS / iPadOS 13.0**
 - 构建工具：**Xcode 15.x，推荐 Xcode 15.4**
@@ -377,9 +380,9 @@
 ```bash
 sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 brew install xcodegen
-cd Blocktopograph-iOS
+cd MCBEEditor-iOS
 bash Scripts/bootstrap.sh
-open Blocktopograph.xcodeproj
+open MCBEEditor.xcodeproj
 ```
 
 生成未签名 IPA：
@@ -391,7 +394,7 @@ bash Scripts/build_unsigned_ipa.sh
 输出：
 
 ```text
-build/output/Blocktopograph-iOS13-unsigned.ipa
+build/output/MCBEEditor-iOS13-unsigned.ipa
 ```
 
 构建脚本会验证成品 `MinimumOSVersion` 必须为 `13.0`。

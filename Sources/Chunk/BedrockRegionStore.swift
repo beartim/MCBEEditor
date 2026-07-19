@@ -25,7 +25,7 @@ extension BedrockChunkStore {
         coordinatedOperation operation: BedrockCoordinatedBlockOperation
     ) throws -> BedrockChunkReplaceResult {
         guard operation.searchLayer0 != nil || operation.searchLayer1 != nil else {
-            throw BlocktopographError.malformedData("至少填写层 0 或层 1 的搜索条件")
+            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
         }
         let database = try session.database()
         var puts = [(key: Data, value: Data)]()
@@ -45,7 +45,7 @@ extension BedrockChunkStore {
                     guard result.matchedBlockCount > 0 else { continue }
                     puts.append((record.key, try result.subChunk.encodePersistent()))
                     matched += result.matchedBlockCount
-                } catch BlocktopographError.unsupported {
+                } catch MCBEEditorError.unsupported {
                     skipped += 1
                 }
             }
@@ -53,9 +53,9 @@ extension BedrockChunkStore {
 
         guard !puts.isEmpty else {
             if skipped > 0 {
-                throw BlocktopographError.unsupported("区域内没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
+                throw MCBEEditorError.unsupported("区域内没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
             }
-            throw BlocktopographError.unsupported("区域内没有匹配搜索条件的方块")
+            throw MCBEEditorError.unsupported("区域内没有匹配搜索条件的方块")
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockChunkReplaceResult(
@@ -73,7 +73,7 @@ extension BedrockChunkStore {
         includeCompletelyAirCells: Bool
     ) throws -> BedrockChunkBulkLayerResult {
         guard replacement.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            throw BlocktopographError.malformedData("批量替换必须填写目标方块 name")
+            throw MCBEEditorError.malformedData("批量替换必须填写目标方块 name")
         }
         let database = try session.database()
         var puts = [(key: Data, value: Data)]()
@@ -95,7 +95,7 @@ extension BedrockChunkStore {
                     guard result.changed else { continue }
                     puts.append((record.key, try result.subChunk.encodePersistent()))
                     affected += result.affectedBlockCount
-                } catch BlocktopographError.unsupported {
+                } catch MCBEEditorError.unsupported {
                     skipped += 1
                 }
             }
@@ -103,9 +103,9 @@ extension BedrockChunkStore {
 
         guard !puts.isEmpty else {
             if skipped > 0 {
-                throw BlocktopographError.unsupported("框选区域内没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk")
+                throw MCBEEditorError.unsupported("框选区域内没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk")
             }
-            throw BlocktopographError.unsupported("框选区域内没有符合批量选择条件的方块")
+            throw MCBEEditorError.unsupported("框选区域内没有符合批量选择条件的方块")
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockChunkBulkLayerResult(
@@ -129,7 +129,7 @@ extension BedrockChunkStore {
                 continue
             }
             if record.document.format != .data3D && id > UInt32(UInt8.max) {
-                throw BlocktopographError.malformedData("Data2D 生物群系 ID 必须小于等于 255；当前 ID 为 \(id)")
+                throw MCBEEditorError.malformedData("Data2D 生物群系 ID 必须小于等于 255；当前 ID 为 \(id)")
             }
             var changed = 0
             switch record.document.format {
@@ -168,7 +168,7 @@ extension BedrockChunkStore {
         }
 
         guard !puts.isEmpty else {
-            throw BlocktopographError.unsupported("选区内没有可修改的生物群系记录")
+            throw MCBEEditorError.unsupported("选区内没有可修改的生物群系记录")
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockRegionMutationResult(
@@ -201,12 +201,12 @@ extension BedrockChunkStore {
                     detail += result.deletedChunkRecordCount + result.deletedDigestCount + result.deletedActorCount
                 }
                 changed += 1
-            } catch BlocktopographError.unsupported {
+            } catch MCBEEditorError.unsupported {
                 skipped += 1
             }
         }
         guard changed > 0 else {
-            throw BlocktopographError.unsupported(regenerate ? "扩展后的区域内没有可重新生成的区块" : "扩展后的区域内没有可清空的区块")
+            throw MCBEEditorError.unsupported(regenerate ? "扩展后的区域内没有可重新生成的区块" : "扩展后的区域内没有可清空的区块")
         }
         return BedrockRegionMutationResult(
             processedChunkCount: alignedRegion.chunkCount,
@@ -227,7 +227,7 @@ extension BedrockChunkStore {
     ) throws -> BedrockRegionCopyResult {
         let destination = source.translated(toMinimumX: targetX, minimumZ: targetZ, dimension: targetDimension)
         guard source != destination else {
-            throw BlocktopographError.malformedData("源区域与目标区域不能完全相同")
+            throw MCBEEditorError.malformedData("源区域与目标区域不能完全相同")
         }
 
         // Complete chunk-aligned rectangles can use the existing raw-record
@@ -285,7 +285,7 @@ extension BedrockChunkStore {
                 let decoded: BedrockSubChunk
                 do {
                     decoded = try BedrockSubChunk.decode(record.value, keyYIndex: record.y)
-                } catch BlocktopographError.unsupported {
+                } catch MCBEEditorError.unsupported {
                     continue
                 }
                 for localX in ranges.x {
@@ -349,7 +349,7 @@ extension BedrockChunkStore {
         puts.append(contentsOf: blockEntityCopy.puts)
 
         guard !puts.isEmpty || !blockEntityCopy.deletes.isEmpty else {
-            throw BlocktopographError.unsupported("源区域内没有可复制的现代方块、生物群系或方块实体数据")
+            throw MCBEEditorError.unsupported("源区域内没有可复制的现代方块、生物群系或方块实体数据")
         }
         try database.applyBatch(puts: puts, deletes: blockEntityCopy.deletes, sync: true)
         return BedrockRegionCopyResult(

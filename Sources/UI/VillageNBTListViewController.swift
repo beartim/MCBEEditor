@@ -11,7 +11,7 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
     private let villageIdentifierFilter: String?
     private let villageDisplayName: String?
     private let onSave: () -> Void
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.village-nbt", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.village-nbt", qos: .userInitiated)
     private let searchController = UISearchController(searchResultsController: nil)
     private var allRecords = [VillageNBTRecord]()
     private var shownSections = [VillageSection]()

@@ -71,10 +71,10 @@ struct BedrockBiomeDocument: Equatable {
         case .data2D: format = .data2D
         case .data2DLegacy: format = .data2DLegacy
         default:
-            throw BlocktopographError.unsupported("\(recordType.displayName) 不是可编辑的生物群系记录")
+            throw MCBEEditorError.unsupported("\(recordType.displayName) 不是可编辑的生物群系记录")
         }
         guard data.count >= 512 else {
-            throw BlocktopographError.malformedData("\(format.rawValue) 少于 512 字节高度图")
+            throw MCBEEditorError.malformedData("\(format.rawValue) 少于 512 字节高度图")
         }
 
         var cursor = BinaryCursor(data: data)
@@ -85,7 +85,7 @@ struct BedrockBiomeDocument: Equatable {
         switch format {
         case .data2D:
             guard cursor.remaining >= 256 else {
-                throw BlocktopographError.malformedData("Data2D 缺少 256 个生物群系 ID")
+                throw MCBEEditorError.malformedData("Data2D 缺少 256 个生物群系 ID")
             }
             var ids = [UInt32]()
             ids.reserveCapacity(256)
@@ -100,7 +100,7 @@ struct BedrockBiomeDocument: Equatable {
 
         case .data2DLegacy:
             guard cursor.remaining >= 1024 else {
-                throw BlocktopographError.malformedData("Data2DLegacy 缺少 256×4 生物群系记录")
+                throw MCBEEditorError.malformedData("Data2DLegacy 缺少 256×4 生物群系记录")
             }
             var ids = [UInt32]()
             ids.reserveCapacity(256)
@@ -136,7 +136,7 @@ struct BedrockBiomeDocument: Equatable {
 
                 let bits = Int(header >> 1)
                 guard [0, 1, 2, 3, 4, 5, 6, 8, 16].contains(bits) else {
-                    throw BlocktopographError.unsupported("Data3D 生物群系位宽 \(bits) 不受支持")
+                    throw MCBEEditorError.unsupported("Data3D 生物群系位宽 \(bits) 不受支持")
                 }
 
                 var paletteIndices = [Int](repeating: 0, count: 4096)
@@ -157,7 +157,7 @@ struct BedrockBiomeDocument: Equatable {
                     }
                     let paletteCount = Int(try cursor.readInt32LE())
                     guard paletteCount > 0 && paletteCount <= 65_536 else {
-                        throw BlocktopographError.malformedData("Data3D 调色板长度无效：\(paletteCount)")
+                        throw MCBEEditorError.malformedData("Data3D 调色板长度无效：\(paletteCount)")
                     }
                     palette.reserveCapacity(paletteCount)
                     for _ in 0..<paletteCount { palette.append(try cursor.readUInt32LE()) }
@@ -167,7 +167,7 @@ struct BedrockBiomeDocument: Equatable {
                 values.reserveCapacity(4096)
                 for index in paletteIndices {
                     guard palette.indices.contains(index) else {
-                        throw BlocktopographError.malformedData("Data3D 生物群系索引 \(index) 超出调色板")
+                        throw MCBEEditorError.malformedData("Data3D 生物群系索引 \(index) 超出调色板")
                     }
                     values.append(palette[index])
                 }
@@ -180,7 +180,7 @@ struct BedrockBiomeDocument: Equatable {
 
     func encoded() throws -> Data {
         guard heightMap.count == 256 else {
-            throw BlocktopographError.malformedData("生物群系高度图必须包含 256 项")
+            throw MCBEEditorError.malformedData("生物群系高度图必须包含 256 项")
         }
         var writer = BinaryWriter()
         for value in heightMap { writer.writeInt16LE(value) }
@@ -188,11 +188,11 @@ struct BedrockBiomeDocument: Equatable {
         switch format {
         case .data2D:
             guard layers.count == 1, layers[0].biomeIDs.count == 256 else {
-                throw BlocktopographError.malformedData("Data2D 必须包含 256 个生物群系 ID")
+                throw MCBEEditorError.malformedData("Data2D 必须包含 256 个生物群系 ID")
             }
             for id in layers[0].biomeIDs {
                 guard id <= UInt32(UInt8.max) else {
-                    throw BlocktopographError.malformedData("Data2D 生物群系 ID \(id) 超出 UInt8")
+                    throw MCBEEditorError.malformedData("Data2D 生物群系 ID \(id) 超出 UInt8")
                 }
                 writer.writeByte(UInt8(id))
             }
@@ -201,12 +201,12 @@ struct BedrockBiomeDocument: Equatable {
         case .data2DLegacy:
             guard layers.count == 1, layers[0].biomeIDs.count == 256,
                   legacyAuxiliaryBytes.count == 256 * 3 else {
-                throw BlocktopographError.malformedData("Data2DLegacy 数据长度无效")
+                throw MCBEEditorError.malformedData("Data2DLegacy 数据长度无效")
             }
             for index in 0..<256 {
                 let id = layers[0].biomeIDs[index]
                 guard id <= UInt32(UInt8.max) else {
-                    throw BlocktopographError.malformedData("Data2DLegacy 生物群系 ID \(id) 超出 UInt8")
+                    throw MCBEEditorError.malformedData("Data2DLegacy 生物群系 ID \(id) 超出 UInt8")
                 }
                 writer.writeByte(UInt8(id))
                 let start = index * 3
@@ -217,7 +217,7 @@ struct BedrockBiomeDocument: Equatable {
         case .data3D:
             for layer in layers {
                 guard layer.biomeIDs.count == 4096 else {
-                    throw BlocktopographError.malformedData("Data3D 每层必须包含 4096 个生物群系 ID")
+                    throw MCBEEditorError.malformedData("Data3D 每层必须包含 4096 个生物群系 ID")
                 }
                 if layer.isAbsent {
                     writer.writeByte(0xff)
@@ -231,7 +231,7 @@ struct BedrockBiomeDocument: Equatable {
 
     mutating func updateBiomeID(layerIndex: Int, valueIndex: Int, id: UInt32) throws {
         guard layers.indices.contains(layerIndex), layers[layerIndex].biomeIDs.indices.contains(valueIndex) else {
-            throw BlocktopographError.malformedData("生物群系位置越界")
+            throw MCBEEditorError.malformedData("生物群系位置越界")
         }
         layers[layerIndex].biomeIDs[valueIndex] = id
         layers[layerIndex].isAbsent = false
@@ -239,7 +239,7 @@ struct BedrockBiomeDocument: Equatable {
 
     mutating func fillLayer(_ layerIndex: Int, id: UInt32) throws {
         guard layers.indices.contains(layerIndex) else {
-            throw BlocktopographError.malformedData("生物群系层越界")
+            throw MCBEEditorError.malformedData("生物群系层越界")
         }
         layers[layerIndex].biomeIDs = Array(repeating: id, count: layers[layerIndex].biomeIDs.count)
         layers[layerIndex].isAbsent = false
@@ -256,7 +256,7 @@ struct BedrockBiomeDocument: Equatable {
             } else {
                 let index = palette.count
                 guard index < 65_536 else {
-                    throw BlocktopographError.unsupported("Data3D 生物群系调色板超过 65536 项")
+                    throw MCBEEditorError.unsupported("Data3D 生物群系调色板超过 65536 项")
                 }
                 palette.append(value)
                 lookup[value] = index

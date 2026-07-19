@@ -53,7 +53,7 @@ struct HardcodedSpawnerArea: Equatable {
 
     func validated() throws -> HardcodedSpawnerArea {
         guard minimumX <= maximumX, minimumY <= maximumY, minimumZ <= maximumZ else {
-            throw BlocktopographError.malformedData("最小坐标必须小于或等于最大坐标")
+            throw MCBEEditorError.malformedData("最小坐标必须小于或等于最大坐标")
         }
         return self
     }
@@ -66,10 +66,10 @@ struct HardcodedSpawnersDocument: Equatable {
         var cursor = BinaryCursor(data: data)
         let count = Int(try cursor.readInt32LE())
         guard count >= 0, count <= 1_000_000 else {
-            throw BlocktopographError.malformedData("HardcodedSpawners 数量无效：\(count)")
+            throw MCBEEditorError.malformedData("HardcodedSpawners 数量无效：\(count)")
         }
         guard cursor.remaining == count * 25 else {
-            throw BlocktopographError.malformedData(
+            throw MCBEEditorError.malformedData(
                 "HardcodedSpawners 长度不匹配：声明 \(count) 项，剩余 \(cursor.remaining) 字节"
             )
         }
@@ -92,7 +92,7 @@ struct HardcodedSpawnersDocument: Equatable {
 
     func encoded() throws -> Data {
         guard areas.count <= Int(Int32.max) else {
-            throw BlocktopographError.malformedData("HardcodedSpawners 项目过多")
+            throw MCBEEditorError.malformedData("HardcodedSpawners 项目过多")
         }
         var writer = BinaryWriter()
         writer.writeInt32LE(Int32(areas.count))

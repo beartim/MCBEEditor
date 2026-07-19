@@ -2,6 +2,7 @@
 .gitignore
 APPLY.md
 CHANGES_GIVE_EXISTING_MAINHAND.md
+CHANGES_MCBEDITOR_PLAYER_MAP_RENAME.md
 CHANGES_v1.1.0.md
 CHANGES_v1.1.1.md
 CHANGES_v1.1.10.md
@@ -47,13 +48,14 @@ Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-iphone-60x60-3x.png
 Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
 Resources/Info.plist
 Resources/LaunchScreen.storyboard
+SOURCE_MANIFEST.txt
 Scripts/bootstrap.sh
 Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
+Scripts/test_mcbeeditor_map_player_rename.sh
 Sources/App/AppDelegate.swift
 Sources/App/SceneDelegate.swift
-Sources/Blocktopograph-Bridging-Header.h
 Sources/Bridge/BTCompressionBridge.h
 Sources/Bridge/BTCompressionBridge.mm
 Sources/Bridge/BTLevelDBBridge.h
@@ -81,6 +83,7 @@ Sources/Entity/BedrockWorldObject.swift
 Sources/Entity/BedrockWorldObjectNBTStore.swift
 Sources/Entity/BedrockWorldObjectScanner.swift
 Sources/LevelDB/MojangLevelDB.swift
+Sources/MCBEEditor-Bridging-Header.h
 Sources/NBT/BedrockNBTCodec.swift
 Sources/NBT/BinaryCursor.swift
 Sources/NBT/ConsecutiveNBTCodec.swift
@@ -157,6 +160,6 @@ Sources/World/WorldInspector.swift
 Sources/World/WorldSession.swift
 Sources/World/WorldStore.swift
 THIRD_PARTY_NOTICES.md
-Tests/BlocktopographTests.swift
+Tests/MCBEEditorTests.swift
 Vendor/README.md
 project.yml

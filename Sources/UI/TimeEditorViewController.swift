@@ -2,7 +2,7 @@ import UIKit
 
 final class TimeEditorViewController: UIViewController, UITextFieldDelegate {
     private let session: WorldSession
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.time", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.time", qos: .userInitiated)
 
     private let stack = UIStackView()
     private let summaryLabel = UILabel()
@@ -177,7 +177,7 @@ final class TimeEditorViewController: UIViewController, UITextFieldDelegate {
     @objc private func save() {
         view.endEditing(true)
         guard let time = Int64(timeField.text ?? "") else {
-            showError(BlocktopographError.malformedData("time 必须是 Int64 整数"), title: "时间错误")
+            showError(MCBEEditorError.malformedData("time 必须是 Int64 整数"), title: "时间错误")
             return
         }
         let settings = BedrockTimeSettings(time: time, automaticProgression: automaticProgressionSwitch.isOn)

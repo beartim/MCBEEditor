@@ -47,11 +47,11 @@ final class BedrockWorldObjectNBTStore {
         case .chunkRecord(let sourceKey, _, _): key = sourceKey
         }
         guard let raw = try database.get(key) else {
-            throw BlocktopographError.unsupported("对象的源 NBT 记录已经不存在。")
+            throw MCBEEditorError.unsupported("对象的源 NBT 记录已经不存在。")
         }
         let documents = try ConsecutiveNBTCodec.decode(raw).map { $0.document }
         guard !documents.isEmpty else {
-            throw BlocktopographError.malformedData("对象源记录不包含可导出的 NBT 根标签。")
+            throw MCBEEditorError.malformedData("对象源记录不包含可导出的 NBT 根标签。")
         }
         return documents
     }
@@ -71,7 +71,7 @@ final class BedrockWorldObjectNBTStore {
             preferredIndex = recordIndex
         }
         guard let raw = try database.get(key) else {
-            throw BlocktopographError.unsupported("对象的源 NBT 记录已经不存在。")
+            throw MCBEEditorError.unsupported("对象的源 NBT 记录已经不存在。")
         }
         let records = try ConsecutiveNBTCodec.decode(raw)
         let index = try locateRecord(object: object, in: records, preferredIndex: preferredIndex)
@@ -128,7 +128,7 @@ final class BedrockWorldObjectNBTStore {
 
         for (key, group) in chunkGroups {
             guard let original = try database.get(key) else {
-                throw BlocktopographError.malformedData("区块实体记录已不存在，请重新扫描。")
+                throw MCBEEditorError.malformedData("区块实体记录已不存在，请重新扫描。")
             }
             var records = try ConsecutiveNBTCodec.decode(original)
             var indexes = Set<Int>()
@@ -147,7 +147,7 @@ final class BedrockWorldObjectNBTStore {
 
         for (key, group) in actorGroups {
             guard let original = try database.get(key) else {
-                throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描。")
+                throw MCBEEditorError.malformedData("actorprefix 记录已不存在，请重新扫描。")
             }
             var records = try ConsecutiveNBTCodec.decode(original)
             var indexes = Set<Int>()
@@ -221,7 +221,7 @@ final class BedrockWorldObjectNBTStore {
               let position = BedrockEntityCommonNBT.position(in: document.root),
               let dimension = BedrockEntityCommonNBT.dimension(in: document.root),
               let uniqueID = BedrockEntityCommonNBT.uniqueID(in: document.root) else {
-            throw BlocktopographError.malformedData("实体 NBT 必须包含可识别的实体 ID、Pos、DimensionId 和 UniqueID。")
+            throw MCBEEditorError.malformedData("实体 NBT 必须包含可识别的实体 ID、Pos、DimensionId 和 UniqueID。")
         }
         return try create(
             kind: .entity,
@@ -242,7 +242,7 @@ final class BedrockWorldObjectNBTStore {
                 return candidate
             }
         }
-        throw BlocktopographError.unsupported("无法生成未占用的实体 UniqueID，请手动填写。")
+        throw MCBEEditorError.unsupported("无法生成未占用的实体 UniqueID，请手动填写。")
     }
 
     func create(
@@ -262,13 +262,13 @@ final class BedrockWorldObjectNBTStore {
             trimmedIdentifier = rawIdentifier
         }
         guard !trimmedIdentifier.isEmpty else {
-            throw BlocktopographError.malformedData("实体或方块实体 ID 不能为空。")
+            throw MCBEEditorError.malformedData("实体或方块实体 ID 不能为空。")
         }
         guard position.x.isFinite, position.y.isFinite, position.z.isFinite else {
-            throw BlocktopographError.malformedData("坐标必须是有限数字。")
+            throw MCBEEditorError.malformedData("坐标必须是有限数字。")
         }
         if let template = template, template.kind != kind {
-            throw BlocktopographError.unsupported("模板类型与要创建的对象类型不一致。")
+            throw MCBEEditorError.unsupported("模板类型与要创建的对象类型不一致。")
         }
 
         let database = try session.database()
@@ -281,10 +281,10 @@ final class BedrockWorldObjectNBTStore {
                 actorID = try suggestedUniqueID()
             }
             guard actorID != 0 else {
-                throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
+                throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
             }
             guard try isEntityUniqueIDAvailable(actorID, excluding: nil, database: database) else {
-                throw BlocktopographError.unsupported("UniqueID \(actorID) 已被其他实体占用。")
+                throw MCBEEditorError.unsupported("UniqueID \(actorID) 已被其他实体占用。")
             }
 
             let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
@@ -387,7 +387,7 @@ final class BedrockWorldObjectNBTStore {
                     existing.blockY == position.blockY &&
                     existing.blockZ == position.blockZ
             }) {
-                throw BlocktopographError.unsupported("该方块坐标已经存在方块实体。请先编辑或删除原记录。")
+                throw MCBEEditorError.unsupported("该方块坐标已经存在方块实体。请先编辑或删除原记录。")
             }
             let encoding = records.first?.encoding ?? template?.storage.encoding ?? .littleEndian
             let raw = try BedrockNBTCodec.encode(document, encoding: encoding)
@@ -412,25 +412,25 @@ final class BedrockWorldObjectNBTStore {
         recordIndex: Int
     ) throws -> BedrockWorldObjectSaveResult {
         guard let originalActorID = object.uniqueID else {
-            throw BlocktopographError.malformedData("现代实体缺少 ActorUniqueID，无法安全写回。")
+            throw MCBEEditorError.malformedData("现代实体缺少 ActorUniqueID，无法安全写回。")
         }
         let editedActorID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) ?? originalActorID
         guard editedActorID != 0 else {
-            throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
+            throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
         }
 
         let database = try session.database()
         let targetActorKey = makeActorKey(id: editedActorID)
         if targetActorKey != actorKey, try database.get(targetActorKey) != nil {
-            throw BlocktopographError.unsupported("UniqueID \(editedActorID) 已存在对应的 actorprefix 记录。")
+            throw MCBEEditorError.unsupported("UniqueID \(editedActorID) 已存在对应的 actorprefix 记录。")
         }
         if editedActorID != originalActorID,
            try !isEntityUniqueIDAvailable(editedActorID, excluding: object, database: database) {
-            throw BlocktopographError.unsupported("UniqueID \(editedActorID) 已被其他实体占用。")
+            throw MCBEEditorError.unsupported("UniqueID \(editedActorID) 已被其他实体占用。")
         }
 
         guard let currentActorData = try database.get(actorKey) else {
-            throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描实体。")
+            throw MCBEEditorError.malformedData("actorprefix 记录已不存在，请重新扫描实体。")
         }
         var actorRecords = try ConsecutiveNBTCodec.decode(currentActorData)
         let locatedIndex = try locateRecord(object: object, in: actorRecords, preferredIndex: recordIndex)
@@ -517,11 +517,11 @@ final class BedrockWorldObjectNBTStore {
 
         if sourceKey == destinationKey {
             guard let currentDigest = try database.get(sourceKey) else {
-                throw BlocktopographError.malformedData("实体 digp 摘要已不存在，请重新扫描实体。")
+                throw MCBEEditorError.malformedData("实体 digp 摘要已不存在，请重新扫描实体。")
             }
             var ids = try decodeActorIDs(currentDigest)
             guard ids.contains(originalID) else {
-                throw BlocktopographError.malformedData("digp 摘要不再引用原 UniqueID，请重新扫描后再编辑。")
+                throw MCBEEditorError.malformedData("digp 摘要不再引用原 UniqueID，请重新扫描后再编辑。")
             }
             ids.removeAll { $0 == originalID || $0 == editedID }
             ids.append(editedID)
@@ -535,11 +535,11 @@ final class BedrockWorldObjectNBTStore {
         }
 
         guard let sourceOriginal = try database.get(sourceKey) else {
-            throw BlocktopographError.malformedData("原 digp 摘要已不存在，请重新扫描实体。")
+            throw MCBEEditorError.malformedData("原 digp 摘要已不存在，请重新扫描实体。")
         }
         var sourceIDs = try decodeActorIDs(sourceOriginal)
         guard sourceIDs.contains(originalID) else {
-            throw BlocktopographError.malformedData("原 digp 摘要不再引用此实体，请重新扫描后再编辑。")
+            throw MCBEEditorError.malformedData("原 digp 摘要不再引用此实体，请重新扫描后再编辑。")
         }
         sourceIDs.removeAll { $0 == originalID }
 
@@ -574,11 +574,11 @@ final class BedrockWorldObjectNBTStore {
            let editedID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]),
            editedID != originalID,
            try !isEntityUniqueIDAvailable(editedID, excluding: object, database: database) {
-            throw BlocktopographError.unsupported("UniqueID \(editedID) 已被其他实体占用。")
+            throw MCBEEditorError.unsupported("UniqueID \(editedID) 已被其他实体占用。")
         }
 
         guard let sourceData = try database.get(sourceKey) else {
-            throw BlocktopographError.malformedData("区块对象记录已不存在，请重新扫描。")
+            throw MCBEEditorError.malformedData("区块对象记录已不存在，请重新扫描。")
         }
         var sourceRecords = try ConsecutiveNBTCodec.decode(sourceData)
         let locatedIndex = try locateRecord(object: object, in: sourceRecords, preferredIndex: recordIndex)
@@ -658,11 +658,11 @@ final class BedrockWorldObjectNBTStore {
         recordIndex: Int
     ) throws {
         guard let actorID = object.uniqueID else {
-            throw BlocktopographError.malformedData("现代实体缺少 UniqueID，无法安全删除。")
+            throw MCBEEditorError.malformedData("现代实体缺少 UniqueID，无法安全删除。")
         }
         let database = try session.database()
         guard let actorData = try database.get(actorKey) else {
-            throw BlocktopographError.malformedData("actorprefix 记录已不存在，请重新扫描。")
+            throw MCBEEditorError.malformedData("actorprefix 记录已不存在，请重新扫描。")
         }
         var records = try ConsecutiveNBTCodec.decode(actorData)
         let index = try locateRecord(object: object, in: records, preferredIndex: recordIndex)
@@ -676,7 +676,7 @@ final class BedrockWorldObjectNBTStore {
         )]
         if records.isEmpty {
             // Remove every digest reference, including the invalid overworld key
-            // form written by older Blocktopograph iOS builds. This prevents an
+            // form written by older MCBEEditor iOS builds. This prevents an
             // orphaned actor from reappearing in the editor after deletion.
             for entry in try database.entries(prefix: Data("digp".utf8), includeValues: true) {
                 guard let digest = entry.value else { continue }
@@ -697,7 +697,7 @@ final class BedrockWorldObjectNBTStore {
     private func deleteChunkRecord(object: BedrockWorldObject, key: Data, recordIndex: Int) throws {
         let database = try session.database()
         guard let data = try database.get(key) else {
-            throw BlocktopographError.malformedData("区块对象记录已不存在，请重新扫描。")
+            throw MCBEEditorError.malformedData("区块对象记录已不存在，请重新扫描。")
         }
         var records = try ConsecutiveNBTCodec.decode(data)
         let index = try locateRecord(object: object, in: records, preferredIndex: recordIndex)
@@ -735,21 +735,21 @@ final class BedrockWorldObjectNBTStore {
            }) {
             return index
         }
-        throw BlocktopographError.malformedData("对象记录已经变化，无法确认要修改的 NBT。请返回列表重新扫描。")
+        throw MCBEEditorError.malformedData("对象记录已经变化，无法确认要修改的 NBT。请返回列表重新扫描。")
     }
 
     private func validateDocument(_ document: NBTDocument, for object: BedrockWorldObject) throws {
         guard case .compound = document.root else {
-            throw BlocktopographError.malformedData("实体与方块实体的 NBT 根必须是 Compound。")
+            throw MCBEEditorError.malformedData("实体与方块实体的 NBT 根必须是 Compound。")
         }
         guard object.kind == .entity else { return }
         let originalDocumentID = object.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
         let editedID = document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
         if originalDocumentID != nil && editedID == nil {
-            throw BlocktopographError.unsupported("UniqueID 可以修改，但不能删除或重命名。")
+            throw MCBEEditorError.unsupported("UniqueID 可以修改，但不能删除或重命名。")
         }
         if let editedID = editedID, editedID == 0 {
-            throw BlocktopographError.malformedData("实体 UniqueID 不能为 0。")
+            throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
         }
     }
 
@@ -782,7 +782,7 @@ final class BedrockWorldObjectNBTStore {
 
         // ActorDigestVersion is the authoritative marker for a world that has
         // completed the modern actor-storage migration. A bare digp/actorprefix
-        // pair is not sufficient because older Blocktopograph builds may have
+        // pair is not sufficient because older MCBEEditor builds may have
         // created those records inside an otherwise legacy world.
         if entries.contains(where: { entry in
             BedrockDBKey.parse(entry.key)?.recordType == .actorDigestVersion
@@ -833,7 +833,7 @@ final class BedrockWorldObjectNBTStore {
         if let template = template {
             document = template
             guard case .compound = document.root else {
-                throw BlocktopographError.malformedData("模板 NBT 根不是 Compound。")
+                throw MCBEEditorError.malformedData("模板 NBT 根不是 Compound。")
             }
         } else {
             switch kind {
@@ -842,7 +842,7 @@ final class BedrockWorldObjectNBTStore {
                 if entityStorageMode == .legacyChunkEntity {
                     guard let numeric = BedrockDataValueCatalog.entity(forIdentifier: identifier)?.id,
                           numeric <= Int(Int16.max) else {
-                        throw BlocktopographError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID；请从同类旧实体复制，或使用数据值表中的实体 ID。")
+                        throw MCBEEditorError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID；请从同类旧实体复制，或使用数据值表中的实体 ID。")
                     }
                     identityTags.append(NBTNamedTag(name: "id", value: .short(Int16(numeric))))
                 } else {
@@ -957,7 +957,7 @@ final class BedrockWorldObjectNBTStore {
                     continue
                 }
                 guard let mappedID = mappedID else {
-                    throw BlocktopographError.unsupported("实体 \(identifier) 没有可用的旧版数字 ID，不能替换数字 id 标签。")
+                    throw MCBEEditorError.unsupported("实体 \(identifier) 没有可用的旧版数字 ID，不能替换数字 id 标签。")
                 }
                 tags[index].value = entityNumericIDValue(mappedID, preserving: tags[index].value)
             default:
@@ -968,7 +968,7 @@ final class BedrockWorldObjectNBTStore {
         switch storageMode {
         case .legacyChunkEntity where !foundNumericID:
             guard let mappedID = mappedID, mappedID <= Int(Int16.max) else {
-                throw BlocktopographError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID。")
+                throw MCBEEditorError.unsupported("旧式区块 Entity 需要可转换的数字实体 ID。")
             }
             tags.append(NBTNamedTag(name: "id", value: .short(Int16(mappedID))))
         case .modernActor where !foundIdentityTag:
@@ -1062,7 +1062,7 @@ final class BedrockWorldObjectNBTStore {
 
     private func decodeActorIDs(_ data: Data) throws -> [Int64] {
         guard data.count % 8 == 0 else {
-            throw BlocktopographError.malformedData("digp 摘要长度 \(data.count) 不是 8 的倍数。")
+            throw MCBEEditorError.malformedData("digp 摘要长度 \(data.count) 不是 8 的倍数。")
         }
         var values = [Int64]()
         values.reserveCapacity(data.count / 8)

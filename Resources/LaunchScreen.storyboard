@@ -5,7 +5,7 @@
         <viewController id="vc" sceneMemberID="viewController"><view key="view" contentMode="scaleToFill" id="view">
             <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-            <subviews><label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Blocktopograph" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="label"><fontDescription key="fontDescription" type="boldSystem" pointSize="28"/></label></subviews>
+            <subviews><label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="MCBEEditor" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="label"><fontDescription key="fontDescription" type="boldSystem" pointSize="28"/></label></subviews>
             <viewLayoutGuide key="safeArea" id="safe"/>
             <color key="backgroundColor" systemColor="systemBackgroundColor"/>
             <constraints>

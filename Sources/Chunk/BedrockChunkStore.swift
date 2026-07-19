@@ -162,14 +162,14 @@ final class BedrockChunkStore {
 
     func copyChunk(from source: ChunkPosition, to destination: ChunkPosition) throws -> BedrockChunkCopyResult {
         guard source != destination else {
-            throw BlocktopographError.malformedData("源区块与目标区块不能相同")
+            throw MCBEEditorError.malformedData("源区块与目标区块不能相同")
         }
         let database = try session.database()
         let sourceRecords = try standardRecords(at: source, includeValues: true)
         let copyableTypes = Self.copyableRecordTypes
         let copyable = sourceRecords.filter { copyableTypes.contains($0.parsed.recordType) }
         guard !copyable.isEmpty else {
-            throw BlocktopographError.unsupported("源区块没有可复制的现代区块记录")
+            throw MCBEEditorError.unsupported("源区块没有可复制的现代区块记录")
         }
 
         let destinationRecords = try standardRecords(at: destination, includeValues: true)
@@ -206,7 +206,7 @@ final class BedrockChunkStore {
     }
 
     /// Replaces every raw record for the coordinate with a minimal, valid
-    /// generated chunk skeleton. This mirrors Android Blocktopograph's
+    /// generated chunk skeleton. This mirrors Android MCBEEditor's
     /// createEmpty flow: remove the full chunk first, then write only a
     /// finalized generator stage and a compatible version record. With no
     /// SubChunk records present, every block is air while Minecraft still
@@ -217,7 +217,7 @@ final class BedrockChunkStore {
         let actorRecords = try actorRecordsForRemoval(at: position, database: database)
 
         guard !chunkRecords.isEmpty || !actorRecords.digestKeys.isEmpty else {
-            throw BlocktopographError.unsupported("该区块没有可清空的记录")
+            throw MCBEEditorError.unsupported("该区块没有可清空的记录")
         }
 
         let parsedTypes = Set(chunkRecords.compactMap { BedrockDBKey.parse($0.key)?.recordType })
@@ -245,7 +245,7 @@ final class BedrockChunkStore {
         )
     }
 
-    /// Implements the Android Blocktopograph removeFullChunk behavior using raw
+    /// Implements the Android MCBEEditor removeFullChunk behavior using raw
     /// chunk-prefix deletion rather than a whitelist of known tags. This is
     /// important because modern Bedrock adds tags such as ConversionData,
     /// GenerationSeed, blending metadata and LegacyVersion. Leaving any of those
@@ -260,7 +260,7 @@ final class BedrockChunkStore {
         deleteKeys.formUnion(actorRecords.digestKeys)
         deleteKeys.formUnion(actorRecords.actorKeys)
         guard !deleteKeys.isEmpty else {
-            throw BlocktopographError.unsupported("该区块已经处于未生成状态")
+            throw MCBEEditorError.unsupported("该区块已经处于未生成状态")
         }
 
         try database.applyBatch(puts: [], deletes: Array(deleteKeys), sync: true)
@@ -337,13 +337,13 @@ final class BedrockChunkStore {
         coordinatedOperation operation: BedrockCoordinatedBlockOperation
     ) throws -> BedrockChunkReplaceResult {
         guard operation.searchLayer0 != nil || operation.searchLayer1 != nil else {
-            throw BlocktopographError.malformedData("至少填写层 0 或层 1 的搜索条件")
+            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
         }
 
         let records = try standardRecords(at: position, includeValues: true)
             .filter { $0.parsed.recordType == .subChunk }
         guard !records.isEmpty else {
-            throw BlocktopographError.unsupported("该区块没有 SubChunk 记录")
+            throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录")
         }
 
         var puts = [(key: Data, value: Data)]()
@@ -357,15 +357,15 @@ final class BedrockChunkStore {
                 guard result.matchedBlockCount > 0 else { continue }
                 puts.append((record.key, try result.subChunk.encodePersistent()))
                 matched += result.matchedBlockCount
-            } catch BlocktopographError.unsupported {
+            } catch MCBEEditorError.unsupported {
                 skipped += 1
             }
         }
         guard !puts.isEmpty else {
             if skipped > 0 {
-                throw BlocktopographError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
+                throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
             }
-            throw BlocktopographError.unsupported("当前区块没有匹配搜索条件的方块")
+            throw MCBEEditorError.unsupported("当前区块没有匹配搜索条件的方块")
         }
         try session.database().applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockChunkReplaceResult(
@@ -399,21 +399,21 @@ final class BedrockChunkStore {
         operations: [BedrockLayerBlockOperation]
     ) throws -> BedrockChunkReplaceResult {
         guard !operations.isEmpty else {
-            throw BlocktopographError.malformedData("至少填写层 0 或层 1 的搜索条件")
+            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
         }
         for operation in operations {
             guard (0..<BedrockBlockRecord.editableLayerCount).contains(operation.layer) else {
-                throw BlocktopographError.malformedData("只支持层 0 和层 1")
+                throw MCBEEditorError.malformedData("只支持层 0 和层 1")
             }
             guard !operation.criteria.isEmpty else {
-                throw BlocktopographError.malformedData("层 \(operation.layer) 至少填写一个 name 或 states 搜索条件")
+                throw MCBEEditorError.malformedData("层 \(operation.layer) 至少填写一个 name 或 states 搜索条件")
             }
         }
 
         let records = try standardRecords(at: position, includeValues: true)
             .filter { $0.parsed.recordType == .subChunk }
         guard !records.isEmpty else {
-            throw BlocktopographError.unsupported("该区块没有 SubChunk 记录")
+            throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录")
         }
 
         var puts = [(key: Data, value: Data)]()
@@ -427,15 +427,15 @@ final class BedrockChunkStore {
                 guard result.matchedBlockCount > 0 else { continue }
                 puts.append((record.key, try result.subChunk.encodePersistent()))
                 matched += result.matchedBlockCount
-            } catch BlocktopographError.unsupported {
+            } catch MCBEEditorError.unsupported {
                 skipped += 1
             }
         }
         guard !puts.isEmpty else {
             if skipped > 0 {
-                throw BlocktopographError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
+                throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
             }
-            throw BlocktopographError.unsupported("当前区块没有匹配搜索条件的方块")
+            throw MCBEEditorError.unsupported("当前区块没有匹配搜索条件的方块")
         }
         try session.database().applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockChunkReplaceResult(
@@ -452,10 +452,10 @@ final class BedrockChunkStore {
         includeCompletelyAirCells: Bool
     ) throws -> BedrockChunkBulkLayerResult {
         guard replacement.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            throw BlocktopographError.malformedData("批量替换必须填写目标方块 name")
+            throw MCBEEditorError.malformedData("批量替换必须填写目标方块 name")
         }
         let records = try standardRecords(at: position, includeValues: true).filter { $0.parsed.recordType == .subChunk }
-        guard !records.isEmpty else { throw BlocktopographError.unsupported("该区块没有 SubChunk 记录") }
+        guard !records.isEmpty else { throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录") }
         var puts = [(key: Data, value: Data)]()
         var affected = 0
         var skipped = 0
@@ -467,11 +467,11 @@ final class BedrockChunkStore {
                 guard result.changed else { continue }
                 puts.append((record.key, try result.subChunk.encodePersistent()))
                 affected += result.affectedBlockCount
-            } catch BlocktopographError.unsupported { skipped += 1 }
+            } catch MCBEEditorError.unsupported { skipped += 1 }
         }
         guard !puts.isEmpty else {
-            if skipped > 0 { throw BlocktopographError.unsupported("没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk") }
-            throw BlocktopographError.unsupported("没有符合批量选择条件的方块")
+            if skipped > 0 { throw MCBEEditorError.unsupported("没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk") }
+            throw MCBEEditorError.unsupported("没有符合批量选择条件的方块")
         }
         try session.database().applyBatch(puts: puts, deletes: [], sync: true)
         return BedrockChunkBulkLayerResult(affectedBlockCount: affected, modifiedSubChunkCount: puts.count, skippedSubChunkCount: skipped)
@@ -520,7 +520,7 @@ final class BedrockChunkStore {
         return Array(found.values)
     }
 
-    /// Mirrors Android Blocktopograph's prefix-and-length deletion rule while
+    /// Mirrors Android MCBEEditor's prefix-and-length deletion rule while
     /// supporting both legacy overworld keys and current dimension-aware keys.
     static func isRawChunkRecordKey(_ key: Data, position: ChunkPosition) -> Bool {
         BedrockRawChunkKey.matches(key, position: position)

@@ -4,7 +4,7 @@ import MobileCoreServices
 final class StructureNBTListViewController: UITableViewController, UISearchResultsUpdating, UIDocumentPickerDelegate {
     private let session: WorldSession
     private let store: StructureNBTStore
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.structure-nbt", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.structure-nbt", qos: .userInitiated)
     private let searchController = UISearchController(searchResultsController: nil)
     private var allRecords = [StructureNBTRecord]()
     private var shownRecords = [StructureNBTRecord]()
@@ -86,7 +86,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
         let ext = url.pathExtension.lowercased()
         guard ext == "nbt" || ext == "mcstructure" || ext == "json" else {
             showError(
-                BlocktopographError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
+                MCBEEditorError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
                 title: "无法导入结构"
             )
             return
@@ -100,7 +100,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
             if ext == "json" {
                 let documents = try NBTJSONCodec.decode(sourceData)
                 guard documents.count == 1, let document = documents.first else {
-                    throw BlocktopographError.unsupported("结构 JSON 必须只包含一个 NBT 根标签")
+                    throw MCBEEditorError.unsupported("结构 JSON 必须只包含一个 NBT 根标签")
                 }
                 data = try BedrockNBTCodec.encode(document, encoding: .bigEndian)
             } else {
@@ -137,7 +137,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     private func checkAndImportStructure(data: Data, name: String) {
         let cleanName = store.normalizedStructureName(name)
         guard !cleanName.isEmpty else {
-            showError(BlocktopographError.malformedData("结构名称不能为空"), title: "无法导入结构")
+            showError(MCBEEditorError.malformedData("结构名称不能为空"), title: "无法导入结构")
             return
         }
         navigationItem.prompt = "正在检查结构文件…"
@@ -301,7 +301,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
             let clean = self.store.normalizedStructureName(name)
             guard !clean.isEmpty else {
                 completion(false)
-                self.showError(BlocktopographError.malformedData("结构名称不能为空"), title: "重命名失败")
+                self.showError(MCBEEditorError.malformedData("结构名称不能为空"), title: "重命名失败")
                 return
             }
             self.checkAndRename(record, to: clean, completion: completion)

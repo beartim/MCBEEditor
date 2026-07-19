@@ -99,7 +99,7 @@ final class StructureNBTStore {
 
     func save(record: StructureNBTRecord, document: NBTDocument) throws {
         guard let encoding = record.encoding else {
-            throw BlocktopographError.unsupported("无法确定该结构记录的 NBT 编码，不能安全写回。")
+            throw MCBEEditorError.unsupported("无法确定该结构记录的 NBT 编码，不能安全写回。")
         }
         let encoded = try BedrockNBTCodec.encode(document, encoding: encoding)
         try session.database().put(encoded, for: record.key, sync: true)
@@ -118,13 +118,13 @@ final class StructureNBTStore {
         let key = try key(forStructureName: name)
         let database = try session.database()
         if !overwrite, try database.get(key) != nil {
-            throw BlocktopographError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
+            throw MCBEEditorError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
         }
         let normalized = try JavaStructureConverter.convertIfNeeded(document).document
         let encoded = try BedrockNBTCodec.encode(normalized, encoding: .littleEndian)
         try database.put(encoded, for: key, sync: true)
         guard try database.get(key) == encoded else {
-            throw BlocktopographError.malformedData("结构写入后未能从 LevelDB 读回")
+            throw MCBEEditorError.malformedData("结构写入后未能从 LevelDB 读回")
         }
     }
 
@@ -162,7 +162,7 @@ final class StructureNBTStore {
     func importStructure(data: Data, named name: String, overwrite: Bool) throws -> StructureImportResult {
         let decoded = decode(data)
         guard let document = decoded.document else {
-            throw BlocktopographError.malformedData(
+            throw MCBEEditorError.malformedData(
                 "文件不是可识别的 NBT／mcstructure（支持 Big Endian、Little Endian、Little Endian VarInt、GZip 和 Zlib）：\(decoded.error ?? "未知 NBT 编码")"
             )
         }
@@ -171,7 +171,7 @@ final class StructureNBTStore {
         let key = try key(forStructureName: name)
         let database = try session.database()
         if !overwrite, try database.get(key) != nil {
-            throw BlocktopographError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
+            throw MCBEEditorError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
         }
         try database.put(converted, for: key, sync: true)
         return conversion.result
@@ -182,7 +182,7 @@ final class StructureNBTStore {
         guard targetKey != record.key else { return }
         let database = try session.database()
         if !overwrite, try database.get(targetKey) != nil {
-            throw BlocktopographError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
+            throw MCBEEditorError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
         }
         try database.applyBatch(
             puts: [(key: targetKey, value: record.rawData)],
@@ -209,10 +209,10 @@ final class StructureNBTStore {
     private func key(forStructureName name: String) throws -> Data {
         let clean = normalizedStructureName(name)
         guard !clean.isEmpty else {
-            throw BlocktopographError.malformedData("结构名称不能为空")
+            throw MCBEEditorError.malformedData("结构名称不能为空")
         }
         guard !clean.contains("\n"), !clean.contains("\r"), !clean.contains("\0") else {
-            throw BlocktopographError.malformedData("结构名称包含无效字符")
+            throw MCBEEditorError.malformedData("结构名称包含无效字符")
         }
         return Data("\(Self.keyPrefix)_\(clean)".utf8)
     }
@@ -258,7 +258,7 @@ final class StructureNBTStore {
         // so a wrong endian mode cannot be accepted accidentally.
         while !cursor.isAtEnd {
             guard try cursor.readByte() == 0 else {
-                throw BlocktopographError.malformedData("NBT 根标签后存在非零尾随数据")
+                throw MCBEEditorError.malformedData("NBT 根标签后存在非零尾随数据")
             }
         }
         return document

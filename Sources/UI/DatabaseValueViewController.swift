@@ -42,7 +42,7 @@ final class DatabaseValueViewController: UIViewController {
     }
 
     @objc private func shareRawData() {
-        let output = FileManager.default.temporaryDirectory.appendingPathComponent("blocktopograph-value-\(UUID().uuidString.prefix(8)).bin")
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent("mcbeeditor-value-\(UUID().uuidString.prefix(8)).bin")
         do {
             try valueData.write(to: output, options: .atomic)
             let activity = UIActivityViewController(activityItems: [output], applicationActivities: nil)

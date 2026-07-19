@@ -68,6 +68,21 @@ private struct MapWorldObjectHit {
     let isNormallyVisible: Bool
 }
 
+private struct MapPlayerCoordinate {
+    let record: PlayerNBTRecord
+    let position: PlayerCurrentPosition
+    let isLocal: Bool
+    let uniqueID: Int64?
+
+    var stableID: String { "player:\(record.keyText)" }
+}
+
+private struct MapPlayerHit {
+    let player: MapPlayerCoordinate
+    let localX: CGFloat
+    let localZ: CGFloat
+}
+
 private struct MapHardcodedSpawnerHit {
     let area: HardcodedSpawnerArea
     let ownerChunk: ChunkPosition
@@ -106,9 +121,11 @@ private struct RenderedMapRegion {
     let cacheHits: Int
     let cacheMisses: Int
     let spawnHits: [MapSpawnHit]
+    let playerHits: [MapPlayerHit]
     let worldObjectHits: [MapWorldObjectHit]
     let hardcodedSpawnerHits: [MapHardcodedSpawnerHit]
     let villageHits: [MapVillageHit]
+    let playerCount: Int
     let entityCount: Int
     let blockEntityCount: Int
     let hardcodedSpawnerCount: Int
@@ -125,6 +142,8 @@ private final class MapObjectOverlayView: UIView {
     private let villagePOILayer = CAShapeLayer()
     private let entityLayer = CAShapeLayer()
     private let blockEntityLayer = CAShapeLayer()
+    private let localPlayerLayer = CAShapeLayer()
+    private let onlinePlayerLayer = CAShapeLayer()
     private let hardcodedSpawnerLayer = CAShapeLayer()
     private let worldSpawnLayer = CAShapeLayer()
     private let worldSpawnGlyphLayer = CAShapeLayer()
@@ -140,7 +159,7 @@ private final class MapObjectOverlayView: UIView {
     private var allLayers: [CAShapeLayer] {
         [
             villageBoundsLayer, villageCenterLayer, villagePOILinkLayer, villagePOILayer,
-            entityLayer, blockEntityLayer, hardcodedSpawnerLayer,
+            entityLayer, blockEntityLayer, localPlayerLayer, onlinePlayerLayer, hardcodedSpawnerLayer,
             worldSpawnLayer, worldSpawnGlyphLayer, playerSpawnLayer, playerSpawnGlyphLayer, selectedVillageLayer,
             selectedSpawnerLayer, selectedObjectLayer, selectedBlockLayer,
             selectedChunkLayer
@@ -185,6 +204,8 @@ private final class MapObjectOverlayView: UIView {
 
         configure(entityLayer, fill: .systemBlue)
         configure(blockEntityLayer, fill: .systemTeal)
+        configure(localPlayerLayer, fill: .systemYellow)
+        configure(onlinePlayerLayer, fill: .systemBlue)
 
         hardcodedSpawnerLayer.fillColor = UIColor.systemPink.withAlphaComponent(0.10).cgColor
         hardcodedSpawnerLayer.strokeColor = UIColor.systemPink.cgColor
@@ -229,6 +250,8 @@ private final class MapObjectOverlayView: UIView {
         villageBoundsLayer.zPosition = 10
         entityLayer.zPosition = 30
         blockEntityLayer.zPosition = 31
+        localPlayerLayer.zPosition = 33
+        onlinePlayerLayer.zPosition = 34
         hardcodedSpawnerLayer.zPosition = 35
         villageCenterLayer.zPosition = 60
         villagePOILinkLayer.zPosition = 80
@@ -293,6 +316,7 @@ private final class MapObjectOverlayView: UIView {
 
     func update(
         spawnHits: [MapSpawnHit],
+        playerHits: [MapPlayerHit],
         worldObjectHits: [MapWorldObjectHit],
         hardcodedSpawnerHits: [MapHardcodedSpawnerHit],
         villageHits: [MapVillageHit],
@@ -316,6 +340,8 @@ private final class MapObjectOverlayView: UIView {
 
         let entityPath = UIBezierPath()
         let blockEntityPath = UIBezierPath()
+        let localPlayerPath = UIBezierPath()
+        let onlinePlayerPath = UIBezierPath()
         let hardcodedSpawnerPath = UIBezierPath()
         let villageBoundsPath = UIBezierPath()
         let villageCenterPath = UIBezierPath()
@@ -448,6 +474,29 @@ private final class MapObjectOverlayView: UIView {
             villagePOILinkPath.close()
         }
 
+        func appendStar(center: CGPoint, to path: UIBezierPath) {
+            let outerRadius: CGFloat = 8
+            let innerRadius: CGFloat = 3.5
+            let star = UIBezierPath()
+            for index in 0..<10 {
+                let radius = index.isMultiple(of: 2) ? outerRadius : innerRadius
+                let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
+                let point = CGPoint(
+                    x: center.x + cos(angle) * radius,
+                    y: center.y + sin(angle) * radius
+                )
+                if index == 0 { star.move(to: point) } else { star.addLine(to: point) }
+            }
+            star.close()
+            path.append(star)
+        }
+
+        for hit in playerHits {
+            let center = point(localX: hit.localX, localZ: hit.localZ)
+            guard bounds.insetBy(dx: -18, dy: -18).contains(center) else { continue }
+            appendStar(center: center, to: hit.player.isLocal ? localPlayerPath : onlinePlayerPath)
+        }
+
         for hit in worldObjectHits {
             let center = point(localX: hit.localX, localZ: hit.localZ)
             guard bounds.insetBy(dx: -16, dy: -16).contains(center) else { continue }
@@ -549,6 +598,8 @@ private final class MapObjectOverlayView: UIView {
         villagePOILayer.path = villagePOIPath.cgPath
         entityLayer.path = entityPath.cgPath
         blockEntityLayer.path = blockEntityPath.cgPath
+        localPlayerLayer.path = localPlayerPath.cgPath
+        onlinePlayerLayer.path = onlinePlayerPath.cgPath
         hardcodedSpawnerLayer.path = hardcodedSpawnerPath.cgPath
         worldSpawnLayer.path = worldSpawnPath.cgPath
         worldSpawnGlyphLayer.path = worldSpawnGlyphPath.cgPath
@@ -665,8 +716,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private lazy var selectionButton = UIBarButtonItem(customView: selectionButtonView)
 
     private let chunkCache = ChunkSurfaceCache()
-    private let renderQueue = DispatchQueue(label: "com.wzn.blocktopograph.map-render", qos: .userInitiated)
-    private let chunkMenuQueue = DispatchQueue(label: "com.wzn.blocktopograph.map-chunk-menu", qos: .userInitiated)
+    private let renderQueue = DispatchQueue(label: "com.wzn.mcbeeditor.map-render", qos: .userInitiated)
+    private let chunkMenuQueue = DispatchQueue(label: "com.wzn.mcbeeditor.map-chunk-menu", qos: .userInitiated)
     private var chunkRenderer: ChunkSurfaceRenderer?
     private var activeRenderToken: MapRenderToken?
     private var panDebounceWorkItem: DispatchWorkItem?
@@ -676,6 +727,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private var lastRenderedImage: UIImage?
     private var lastErrors: [String] = []
     private var lastSpawnHits = [MapSpawnHit]()
+    private var lastPlayerHits = [MapPlayerHit]()
     private var lastWorldObjectHits: [MapWorldObjectHit] = []
     private var lastHardcodedSpawnerHits: [MapHardcodedSpawnerHit] = []
     private var lastVillageHits: [MapVillageHit] = []
@@ -697,6 +749,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private var spawnY: Int32?
     private var spawnZ: Int64?
     private var spawnCoordinates = [MapSpawnCoordinate]()
+    private var showPlayers = true
     private var showEntities = true
     private var showBlockEntities = true
     private var showHardcodedSpawners = false
@@ -812,6 +865,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         lastBlockNames = []
         lastBlockHeights = []
         lastSpawnHits = []
+        lastPlayerHits = []
         lastWorldObjectHits = []
         lastHardcodedSpawnerHits = []
         lastVillageHits = []
@@ -824,6 +878,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         selectedRegion = nil
         dimensionViewportStates.removeAll()
         activeDimension = BedrockDimension.overworld.rawValue
+        modeControl.selectedSegmentIndex = 0
+        currentMode = .surface
         session.clearRememberedSelections()
         blockDetailPanel.clearBlock()
         setSelectionMode(false)
@@ -1340,7 +1396,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     @objc private func jumpToSpawn() {
         guard let x = spawnX, let z = spawnZ else {
-            showError(BlocktopographError.malformedData("level.dat 中没有 SpawnX/SpawnZ"), title: "无法定位出生点")
+            showError(MCBEEditorError.malformedData("level.dat 中没有 SpawnX/SpawnZ"), title: "无法定位出生点")
             return
         }
         coordinateModeControl.selectedSegmentIndex = 1
@@ -1353,7 +1409,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     @objc private func renderFromFields() {
         view.endEditing(true)
         guard let inputX = Int64(xField.text ?? ""), let inputZ = Int64(zField.text ?? "") else {
-            showError(BlocktopographError.malformedData("坐标必须是整数"), title: "坐标错误")
+            showError(MCBEEditorError.malformedData("坐标必须是整数"), title: "坐标错误")
             return
         }
 
@@ -1409,6 +1465,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let overlay = showOverlay ? showBusy("解析 \(sideChunks)×\(sideChunks) 区块与调色板…") : nil
         let spawns = showSpawnPoints ? spawnCoordinates.filter { $0.dimension == dimension } : []
         let drawGrid = gridSwitch.isOn
+        let includePlayers = showPlayers
         let includeEntities = showEntities
         let includeBlockEntities = showBlockEntities
         let includeHardcodedSpawners = showHardcodedSpawners
@@ -1438,6 +1495,20 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     : VillageMapScanResult(features: [], diagnostics: [])
 
                 let database = try self.session.database()
+                var playerCoordinates = [MapPlayerCoordinate]()
+                if includePlayers {
+                    let playerStore = PlayerNBTStore(session: self.session)
+                    for record in try playerStore.records() {
+                        guard let position = playerStore.currentPosition(for: record),
+                              position.dimension == dimension else { continue }
+                        playerCoordinates.append(MapPlayerCoordinate(
+                            record: record,
+                            position: position,
+                            isLocal: playerStore.isLocalPlayer(record),
+                            uniqueID: playerStore.uniqueID(for: record)
+                        ))
+                    }
+                }
                 let scanner = BedrockWorldObjectScanner(database: database)
                 var scannedObjects = [BedrockWorldObject]()
                 var objectDiagnostics = [String]()
@@ -1506,6 +1577,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     mode: mode,
                     drawGrid: drawGrid,
                     spawnCoordinates: spawns,
+                    playerCoordinates: playerCoordinates,
                     worldObjects: Array(uniqueObjects.values),
                     displayEntities: includeEntities,
                     displayBlockEntities: includeBlockEntities,
@@ -1527,6 +1599,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     self.lastBlockHeights = result.heights
                     self.lastErrors = result.errors
                     self.lastSpawnHits = result.spawnHits
+                    self.lastPlayerHits = result.playerHits
                     self.lastWorldObjectHits = result.worldObjectHits
                     self.lastHardcodedSpawnerHits = result.hardcodedSpawnerHits
                     self.lastVillageHits = result.villageHits
@@ -1558,7 +1631,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     default:
                         layerDetail = "缓存命中 \(result.cacheHits)/\(result.cacheHits + result.cacheMisses)；解码 \(result.decoded) 个 SubChunk"
                     }
-                    self.statusLabel.text = "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
+                    self.statusLabel.text = "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)；玩家 \(result.playerCount)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
                     self.saveMapState()
                     DispatchQueue.main.async { [weak self] in
                         self?.refreshForZoomDrivenRadiusIfNeeded()
@@ -1674,6 +1747,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         mode: MapRenderMode,
         drawGrid: Bool,
         spawnCoordinates: [MapSpawnCoordinate],
+        playerCoordinates: [MapPlayerCoordinate],
         worldObjects: [BedrockWorldObject],
         displayEntities: Bool,
         displayBlockEntities: Bool,
@@ -1723,7 +1797,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                 let matches = tickingAreas.filter { $0.contains(chunkX: chunkX, chunkZ: chunkZ) }
                 if !matches.isEmpty { visibleTickingChunkCount += 1 }
                 chunkImages[chunkRow * sideChunks + chunkColumn] = makeTickingAreaChunkImage(matches: matches)
-                let name = matches.isEmpty ? "blocktopograph:non_ticking_chunk" : "blocktopograph:ticking_chunk"
+                let name = matches.isEmpty ? "mcbeeditor:non_ticking_chunk" : "mcbeeditor:ticking_chunk"
                 if keepsPerBlockMetadata {
                     for localZ in 0..<16 {
                         for localX in 0..<16 {
@@ -1766,6 +1840,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                 spawn: spawn,
                 localX: CGFloat(spawn.x - startBlockX) + 0.5,
                 localZ: CGFloat(spawn.z - startBlockZ) + 0.5
+            )
+        }
+        let playerHits = playerCoordinates.compactMap { player -> MapPlayerHit? in
+            let position = player.position
+            let blockX = Int64(floor(position.x))
+            let blockZ = Int64(floor(position.z))
+            guard blockX >= startBlockX, blockX < endBlockX,
+                  blockZ >= startBlockZ, blockZ < endBlockZ else { return nil }
+            return MapPlayerHit(
+                player: player,
+                localX: CGFloat(position.x - Double(startBlockX)),
+                localZ: CGFloat(position.z - Double(startBlockZ))
             )
         }
         let villageResidentStableIDs = Set(villageFeatures.flatMap(\.residentEntities).map(\.stableID))
@@ -1867,9 +1953,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             cacheHits: cacheHits,
             cacheMisses: cacheMisses,
             spawnHits: spawnHits,
+            playerHits: playerHits,
             worldObjectHits: worldObjectHits,
             hardcodedSpawnerHits: visibleHardcodedSpawnerHits,
             villageHits: villageHits,
+            playerCount: playerHits.count,
             entityCount: worldObjectHits.filter { $0.isNormallyVisible && $0.object.kind == .entity }.count,
             blockEntityCount: worldObjectHits.filter { $0.isNormallyVisible && $0.object.kind == .blockEntity }.count,
             hardcodedSpawnerCount: visibleHardcodedSpawnerHits.count,
@@ -2145,6 +2233,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             : []
         objectOverlayView.update(
             spawnHits: lastSpawnHits,
+            playerHits: lastPlayerHits,
             worldObjectHits: lastWorldObjectHits,
             hardcodedSpawnerHits: lastHardcodedSpawnerHits,
             villageHits: lastVillageHits,
@@ -2837,10 +2926,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let poiHit = pointOfInterestHit(at: imagePoint)
         let centerHit = villageCenterHit(at: imagePoint)
         let spawnHits = spawnPointHits(at: imagePoint)
-        let optionCount = (poiHit == nil ? 0 : 1) + (centerHit == nil ? 0 : 1) + spawnHits.count
+        let playerHits = mapPlayerHits(at: imagePoint)
+        let optionCount = (poiHit == nil ? 0 : 1) + (centerHit == nil ? 0 : 1) + spawnHits.count + playerHits.count
 
         if optionCount > 1 {
-            if spawnHits.isEmpty,
+            if spawnHits.isEmpty, playerHits.isEmpty,
                let poiHit = poiHit,
                let centerHit = centerHit,
                poiHit.village.stableID == centerHit.stableID,
@@ -2853,6 +2943,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     poiHit: poiHit,
                     centerHit: centerHit,
                     spawnHits: spawnHits,
+                    playerHits: playerHits,
                     sourcePoint: imagePoint
                 )
             }
@@ -2864,6 +2955,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
         if let centerHit = centerHit {
             showVillageCenterInformation(centerHit)
+            return
+        }
+        if let hit = playerHits.first {
+            showPlayerDetails(hit.player)
             return
         }
         if let hit = spawnHits.first {
@@ -2966,6 +3061,27 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }?.hit
     }
 
+    private func mapPlayerHits(at imagePoint: CGPoint) -> [MapPlayerHit] {
+        guard showPlayers, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return [] }
+        let sideBlocks = CGFloat(renderedSideChunks * 16)
+        let tap = imageView.convert(imagePoint, to: objectOverlayView)
+        return lastPlayerHits.compactMap { hit -> (MapPlayerHit, CGFloat)? in
+            let candidateInImage = CGPoint(
+                x: hit.localX / sideBlocks * imageView.bounds.width,
+                y: hit.localZ / sideBlocks * imageView.bounds.height
+            )
+            let candidate = imageView.convert(candidateInImage, to: objectOverlayView)
+            let distance = hypot(candidate.x - tap.x, candidate.y - tap.y)
+            return distance <= 15 ? (hit, distance) : nil
+        }
+        .sorted { lhs, rhs in
+            if abs(lhs.1 - rhs.1) > 0.01 { return lhs.1 < rhs.1 }
+            if lhs.0.player.isLocal != rhs.0.player.isLocal { return lhs.0.player.isLocal }
+            return lhs.0.player.record.displayName.localizedCaseInsensitiveCompare(rhs.0.player.record.displayName) == .orderedAscending
+        }
+        .map(\.0)
+    }
+
     private func spawnPointHits(at imagePoint: CGPoint) -> [MapSpawnHit] {
         guard showSpawnPoints, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return [] }
         let sideBlocks = CGFloat(renderedSideChunks * 16)
@@ -2991,6 +3107,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         poiHit: MapVillagePOIHit?,
         centerHit: MapVillageHit?,
         spawnHits: [MapSpawnHit],
+        playerHits: [MapPlayerHit],
         sourcePoint: CGPoint
     ) {
         let alert = UIAlertController(
@@ -3006,6 +3123,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         if let poiHit = poiHit {
             alert.addAction(UIAlertAction(title: "查看兴趣点方块", style: .default) { [weak self] _ in
                 self?.selectPointOfInterestBlock(poiHit)
+            })
+        }
+        for hit in playerHits.prefix(12) {
+            let role = hit.player.isLocal ? "本地玩家" : "在线玩家"
+            alert.addAction(UIAlertAction(title: "查看\(role) · \(hit.player.record.displayName)", style: .default) { [weak self] _ in
+                self?.showPlayerDetails(hit.player)
             })
         }
         for hit in spawnHits.prefix(12) {
@@ -3042,6 +3165,64 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             popover.sourceRect = CGRect(x: sourcePoint.x, y: sourcePoint.y, width: 1, height: 1)
         }
         present(alert, animated: true)
+    }
+
+    private func showPlayerDetails(_ player: MapPlayerCoordinate) {
+        let position = player.position
+        let dimension = BedrockDimension(rawValue: position.dimension)?.displayName ?? "维度 \(position.dimension)"
+        let uniqueIDText = player.uniqueID.map(String.init) ?? "未知"
+        let role = player.isLocal ? "本地玩家" : "在线玩家"
+        let coordinateText = String(format: "X=%.2f Y=%.2f Z=%.2f", position.x, position.y, position.z)
+        let message = [
+            "identifier：minecraft:player",
+            "UniqueID：\(uniqueIDText)",
+            "类型：\(role)",
+            "维度：\(dimension)",
+            "坐标：\(coordinateText)",
+            "来源：\(player.record.keyText)"
+        ].joined(separator: "\n")
+        let alert = UIAlertController(title: player.record.displayName, message: message, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let store = PlayerNBTStore(session: self.session)
+            let controller = PlayerNBTEditorViewController(record: player.record, store: store) { [weak self] in
+                self?.session.invalidateAfterExternalChange()
+            }
+            self.navigationController?.pushViewController(controller, animated: true)
+        })
+        alert.addAction(UIAlertAction(title: "定位到玩家", style: .default) { [weak self] _ in
+            self?.locate(player: player)
+        })
+        alert.addAction(UIAlertAction(title: "复制坐标", style: .default) { _ in
+            UIPasteboard.general.string = coordinateText
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = imageView
+            popover.sourceRect = CGRect(x: imageView.bounds.midX, y: imageView.bounds.midY, width: 1, height: 1)
+        }
+        present(alert, animated: true)
+    }
+
+    private func locate(player: MapPlayerCoordinate) {
+        guard let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == player.position.dimension }) else { return }
+        dimensionControl.selectedSegmentIndex = dimensionIndex
+        coordinateModeControl.selectedSegmentIndex = 1
+        let x = Int64(floor(player.position.x))
+        let z = Int64(floor(player.position.z))
+        xField.text = String(x)
+        zField.text = String(z)
+        render(
+            centerX: MapCoordinate.chunk(fromBlock: x),
+            centerZ: MapCoordinate.chunk(fromBlock: z),
+            anchor: MapViewportAnchor(
+                blockX: player.position.x,
+                blockZ: player.position.z,
+                zoomScale: max(scrollView.zoomScale, 1)
+            ),
+            reason: "定位玩家",
+            showOverlay: true
+        )
     }
 
     private func showSpawnInformation(_ spawn: MapSpawnCoordinate) {
@@ -3474,7 +3655,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func jumpToBlock(x: Int64, y: Int32, z: Int64) {
         guard (-64...319).contains(Int(y)) else {
-            showError(BlocktopographError.malformedData("当前版本支持的 Y 范围为 -64…319"), title: "方块坐标错误")
+            showError(MCBEEditorError.malformedData("当前版本支持的 Y 范围为 -64…319"), title: "方块坐标错误")
             return
         }
         view.endEditing(true)
@@ -3567,7 +3748,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         objectOverlayView.setSelectedObjectID(worldObject.stableID)
         guard let position = worldObject.position,
               let dimensionIndex = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == worldObject.dimension }) else {
-            showError(BlocktopographError.malformedData("该对象没有可定位坐标"), title: "无法定位")
+            showError(MCBEEditorError.malformedData("该对象没有可定位坐标"), title: "无法定位")
             return
         }
         dimensionControl.selectedSegmentIndex = dimensionIndex
@@ -3586,14 +3767,20 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     @objc private func showOverlayOptions() {
         let alert = UIAlertController(
             title: "地图对象图层",
-            message: "蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；出生点图层默认开启。",
+            message: "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点。玩家与出生点图层默认开启。",
             preferredStyle: .actionSheet
         )
+        let playerTitle = showPlayers ? "✓ 显示玩家" : "显示玩家"
         let entityTitle = showEntities ? "✓ 显示实体" : "显示实体"
         let blockTitle = showBlockEntities ? "✓ 显示方块实体" : "显示方块实体"
+        let spawnTitle = showSpawnPoints ? "✓ 显示出生点" : "显示出生点"
         let spawnerTitle = showHardcodedSpawners ? "✓ 显示 HardcodedSpawners" : "显示 HardcodedSpawners"
         let villageTitle = showVillages ? "✓ 显示村庄" : "显示村庄"
-        let spawnTitle = showSpawnPoints ? "✓ 显示出生点" : "显示出生点"
+        alert.addAction(UIAlertAction(title: playerTitle, style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.showPlayers.toggle()
+            self.refreshObjectOverlays(reason: "玩家图层")
+        })
         alert.addAction(UIAlertAction(title: entityTitle, style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.showEntities.toggle()
@@ -3603,6 +3790,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             guard let self = self else { return }
             self.showBlockEntities.toggle()
             self.refreshObjectOverlays(reason: "方块实体图层")
+        })
+        alert.addAction(UIAlertAction(title: spawnTitle, style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.showSpawnPoints.toggle()
+            self.refreshObjectOverlays(reason: "出生点图层")
         })
         alert.addAction(UIAlertAction(title: spawnerTitle, style: .default) { [weak self] _ in
             guard let self = self else { return }
@@ -3619,13 +3811,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             }
             self.refreshObjectOverlays(reason: "村庄图层")
         })
-        alert.addAction(UIAlertAction(title: spawnTitle, style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            self.showSpawnPoints.toggle()
-            self.refreshObjectOverlays(reason: "出生点图层")
-        })
         alert.addAction(UIAlertAction(title: "全部显示", style: .default) { [weak self] _ in
             guard let self = self else { return }
+            self.showPlayers = true
             self.showEntities = true
             self.showBlockEntities = true
             self.showHardcodedSpawners = true
@@ -3635,6 +3823,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         })
         alert.addAction(UIAlertAction(title: "全部隐藏", style: .destructive) { [weak self] _ in
             guard let self = self else { return }
+            self.showPlayers = false
             self.showEntities = false
             self.showBlockEntities = false
             self.showHardcodedSpawners = false
@@ -4000,7 +4189,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func startMapImageExport(scope: MapImageExportScope, layers: MapImageExportLayers) {
         guard lastRenderedImage != nil else {
-            showError(BlocktopographError.unsupported("请先渲染地图。"), title: "无法导出地图")
+            showError(MCBEEditorError.unsupported("请先渲染地图。"), title: "无法导出地图")
             return
         }
         let overlay = showBusy(scope == .currentRegion ? "正在生成当前地图图片…" : "正在读取当前维度全部已加载区域…")
@@ -4103,7 +4292,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         $0.position.dimension == dimension && ($0.subChunkCount > 0 || $0.biomeRecordType != nil)
                     }
                     guard !summaries.isEmpty else {
-                        throw BlocktopographError.unsupported("当前维度没有可导出的已加载区块。")
+                        throw MCBEEditorError.unsupported("当前维度没有可导出的已加载区块。")
                     }
                     let positions: [ChunkPosition] = summaries.map { $0.position }
                     let base = try self.renderLoadedDimensionBase(
@@ -4174,7 +4363,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     overlay.removeFromSuperview()
                     self.shareMapImage(
                         image,
-                        filename: "Blocktopograph-\(dimensionName)-\(mode.displayName)-\(exportSuffix).png"
+                        filename: "MCBEEditor-\(dimensionName)-\(mode.displayName)-\(exportSuffix).png"
                     )
                 }
             } catch {
@@ -4194,7 +4383,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     ) throws -> (image: UIImage, startBlockX: Int64, startBlockZ: Int64, widthBlocks: Int, heightBlocks: Int) {
         guard let minimumX = positions.map(\.x).min(), let maximumX = positions.map(\.x).max(),
               let minimumZ = positions.map(\.z).min(), let maximumZ = positions.map(\.z).max() else {
-            throw BlocktopographError.unsupported("没有可导出的区块。")
+            throw MCBEEditorError.unsupported("没有可导出的区块。")
         }
         let widthChunks = Int64(maximumX) - Int64(minimumX) + 1
         let heightChunks = Int64(maximumZ) - Int64(minimumZ) + 1
@@ -4202,7 +4391,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let heightBlocks64 = heightChunks * 16
         guard widthBlocks64 > 0, heightBlocks64 > 0,
               widthBlocks64 <= 200_000, heightBlocks64 <= 200_000 else {
-            throw BlocktopographError.unsupported("已加载区域跨度过大，无法生成单张图片。")
+            throw MCBEEditorError.unsupported("已加载区域跨度过大，无法生成单张图片。")
         }
         let widthBlocks = Int(widthBlocks64)
         let heightBlocks = Int(heightBlocks64)
@@ -4328,7 +4517,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private func shareMapImage(_ image: UIImage, filename: String) {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         do {
-            guard let data = image.pngData() else { throw BlocktopographError.io("无法编码 PNG") }
+            guard let data = image.pngData() else { throw MCBEEditorError.io("无法编码 PNG") }
             try data.write(to: url, options: .atomic)
             let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
             controller.popoverPresentationController?.barButtonItem = shareButton
@@ -4338,7 +4527,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
     }
 
-    private var mapStatePrefix: String { "Blocktopograph.Map.\(session.world.id.uuidString)." }
+    private var mapStatePrefix: String { "MCBEEditor.Map.\(session.world.id.uuidString)." }
 
     /// Restores display preferences only. Viewport center, selected dimension
     /// and zoom are intentionally session-local and are never restored after
@@ -4346,12 +4535,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     @discardableResult
     private func restoreMapState() -> Bool {
         let defaults = UserDefaults.standard
-        modeControl.selectedSegmentIndex = min(modeControl.numberOfSegments - 1, max(0, defaults.integer(forKey: mapStatePrefix + "mode")))
+        modeControl.selectedSegmentIndex = 0
+        defaults.removeObject(forKey: mapStatePrefix + "mode")
         coordinateModeControl.selectedSegmentIndex = min(1, max(0, defaults.integer(forKey: mapStatePrefix + "coordinateMode")))
         if defaults.object(forKey: mapStatePrefix + "autoRender") != nil {
             autoRenderSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "autoRender")
             gridSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "grid")
             chunkSelectionSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "chunkSelection")
+        }
+        if defaults.object(forKey: mapStatePrefix + "showPlayers") != nil {
+            showPlayers = defaults.bool(forKey: mapStatePrefix + "showPlayers")
+        } else {
+            showPlayers = true
         }
         if defaults.object(forKey: mapStatePrefix + "showEntities") != nil {
             showEntities = defaults.bool(forKey: mapStatePrefix + "showEntities")
@@ -4370,11 +4565,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func saveMapState() {
         let defaults = UserDefaults.standard
-        defaults.set(modeControl.selectedSegmentIndex, forKey: mapStatePrefix + "mode")
+        defaults.removeObject(forKey: mapStatePrefix + "mode")
         defaults.set(coordinateModeControl.selectedSegmentIndex, forKey: mapStatePrefix + "coordinateMode")
         defaults.set(autoRenderSwitch.isOn, forKey: mapStatePrefix + "autoRender")
         defaults.set(gridSwitch.isOn, forKey: mapStatePrefix + "grid")
         defaults.set(chunkSelectionSwitch.isOn, forKey: mapStatePrefix + "chunkSelection")
+        defaults.set(showPlayers, forKey: mapStatePrefix + "showPlayers")
         defaults.set(showEntities, forKey: mapStatePrefix + "showEntities")
         defaults.set(showBlockEntities, forKey: mapStatePrefix + "showBlockEntities")
         defaults.set(showHardcodedSpawners, forKey: mapStatePrefix + "showHardcodedSpawners")

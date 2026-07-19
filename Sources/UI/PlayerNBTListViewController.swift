@@ -3,7 +3,7 @@ import UIKit
 final class PlayerNBTListViewController: UITableViewController, UISearchResultsUpdating {
     private let session: WorldSession
     private let store: PlayerNBTStore
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.player-nbt", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.player-nbt", qos: .userInitiated)
     private let searchController = UISearchController(searchResultsController: nil)
     private var allRecords = [PlayerNBTRecord]()
     private var shownRecords = [PlayerNBTRecord]()

@@ -3,7 +3,7 @@ import UIKit
 final class ExperienceEditorViewController: UITableViewController {
     private let session: WorldSession
     private let store: ExperienceStore
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.experience.list", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.experience.list", qos: .userInitiated)
     private var records = [PlayerExperienceRecord]()
     private var isLoading = false
 
@@ -90,7 +90,7 @@ private final class PlayerExperienceEditorViewController: UIViewController, UITe
     private let store: ExperienceStore
     private let record: PlayerExperienceRecord
     private let completion: () -> Void
-    private let workQueue = DispatchQueue(label: "com.wzn.blocktopograph.experience.edit", qos: .userInitiated)
+    private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.experience.edit", qos: .userInitiated)
 
     private let stack = UIStackView()
     private let totalField = UITextField()
@@ -241,7 +241,7 @@ private final class PlayerExperienceEditorViewController: UIViewController, UITe
         switch editSource {
         case .total:
             guard let total = Int64(totalField.text ?? "") else {
-                showError(BlocktopographError.malformedData("经验总数必须是整数"), title: "经验错误")
+                showError(MCBEEditorError.malformedData("经验总数必须是整数"), title: "经验错误")
                 return
             }
             do {
@@ -254,7 +254,7 @@ private final class PlayerExperienceEditorViewController: UIViewController, UITe
             guard let level64 = Int64(levelField.text ?? ""),
                   level64 >= 0,
                   level64 <= Int64(BedrockPlayerExperience.maximumLevel) else {
-                showError(BlocktopographError.malformedData("经验等级必须是 0～\(BedrockPlayerExperience.maximumLevel) 的整数"), title: "经验错误")
+                showError(MCBEEditorError.malformedData("经验等级必须是 0～\(BedrockPlayerExperience.maximumLevel) 的整数"), title: "经验错误")
                 return
             }
             experience = BedrockPlayerExperience(level: Int32(level64), progress: progressSlider.value)

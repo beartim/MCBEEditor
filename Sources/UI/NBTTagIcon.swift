@@ -10,7 +10,7 @@ enum NBTTagIcon {
 
     private static var cachedToolImage: UIImage?
 
-    /// Custom NBT file-tool icon used on the Blocktopograph home screen.
+    /// Custom NBT file-tool icon used on the MCBEEditor home screen.
     /// It deliberately avoids newer SF Symbols so it remains available on iOS 13.
     static func toolImage() -> UIImage {
         if let cachedToolImage = cachedToolImage { return cachedToolImage }

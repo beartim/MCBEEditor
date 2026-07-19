@@ -6,7 +6,7 @@ final class MapRegionCopyViewController: UIViewController, UITextFieldDelegate {
     private let xField = UITextField()
     private let zField = UITextField()
     private let dimensionControl = UISegmentedControl(items: BedrockDimension.allCases.map(\.displayName))
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.region-copy", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.region-copy", qos: .userInitiated)
     var onComplete: ((String, BedrockMapRegion) -> Void)?
 
     init(session: WorldSession, source: BedrockMapRegion) {
@@ -74,7 +74,7 @@ final class MapRegionCopyViewController: UIViewController, UITextFieldDelegate {
     @objc private func confirmCopy() {
         guard let x = Int64(xField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""),
               let z = Int64(zField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else {
-            showError(BlocktopographError.malformedData("请输入有效的目标 X0、Z0"))
+            showError(MCBEEditorError.malformedData("请输入有效的目标 X0、Z0"))
             return
         }
         let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
@@ -139,7 +139,7 @@ final class MapRegionBiomeViewController: UIViewController {
     private let session: WorldSession
     private let region: BedrockMapRegion
     private let selectedLabel = UILabel()
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.region-biome", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.region-biome", qos: .userInitiated)
     private var selectedID: UInt32?
     var onComplete: ((String) -> Void)?
 
@@ -239,7 +239,7 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
     private let session: WorldSession
     private let region: BedrockMapRegion
     private let store: BedrockChunkStore
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.region-hardcoded-spawners", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.region-hardcoded-spawners", qos: .userInitiated)
     private var summaries = [BedrockChunkSummary]()
     var onMutation: ((String) -> Void)?
 

@@ -8,7 +8,7 @@ final class ChunkBiomeEditorViewController: UITableViewController {
     private let session: WorldSession
     private let chunk: ChunkPosition
     private let store: BedrockChunkStore
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.biome-editor", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.biome-editor", qos: .userInitiated)
     private var record: BedrockChunkStore.BiomeRecord?
     private var dirty = false
     private lazy var saveButton = UIBarButtonItem(

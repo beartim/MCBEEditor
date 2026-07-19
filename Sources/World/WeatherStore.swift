@@ -56,7 +56,7 @@ final class WeatherStore {
     func read() throws -> BedrockWeatherSettings {
         let file = try session.document.readLevelDat()
         guard case .compound(let tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         func value(_ name: String) -> NBTValue? { tags.first(where: { $0.name == name })?.value }
         func float(_ name: String) -> Float {
@@ -92,7 +92,7 @@ final class WeatherStore {
     func save(_ settings: BedrockWeatherSettings) throws {
         var file = try session.document.readLevelDat()
         guard case .compound(var tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         func set(_ name: String, _ value: NBTValue) {
             if let index = tags.firstIndex(where: { $0.name == name }) {

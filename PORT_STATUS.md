@@ -1,6 +1,9 @@
 # iOS 移植状态
 
-- 当前版本：1.0.0 (100)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.blocktopograph`。
+- 当前版本：1.0.0 (100)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.mcbeeditor`。
+- 应用、工程、Target、Scheme、构建产物和导入导出标识统一命名为 `MCBEEditor`；旧版 JSON/剪贴板标识仅用于向后兼容导入。
+- 地图对象图层顺序为“玩家、实体、方块实体、出生点、HardcodedSpawners、村庄”；玩家图层默认开启，本地玩家为黄色五角星，在线玩家为蓝色五角星，点按可打开玩家编辑菜单。
+- 六种地图渲染模式不写入 UserDefaults，退出存档后恢复地表；同一存档会话内切换栏目或维度仍保留当前中心、缩放和各维度视口。
 - 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、effect、fill、give、kill、kick、setblock、setworldspawn、spawnpoint、structure、summon、teleport、tickingarea、time、weather。
 - clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度和不同 Y 偏移。命令目标支持 @s、@a、@e、UniqueID 与实体 identifier。
 - 地图打开时默认使用本地玩家所在维度与实际坐标；切换到玩家所在维度时默认回到玩家坐标，另外两个维度默认以方块坐标 (0,0) 为中心；命令输入行位于终端大屏上方并保留空格宽度和闪烁光标。
@@ -24,7 +27,7 @@
 ## 当前版本
 
 - 版本：1.0.0 (100)
-- Bundle ID：`com.wzn.blocktopograph`
+- Bundle ID：`com.wzn.mcbeeditor`
 - 最低系统：iOS / iPadOS 13.0
 - 工具链：Xcode 15.4
 - v0.5.0 地图移动续载与 v0.6.1 缩放清晰度已由用户真机验证。
@@ -92,15 +95,15 @@
 - 地图右侧方块详情升级为 NBT 树，支持图标、展开、增加、删除、重命名和修改；
 - 支持对现代调色板 SubChunk v1/v8/v9 的单方块状态写回；
 - 修改方块时复用或追加调色板项，并只更新目标方块的 palette index；
-- Bundle ID 从旧命名空间迁移为 `com.wzn.blocktopograph`。
+- Bundle ID 从旧命名空间迁移为 `com.wzn.mcbeeditor`。
 
 ## 已有能力
 
 - iOS 13 `.mcworld`/ZIP/目录导入与导出；
 - 世界搜索、排序、重命名、复制和手动导出；
 - 地图动态 N×N 移动续载、缓存、预取、双指缩放和清晰矢量对象层；
-- 地表、高度、矿物、生物群系图层；方块列浏览、XYZ 跳转和方块闪烁；
-- 实体、方块实体扫描、框选、定位、NBT 写回与坐标迁移；
+- 地表、高度、矿物、生物群系等六种渲染模式；方块列浏览、XYZ 跳转和方块闪烁；
+- 玩家、实体、方块实体地图对象图层；实体扫描、框选、定位、NBT 写回与坐标迁移；
 - 世界、玩家、村庄、结构 NBT 和信息菜单内的 LevelDB 浏览器；
 - 出生点定位、PNG 导出和解析诊断。
 

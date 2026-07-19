@@ -505,11 +505,11 @@ final class VillageNBTStore {
     func save(record: VillageNBTRecord, document: NBTDocument) throws {
         let database = try session.database()
         guard let current = try database.get(record.key) else {
-            throw BlocktopographError.malformedData("村庄记录已不存在，请返回列表重新读取。")
+            throw MCBEEditorError.malformedData("村庄记录已不存在，请返回列表重新读取。")
         }
         var decoded = try ConsecutiveNBTCodec.decode(current)
         guard decoded.indices.contains(record.documentIndex) else {
-            throw BlocktopographError.malformedData("村庄记录中的 NBT 数量已经变化，请返回列表重新读取。")
+            throw MCBEEditorError.malformedData("村庄记录中的 NBT 数量已经变化，请返回列表重新读取。")
         }
         if record.documentPath.isEmpty {
             decoded[record.documentIndex].document = document

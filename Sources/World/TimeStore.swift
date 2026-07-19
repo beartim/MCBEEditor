@@ -13,7 +13,7 @@ enum BedrockTimeStore {
     static func read(session: WorldSession) throws -> BedrockTimeSettings {
         let file = try session.document.readLevelDat()
         guard case .compound(let tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         return BedrockTimeSettings(
             time: try integer(named: "Time", in: tags, default: 0),
@@ -24,7 +24,7 @@ enum BedrockTimeStore {
     static func save(_ settings: BedrockTimeSettings, session: WorldSession) throws {
         var file = try session.document.readLevelDat()
         guard case .compound(var tags) = file.document.root else {
-            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound")
         }
         set(name: "Time", value: .long(settings.time), in: &tags)
         set(name: "dodaylightcycle", value: .byte(settings.automaticProgression ? 1 : 0), in: &tags)
@@ -56,11 +56,11 @@ enum BedrockTimeStore {
             : floorDivision(current, by: 24_000)
         let (dayBase, multiplyOverflow) = dayIndex.multipliedReportingOverflow(by: 24_000)
         guard !multiplyOverflow else {
-            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
+            throw MCBEEditorError.malformedData("time 对齐结果超出 Int64 范围")
         }
         let (result, addOverflow) = dayBase.addingReportingOverflow(startTick)
         guard !addOverflow else {
-            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
+            throw MCBEEditorError.malformedData("time 对齐结果超出 Int64 范围")
         }
         return result
     }
@@ -117,7 +117,7 @@ enum BedrockTimeStore {
         case .short(let number): return Int64(number)
         case .int(let number): return Int64(number)
         case .long(let number): return number
-        default: throw BlocktopographError.malformedData("level.dat 的 \(name) 标签必须是整数类型")
+        default: throw MCBEEditorError.malformedData("level.dat 的 \(name) 标签必须是整数类型")
         }
     }
 

@@ -124,7 +124,7 @@ final class NBTBatchSelectionCoordinator: NSObject {
         let protected = selected.filter { !delegate.nbtBatchCanDelete($0) }
         guard protected.isEmpty else {
             delegate.nbtBatchPresenter.showError(
-                BlocktopographError.unsupported("所选内容包含 NBT 根节点或受保护标签，不能批量删除。"),
+                MCBEEditorError.unsupported("所选内容包含 NBT 根节点或受保护标签，不能批量删除。"),
                 title: "无法批量删除"
             )
             return

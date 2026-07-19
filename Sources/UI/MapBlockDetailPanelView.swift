@@ -661,7 +661,7 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
         guard let x = Int64(xField.text ?? ""),
               let y = Int32(yField.text ?? ""),
               let z = Int64(zField.text ?? "") else {
-            owningViewController?.showError(BlocktopographError.malformedData("X、Y、Z 必须是整数"), title: "方块坐标错误")
+            owningViewController?.showError(MCBEEditorError.malformedData("X、Y、Z 必须是整数"), title: "方块坐标错误")
             return
         }
         onJump?(x, y, z)

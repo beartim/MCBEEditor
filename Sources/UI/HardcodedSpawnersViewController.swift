@@ -4,7 +4,7 @@ final class HardcodedSpawnersViewController: UITableViewController {
     private let session: WorldSession
     private let chunk: ChunkPosition
     private let store: BedrockChunkStore
-    private let queue = DispatchQueue(label: "com.wzn.blocktopograph.hardcoded-spawners", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.hardcoded-spawners", qos: .userInitiated)
     private var record: BedrockChunkStore.HardcodedSpawnersRecord?
     private var dirty = false
     private let initialAreaIndex: Int?
@@ -294,7 +294,7 @@ private final class HardcodedSpawnerAreaEditorViewController: UIViewController, 
     @objc private func commit() {
         let values = fields.map { Int32($0.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") }
         guard values.allSatisfy({ $0 != nil }) else {
-            showError(BlocktopographError.malformedData("六个坐标必须是有效 Int32"))
+            showError(MCBEEditorError.malformedData("六个坐标必须是有效 Int32"))
             return
         }
         let kind: HardcodedSpawnerKind
@@ -305,7 +305,7 @@ private final class HardcodedSpawnerAreaEditorViewController: UIViewController, 
         case 3: kind = .pillagerOutpost
         default:
             guard let raw = UInt8(customKindField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else {
-                showError(BlocktopographError.malformedData("自定义类型必须是 0…255"))
+                showError(MCBEEditorError.malformedData("自定义类型必须是 0…255"))
                 return
             }
             kind = .custom(raw)

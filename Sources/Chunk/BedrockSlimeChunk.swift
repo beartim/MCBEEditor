@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bedrock Edition slime-chunk calculation used by the original Android
-/// Blocktopograph renderer:
+/// MCBEEditor renderer:
 /// https://github.com/oO0oO0oO0o0o00/blocktopograph/blob/master/app/src/main/java/com/mithrilmania/blocktopograph/map/renderer/SlimeChunkRenderer.java
 ///
 /// The MCPE calculation was reverse engineered by @protolambda and @jocopa3.

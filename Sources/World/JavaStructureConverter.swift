@@ -41,7 +41,7 @@ enum JavaStructureConverter {
 
     static func convertIfNeeded(_ document: NBTDocument) throws -> (document: NBTDocument, result: StructureImportResult) {
         guard case .compound = document.root else {
-            throw BlocktopographError.malformedData("结构 NBT 的根标签必须是 Compound")
+            throw MCBEEditorError.malformedData("结构 NBT 的根标签必须是 Compound")
         }
 
         if isBedrockStructure(document.root) {
@@ -60,7 +60,7 @@ enum JavaStructureConverter {
         }
 
         guard isJavaStructure(document.root) else {
-            throw BlocktopographError.malformedData("该文件既不是 Java 结构 NBT，也不是 Bedrock mcstructure")
+            throw MCBEEditorError.malformedData("该文件既不是 Java 结构 NBT，也不是 Bedrock mcstructure")
         }
         return try convertJavaStructure(document)
     }
@@ -83,13 +83,13 @@ enum JavaStructureConverter {
     private static func convertJavaStructure(_ document: NBTDocument) throws -> (document: NBTDocument, result: StructureImportResult) {
         let size = try dimensions(in: document.root)
         guard case .list(.compound, let paletteValues)? = document.root.compoundValue(named: "palette") else {
-            throw BlocktopographError.malformedData("Java 结构缺少 palette Compound List")
+            throw MCBEEditorError.malformedData("Java 结构缺少 palette Compound List")
         }
         guard !paletteValues.isEmpty else {
-            throw BlocktopographError.malformedData("Java 结构 palette 为空")
+            throw MCBEEditorError.malformedData("Java 结构 palette 为空")
         }
         guard case .list(.compound, let blockValues)? = document.root.compoundValue(named: "blocks") else {
-            throw BlocktopographError.malformedData("Java 结构缺少 blocks Compound List")
+            throw MCBEEditorError.malformedData("Java 结构缺少 blocks Compound List")
         }
 
         var bedrockPalette = [NBTValue]()
@@ -109,11 +109,11 @@ enum JavaStructureConverter {
         for blockValue in blockValues {
             guard case .compound = blockValue else { continue }
             guard let position = integerVector(named: "pos", in: blockValue), position.count == 3 else {
-                throw BlocktopographError.malformedData("Java 结构 blocks 中存在缺少 pos 的方块")
+                throw MCBEEditorError.malformedData("Java 结构 blocks 中存在缺少 pos 的方块")
             }
             guard let rawState = integerValue(named: "state", in: blockValue),
                   rawState >= 0, rawState < Int64(paletteValues.count) else {
-                throw BlocktopographError.malformedData("Java 结构方块引用了无效 palette state")
+                throw MCBEEditorError.malformedData("Java 结构方块引用了无效 palette state")
             }
 
             let x = try checkedCoordinate(position[0], upperBound: size.x, axis: "X")
@@ -166,7 +166,7 @@ enum JavaStructureConverter {
               let structureIndex = rootTags.firstIndex(where: { $0.name == "structure" }),
               case .compound(var structureTags) = rootTags[structureIndex].value,
               let indicesIndex = structureTags.firstIndex(where: { $0.name == "block_indices" }) else {
-            throw BlocktopographError.malformedData("Bedrock 结构缺少 structure.block_indices")
+            throw MCBEEditorError.malformedData("Bedrock 结构缺少 structure.block_indices")
         }
 
         var layers = [[Int32]]()
@@ -196,12 +196,12 @@ enum JavaStructureConverter {
     private static func parseJavaPaletteEntry(_ value: NBTValue) throws -> JavaPaletteEntry {
         guard case .compound = value,
               let name = value.stringValue(named: "Name"), !name.isEmpty else {
-            throw BlocktopographError.malformedData("Java 结构 palette 中存在缺少 Name 的条目")
+            throw MCBEEditorError.malformedData("Java 结构 palette 中存在缺少 Name 的条目")
         }
         var properties = [String: String]()
         if let propertyValue = value.compoundValue(named: "Properties") {
             guard case .compound(let tags) = propertyValue else {
-                throw BlocktopographError.malformedData("Java 结构 palette.Properties 不是 Compound")
+                throw MCBEEditorError.malformedData("Java 结构 palette.Properties 不是 Compound")
             }
             for tag in tags {
                 switch tag.value {
@@ -380,7 +380,7 @@ enum JavaStructureConverter {
 
     private static func checkedCoordinate(_ value: Int64, upperBound: Int, axis: String) throws -> Int {
         guard value >= 0, value < Int64(upperBound) else {
-            throw BlocktopographError.malformedData("Java 结构方块 \(axis) 坐标越界：\(value)")
+            throw MCBEEditorError.malformedData("Java 结构方块 \(axis) 坐标越界：\(value)")
         }
         return Int(value)
     }
@@ -394,16 +394,16 @@ enum JavaStructureConverter {
 
     private static func dimensions(in root: NBTValue) throws -> Dimensions {
         guard let values = integerVector(named: "size", in: root), values.count == 3 else {
-            throw BlocktopographError.malformedData("结构缺少有效的 size[3]")
+            throw MCBEEditorError.malformedData("结构缺少有效的 size[3]")
         }
         guard values.allSatisfy({ $0 > 0 && $0 <= Int64(Int32.max) }) else {
-            throw BlocktopographError.malformedData("结构尺寸必须是正整数")
+            throw MCBEEditorError.malformedData("结构尺寸必须是正整数")
         }
         let x = Int(values[0]), y = Int(values[1]), z = Int(values[2])
         let (xy, overflowXY) = x.multipliedReportingOverflow(by: y)
         let (volume, overflowXYZ) = xy.multipliedReportingOverflow(by: z)
         guard !overflowXY, !overflowXYZ, volume <= maximumBlockVolume else {
-            throw BlocktopographError.unsupported("结构体积过大：\(x)×\(y)×\(z)，最多支持 \(maximumBlockVolume) 个方块")
+            throw MCBEEditorError.unsupported("结构体积过大：\(x)×\(y)×\(z)，最多支持 \(maximumBlockVolume) 个方块")
         }
         return Dimensions(x: x, y: y, z: z, volume: volume)
     }

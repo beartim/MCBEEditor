@@ -116,7 +116,7 @@ extension ChunkSurfaceRenderer {
     func block(blockX: Int64, y: Int32, blockZ: Int64, dimension: Int32) throws -> BedrockBlockRecord {
         let result = try blockColumn(blockX: blockX, blockZ: blockZ, dimension: dimension)
         guard let block = result.block(atY: y) else {
-            throw BlocktopographError.malformedData("Y 坐标超出当前 Bedrock 高度范围：\(y)")
+            throw MCBEEditorError.malformedData("Y 坐标超出当前 Bedrock 高度范围：\(y)")
         }
         return block
     }

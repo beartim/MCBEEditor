@@ -29,11 +29,11 @@ enum ConsecutiveNBTCodec {
                     let fallback = try BedrockNBTCodec.decode(data, encoding: .littleEndianVarInt)
                     return [ConsecutiveNBTRecord(document: fallback, rawData: data, encoding: .littleEndianVarInt)]
                 }
-                throw BlocktopographError.malformedData("连续 NBT 在偏移 \(before) 解析失败：\(error.localizedDescription)")
+                throw MCBEEditorError.malformedData("连续 NBT 在偏移 \(before) 解析失败：\(error.localizedDescription)")
             }
 
             guard cursor.offset > before else {
-                throw BlocktopographError.malformedData("NBT 解析器没有前进")
+                throw MCBEEditorError.malformedData("NBT 解析器没有前进")
             }
         }
         return records

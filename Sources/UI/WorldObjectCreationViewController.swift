@@ -216,7 +216,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
     @objc private func useSelectedPosition() {
         guard let selected = session.selectedWorldObjectCoordinate ?? session.selectedBlockCoordinate else {
             showError(
-                BlocktopographError.unsupported("尚未在地图或实体栏目中选中带坐标的对象。"),
+                MCBEEditorError.unsupported("尚未在地图或实体栏目中选中带坐标的对象。"),
                 title: "没有选中位置"
             )
             return
@@ -247,7 +247,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         guard let url = urls.first else { return }
         let fileExtension = url.pathExtension.lowercased()
         guard fileExtension == "nbt" || fileExtension == "json" else {
-            showError(BlocktopographError.unsupported("请选择 .nbt 或 .json 实体文件。"), title: "文件格式错误")
+            showError(MCBEEditorError.unsupported("请选择 .nbt 或 .json 实体文件。"), title: "文件格式错误")
             return
         }
         do {
@@ -262,14 +262,14 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
                 documents = try StandaloneNBTFileCodec.decode(data: fileData, filename: url.lastPathComponent).documents
             }
             guard !documents.isEmpty else {
-                throw BlocktopographError.unsupported("实体文件不包含可导入的 NBT 根标签。")
+                throw MCBEEditorError.unsupported("实体文件不包含可导入的 NBT 根标签。")
             }
             var prepared = [NBTDocument]()
             prepared.reserveCapacity(documents.count)
             for (index, document) in documents.enumerated() {
                 let addition = configuration.uniqueID.addingReportingOverflow(Int64(index))
                 guard !addition.overflow, addition.partialValue != 0 else {
-                    throw BlocktopographError.malformedData("批量实体 UniqueID 超出 Int64 范围。")
+                    throw MCBEEditorError.malformedData("批量实体 UniqueID 超出 Int64 范围。")
                 }
                 prepared.append(try store.prepareEntityDocument(
                     document,
@@ -308,18 +308,18 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         uniqueID: Int64
     ) {
         guard kind == .entity, template == nil else {
-            throw BlocktopographError.unsupported("只有空白新建实体支持从 NBT／JSON 文件导入。")
+            throw MCBEEditorError.unsupported("只有空白新建实体支持从 NBT／JSON 文件导入。")
         }
         let identifier = identifierField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !identifier.isEmpty else { throw BlocktopographError.malformedData("请先填写实体 ID。") }
+        guard !identifier.isEmpty else { throw MCBEEditorError.malformedData("请先填写实体 ID。") }
         guard let x = Double(xField.text ?? ""),
               let y = Double(yField.text ?? ""),
               let z = Double(zField.text ?? ""),
               x.isFinite, y.isFinite, z.isFinite else {
-            throw BlocktopographError.malformedData("请先填写有效的实体 X、Y、Z 坐标。")
+            throw MCBEEditorError.malformedData("请先填写有效的实体 X、Y、Z 坐标。")
         }
         guard let uniqueID = Int64(uniqueIDField.text ?? ""), uniqueID != 0 else {
-            throw BlocktopographError.malformedData("请先填写非零 Int64 UniqueID。")
+            throw MCBEEditorError.malformedData("请先填写非零 Int64 UniqueID。")
         }
         let index = max(0, dimensionControl.selectedSegmentIndex)
         return (
@@ -335,7 +335,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         guard let x = Double(xField.text ?? ""),
               let y = Double(yField.text ?? ""),
               let z = Double(zField.text ?? "") else {
-            showError(BlocktopographError.malformedData("X、Y、Z 必须是有效数字。"), title: "坐标错误")
+            showError(MCBEEditorError.malformedData("X、Y、Z 必须是有效数字。"), title: "坐标错误")
             return
         }
         let identifier = identifierField.text ?? ""
@@ -344,7 +344,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         let uniqueID: Int64?
         if kind == .entity {
             guard let parsed = Int64(uniqueIDField.text ?? "") else {
-                showError(BlocktopographError.malformedData("UniqueID 必须是 Int64 整数。"), title: "UniqueID 错误")
+                showError(MCBEEditorError.malformedData("UniqueID 必须是 Int64 整数。"), title: "UniqueID 错误")
                 return
             }
             uniqueID = parsed

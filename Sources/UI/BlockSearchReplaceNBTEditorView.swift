@@ -268,9 +268,9 @@ final class BlockSearchReplaceNBTEditorView: UIView, UITableViewDataSource, UITa
             guard let self = self, let presenter = presenter else { return }
             do {
                 let name = (alert?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !name.isEmpty else { throw BlocktopographError.malformedData("NBT 标签名称不能为空") }
+                guard !name.isEmpty else { throw MCBEEditorError.malformedData("NBT 标签名称不能为空") }
                 guard !self.stateTags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
-                    throw BlocktopographError.malformedData("states 已存在标签：\(name)")
+                    throw MCBEEditorError.malformedData("states 已存在标签：\(name)")
                 }
                 let raw = alert?.textFields?.last?.text ?? ""
                 let value = try NBTTreeMutation.parseInitialValue(raw, type: type)
@@ -302,11 +302,11 @@ final class BlockSearchReplaceNBTEditorView: UIView, UITableViewDataSource, UITa
             guard let self = self, let presenter = presenter, self.stateTags.indices.contains(index) else { return }
             let clean = newName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !clean.isEmpty else {
-                presenter.showError(BlocktopographError.malformedData("NBT 标签名称不能为空"), title: "重命名失败")
+                presenter.showError(MCBEEditorError.malformedData("NBT 标签名称不能为空"), title: "重命名失败")
                 return
             }
             guard current.caseInsensitiveCompare(clean) == .orderedSame || !self.stateTags.contains(where: { $0.name.caseInsensitiveCompare(clean) == .orderedSame }) else {
-                presenter.showError(BlocktopographError.malformedData("states 已存在标签：\(clean)"), title: "重命名失败")
+                presenter.showError(MCBEEditorError.malformedData("states 已存在标签：\(clean)"), title: "重命名失败")
                 return
             }
             self.stateTags[index].name = clean

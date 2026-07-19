@@ -92,7 +92,7 @@ final class ChunkSurfaceRenderer {
     private func decodeChunk(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) throws -> ChunkSurfaceResult {
         if mode == .slime {
             let slime = BedrockSlimeChunk.isSlimeChunk(x: x, z: z)
-            let name = slime ? "blocktopograph:slime_chunk" : "blocktopograph:non_slime_chunk"
+            let name = slime ? "mcbeeditor:slime_chunk" : "mcbeeditor:non_slime_chunk"
             return ChunkSurfaceResult(
                 image: makeSlimeChunkImage(isSlime: slime),
                 blockNames: Array(repeating: name, count: 256),
@@ -105,7 +105,7 @@ final class ChunkSurfaceRenderer {
         if mode == .tickingAreas {
             return ChunkSurfaceResult(
                 image: makeNeutralSyntheticImage(),
-                blockNames: Array(repeating: "blocktopograph:non_ticking_chunk", count: 256),
+                blockNames: Array(repeating: "mcbeeditor:non_ticking_chunk", count: 256),
                 blockHeights: Array(repeating: 0, count: 256),
                 biomeIDs: Array(repeating: UInt32.max, count: 256),
                 decodedSubChunks: 0,

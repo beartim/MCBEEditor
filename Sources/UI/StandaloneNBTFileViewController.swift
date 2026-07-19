@@ -304,7 +304,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         let indices = batchSelectedIndices.sorted(by: >)
         guard !indices.isEmpty else { return }
         guard file.documents.count - indices.count >= 1 else {
-            showError(BlocktopographError.unsupported("NBT 文件至少需要保留一个根标签。"), title: "无法删除全部根标签")
+            showError(MCBEEditorError.unsupported("NBT 文件至少需要保留一个根标签。"), title: "无法删除全部根标签")
             return
         }
         let alert = UIAlertController(

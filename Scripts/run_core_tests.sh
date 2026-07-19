@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP="${TMPDIR:-/tmp}/blocktopograph-core-test"
+TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
 import Foundation
@@ -105,7 +105,7 @@ struct Main {
             preconditionFailure("duplicate Compound insertion should fail without overwrite")
         } catch {}
 
-        // Reference coordinates from the original Android Blocktopograph
+        // Reference coordinates from the original Android MCBEEditor
         // Bedrock slime-chunk implementation. The calculation is independent
         // of the world seed and must preserve signed chunk-coordinate wrapping.
         precondition(BedrockSlimeChunk.isSlimeChunk(x: -1, z: 0))
@@ -391,7 +391,7 @@ struct Main {
             _ = try WorldCommandParser.parse("/help")
             preconditionFailure("commands must reject a slash prefix")
         } catch {}
-        print("Blocktopograph core tests passed")
+        print("MCBEEditor core tests passed")
     }
 }
 SWIFT
@@ -452,7 +452,7 @@ if [[ ! "$CURRENT_PROJECT_VERSION" =~ ^[0-9]+$ ]]; then
 fi
 
 if [[ "$MARKETING_VERSION" != "1.0.0" || "$CURRENT_PROJECT_VERSION" != "100" ]]; then
-  printf 'error: Blocktopograph version is fixed at 1.0.0 (100), got version=%s build=%s\n' \
+  printf 'error: MCBEEditor version is fixed at 1.0.0 (100), got version=%s build=%s\n' \
     "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" >&2
   exit 1
 fi
@@ -539,7 +539,7 @@ done
 # the application target that compiles BTLevelDBBridge.mm must define DLLX.
 count="$(grep -c '"DLLX="' "$ROOT/project.yml" || true)"
 if [[ "$count" -lt 2 ]]; then
-  echo "error: project.yml must define DLLX for both MojangLevelDB and Blocktopograph targets" >&2
+  echo "error: project.yml must define DLLX for both MojangLevelDB and MCBEEditor targets" >&2
   exit 1
 fi
 grep -q '^#ifndef DLLX$' "$ROOT/Sources/Bridge/BTLevelDBBridge.mm" || {
@@ -1764,16 +1764,16 @@ swiftc \
 echo "Editable entity and block-entity NBT with index-safe migration passed"
 
 # v0.10.0: unified NBT mutation, editable block palette NBT and bundle identity.
-grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph$' "$ROOT/project.yml" || {
-  echo 'error: app bundle identifier must be com.wzn.blocktopograph' >&2
+grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.wzn.mcbeeditor$' "$ROOT/project.yml" || {
+  echo 'error: app bundle identifier must be com.wzn.mcbeeditor' >&2
   exit 1
 }
-grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.wzn.blocktopograph.tests$' "$ROOT/project.yml" || {
-  echo 'error: test bundle identifier must use com.wzn.blocktopograph.tests' >&2
+grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.wzn.mcbeeditor.tests$' "$ROOT/project.yml" || {
+  echo 'error: test bundle identifier must use com.wzn.mcbeeditor.tests' >&2
   exit 1
 }
-! grep -R -q 'com\.beartim\.blocktopograph' "$ROOT/project.yml" "$ROOT/Sources" || {
-  echo 'error: stale com.beartim.blocktopograph identifier remains' >&2
+! grep -R -q 'com\.beartim\.mcbeeditor' "$ROOT/project.yml" "$ROOT/Sources" || {
+  echo 'error: stale com.beartim.mcbeeditor identifier remains' >&2
   exit 1
 }
 grep -q 'static func presentEdit' "$ROOT/Sources/UI/NBTEditingUI.swift" || {
@@ -3424,7 +3424,7 @@ enum AtomicFile {
 }
 enum BTCompressionBridge {
     static func inflateWrapped(_ data: Data, expectedSize: UInt) throws -> Data {
-        throw BlocktopographError.unsupported("portable test does not inflate compressed NBT")
+        throw MCBEEditorError.unsupported("portable test does not inflate compressed NBT")
     }
 }
 final class WorldSession {

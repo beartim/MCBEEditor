@@ -258,7 +258,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         let indices = batchSelectedIndices.sorted(by: >)
         guard !indices.isEmpty else { return }
         guard roots.count - indices.count >= 1 else {
-            showError(BlocktopographError.unsupported("元数据至少需要保留一个 NBT 根标签。"), title: "无法删除全部根标签")
+            showError(MCBEEditorError.unsupported("元数据至少需要保留一个 NBT 根标签。"), title: "无法删除全部根标签")
             return
         }
         let alert = UIAlertController(

@@ -25,13 +25,13 @@ enum MiniZipArchive {
 
         for entry in entries {
             guard let safeRelative = sanitizedRelativePath(entry.path) else {
-                throw BlocktopographError.invalidArchive("包含不安全路径：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("包含不安全路径：\(entry.path)")
             }
             if safeRelative.isEmpty { continue }
             let outputURL = destination.appendingPathComponent(safeRelative)
             let outputPath = outputURL.standardizedFileURL.path
             guard outputPath == destinationPath || outputPath.hasPrefix(destinationPath + "/") else {
-                throw BlocktopographError.invalidArchive("路径逃逸：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("路径逃逸：\(entry.path)")
             }
             if entry.path.hasSuffix("/") {
                 try manager.createDirectory(at: outputURL, withIntermediateDirectories: true)
@@ -39,13 +39,13 @@ enum MiniZipArchive {
             }
 
             guard try archive.littleEndianUInt32(at: entry.localHeaderOffset) == localHeaderSignature else {
-                throw BlocktopographError.invalidArchive("本地文件头损坏：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("本地文件头损坏：\(entry.path)")
             }
             let nameLength = Int(try archive.littleEndianUInt16(at: entry.localHeaderOffset + 26))
             let extraLength = Int(try archive.littleEndianUInt16(at: entry.localHeaderOffset + 28))
             let dataOffset = entry.localHeaderOffset + 30 + nameLength + extraLength
             guard dataOffset >= 0, dataOffset + entry.compressedSize <= archive.count else {
-                throw BlocktopographError.invalidArchive("文件数据越界：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("文件数据越界：\(entry.path)")
             }
             let compressed = archive.subdata(in: dataOffset..<(dataOffset + entry.compressedSize))
             let content: Data
@@ -55,13 +55,13 @@ enum MiniZipArchive {
             case 8:
                 content = try BTCompressionBridge.inflateRaw(compressed, expectedSize: UInt(entry.uncompressedSize))
             default:
-                throw BlocktopographError.unsupported("ZIP 压缩方法 \(entry.method)")
+                throw MCBEEditorError.unsupported("ZIP 压缩方法 \(entry.method)")
             }
             guard content.count == entry.uncompressedSize else {
-                throw BlocktopographError.invalidArchive("解压后长度不匹配：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("解压后长度不匹配：\(entry.path)")
             }
             guard BTCompressionBridge.crc32(content) == entry.crc32 else {
-                throw BlocktopographError.invalidArchive("CRC 校验失败：\(entry.path)")
+                throw MCBEEditorError.invalidArchive("CRC 校验失败：\(entry.path)")
             }
             try manager.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try content.write(to: outputURL, options: .atomic)
@@ -75,7 +75,7 @@ enum MiniZipArchive {
             includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
-            throw BlocktopographError.io("无法枚举 \(directory.path)")
+            throw MCBEEditorError.io("无法枚举 \(directory.path)")
         }
 
         struct CentralRecord {
@@ -100,17 +100,17 @@ enum MiniZipArchive {
             let isDirectory = values.isDirectory == true
             if isDirectory && !relative.hasSuffix("/") { relative.append("/") }
             guard let pathData = relative.data(using: .utf8), pathData.count <= Int(UInt16.max) else {
-                throw BlocktopographError.io("文件名过长：\(relative)")
+                throw MCBEEditorError.io("文件名过长：\(relative)")
             }
 
             let original = isDirectory ? Data() : try Data(contentsOf: fileURL, options: .mappedIfSafe)
             guard original.count <= Int(UInt32.max) else {
-                throw BlocktopographError.unsupported("单个文件超过 4 GiB：\(relative)")
+                throw MCBEEditorError.unsupported("单个文件超过 4 GiB：\(relative)")
             }
             let method: UInt16 = isDirectory || original.isEmpty ? 0 : 8
             let compressed = method == 8 ? try BTCompressionBridge.deflateRaw(original, level: 6) : original
             guard compressed.count <= Int(UInt32.max), output.count <= Int(UInt32.max) else {
-                throw BlocktopographError.unsupported("ZIP64")
+                throw MCBEEditorError.unsupported("ZIP64")
             }
             let crc = BTCompressionBridge.crc32(original)
             let localOffset = UInt32(output.count)
@@ -141,7 +141,7 @@ enum MiniZipArchive {
         }
 
         guard central.count <= Int(UInt16.max), output.count <= Int(UInt32.max) else {
-            throw BlocktopographError.unsupported("ZIP64")
+            throw MCBEEditorError.unsupported("ZIP64")
         }
         let centralOffset = UInt32(output.count)
         for record in central {
@@ -177,7 +177,7 @@ enum MiniZipArchive {
     }
 
     private static func parseCentralDirectory(_ archive: Data) throws -> [Entry] {
-        guard archive.count >= 22 else { throw BlocktopographError.invalidArchive("文件太短") }
+        guard archive.count >= 22 else { throw MCBEEditorError.invalidArchive("文件太短") }
         let minimum = max(0, archive.count - 65_557)
         var endOffset: Int?
         var cursor = archive.count - 22
@@ -188,15 +188,15 @@ enum MiniZipArchive {
             }
             cursor -= 1
         }
-        guard let eocd = endOffset else { throw BlocktopographError.invalidArchive("未找到中央目录") }
+        guard let eocd = endOffset else { throw MCBEEditorError.invalidArchive("未找到中央目录") }
         let disk = try archive.littleEndianUInt16(at: eocd + 4)
         let centralDisk = try archive.littleEndianUInt16(at: eocd + 6)
-        guard disk == 0, centralDisk == 0 else { throw BlocktopographError.unsupported("分卷 ZIP") }
+        guard disk == 0, centralDisk == 0 else { throw MCBEEditorError.unsupported("分卷 ZIP") }
         let entryCount = Int(try archive.littleEndianUInt16(at: eocd + 10))
         let centralSize = Int(try archive.littleEndianUInt32(at: eocd + 12))
         let centralOffset = Int(try archive.littleEndianUInt32(at: eocd + 16))
         guard centralOffset >= 0, centralOffset + centralSize <= archive.count else {
-            throw BlocktopographError.invalidArchive("中央目录越界")
+            throw MCBEEditorError.invalidArchive("中央目录越界")
         }
 
         var entries = [Entry]()
@@ -204,7 +204,7 @@ enum MiniZipArchive {
         var offset = centralOffset
         for _ in 0..<entryCount {
             guard try archive.littleEndianUInt32(at: offset) == centralHeaderSignature else {
-                throw BlocktopographError.invalidArchive("中央目录条目损坏")
+                throw MCBEEditorError.invalidArchive("中央目录条目损坏")
             }
             let flags = try archive.littleEndianUInt16(at: offset + 8)
             let method = try archive.littleEndianUInt16(at: offset + 10)
@@ -217,12 +217,12 @@ enum MiniZipArchive {
             let localOffset = Int(try archive.littleEndianUInt32(at: offset + 42))
             let nameStart = offset + 46
             let nameEnd = nameStart + nameLength
-            guard nameEnd <= archive.count else { throw BlocktopographError.invalidArchive("文件名越界") }
+            guard nameEnd <= archive.count else { throw MCBEEditorError.invalidArchive("文件名越界") }
             let nameData = archive.subdata(in: nameStart..<nameEnd)
             let path: String
             if flags & 0x0800 != 0 {
                 guard let decoded = String(data: nameData, encoding: .utf8) else {
-                    throw BlocktopographError.invalidArchive("UTF-8 文件名损坏")
+                    throw MCBEEditorError.invalidArchive("UTF-8 文件名损坏")
                 }
                 path = decoded
             } else {

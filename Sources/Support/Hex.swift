@@ -41,14 +41,14 @@ extension Data {
     }
 
     func littleEndianUInt16(at offset: Int) throws -> UInt16 {
-        guard offset >= 0, offset + 2 <= count else { throw BlocktopographError.malformedData("UInt16 越界") }
+        guard offset >= 0, offset + 2 <= count else { throw MCBEEditorError.malformedData("UInt16 越界") }
         return withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
             UInt16(raw[offset]) | (UInt16(raw[offset + 1]) << 8)
         }
     }
 
     func littleEndianUInt32(at offset: Int) throws -> UInt32 {
-        guard offset >= 0, offset + 4 <= count else { throw BlocktopographError.malformedData("UInt32 越界") }
+        guard offset >= 0, offset + 4 <= count else { throw MCBEEditorError.malformedData("UInt32 越界") }
         return withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
             UInt32(raw[offset]) |
             (UInt32(raw[offset + 1]) << 8) |

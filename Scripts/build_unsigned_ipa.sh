@@ -4,16 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED="$ROOT/build/DerivedData"
 OUTPUT="$ROOT/build/output"
-APP="$DERIVED/Build/Products/Release-iphoneos/Blocktopograph.app"
-IPA="$OUTPUT/Blocktopograph-iOS13-unsigned.ipa"
+APP="$DERIVED/Build/Products/Release-iphoneos/MCBEEditor.app"
+IPA="$OUTPUT/MCBEEditor-iOS13-unsigned.ipa"
 
-[[ -d "$ROOT/Blocktopograph.xcodeproj" ]] || bash "$ROOT/Scripts/bootstrap.sh"
+[[ -d "$ROOT/MCBEEditor.xcodeproj" ]] || bash "$ROOT/Scripts/bootstrap.sh"
 rm -rf "$DERIVED" "$OUTPUT"
 mkdir -p "$OUTPUT/Payload"
 
 xcodebuild \
-  -project "$ROOT/Blocktopograph.xcodeproj" \
-  -scheme Blocktopograph \
+  -project "$ROOT/MCBEEditor.xcodeproj" \
+  -scheme MCBEEditor \
   -configuration Release \
   -sdk iphoneos \
   -derivedDataPath "$DERIVED" \

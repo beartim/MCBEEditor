@@ -66,7 +66,7 @@ enum BedrockEntityCommonNBT {
 
     static func addingMissingTopLevel(_ defaults: [NBTNamedTag], to root: NBTValue) throws -> NBTValue {
         guard case .compound(var tags) = root else {
-            throw BlocktopographError.malformedData("实体 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("实体 NBT 根必须是 Compound")
         }
         var existing = Set(tags.map { $0.name.lowercased() })
         for tag in defaults where existing.insert(tag.name.lowercased()).inserted {
@@ -77,7 +77,7 @@ enum BedrockEntityCommonNBT {
 
     static func mergingTopLevel(_ additions: [NBTNamedTag], into root: NBTValue) throws -> NBTValue {
         guard case .compound(var tags) = root else {
-            throw BlocktopographError.malformedData("实体 NBT 根必须是 Compound")
+            throw MCBEEditorError.malformedData("实体 NBT 根必须是 Compound")
         }
         for addition in additions {
             if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare(addition.name) == .orderedSame }) {

@@ -164,7 +164,7 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
             guard let self = self else { return }
             do {
                 guard let value = try self.session.database().get(key) else {
-                    throw BlocktopographError.malformedData("该键没有值或已被删除")
+                    throw MCBEEditorError.malformedData("该键没有值或已被删除")
                 }
                 let record = MetadataNBTStore.makeRecord(key: key, value: value)
                 DispatchQueue.main.async {

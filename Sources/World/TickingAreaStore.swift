@@ -299,7 +299,7 @@ final class TickingAreaStore {
 
     static func validate(_ records: [BedrockTickingAreaRecord]) throws {
         guard records.count <= maximumAreaCount else {
-            throw BlocktopographError.unsupported("基岩版每个世界最多支持 \(maximumAreaCount) 个常加载区域")
+            throw MCBEEditorError.unsupported("基岩版每个世界最多支持 \(maximumAreaCount) 个常加载区域")
         }
         for record in records {
             try validate(record.area)
@@ -309,13 +309,13 @@ final class TickingAreaStore {
     static func validate(_ area: BedrockTickingArea) throws {
         let value = area.normalized
         guard BedrockDimension(rawValue: value.dimension) != nil else {
-            throw BlocktopographError.unsupported("不支持维度 \(value.dimension)")
+            throw MCBEEditorError.unsupported("不支持维度 \(value.dimension)")
         }
         if value.isCircle, value.radius > maximumCircleRadius {
-            throw BlocktopographError.unsupported("圆形常加载区域半径最多为 \(maximumCircleRadius) 个区块")
+            throw MCBEEditorError.unsupported("圆形常加载区域半径最多为 \(maximumCircleRadius) 个区块")
         }
         guard value.chunkCount > 0, value.chunkCount <= maximumChunksPerArea else {
-            throw BlocktopographError.unsupported("每个常加载区域最多包含 \(maximumChunksPerArea) 个区块")
+            throw MCBEEditorError.unsupported("每个常加载区域最多包含 \(maximumChunksPerArea) 个区块")
         }
     }
 
@@ -329,7 +329,7 @@ final class TickingAreaStore {
 
     private static func decodeArea(from document: NBTDocument) throws -> BedrockTickingArea {
         guard case .compound(let tags) = document.root else {
-            throw BlocktopographError.malformedData("tickingarea 根标签不是 Compound")
+            throw MCBEEditorError.malformedData("tickingarea 根标签不是 Compound")
         }
         func value(_ name: String) -> NBTValue? { tags.first(where: { $0.name == name })?.value }
         func integer(_ name: String) -> Int32? {
@@ -351,7 +351,7 @@ final class TickingAreaStore {
         guard let dimension = integer("Dimension"),
               let minX = integer("MinX"), let minZ = integer("MinZ"),
               let maxX = integer("MaxX"), let maxZ = integer("MaxZ") else {
-            throw BlocktopographError.malformedData("tickingarea 缺少 Dimension/MinX/MinZ/MaxX/MaxZ")
+            throw MCBEEditorError.malformedData("tickingarea 缺少 Dimension/MinX/MinZ/MaxX/MaxZ")
         }
         return BedrockTickingArea(
             dimension: dimension,

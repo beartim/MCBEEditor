@@ -11,7 +11,7 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
     init(title: String, document: NBTDocument, rawData: Data, exportFilename: String? = nil) {
         self.document = document
         self.rawData = rawData
-        self.exportFilename = exportFilename ?? "blocktopograph-nbt-\(UUID().uuidString.prefix(8)).bin"
+        self.exportFilename = exportFilename ?? "mcbeeditor-nbt-\(UUID().uuidString.prefix(8)).bin"
         super.init(style: .insetGrouped)
         self.title = title
     }

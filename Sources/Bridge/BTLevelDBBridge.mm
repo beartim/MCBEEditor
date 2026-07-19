@@ -21,7 +21,7 @@
 #include "leveldb/zlib_compressor.h"
 #include "leveldb/write_batch.h"
 
-static NSString * const BTLevelDBErrorDomain = @"Blocktopograph.LevelDB";
+static NSString * const BTLevelDBErrorDomain = @"MCBEEditor.LevelDB";
 
 static NSError *BTStatusError(const leveldb::Status &status, NSString *operation) {
     NSString *message = [NSString stringWithUTF8String:status.ToString().c_str()] ?: @"Unknown LevelDB error";

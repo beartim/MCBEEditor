@@ -45,7 +45,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Blocktopograph"
+        title = "MCBEEditor"
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .add,
             target: self,
@@ -160,7 +160,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
 
     private func showAbout() {
         let alert = UIAlertController(
-            title: "Blocktopograph 1.0.0",
+            title: "MCBEEditor 1.0.0",
             message: "原生 iOS 13 版。支持 Bedrock 世界、NBT/mcstructure/JSON 文件读取修改、Java 结构转换、连续多根 NBT、地图与 LevelDB 编辑。当前固定版本 1.0.0。导入内容会复制到 App 沙盒。GNU AGPL-3.0-or-later，无任何担保。",
             preferredStyle: .alert
         )
@@ -186,7 +186,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             }
             guard !fileURLs.isEmpty else {
                 showError(
-                    BlocktopographError.invalidWorld("所选项目不是 .mcworld 或 ZIP 文件。请选择“世界目录”入口导入文件夹。"),
+                    MCBEEditorError.invalidWorld("所选项目不是 .mcworld 或 ZIP 文件。请选择“世界目录”入口导入文件夹。"),
                     title: "无法导入"
                 )
                 return
@@ -298,7 +298,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             guard !candidates.isEmpty else {
                 let alert = UIAlertController(
                     title: "未找到世界",
-                    message: "可在“文件”App 的“在我的 iPhone/iPad 上 → Blocktopograph”中放入 .mcworld、ZIP 或完整世界目录，然后再次扫描。",
+                    message: "可在“文件”App 的“在我的 iPhone/iPad 上 → MCBEEditor”中放入 .mcworld、ZIP 或完整世界目录，然后再次扫描。",
                     preferredStyle: .alert
                 )
                 alert.addAction(UIAlertAction(title: "确定", style: .default))
@@ -412,7 +412,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
                 ? "点击右上角 + 导入 .mcworld 或世界目录"
                 : "没有符合搜索条件的世界"
             cell.detailTextLabel?.text = store.worlds.isEmpty
-                ? "也可从“文件”直接用 Blocktopograph 打开 .mcworld"
+                ? "也可从“文件”直接用 MCBEEditor 打开 .mcworld"
                 : "尝试其他关键词"
             cell.detailTextLabel?.textColor = .secondaryLabel
             cell.textLabel?.textColor = .secondaryLabel

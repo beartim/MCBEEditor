@@ -73,8 +73,8 @@ jobs:
       - name: Build simulator target
         run: |
           xcodebuild \
-            -project Blocktopograph.xcodeproj \
-            -scheme Blocktopograph \
+            -project MCBEEditor.xcodeproj \
+            -scheme MCBEEditor \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
@@ -87,6 +87,6 @@ jobs:
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v6
         with:
-          name: Blocktopograph-iOS13-unsigned
-          path: build/output/Blocktopograph-iOS13-unsigned.ipa
+          name: MCBEEditor-iOS13-unsigned
+          path: build/output/MCBEEditor-iOS13-unsigned.ipa
           if-no-files-found: error
