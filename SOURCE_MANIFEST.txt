@@ -1,6 +1,7 @@
 .github/workflows/build-ios.yml
 .gitignore
 APPLY.md
+CHANGES_CODE_AUDIT.md
 CHANGES_GIVE_EXISTING_MAINHAND.md
 CHANGES_MCBEDITOR_PLAYER_MAP_RENAME.md
 CHANGES_v1.1.0.md
@@ -76,6 +77,7 @@ Sources/Chunk/BedrockSubChunkEditor.swift
 Sources/Chunk/ChunkSurfaceRenderer.swift
 Sources/Chunk/HardcodedSpawners.swift
 Sources/Chunk/MapCoordinate.swift
+Sources/Chunk/MapRenderSampling.swift
 Sources/Command/WorldCommand.swift
 Sources/Command/WorldCommandExecutor.swift
 Sources/Entity/BedrockEntityCommonNBT.swift

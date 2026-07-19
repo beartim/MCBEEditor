@@ -758,7 +758,118 @@ for expected in \
 done
 
 echo "iOS 13 document import compatibility passed"
+
+cat > "$TMP/WorldStoreRecoveryStubs.swift" <<'SWIFT'
+import Foundation
+
+struct LevelDatEnvelope { var document: NBTDocument }
+final class WorldDocument {
+    let rootURL: URL
+    init(rootURL: URL) { self.rootURL = rootURL }
+    func readLevelDat() throws -> LevelDatEnvelope {
+        LevelDatEnvelope(document: NBTDocument(rootName: "", root: .compound([])))
+    }
+    func writeLevelDat(_ value: LevelDatEnvelope) throws {}
+}
+SWIFT
+cat > "$TMP/world_store_recovery_test.swift" <<'SWIFT'
+import Foundation
+
+@main
+struct WorldStoreRecoveryTests {
+    static func main() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(
+            "MCBEEditor-WorldStore-\(UUID().uuidString)", isDirectory: true)
+        defer { try? manager.removeItem(at: root) }
+        try manager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let id = UUID()
+        let world = ImportedWorld(
+            id: id, name: "Recovered", relativePath: "Worlds/\(id.uuidString)",
+            importedAt: Date(timeIntervalSince1970: 1_700_000_000), sourceKind: .folder)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try AtomicFile.write(
+            try encoder.encode([world]), to: root.appendingPathComponent("worlds.json"))
+
+        let staged = root.appendingPathComponent(
+            ".DeletionStaging/\(id.uuidString)/World", isDirectory: true)
+        try manager.createDirectory(at: staged, withIntermediateDirectories: true)
+        try Data("sentinel".utf8).write(to: staged.appendingPathComponent("level.dat"))
+
+        let committedID = UUID()
+        let committedStage = root.appendingPathComponent(
+            ".DeletionStaging/\(committedID.uuidString)/World", isDirectory: true)
+        try manager.createDirectory(at: committedStage, withIntermediateDirectories: true)
+        try Data("delete".utf8).write(to: committedStage.appendingPathComponent("level.dat"))
+
+        let store = WorldStore(rootURL: root, manager: manager)
+        precondition(store.worlds == [world])
+        precondition(manager.fileExists(
+            atPath: store.worldURL(for: world).appendingPathComponent("level.dat").path))
+        precondition(!manager.fileExists(
+            atPath: root.appendingPathComponent(".DeletionStaging/\(id.uuidString)").path))
+        precondition(!manager.fileExists(
+            atPath: root.appendingPathComponent(".DeletionStaging/\(committedID.uuidString)").path))
+        print("WorldStore interrupted-deletion recovery tests passed")
+    }
+}
+SWIFT
+swiftc \
+  "$ROOT/Sources/Support/Errors.swift" \
+  "$ROOT/Sources/Support/AtomicFile.swift" \
+  "$ROOT/Sources/NBT/NBTTypes.swift" \
+  "$ROOT/Sources/World/WorldStore.swift" \
+  "$TMP/WorldStoreRecoveryStubs.swift" \
+  "$TMP/world_store_recovery_test.swift" \
+  -o "$TMP/world-store-recovery-tests"
+"$TMP/world-store-recovery-tests"
+
 echo "World list management enhancements passed"
+
+# Fixed 1.0.0 code audit: shared implementations, transactional world-name
+# writes, bounded archive extraction, and removed superseded map helpers.
+for expected in \
+  'enum NBTTreeRows' \
+  'struct MapChunkSamplingPlan' \
+  'func scanRegionAdaptive(' \
+  'captureWorldNameFiles(at rootURL:' \
+  'maximumTotalExtractedSize'; do
+  grep -R -qF "$expected" "$ROOT/Sources" || {
+    echo "error: audited shared/safety implementation is missing: $expected" >&2
+    exit 1
+  }
+done
+for obsolete in \
+  'private func jumpToSpawn()' \
+  'private func presentSpawnChoice(' \
+  'private func showChunkList()' \
+  'private func entityScanRadius(' \
+  'private func prefetchBorder('; do
+  if grep -qF "$obsolete" "$ROOT/Sources/UI/WorldMapViewController.swift"; then
+    echo "error: superseded map helper is still present: $obsolete" >&2
+    exit 1
+  fi
+done
+for editor in \
+  NBTTreeViewController.swift \
+  PlayerNBTEditorViewController.swift \
+  ReadOnlyNBTViewController.swift \
+  StandaloneNBTEditorViewController.swift \
+  StructureNBTEditorViewController.swift \
+  VillageNBTEditorViewController.swift \
+  WorldObjectNBTEditorViewController.swift; do
+  grep -qF 'NBTTreeRows.' "$ROOT/Sources/UI/$editor" || {
+    echo "error: $editor does not use the shared NBT tree traversal" >&2
+    exit 1
+  }
+done
+if grep -R -nE 'try!|as!|first!|last!' "$ROOT/Sources" --include='*.swift'; then
+  echo 'error: avoidable Swift force operation remains in application sources' >&2
+  exit 1
+fi
+echo 'Code-audit shared implementation and safety checks passed'
 
 # Map read regression: a missing LevelDB key is a normal optional result. Do
 # not expose it through an Objective-C nullable object + NSError** method,
@@ -784,12 +895,13 @@ grep -qF 'let result = bridge.readResult(forKey: key)' "$ROOT/Sources/LevelDB/Mo
   exit 1
 }
 for expected in \
-  'jumpToSpawn' \
   'shareRenderedMap' \
   'showRenderDiagnostics' \
   'scheduleAutoRender' \
   'autoRenderAtViewportCenter' \
-  'prefetchBorder' \
+  'maximumMapCanvasSidePoints' \
+  'effectiveZoomScale' \
+  'MapChunkSamplingPlan' \
   'renderGeneration' \
   'dimensionControl.addTarget'; do
   grep -qF "$expected" "$ROOT/Sources/UI/WorldMapViewController.swift" || {
@@ -825,6 +937,76 @@ done
   }
 
 echo "LevelDB optional read regression passed"
+
+cat > "$TMP/map_sampling_test.swift" <<'SWIFT'
+import Foundation
+
+@main
+struct MapSamplingTests {
+    static func main() {
+        let exact = MapChunkSamplingPlan.make(
+            sideChunks: 5, leftChunks: 2, maximumSamplesPerAxis: 64)
+        precondition(exact.stride == 1)
+        precondition(exact.sampleCount == 25)
+        precondition(!exact.isDownsampled)
+        precondition(exact.xAxis.first?.startOffset == -2)
+        precondition(exact.xAxis.last?.endOffset == 2)
+
+        let large = MapChunkSamplingPlan.make(
+            sideChunks: 1_000, leftChunks: 499, maximumSamplesPerAxis: 64)
+        precondition(large.stride == 16)
+        precondition(large.xAxis.count <= 64)
+        precondition(large.zAxis.count <= 64)
+        precondition(large.xAxis.first?.startOffset == -499)
+        precondition(large.xAxis.last?.endOffset == 500)
+        precondition(large.isDownsampled)
+        precondition(MapChunkSamplingPlan.safeChunkCoordinate(center: Int32.max, offset: 1) == nil)
+        precondition(MapChunkSamplingPlan.safeChunkCoordinate(center: 10, offset: -3) == 7)
+        print("Adaptive map sampling tests passed")
+    }
+}
+SWIFT
+swiftc "$ROOT/Sources/Chunk/MapRenderSampling.swift" "$TMP/map_sampling_test.swift" -o "$TMP/map-sampling-tests"
+"$TMP/map-sampling-tests"
+
+cat > "$TMP/nbt_tree_rows_test.swift" <<'SWIFT'
+import Foundation
+
+@main
+struct NBTTreeRowsTests {
+    static func main() {
+        let root = NBTValue.compound([
+            NBTNamedTag(name: "Player", value: .compound([
+                NBTNamedTag(name: "Level", value: .int(37)),
+                NBTNamedTag(name: "Inventory", value: .list(.string, [.string("stone")]))
+            ])),
+            NBTNamedTag(name: "Time", value: .long(12_000))
+        ])
+        let playerPath: [NBTPathComponent] = [.compound("Player")]
+        let inventoryPath: [NBTPathComponent] = [.compound("Player"), .compound("Inventory")]
+        let rows = NBTTreeRows.visibleChildren(
+            of: root, expanded: Set([playerPath, inventoryPath]))
+        precondition(rows.map(\.name) == ["Player", "Level", "Inventory", "[0]", "Time"])
+        let search = NBTTreeRows.search(in: root, query: "stone")
+        precondition(search.count == 1)
+        precondition(search[0].pathDescription == "/Player/Inventory[0]")
+        print("Shared NBT tree traversal tests passed")
+    }
+}
+SWIFT
+swiftc \
+  "$ROOT/Sources/Support/Errors.swift" \
+  "$ROOT/Sources/NBT/NBTTypes.swift" \
+  "$ROOT/Sources/UI/NBTNode.swift" \
+  "$TMP/nbt_tree_rows_test.swift" \
+  -o "$TMP/nbt-tree-rows-tests"
+"$TMP/nbt-tree-rows-tests"
+
+if grep -qF 'private func prefetchBorder(' "$ROOT/Sources/UI/WorldMapViewController.swift"; then
+  echo "error: obsolete unused map prefetch function remains" >&2
+  exit 1
+fi
+
 echo "Infinite map panning, cache and layer enhancements passed"
 
 # v0.6.0: pinch zoom and entity/block-entity inspection.
