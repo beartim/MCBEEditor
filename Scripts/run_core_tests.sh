@@ -335,6 +335,10 @@ struct Main {
             preconditionFailure("experience query must reject extra parameters")
         } catch {}
         do {
+            _ = try WorldCommandParser.parse("experience set @s -1")
+            preconditionFailure("experience set must reject negative total XP")
+        } catch {}
+        do {
             _ = try WorldCommandParser.parse("time ceil dusk")
             preconditionFailure("time ceil must reject unknown periods")
         } catch {}
@@ -2386,10 +2390,11 @@ for expected in \
 done
 echo 'Numeric entity ID mapping, selected-position filters and chunk batch processing passed'
 
-# v0.11.2 / v1.0.0: zoom-driven dynamic chunk windows, now capped at an
-# exact even-or-odd side length of 64×64 chunks.
-grep -q 'private let maximumDynamicSideChunks = 64' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'dynamicRenderSideChunks(forZoomScale:' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'refreshForZoomDrivenRadiusIfNeeded()' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'let rightChunks = sideChunks - leftChunks - 1' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
-  echo 'error: 64x64 zoom-driven dynamic chunk rendering is missing' >&2; exit 1;
+# v0.11.2 / v1.0.0: zoom-driven dynamic chunk windows without a fixed
+# side-length cap. The UIScrollView zoom range expands as either boundary is
+# reached so the application does not impose a fixed zoom limit.
+! grep -q 'maximumDynamicSideChunks' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'dynamicRenderSideChunks(forZoomScale:' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'refreshForZoomDrivenRadiusIfNeeded()' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'expandZoomRangeIfNeeded(for:' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'maximum < CGFloat.greatestFiniteMagnitude / zoomRangeGrowthFactor' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'maximumMapRasterSidePixels' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'keepsPerBlockMetadata' "$ROOT/Sources/UI/WorldMapViewController.swift" && grep -q 'let rightChunks = sideChunks - leftChunks - 1' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
+  echo 'error: uncapped zoom-driven dynamic chunk rendering is missing' >&2; exit 1;
 }
 grep -q 'private let searchScopeControl = UISegmentedControl(items: \["层 0", "层 1", "层 0 和层 1"\])' "$ROOT/Sources/UI/ChunkListViewController.swift" && grep -q 'private let changeLayer1Switch = UISwitch()' "$ROOT/Sources/UI/ChunkListViewController.swift" || {
   echo 'error: layered search scope or layer-1 replacement switch is missing' >&2; exit 1;
@@ -3470,17 +3475,15 @@ struct EffectCommandTest {
         let localKey = Data("~local_player".utf8)
         session.db.values[localKey] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "UniqueID", value: .long(1)),
-            NBTNamedTag(name: "XpTotal", value: .int(10)),
-            NBTNamedTag(name: "XpLevel", value: .int(2)),
-            NBTNamedTag(name: "XpP", value: .float(0.25)),
+            NBTNamedTag(name: "PlayerLevel", value: .int(2)),
+            NBTNamedTag(name: "PlayerLevelProgress", value: .float(0.25)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)]))
         ])))
         let onlineKey = Data("player_server_5".utf8)
         session.db.values[onlineKey] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "UniqueID", value: .long(5)),
-            NBTNamedTag(name: "XpTotal", value: .int(20)),
-            NBTNamedTag(name: "XpLevel", value: .int(3)),
-            NBTNamedTag(name: "XpP", value: .float(0.75)),
+            NBTNamedTag(name: "PlayerLevel", value: .int(3)),
+            NBTNamedTag(name: "PlayerLevelProgress", value: .float(0.75)),
             NBTNamedTag(name: "DimensionId", value: .int(0)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(4), .float(64), .float(4)]))
         ])))
@@ -3628,19 +3631,38 @@ struct EffectCommandTest {
         let lockedRoot = try session.document.readLevelDat().document.root
         precondition(lockedRoot.intValue(named: "dodaylightcycle") == 0)
 
+        let uploadedSaveExperience = BedrockPlayerExperience(level: 37, progress: 0.79348814)
+        precondition(uploadedSaveExperience.total == 2507)
+        let uploadedSaveRoundTrip = try BedrockPlayerExperience.fromTotal(uploadedSaveExperience.total)
+        precondition(uploadedSaveRoundTrip.level == 37)
+        precondition(abs(uploadedSaveRoundTrip.progress - Float(139.0 / 175.0)) < 0.0001)
+        precondition(BedrockPlayerExperience.totalRequired(toReach: 16) == 352)
+        precondition(BedrockPlayerExperience.totalRequired(toReach: 17) == 394)
+        precondition(BedrockPlayerExperience.totalRequired(toReach: 31) == 1507)
+        precondition(BedrockPlayerExperience.totalRequired(toReach: 32) == 1628)
+
         let experienceAmount = try executor.execute(try WorldCommandParser.parse("experience amount @a 100"))
         precondition(experienceAmount.changedWorld)
         var localExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[localKey]!))
         var onlineExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[onlineKey]!))
-        precondition(localExperience.total == 110 && onlineExperience.total == 120)
+        precondition(localExperience.total == 119 && onlineExperience.total == 137)
         _ = try executor.execute(try WorldCommandParser.parse("experience level @s 5"))
         _ = try executor.execute(try WorldCommandParser.parse("experience percent @s 0.5"))
-        _ = try executor.execute(try WorldCommandParser.parse("experience set 5 -250"))
-        localExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[localKey]!))
-        onlineExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[onlineKey]!))
-        precondition(localExperience.level == 7)
+        _ = try executor.execute(try WorldCommandParser.parse("experience set 5 250"))
+        let localExperienceDocument = try BedrockNBTCodec.decode(session.db.values[localKey]!)
+        let onlineExperienceDocument = try BedrockNBTCodec.decode(session.db.values[onlineKey]!)
+        localExperience = try ExperienceStore.read(from: localExperienceDocument)
+        onlineExperience = try ExperienceStore.read(from: onlineExperienceDocument)
+        precondition(localExperience.level == 13)
         precondition(abs(localExperience.progress - 0.5) < 0.0001)
-        precondition(onlineExperience.total == -250)
+        precondition(localExperience.total == 264)
+        precondition(onlineExperience.total == 250)
+        precondition(onlineExperience.level == 13)
+        precondition(localExperienceDocument.root.intValue(named: "PlayerLevel") == 13)
+        precondition(localExperienceDocument.root.compoundValue(named: "PlayerLevelProgress") != nil)
+        precondition(localExperienceDocument.root.compoundValue(named: "XpTotal") == nil)
+        precondition(localExperienceDocument.root.compoundValue(named: "XpLevel") == nil)
+        precondition(localExperienceDocument.root.compoundValue(named: "XpP") == nil)
         let experienceQuery = try executor.execute(try WorldCommandParser.parse("experience query @a"))
         precondition(!experienceQuery.changedWorld && experienceQuery.outputLines.count == 2)
         precondition(experienceQuery.outputLines[0].text.contains("minecraft:player 1"))

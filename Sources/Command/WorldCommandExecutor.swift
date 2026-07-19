@@ -528,7 +528,7 @@ final class WorldCommandExecutor {
                 let experience = try ExperienceStore.read(from: record.document)
                 let uniqueID = playerUniqueID(record).map(String.init) ?? "无UniqueID"
                 let text = String(
-                    format: "minecraft:player %@ 经验总数 %d 经验等级 %d 当前经验条进度 %.3f",
+                    format: "minecraft:player %@ 经验总数 %lld 经验等级 %d 当前经验条进度 %.3f",
                     uniqueID,
                     experience.total,
                     experience.level,
@@ -552,29 +552,24 @@ final class WorldCommandExecutor {
             var experience = try ExperienceStore.read(from: record.document)
             switch operation {
             case .amount(_, let delta):
-                let current = Int64(experience.total)
-                let (sum, overflow) = current.addingReportingOverflow(delta)
+                let (sum, overflow) = experience.total.addingReportingOverflow(delta)
                 guard !overflow else {
                     throw BlocktopographError.malformedData("experience amount 结果超出 Int64 范围")
                 }
-                guard let total = Int32(exactly: sum) else {
-                    throw BlocktopographError.malformedData("experience amount 结果必须在 Int32 范围内")
-                }
-                experience.total = total
+                let bounded = min(BedrockPlayerExperience.maximumTotal, max(0, sum))
+                experience = try BedrockPlayerExperience.fromTotal(bounded)
             case .level(_, let delta):
                 let current = Int64(experience.level)
                 let (sum, overflow) = current.addingReportingOverflow(delta)
                 guard !overflow else {
                     throw BlocktopographError.malformedData("experience level 结果超出 Int64 范围")
                 }
-                experience.level = Int32(clamping: min(Int64(BedrockPlayerExperience.maximumLevel), max(0, sum)))
+                let level = Int32(clamping: min(Int64(BedrockPlayerExperience.maximumLevel), max(0, sum)))
+                experience = BedrockPlayerExperience(level: level, progress: experience.progress)
             case .percent(_, let progress):
-                experience.progress = progress
+                experience = BedrockPlayerExperience(level: experience.level, progress: progress)
             case .set(_, let total):
-                guard let exactTotal = Int32(exactly: total) else {
-                    throw BlocktopographError.malformedData("experience set 的经验总数必须在 Int32 范围内")
-                }
-                experience.total = exactTotal
+                experience = try BedrockPlayerExperience.fromTotal(total)
             case .query:
                 break
             }

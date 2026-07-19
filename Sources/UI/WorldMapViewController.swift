@@ -599,11 +599,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private let panMarginFactor: CGFloat = 0.75
     // The render window is derived entirely from the current viewport and
     // zoom level. A two-chunk border remains preloaded around the visible
-    // area. Dynamic loading is capped at exactly 64×64 chunks; panning
-    // continues indefinitely by recentering the in-memory window.
+    // area. There is no application-defined chunk-side limit: zooming out
+    // expands the rendered region to cover the current viewport.
     private let minimumDynamicSideChunks = 3
     private let dynamicPreloadBorderChunks = 2
-    private let maximumDynamicSideChunks = 64
+    // These are only the initial gesture bounds. They expand by a factor of
+    // two whenever the user reaches either edge, so there is no fixed zoom
+    // range while avoiding one huge jump on the first pinch.
+    private let initialMinimumZoomScale: CGFloat = 0.08
+    private let initialMaximumZoomScale: CGFloat = 32
+    private let zoomRangeGrowthFactor: CGFloat = 2
+    // Raster and per-block metadata are detail limits, not world-extent
+    // limits. Large regions continue to include every requested chunk but are
+    // composited at a lower pixel density; taps read the selected column from
+    // LevelDB when the per-block cache is intentionally omitted.
+    private let maximumMapRasterSidePixels: CGFloat = 8_192
+    private let maximumPerBlockMetadataSide = 2_048
     private let xField = UITextField()
     private let zField = UITextField()
     private let coordinateModeControl = UISegmentedControl(items: ["区块坐标", "方块坐标"])
@@ -940,8 +951,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         statusLabel.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
 
         scrollView.delegate = self
-        scrollView.minimumZoomScale = 0.08
-        scrollView.maximumZoomScale = 32
+        scrollView.minimumZoomScale = initialMinimumZoomScale
+        scrollView.maximumZoomScale = initialMaximumZoomScale
         scrollView.bouncesZoom = true
         scrollView.alwaysBounceHorizontal = true
         scrollView.alwaysBounceVertical = true
@@ -1538,7 +1549,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     self.applyViewport(anchor: anchor)
                     self.updateObjectOverlay()
                     let diagnosticHint = result.errors.isEmpty ? "" : "；点按状态查看错误"
-                    let cappedHint = sideChunks == self.maximumDynamicSideChunks ? "；已达到 64×64 区块渲染上限" : ""
                     let layerDetail: String
                     switch mode {
                     case .tickingAreas:
@@ -1548,15 +1558,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                     default:
                         layerDetail = "缓存命中 \(result.cacheHits)/\(result.cacheHits + result.cacheMisses)；解码 \(result.decoded) 个 SubChunk"
                     }
-                    self.statusLabel.text = "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)\(cappedHint)。缩放会自动扩展可见区块；拖动可持续续载。"
+                    self.statusLabel.text = "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
                     self.saveMapState()
                     DispatchQueue.main.async { [weak self] in
                         self?.refreshForZoomDrivenRadiusIfNeeded()
                     }
                 }
 
-                // The viewport already includes a preload border. Avoid an
-                // additional hidden border so no render pass exceeds 64×64 chunks.
+                // The viewport already includes a preload border, so no
+                // additional hidden border is required.
             } catch is MapRenderCancelled {
                 DispatchQueue.main.async {
                     overlay?.removeFromSuperview()
@@ -1675,8 +1685,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     ) throws -> RenderedMapRegion {
         let rightChunks = sideChunks - leftChunks - 1
         let sideBlocks = sideChunks * 16
-        var names = Array(repeating: "minecraft:air", count: sideBlocks * sideBlocks)
-        var heights = Array(repeating: Int16.min, count: sideBlocks * sideBlocks)
+        let keepsPerBlockMetadata = sideBlocks <= maximumPerBlockMetadataSide
+        var names: [String] = keepsPerBlockMetadata
+            ? Array(repeating: "minecraft:air", count: sideBlocks * sideBlocks)
+            : []
+        var heights: [Int16] = keepsPerBlockMetadata
+            ? Array(repeating: Int16.min, count: sideBlocks * sideBlocks)
+            : []
         var chunkImages = Array<UIImage?>(repeating: nil, count: sideChunks * sideChunks)
         var decoded = 0
         var errors = additionalErrors
@@ -1709,11 +1724,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                 if !matches.isEmpty { visibleTickingChunkCount += 1 }
                 chunkImages[chunkRow * sideChunks + chunkColumn] = makeTickingAreaChunkImage(matches: matches)
                 let name = matches.isEmpty ? "blocktopograph:non_ticking_chunk" : "blocktopograph:ticking_chunk"
-                for localZ in 0..<16 {
-                    for localX in 0..<16 {
-                        let destination = (originZ + localZ) * sideBlocks + originX + localX
-                        names[destination] = name
-                        heights[destination] = 0
+                if keepsPerBlockMetadata {
+                    for localZ in 0..<16 {
+                        for localX in 0..<16 {
+                            let destination = (originZ + localZ) * sideBlocks + originX + localX
+                            names[destination] = name
+                            heights[destination] = 0
+                        }
                     }
                 }
                 cacheMisses += 1
@@ -1726,12 +1743,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             decoded += chunk.decodedSubChunks
             errors.append(contentsOf: chunk.errors.map { "(\(chunkX),\(chunkZ)) \($0)" })
             chunkImages[chunkRow * sideChunks + chunkColumn] = chunk.image
-            for localZ in 0..<16 {
-                for localX in 0..<16 {
-                    let source = localZ * 16 + localX
-                    let destination = (originZ + localZ) * sideBlocks + originX + localX
-                    names[destination] = chunk.blockNames[source]
-                    heights[destination] = chunk.blockHeights[source]
+            if keepsPerBlockMetadata {
+                for localZ in 0..<16 {
+                    for localX in 0..<16 {
+                        let source = localZ * 16 + localX
+                        let destination = (originZ + localZ) * sideBlocks + originX + localX
+                        names[destination] = chunk.blockNames[source]
+                        heights[destination] = chunk.blockHeights[source]
+                    }
                 }
             }
         }
@@ -1788,29 +1807,53 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
 
 
+        // Keep the output bitmap bounded while allowing the represented world
+        // region to grow without a fixed chunk limit. Small/medium regions
+        // retain the original eight pixels per block; very large regions are
+        // downsampled and stretched with nearest-neighbour filtering by the
+        // image view.
+        let logicalSide = CGFloat(sideBlocks)
+        let rendererSide = min(logicalSide, maximumMapRasterSidePixels)
+        let blockToRenderer = rendererSide / logicalSide
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = true
-        format.scale = 8
-        let image = UIGraphicsImageRenderer(size: CGSize(width: sideBlocks, height: sideBlocks), format: format).image { context in
+        if logicalSide <= maximumMapRasterSidePixels {
+            format.scale = max(1, min(8, floor(maximumMapRasterSidePixels / logicalSide)))
+        } else {
+            format.scale = 1
+        }
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: rendererSide, height: rendererSide),
+            format: format
+        ).image { context in
             let cg = context.cgContext
             cg.interpolationQuality = .none
             cg.setAllowsAntialiasing(false)
             cg.setShouldAntialias(false)
             UIColor.systemGray5.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: sideBlocks, height: sideBlocks))
+            context.fill(CGRect(x: 0, y: 0, width: rendererSide, height: rendererSide))
+            let renderedChunkSide = 16 * blockToRenderer
             for chunkRow in 0..<sideChunks {
                 for chunkColumn in 0..<sideChunks {
                     chunkImages[chunkRow * sideChunks + chunkColumn]?.draw(
-                        in: CGRect(x: chunkColumn * 16, y: chunkRow * 16, width: 16, height: 16)
+                        in: CGRect(
+                            x: CGFloat(chunkColumn) * renderedChunkSide,
+                            y: CGFloat(chunkRow) * renderedChunkSide,
+                            width: renderedChunkSide,
+                            height: renderedChunkSide
+                        )
                     )
                 }
             }
-            if drawGrid {
+            if drawGrid, renderedChunkSide >= 1 {
                 cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
-                cg.setLineWidth(0.15)
-                for value in stride(from: 0, through: sideBlocks, by: 16) {
-                    cg.move(to: CGPoint(x: value, y: 0)); cg.addLine(to: CGPoint(x: value, y: sideBlocks))
-                    cg.move(to: CGPoint(x: 0, y: value)); cg.addLine(to: CGPoint(x: sideBlocks, y: value))
+                cg.setLineWidth(max(0.15, blockToRenderer * 0.15))
+                for value in 0...sideChunks {
+                    let position = CGFloat(value) * renderedChunkSide
+                    cg.move(to: CGPoint(x: position, y: 0))
+                    cg.addLine(to: CGPoint(x: position, y: rendererSide))
+                    cg.move(to: CGPoint(x: 0, y: position))
+                    cg.addLine(to: CGPoint(x: rendererSide, y: position))
                 }
                 cg.strokePath()
             }
@@ -2121,15 +2164,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     private func pixelAlignedZoomScale(_ proposedScale: CGFloat) -> CGFloat {
+        expandZoomRangeIfNeeded(for: proposedScale)
+        let clamped = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, proposedScale))
         let pixelsPerBlockAtScaleOne = basePointsPerBlock * UIScreen.main.scale
-        guard pixelsPerBlockAtScaleOne > 0 else { return proposedScale }
-        var aligned = round(proposedScale * pixelsPerBlockAtScaleOne) / pixelsPerBlockAtScaleOne
-        if aligned < scrollView.minimumZoomScale {
-            aligned = ceil(scrollView.minimumZoomScale * pixelsPerBlockAtScaleOne) / pixelsPerBlockAtScaleOne
-        }
-        if aligned > scrollView.maximumZoomScale {
-            aligned = floor(scrollView.maximumZoomScale * pixelsPerBlockAtScaleOne) / pixelsPerBlockAtScaleOne
-        }
+        guard pixelsPerBlockAtScaleOne > 0 else { return clamped }
+
+        // Below one device pixel per block, integer-pixel alignment would jump
+        // back to a much larger scale and prevent continuous zooming out.
+        guard clamped * pixelsPerBlockAtScaleOne >= 1 else { return clamped }
+        let aligned = round(clamped * pixelsPerBlockAtScaleOne) / pixelsPerBlockAtScaleOne
         return min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, aligned))
     }
 
@@ -2246,7 +2289,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     private func mapPosition(at point: CGPoint) -> (localX: Int, localZ: Int, absoluteX: Int64, absoluteZ: Int64)? {
         let side = renderedSideChunks * 16
-        guard !lastBlockNames.isEmpty, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
+        guard lastRenderedImage != nil, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return nil }
         let localX = min(side - 1, max(0, Int(point.x / imageView.bounds.width * CGFloat(side))))
         let localZ = min(side - 1, max(0, Int(point.y / imageView.bounds.height * CGFloat(side))))
         let startChunkX = renderedStartChunkX
@@ -2399,7 +2442,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         case .changed:
             guard let originZoom = selectionPinchOriginZoom,
                   let anchor = selectionPinchAnchorContent else { return }
-            let target = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, originZoom * recognizer.scale))
+            let proposedScale = originZoom * recognizer.scale
+            expandZoomRangeIfNeeded(for: proposedScale)
+            let target = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, proposedScale))
             isApplyingViewport = true
             scrollView.setZoomScale(target, animated: false)
             let proposed = CGPoint(
@@ -3464,14 +3509,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     @objc private func mapDoubleTapped(_ recognizer: UITapGestureRecognizer) {
         let point = recognizer.location(in: imageView)
-        let target = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, scrollView.zoomScale * 2))
-        zoom(to: target, around: point, animated: true)
+        let proposedScale = scrollView.zoomScale * 2
+        expandZoomRangeIfNeeded(for: proposedScale)
+        zoom(to: proposedScale, around: point, animated: true)
     }
 
     @objc private func mapTwoFingerTapped(_ recognizer: UITapGestureRecognizer) {
         let point = recognizer.location(in: imageView)
-        let target = max(scrollView.minimumZoomScale, scrollView.zoomScale / 2)
-        zoom(to: target, around: point, animated: true)
+        let proposedScale = scrollView.zoomScale / 2
+        expandZoomRangeIfNeeded(for: proposedScale)
+        zoom(to: proposedScale, around: point, animated: true)
     }
 
     private func nearestWorldObject(localX: CGFloat, localZ: CGFloat) -> MapWorldObjectHit? {
@@ -3621,17 +3668,25 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     /// Calculates the dynamic chunk window from the actual viewport and zoom.
-    /// The result may be even and is capped at exactly 64×64 chunks.
+    /// No fixed side-length cap is applied; the returned window grows with the
+    /// visible area while retaining a two-chunk preload border.
     private func dynamicRenderSideChunks(forZoomScale zoomScale: CGFloat) -> Int {
         guard scrollView.bounds.width > 0, scrollView.bounds.height > 0 else {
             return minimumDynamicSideChunks
         }
-        let pointsPerBlock = max(0.01, basePointsPerBlock * max(zoomScale, 0.0001))
-        let visibleBlocksWide = Int(ceil(scrollView.bounds.width / pointsPerBlock))
-        let visibleBlocksHigh = Int(ceil(scrollView.bounds.height / pointsPerBlock))
-        let visibleChunks = Int(ceil(Double(max(visibleBlocksWide, visibleBlocksHigh)) / 16.0))
-        let desiredSide = max(minimumDynamicSideChunks, visibleChunks + dynamicPreloadBorderChunks * 2)
-        return min(maximumDynamicSideChunks, desiredSide)
+        let safeZoom = max(CGFloat.leastNormalMagnitude, zoomScale)
+        let pointsPerBlock = Double(basePointsPerBlock * safeZoom)
+        guard pointsPerBlock.isFinite, pointsPerBlock > 0 else { return minimumDynamicSideChunks }
+
+        let visibleBlocksWide = ceil(Double(scrollView.bounds.width) / pointsPerBlock)
+        let visibleBlocksHigh = ceil(Double(scrollView.bounds.height) / pointsPerBlock)
+        let visibleChunksDouble = ceil(max(visibleBlocksWide, visibleBlocksHigh) / 16.0)
+        guard visibleChunksDouble.isFinite else { return Int.max / 32 }
+
+        let numericMaximum = Int64(Int.max / 32)
+        let visibleChunks = Int64(min(Double(numericMaximum), max(0, visibleChunksDouble)))
+        let desiredSide = max(Int64(minimumDynamicSideChunks), visibleChunks + Int64(dynamicPreloadBorderChunks * 2))
+        return Int(min(numericMaximum, desiredSide))
     }
 
     private func refreshForZoomDrivenRadiusIfNeeded() {
@@ -3649,21 +3704,36 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     private func updateZoomLimits() {
         guard scrollView.bounds.width > 0, scrollView.bounds.height > 0,
               imageView.bounds.width > 0, imageView.bounds.height > 0 else { return }
-        let fit = min(scrollView.bounds.width / imageView.bounds.width, scrollView.bounds.height / imageView.bounds.height)
-        let minimum = max(0.04, min(1, fit))
-        if abs(scrollView.minimumZoomScale - minimum) > 0.0001 {
-            scrollView.minimumZoomScale = minimum
-            if scrollView.zoomScale < minimum { scrollView.zoomScale = minimum }
+        expandZoomRangeIfNeeded(for: max(scrollView.zoomScale, CGFloat.leastNormalMagnitude))
+    }
+
+    private func expandZoomRangeIfNeeded(for proposedScale: CGFloat) {
+        guard proposedScale.isFinite, proposedScale > 0 else { return }
+        var minimum = max(CGFloat.leastNormalMagnitude, scrollView.minimumZoomScale)
+        var maximum = max(minimum * zoomRangeGrowthFactor, scrollView.maximumZoomScale)
+
+        while proposedScale <= minimum * 1.001,
+              minimum > CGFloat.leastNormalMagnitude * zoomRangeGrowthFactor {
+            minimum /= zoomRangeGrowthFactor
         }
-        scrollView.maximumZoomScale = max(32, minimum * 64)
+        while proposedScale >= maximum / 1.001,
+              maximum < CGFloat.greatestFiniteMagnitude / zoomRangeGrowthFactor {
+            maximum *= zoomRangeGrowthFactor
+        }
+
+        scrollView.minimumZoomScale = minimum
+        scrollView.maximumZoomScale = maximum
     }
 
     private func setFitZoom(animated: Bool) {
-        updateZoomLimits()
-        setZoomScale(scrollView.minimumZoomScale, animated: animated)
+        guard imageView.bounds.width > 0, imageView.bounds.height > 0 else { return }
+        let fit = min(scrollView.bounds.width / imageView.bounds.width, scrollView.bounds.height / imageView.bounds.height)
+        expandZoomRangeIfNeeded(for: fit)
+        setZoomScale(fit, animated: animated)
     }
 
     private func setZoomScale(_ scale: CGFloat, animated: Bool) {
+        expandZoomRangeIfNeeded(for: scale)
         let target = pixelAlignedZoomScale(scale)
         scrollView.setZoomScale(target, animated: animated)
         showZoomHUD(autoHide: true)
@@ -3671,6 +3741,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     private func zoom(to scale: CGFloat, around point: CGPoint, animated: Bool) {
+        expandZoomRangeIfNeeded(for: scale)
         let target = pixelAlignedZoomScale(scale)
         let width = scrollView.bounds.width / target
         let height = scrollView.bounds.height / target
@@ -4359,6 +4430,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        expandZoomRangeIfNeeded(for: scrollView.zoomScale)
         updateObjectOverlay()
         if let region = selectedRegion { updateSelectionOverlay(for: region) }
         guard !isApplyingViewport else { return }

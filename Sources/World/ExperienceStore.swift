@@ -1,16 +1,84 @@
 import Foundation
 
+/// Bedrock stores player experience as `PlayerLevel` plus
+/// `PlayerLevelProgress`. There is no persistent total-XP tag. The total is
+/// derived with Minecraft's level curve and is converted back to those two
+/// fields whenever it is edited.
 struct BedrockPlayerExperience {
     static let maximumLevel: Int32 = 24_791
 
-    var total: Int32
     var level: Int32
     var progress: Float
 
-    init(total: Int32, level: Int32, progress: Float) {
-        self.total = total
+    init(level: Int32, progress: Float) {
         self.level = min(Self.maximumLevel, max(0, level))
-        self.progress = min(1, max(0, progress))
+        self.progress = min(1, max(0, progress.isFinite ? progress : 0))
+    }
+
+    /// The integer total XP represented by the stored level and progress.
+    /// Existing worlds can contain small floating-point drift, so the points
+    /// inside the current bar are recovered by rounding to the nearest point.
+    var total: Int64 {
+        let base = Self.totalRequired(toReach: level)
+        let needed = Int64(Self.pointsRequiredForNextLevel(level))
+        let fraction = min(1, max(0, Double(progress)))
+        let inside = Int64((fraction * Double(needed)).rounded(.toNearestOrAwayFromZero))
+        return min(Self.maximumTotal, base + min(needed, max(0, inside)))
+    }
+
+    static var maximumTotal: Int64 {
+        totalRequired(toReach: maximumLevel) + Int64(pointsRequiredForNextLevel(maximumLevel))
+    }
+
+    /// Converts a total XP amount into the canonical Bedrock level/progress
+    /// pair. Binary search avoids precision loss at high levels.
+    static func fromTotal(_ total: Int64) throws -> BedrockPlayerExperience {
+        guard total >= 0, total <= maximumTotal else {
+            throw BlocktopographError.malformedData("经验总数必须是 0～\(maximumTotal) 的整数")
+        }
+
+        var low: Int32 = 0
+        var high = maximumLevel
+        while low < high {
+            let middle = low + (high - low + 1) / 2
+            if totalRequired(toReach: middle) <= total {
+                low = middle
+            } else {
+                high = middle - 1
+            }
+        }
+
+        let base = totalRequired(toReach: low)
+        let needed = pointsRequiredForNextLevel(low)
+        let remaining = total - base
+        let progress = needed > 0 ? Float(Double(remaining) / Double(needed)) : 0
+        return BedrockPlayerExperience(level: low, progress: progress)
+    }
+
+    /// XP required to move from `level` to `level + 1`.
+    static func pointsRequiredForNextLevel(_ level: Int32) -> Int32 {
+        let value = max(0, level)
+        switch value {
+        case 0...15:
+            return 2 * value + 7
+        case 16...30:
+            return 5 * value - 38
+        default:
+            return 9 * value - 158
+        }
+    }
+
+    /// Total XP required to stand exactly at the beginning of `level`.
+    static func totalRequired(toReach level: Int32) -> Int64 {
+        let value = Int64(min(maximumLevel, max(0, level)))
+        switch value {
+        case 0...16:
+            return value * value + 6 * value
+        case 17...31:
+            return (5 * value * value - 81 * value + 720) / 2
+        default:
+            return (9 * value * value - 325 * value + 4_440) / 2
+        }
     }
 }
 
@@ -58,9 +126,8 @@ final class ExperienceStore {
             throw BlocktopographError.malformedData("玩家 NBT 根必须是 Compound")
         }
         return BedrockPlayerExperience(
-            total: try integer(named: "XpTotal", in: tags, default: 0),
-            level: try integer(named: "XpLevel", in: tags, default: 0),
-            progress: try floating(named: "XpP", in: tags, default: 0)
+            level: try integer(named: "PlayerLevel", in: tags, default: 0),
+            progress: try floating(named: "PlayerLevelProgress", in: tags, default: 0)
         )
     }
 
@@ -68,9 +135,12 @@ final class ExperienceStore {
         guard case .compound(var tags) = source.root else {
             throw BlocktopographError.malformedData("玩家 NBT 根必须是 Compound")
         }
-        set(name: "XpTotal", value: .int(experience.total), in: &tags)
-        set(name: "XpLevel", value: .int(experience.level), in: &tags)
-        set(name: "XpP", value: .float(experience.progress), in: &tags)
+
+        // Remove fields written by older Blocktopograph builds. Bedrock does
+        // not use them for player XP and leaving them behind is misleading.
+        remove(names: ["XpTotal", "XpLevel", "XpP"], from: &tags)
+        set(name: "PlayerLevel", value: .int(experience.level), in: &tags)
+        set(name: "PlayerLevelProgress", value: .float(experience.progress), in: &tags)
         return NBTDocument(rootName: source.rootName, root: .compound(tags))
     }
 
@@ -117,6 +187,11 @@ final class ExperienceStore {
         case .double(let number): return Float(number)
         default: throw BlocktopographError.malformedData("玩家 \(name) 标签必须是数字类型")
         }
+    }
+
+    private static func remove(names: Set<String>, from tags: inout [NBTNamedTag]) {
+        let lowered = Set(names.map { $0.lowercased() })
+        tags.removeAll { lowered.contains($0.name.lowercased()) }
     }
 
     private static func set(name: String, value: NBTValue, in tags: inout [NBTNamedTag]) {

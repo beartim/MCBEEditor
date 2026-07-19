@@ -412,7 +412,7 @@ enum WorldCommandParser {
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
         "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间写入 Duration、DurationEasy、DurationNormal、DurationHard，效果等级为零基数（输入 50 表示 51 级）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect clear @e ALL",
-        "experience": "experience amount 目标 整数\nexperience level 目标 整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 整数\n目标只能匹配玩家。amount 增减 XpTotal（最低为 0）；level 增减 XpLevel并限制在 0～24791；percent 写入 XpP；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 直接设置 Int32 范围内的经验总数。\n示例：experience amount @a 100\n示例：experience level -4294967270 -3\n示例：experience percent @s 0.5\n示例：experience query @a",
+        "experience": "experience amount 目标 整数\nexperience level 目标 整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。amount 按总经验增减并自动换算等级和经验条，结果限制在有效范围；level 增减经验等级并保留当前经验条百分比，等级限制在 0～24791；percent 修改当前经验条百分比并同步总经验；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience amount @a 100\n示例：experience level -4294967270 -3\n示例：experience percent @s 0.5\n示例：experience query @a",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
         "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
@@ -505,7 +505,7 @@ enum WorldCommandParser {
                 guard arguments.count == 3 else { throw usageError(command) }
                 return .experience(operation: .set(
                     target: try parseTarget(arguments[1]),
-                    total: try parseExperienceInteger(arguments[2], name: "经验总数", allowNegative: true)
+                    total: try parseExperienceInteger(arguments[2], name: "经验总数", allowNegative: false)
                 ))
             default:
                 throw usageError(command)
