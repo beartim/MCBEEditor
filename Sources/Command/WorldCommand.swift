@@ -187,18 +187,31 @@ enum CommandTimeOperation {
 }
 
 enum CommandExperienceOperation {
-    case amount(target: CommandTarget, delta: Int64)
-    case level(target: CommandTarget, delta: Int64)
+    case add(target: CommandTarget, delta: Int64)
+    case addLevel(target: CommandTarget, delta: Int64)
+    case level(target: CommandTarget, value: Int32)
     case percent(target: CommandTarget, progress: Float)
     case query(target: CommandTarget)
     case set(target: CommandTarget, total: Int64)
+}
+
+enum CommandGiveSlot: Hashable {
+    case automatic
+    case indexed(Int8)
+
+    var displayText: String {
+        switch self {
+        case .automatic: return "Auto"
+        case .indexed(let value): return String(value)
+        }
+    }
 }
 
 enum ParsedWorldCommand {
     case help(command: String?)
     case clear(target: CommandTarget)
     case clearSpawnPoint(target: CommandTarget)
-    case give(target: CommandTarget, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag])
+    case give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag])
     case kill(target: CommandTarget, killCreativePlayers: Bool)
     case kick(target: CommandTarget)
     case summon(identifier: String, dimension: Int32, position: CommandBlockCoordinate, additions: [NBTNamedTag])
@@ -406,17 +419,17 @@ enum WorldCommandParser {
     ]
 
     static let usage: [String: String] = [
-        "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。",
-        "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。",
-        "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。",
+        "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。\n示例：help\n示例：help give",
+        "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。\n示例：clear @e",
+        "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。\n示例：clearspawnpoint @a",
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
         "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间写入 Duration、DurationEasy、DurationNormal、DurationHard，效果等级为零基数（输入 50 表示 51 级）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect clear @e ALL",
-        "experience": "experience amount 目标 整数\nexperience level 目标 整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。amount 按总经验增减并自动换算等级和经验条，结果限制在有效范围；level 增减经验等级并保留当前经验条百分比，等级限制在 0～24791；percent 修改当前经验条百分比并同步总经验；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience amount @a 100\n示例：experience level -4294967270 -3\n示例：experience percent @s 0.5\n示例：experience query @a",
+        "experience": "experience add 目标 整数\nexperience addlevel 目标 整数\nexperience level 目标 0到24791整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。add 按总经验增减并自动换算等级和经验条；addlevel 增减经验等级并保留当前经验条百分比；level 直接设定经验等级并把经验条进度设为 0，等级范围均为 0～24791；percent 修改当前经验条百分比；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience add @a 100\n示例：experience addlevel -4294967270 -3\n示例：experience level @s 30\n示例：experience percent @s 0.5\n示例：experience query @a\n示例：experience set @s 2500",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
-        "give": "give 目标 物品 数目 物品标签\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家写入物品栏第一个空槽位，物品栏已满时替换最后一格，其他实体替换 Mainhand；没有 Mainhand 标签的实体会跳过。\n示例：give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
+        "give": "give 目标 Slot 物品 数目 物品标签\nSlot 只能是 Auto 或 0～35 的整数。目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。Auto 对玩家沿用第一个空 Inventory 槽位、满时最后一格的逻辑，对实体写入 Mainhand。整数 Slot 对玩家写入 Inventory 对应槽位；实体有 ChestItems 时写入对应槽位，超过 ChestItems 槽位数时同时写入最后一个槽位和 Mainhand；没有 ChestItems 时写入 Mainhand。\n示例：give @s Auto minecraft:stone 64 NULL\n示例：give @a 5 minecraft:diamond 3 NULL\n示例：give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
-        "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。",
+        "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。\n示例：kick @a\n示例：kick -4294967270",
         "setblock": "setblock 目标维度 x y z 层0方块名 层0states 层1方块名 层1states\nfill 的单方块版本。维度必须为 overworld、nether 或 the_end；states 格式与 fill 完全相同。\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:air NULL",
         "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
@@ -480,17 +493,23 @@ enum WorldCommandParser {
         case "experience":
             guard let action = arguments.first else { throw usageError(command) }
             switch action {
-            case "amount":
+            case "add":
                 guard arguments.count == 3 else { throw usageError(command) }
-                return .experience(operation: .amount(
+                return .experience(operation: .add(
                     target: try parseTarget(arguments[1]),
                     delta: try parseExperienceInteger(arguments[2], name: "经验值变化量", allowNegative: true)
+                ))
+            case "addlevel":
+                guard arguments.count == 3 else { throw usageError(command) }
+                return .experience(operation: .addLevel(
+                    target: try parseTarget(arguments[1]),
+                    delta: try parseExperienceInteger(arguments[2], name: "经验等级变化量", allowNegative: true)
                 ))
             case "level":
                 guard arguments.count == 3 else { throw usageError(command) }
                 return .experience(operation: .level(
                     target: try parseTarget(arguments[1]),
-                    delta: try parseExperienceInteger(arguments[2], name: "经验等级变化量", allowNegative: true)
+                    value: try parseExperienceLevel(arguments[2])
                 ))
             case "percent":
                 guard arguments.count == 3 else { throw usageError(command) }
@@ -511,12 +530,13 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "give":
-            guard arguments.count == 4 else { throw usageError(command) }
+            guard arguments.count == 5 else { throw usageError(command) }
             return .give(
                 target: try parseTarget(arguments[0]),
-                itemIdentifier: try parseNamespacedIdentifier(arguments[1], kind: "物品"),
-                count: try parseItemCount(arguments[2]),
-                itemTags: try parseStates(arguments[3])
+                slot: try parseGiveSlot(arguments[1]),
+                itemIdentifier: try parseNamespacedIdentifier(arguments[2], kind: "物品"),
+                count: try parseItemCount(arguments[3]),
+                itemTags: try parseStates(arguments[4])
             )
         case "kill":
             guard arguments.count == 2 else { throw usageError(command) }
@@ -857,6 +877,13 @@ enum WorldCommandParser {
         return value
     }
 
+    private static func parseExperienceLevel(_ text: String) throws -> Int32 {
+        guard let value = Int32(text), (0...24_791).contains(value) else {
+            throw BlocktopographError.malformedData("经验等级必须是 0～24791 的整数")
+        }
+        return value
+    }
+
     private static func parseExperiencePercent(_ text: String) throws -> Float {
         guard let value = Float(text), value.isFinite, value >= 0, value <= 1 else {
             throw BlocktopographError.malformedData("经验条进度必须是 0～1 的浮点数")
@@ -934,6 +961,14 @@ enum WorldCommandParser {
             throw BlocktopographError.malformedData("状态效果等级必须是 0…255 的整数；输入值为零基数")
         }
         return value
+    }
+
+    private static func parseGiveSlot(_ text: String) throws -> CommandGiveSlot {
+        if text == "Auto" { return .automatic }
+        guard let value = Int8(text), (0...35).contains(Int(value)) else {
+            throw BlocktopographError.malformedData("give 的 Slot 必须是 Auto 或 0～35 的整数")
+        }
+        return .indexed(value)
     }
 
     private static func parseItemCount(_ text: String) throws -> Int64 {

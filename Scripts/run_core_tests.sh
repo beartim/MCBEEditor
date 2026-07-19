@@ -202,8 +202,8 @@ struct Main {
         _ = try WorldCommandParser.parse("clear -123456789")
         _ = try WorldCommandParser.parse("clear @e")
         _ = try WorldCommandParser.parse("clearspawnpoint @a")
-        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:redstone_wire 97 NULL")
-        _ = try WorldCommandParser.parse("give minecraft:cow minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"")
+        _ = try WorldCommandParser.parse("give minecraft:cow Auto minecraft:redstone_wire 97 NULL")
+        _ = try WorldCommandParser.parse("give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"")
         let byteArrayTags = try WorldCommandParser.parseStates("'ByteArray'\"Name\"=\"[0,1]\"")
         precondition(byteArrayTags.count == 1)
         let intArrayListTags = try WorldCommandParser.parseStates("'List''IntArray'\"Name\"=\"[],[5,2]\"")
@@ -236,8 +236,9 @@ struct Main {
         _ = try WorldCommandParser.parse("spread minecraft:cow")
         _ = try WorldCommandParser.parse("daylock 0")
         _ = try WorldCommandParser.parse("daylock 1")
-        _ = try WorldCommandParser.parse("experience amount @a -100")
-        _ = try WorldCommandParser.parse("experience level @s 5")
+        _ = try WorldCommandParser.parse("experience add @a -100")
+        _ = try WorldCommandParser.parse("experience addlevel @s 5")
+        _ = try WorldCommandParser.parse("experience level @s 30")
         _ = try WorldCommandParser.parse("experience percent @s 0.5")
         _ = try WorldCommandParser.parse("experience query @a")
         _ = try WorldCommandParser.parse("experience set @s 250")
@@ -325,6 +326,18 @@ struct Main {
         do {
             _ = try WorldCommandParser.parse("spread @e extra")
             preconditionFailure("spread must accept exactly one target")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("experience amount @a 1")
+            preconditionFailure("removed experience amount alias must fail")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("experience level @s 24792")
+            preconditionFailure("experience level must remain within 0 through 24791")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("give @s 36 minecraft:stone 1 NULL")
+            preconditionFailure("give Slot must remain within 0 through 35")
         } catch {}
         do {
             _ = try WorldCommandParser.parse("experience percent @s 1.1")
@@ -3289,10 +3302,11 @@ for expected in \
   'case "IntArray": return .intArray' \
   'case "LongArray": return .longArray' \
   'private indirect enum CommandNBTTypeDescriptor' \
-  'guard arguments.count == 4 else' \
-  'itemTags: try parseStates(arguments[3])'; do
+  'guard arguments.count == 5 else' \
+  'slot: try parseGiveSlot(arguments[1])' \
+  'itemTags: try parseStates(arguments[4])'; do
   grep -qF "$expected" "$COMMAND_PARSER" || {
-    echo "error: recursive command NBT or four-argument give is incomplete: $expected" >&2
+    echo "error: recursive command NBT or Slot-aware give is incomplete: $expected" >&2
     exit 1
   }
 done
@@ -3329,6 +3343,41 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
   exit 1
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
+grep -qF 'case "add"' "$COMMAND_PARSER" && \
+grep -qF 'case "addlevel"' "$COMMAND_PARSER" && \
+grep -qF 'case "level"' "$COMMAND_PARSER" && \
+grep -qF 'value: try parseExperienceLevel(arguments[2])' "$COMMAND_PARSER" && \
+grep -qF '经验总数=%lld 经验等级=%d 当前经验条进度=%.3f' "$COMMAND_EXECUTOR" && \
+grep -qF 'case .level(_, let value)' "$COMMAND_EXECUTOR" && \
+grep -qF 'progress: 0' "$COMMAND_EXECUTOR" || {
+  echo 'error: renamed experience operations, direct level or query equals output is incomplete' >&2
+  exit 1
+}
+for command_name in help clear clearspawnpoint clone daylock effect experience fill give kill kick setblock setworldspawn spawnpoint spread structure summon teleport tickingarea time weather; do
+  python3 - "$COMMAND_PARSER" "$command_name" <<'PY_CHECK' || exit 1
+import re, sys
+text=open(sys.argv[1],encoding='utf-8').read()
+name=re.escape(sys.argv[2])
+match=re.search(r'^\s*"'+name+r'":\s*"((?:[^"\\]|\\.)*)",?$', text, re.M)
+if not match or '示例：' not in match.group(1):
+    print('error: command help is missing an example:', sys.argv[2], file=sys.stderr)
+    raise SystemExit(1)
+PY_CHECK
+done
+grep -qF 'return 5' "$ROOT/Sources/UI/WorldListViewController.swift" && \
+grep -qF '("方块ID", "旧版数字 ID、字符串 ID 与十六进制值")' "$ROOT/Sources/UI/WorldListViewController.swift" && \
+grep -qF 'entries: BedrockLegacyBlockCatalog.blocks' "$ROOT/Sources/UI/WorldListViewController.swift" || {
+  echo 'error: home-page Bedrock block-ID entry is incomplete' >&2
+  exit 1
+}
+grep -qF 'placingChestItem(' "$COMMAND_EXECUTOR" && \
+grep -qF 'requestedSlot: Int8?' "$COMMAND_EXECUTOR" && \
+grep -qF 'exceededChestSlots' "$COMMAND_EXECUTOR" && \
+grep -qF 'createIfMissing: true' "$COMMAND_EXECUTOR" || {
+  echo 'error: Slot-aware player Inventory / entity ChestItems / Mainhand give logic is incomplete' >&2
+  exit 1
+}
+
 
 # Fixed v1.0.0: world/structure/tickingarea plus teleport, spread, daylock,
 # time and weather commands.
@@ -3454,6 +3503,13 @@ cat > "$TMP/effect_command_test.swift" <<'SWIFT'
 import Foundation
 @main
 struct EffectCommandTest {
+    static func emptyItem(_ slot: Int8) -> NBTValue {
+        .compound([
+            NBTNamedTag(name: "Name", value: .string("")),
+            NBTNamedTag(name: "Count", value: .byte(0)),
+            NBTNamedTag(name: "Slot", value: .byte(slot))
+        ])
+    }
     static func entity(_ identifier: String, _ uniqueID: Int64, _ x: Float, definitionsOnly: Bool = false) -> NBTDocument {
         var tags = [
             NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
@@ -3464,11 +3520,32 @@ struct EffectCommandTest {
         if !definitionsOnly {
             tags.insert(NBTNamedTag(name: "identifier", value: .string(identifier)), at: 0)
         }
+        if uniqueID == 2 {
+            tags.append(NBTNamedTag(name: "ChestItems", value: .list(.compound, [emptyItem(0), emptyItem(1), emptyItem(2)])))
+            tags.append(NBTNamedTag(name: "Mainhand", value: .list(.compound, [emptyItem(0)])))
+        } else if uniqueID == 4 {
+            tags.append(NBTNamedTag(name: "ChestItems", value: .list(.compound, [emptyItem(0), emptyItem(1)])))
+        }
         return NBTDocument(rootName: "", root: .compound(tags))
     }
     static func effectCount(_ root: NBTValue) -> Int? {
         guard case .list(.compound, let values)? = root.compoundValue(named: "ActiveEffects") else { return nil }
         return values.count
+    }
+    static func itemName(in root: NBTValue, container: String, slot: Int64? = nil) -> String? {
+        guard case .list(.compound, let values)? = root.compoundValue(named: container) else { return nil }
+        let item: NBTValue?
+        if let slot = slot {
+            item = values.first { value in
+                guard case .compound(let tags) = value else { return false }
+                return tags.first(where: { $0.name == "Slot" })?.value.numericInt64Value == slot
+            }
+        } else {
+            item = values.first
+        }
+        guard case .compound(let tags)? = item,
+              case .string(let name)? = tags.first(where: { $0.name == "Name" })?.value else { return nil }
+        return name
     }
     static func main() throws {
         let session = WorldSession()
@@ -3477,6 +3554,7 @@ struct EffectCommandTest {
             NBTNamedTag(name: "UniqueID", value: .long(1)),
             NBTNamedTag(name: "PlayerLevel", value: .int(2)),
             NBTNamedTag(name: "PlayerLevelProgress", value: .float(0.25)),
+            NBTNamedTag(name: "Inventory", value: .list(.compound, (0..<36).map { emptyItem(Int8($0)) })),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)]))
         ])))
         let onlineKey = Data("player_server_5".utf8)
@@ -3641,12 +3719,15 @@ struct EffectCommandTest {
         precondition(BedrockPlayerExperience.totalRequired(toReach: 31) == 1507)
         precondition(BedrockPlayerExperience.totalRequired(toReach: 32) == 1628)
 
-        let experienceAmount = try executor.execute(try WorldCommandParser.parse("experience amount @a 100"))
+        let experienceAmount = try executor.execute(try WorldCommandParser.parse("experience add @a 100"))
         precondition(experienceAmount.changedWorld)
         var localExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[localKey]!))
         var onlineExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[onlineKey]!))
         precondition(localExperience.total == 119 && onlineExperience.total == 137)
-        _ = try executor.execute(try WorldCommandParser.parse("experience level @s 5"))
+        _ = try executor.execute(try WorldCommandParser.parse("experience addlevel @s 5"))
+        _ = try executor.execute(try WorldCommandParser.parse("experience level @s 13"))
+        let levelResetExperience = try ExperienceStore.read(from: BedrockNBTCodec.decode(session.db.values[localKey]!))
+        precondition(levelResetExperience.level == 13 && levelResetExperience.progress == 0)
         _ = try executor.execute(try WorldCommandParser.parse("experience percent @s 0.5"))
         _ = try executor.execute(try WorldCommandParser.parse("experience set 5 250"))
         let localExperienceDocument = try BedrockNBTCodec.decode(session.db.values[localKey]!)
@@ -3665,14 +3746,39 @@ struct EffectCommandTest {
         precondition(localExperienceDocument.root.compoundValue(named: "XpP") == nil)
         let experienceQuery = try executor.execute(try WorldCommandParser.parse("experience query @a"))
         precondition(!experienceQuery.changedWorld && experienceQuery.outputLines.count == 2)
-        precondition(experienceQuery.outputLines[0].text.contains("minecraft:player 1"))
-        precondition(experienceQuery.outputLines[1].text.contains("minecraft:player 5"))
+        precondition(experienceQuery.outputLines[0].text.contains("minecraft:player 1 经验总数=") && experienceQuery.outputLines[0].text.contains("经验等级=") && experienceQuery.outputLines[0].text.contains("当前经验条进度="))
+        precondition(experienceQuery.outputLines[1].text.contains("minecraft:player 5 经验总数="))
         switch experienceQuery.outputLines[0].style { case .localPlayer: break; default: preconditionFailure("local experience output must be yellow") }
         switch experienceQuery.outputLines[1].style { case .onlinePlayer: break; default: preconditionFailure("online experience output must be blue") }
         do {
             _ = try executor.execute(try WorldCommandParser.parse("experience query minecraft:cow"))
             preconditionFailure("experience must reject non-player targets")
         } catch {}
+
+        let playerSlotGive = try executor.execute(try WorldCommandParser.parse("give @s 5 minecraft:diamond 3 NULL"))
+        precondition(playerSlotGive.changedWorld)
+        var playerAfterGive = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(itemName(in: playerAfterGive, container: "Inventory", slot: 5) == "minecraft:diamond")
+        _ = try executor.execute(try WorldCommandParser.parse("give @s Auto minecraft:stone 64 NULL"))
+        playerAfterGive = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        precondition(itemName(in: playerAfterGive, container: "Inventory", slot: 0) == "minecraft:stone")
+
+        _ = try executor.execute(try WorldCommandParser.parse("give 2 1 minecraft:gold_ingot 2 NULL"))
+        var giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        let cowWithChest = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 2 }!.document.root
+        precondition(itemName(in: cowWithChest, container: "ChestItems", slot: 1) == "minecraft:gold_ingot")
+        precondition(itemName(in: cowWithChest, container: "Mainhand") == "")
+
+        _ = try executor.execute(try WorldCommandParser.parse("give 4 5 minecraft:emerald 1 NULL"))
+        giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        let overflowingCow = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 4 }!.document.root
+        precondition(itemName(in: overflowingCow, container: "ChestItems", slot: 1) == "minecraft:emerald")
+        precondition(itemName(in: overflowingCow, container: "Mainhand") == "minecraft:emerald")
+
+        _ = try executor.execute(try WorldCommandParser.parse("give 3 2 minecraft:apple 1 NULL"))
+        giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        let pigWithoutChest = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 3 }!.document.root
+        precondition(itemName(in: pigWithoutChest, container: "Mainhand") == "minecraft:apple")
 
         let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
         precondition(setBlock.changedWorld)

@@ -7,7 +7,8 @@
 - `tickingarea add circle` 格式为 `tickingarea add circle 维度 x1 z1 半径 名称 0或1`；x1/z1 是中心区块坐标，半径单位为区块。同名区域会先删除再重新创建。
 - `teleport 目标 维度 x y或Auto z` 支持 identifier；主世界/末地的 `Auto` 定位到最高已加载非空气方块上方，下界则按“顶层非空气 a → 下方空气 b → 更低非空气 c”优先使用 c+1，缺少 b/c 时使用 a+1，整列无非空气方块时使用 Y=63。
 - 新增 `time query/add/set/ceil/floor`，支持 day、sunset、night、sunrise、noon、midnight 六个时间点及 daytime 时段百分比输出。
-- 重写 `experience amount/level/percent/query/set`：仅作用于玩家，直接读写基岩版实际使用的 `PlayerLevel` 与 `PlayerLevelProgress`。经验总数不作为独立标签保存，而是按 Minecraft 经验曲线由等级和经验条进度计算；修改总经验时会反向换算并同步写回等级与进度。
+- `experience` 提供 `add/addlevel/level/percent/query/set`：仅作用于玩家，直接读写基岩版实际使用的 `PlayerLevel` 与 `PlayerLevelProgress`。`add` 增减总经验，`addlevel` 增减等级并保留经验条百分比，`level` 直接设定 0～24791 级并把进度归零；`query` 使用 `经验总数=… 经验等级=… 当前经验条进度=…` 格式输出。
+- `give` 格式为 `give 目标 Slot 物品 数目 物品标签`。Slot 支持 `Auto` 或 0～35：玩家固定写入对应 Inventory 槽位；实体优先写入 ChestItems，对超范围 Slot 同时写入最后槽位与 Mainhand，没有 ChestItems 时写入 Mainhand；Auto 保留原自动选槽逻辑。
 - `weather clear/rain/thunder` 的天气等级、持续时间和 `doWeatherCycle` 与信息页天气栏目共用同一套读写逻辑。
 - 天气栏目包含“天气自动变化”开关。
 - 世界信息显示最后打开的游戏版本和最小兼容游戏版本；世界编辑新增时间栏目（含 `dodaylightcycle` 开关）和玩家经验栏目。
@@ -15,6 +16,8 @@
 - 新增 `spread 目标`：按玩家优先顺序，为每个选中对象随机选择主世界/下界/末地中的已加载区块和非全空气坐标列，再按 Auto 高度传送；逐行显示 identifier、UniqueID、维度和坐标，本地玩家结果为黄色、在线玩家为蓝色。
 - 去除地图动态渲染的固定区块数量上限，缩小地图时根据视口持续扩大加载窗口；缩放范围也会在触及边界时动态扩展。超大范围仅降低输出位图像素密度，不截断所表示的区块范围。打开存档时以本地玩家为中心；其他维度首次进入以 X=0/Z=0 为中心；每个维度的中心和缩放只在当前存档会话内保留，退出存档后不写入持久化设置。
 - 实体栏目选择“半径”时，四个蓝色操作按钮只与“中心”和“半径”两行对齐，Y 计算控件独立占用下一行。
+- 主页“基岩版数据值”已与信息栏目同步，新增“方块ID”入口。
+- 命令帮助中的所有命令均至少提供一个可直接参考的示例。
 
 ## v1.1.18 状态效果命令
 

@@ -59,9 +59,15 @@ final class WorldCommandExecutor {
             return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
         case .clearSpawnPoint(let target):
             return WorldCommandExecutionResult(message: try clearSpawnPoints(target: target), changedWorld: true)
-        case .give(let target, let itemIdentifier, let count, let itemTags):
+        case .give(let target, let slot, let itemIdentifier, let count, let itemTags):
             return WorldCommandExecutionResult(
-                message: try give(target: target, itemIdentifier: itemIdentifier, count: count, itemTags: itemTags),
+                message: try give(
+                    target: target,
+                    slot: slot,
+                    itemIdentifier: itemIdentifier,
+                    count: count,
+                    itemTags: itemTags
+                ),
                 changedWorld: true
             )
         case .kill(let target, let killCreativePlayers):
@@ -514,7 +520,8 @@ final class WorldCommandExecutor {
     private func executeExperience(_ operation: CommandExperienceOperation) throws -> WorldCommandExecutionResult {
         let target: CommandTarget
         switch operation {
-        case .amount(let value, _), .level(let value, _), .percent(let value, _), .query(let value), .set(let value, _):
+        case .add(let value, _), .addLevel(let value, _), .level(let value, _),
+             .percent(let value, _), .query(let value), .set(let value, _):
             target = value
         }
         let targets = try resolveTargets(target)
@@ -528,7 +535,7 @@ final class WorldCommandExecutor {
                 let experience = try ExperienceStore.read(from: record.document)
                 let uniqueID = playerUniqueID(record).map(String.init) ?? "无UniqueID"
                 let text = String(
-                    format: "minecraft:player %@ 经验总数 %lld 经验等级 %d 当前经验条进度 %.3f",
+                    format: "minecraft:player %@ 经验总数=%lld 经验等级=%d 当前经验条进度=%.3f",
                     uniqueID,
                     experience.total,
                     experience.level,
@@ -551,21 +558,23 @@ final class WorldCommandExecutor {
         for record in targets.players {
             var experience = try ExperienceStore.read(from: record.document)
             switch operation {
-            case .amount(_, let delta):
+            case .add(_, let delta):
                 let (sum, overflow) = experience.total.addingReportingOverflow(delta)
                 guard !overflow else {
-                    throw BlocktopographError.malformedData("experience amount 结果超出 Int64 范围")
+                    throw BlocktopographError.malformedData("experience add 结果超出 Int64 范围")
                 }
                 let bounded = min(BedrockPlayerExperience.maximumTotal, max(0, sum))
                 experience = try BedrockPlayerExperience.fromTotal(bounded)
-            case .level(_, let delta):
+            case .addLevel(_, let delta):
                 let current = Int64(experience.level)
                 let (sum, overflow) = current.addingReportingOverflow(delta)
                 guard !overflow else {
-                    throw BlocktopographError.malformedData("experience level 结果超出 Int64 范围")
+                    throw BlocktopographError.malformedData("experience addlevel 结果超出 Int64 范围")
                 }
                 let level = Int32(clamping: min(Int64(BedrockPlayerExperience.maximumLevel), max(0, sum)))
                 experience = BedrockPlayerExperience(level: level, progress: experience.progress)
+            case .level(_, let value):
+                experience = BedrockPlayerExperience(level: value, progress: 0)
             case .percent(_, let progress):
                 experience = BedrockPlayerExperience(level: experience.level, progress: progress)
             case .set(_, let total):
@@ -579,8 +588,9 @@ final class WorldCommandExecutor {
 
         let action: String
         switch operation {
-        case .amount(_, let delta): action = "amount \(delta)"
-        case .level(_, let delta): action = "level \(delta)"
+        case .add(_, let delta): action = "add \(delta)"
+        case .addLevel(_, let delta): action = "addlevel \(delta)"
+        case .level(_, let value): action = "level \(value)"
         case .percent(_, let progress): action = String(format: "percent %.3f", Double(progress))
         case .set(_, let total): action = "set \(total)"
         case .query: action = "query"
@@ -1082,6 +1092,7 @@ final class WorldCommandExecutor {
 
     private func give(
         target: CommandTarget,
+        slot: CommandGiveSlot,
         itemIdentifier: String,
         count: Int64,
         itemTags: [NBTNamedTag]
@@ -1091,11 +1102,20 @@ final class WorldCommandExecutor {
         let entityStore = BedrockWorldObjectNBTStore(session: session)
         var changedPlayers = 0
         var changedEntities = 0
+        var chestWrites = 0
+        var mainhandWrites = 0
+        var chestOverflowWrites = 0
         var skippedEntities = 0
 
         for record in targets.players {
+            let requestedSlot: Int8?
+            switch slot {
+            case .automatic: requestedSlot = nil
+            case .indexed(let value): requestedSlot = value
+            }
             let mutation = placingPlayerItem(
                 in: record.document.root,
+                requestedSlot: requestedSlot,
                 identifier: itemIdentifier,
                 count: count,
                 itemTags: itemTags
@@ -1106,13 +1126,27 @@ final class WorldCommandExecutor {
             try playerStore.save(record: record, document: document)
             changedPlayers += 1
         }
+
         for object in targets.entities {
-            let mutation = replacingMainhandItem(
-                in: object.document.root,
-                identifier: itemIdentifier,
-                count: count,
-                itemTags: itemTags
-            )
+            let mutation: (value: NBTValue, changed: Bool, chestWritten: Bool, mainhandWritten: Bool, exceededChestSlots: Bool)
+            switch slot {
+            case .automatic:
+                let mainhand = replacingMainhandItem(
+                    in: object.document.root,
+                    identifier: itemIdentifier,
+                    count: count,
+                    itemTags: itemTags
+                )
+                mutation = (mainhand.value, mainhand.changed, false, mainhand.changed, false)
+            case .indexed(let requestedSlot):
+                mutation = placingEntityItem(
+                    in: object.document.root,
+                    requestedSlot: requestedSlot,
+                    identifier: itemIdentifier,
+                    count: count,
+                    itemTags: itemTags
+                )
+            }
             guard mutation.changed else {
                 skippedEntities += 1
                 continue
@@ -1121,11 +1155,15 @@ final class WorldCommandExecutor {
             document.root = mutation.value
             _ = try entityStore.save(object: object, document: document)
             changedEntities += 1
+            if mutation.chestWritten { chestWrites += 1 }
+            if mutation.mainhandWritten { mainhandWrites += 1 }
+            if mutation.exceededChestSlots { chestOverflowWrites += 1 }
         }
+
         guard changedPlayers + changedEntities > 0 else {
-            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory 或实体 Mainhand 标签")
+            throw BlocktopographError.unsupported("目标没有可写入的玩家 Inventory、实体 ChestItems 或 Mainhand 标签")
         }
-        return "give 完成：向 \(changedPlayers) 个玩家物品栏第一个空槽位写入（满时替换最后一格）、替换 \(changedEntities) 个实体主手物品；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有 Mainhand 标签的实体。"
+        return "give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个无法写入的实体。"
     }
 
     private func itemStack(
@@ -1177,6 +1215,7 @@ final class WorldCommandExecutor {
 
     private func placingPlayerItem(
         in value: NBTValue,
+        requestedSlot: Int8?,
         identifier: String,
         count: Int64,
         itemTags: [NBTNamedTag]
@@ -1185,30 +1224,31 @@ final class WorldCommandExecutor {
         let inventoryNames: Set<String> = ["inventory", "playerinventory"]
         for index in tags.indices where inventoryNames.contains(normalized(tags[index].name)) {
             if case .list(let type, var values) = tags[index].value, type == .compound || values.isEmpty {
-                // Bedrock player inventories commonly retain one Compound for every
-                // slot. A slot is empty only when that Compound's Name tag is an
-                // empty string; a missing Slot number alone is not considered empty.
-                let emptyCandidates = values.indices.compactMap { valueIndex -> (Int, Int64)? in
-                    guard isEmptyInventorySlot(values[valueIndex]),
-                          let slot = itemSlot(values[valueIndex]),
-                          (0...35).contains(slot) else { return nil }
-                    return (valueIndex, slot)
-                }.sorted { $0.1 < $1.1 }
-                if let firstEmpty = emptyCandidates.first {
-                    values[firstEmpty.0] = itemStack(
-                        identifier: identifier,
-                        count: count,
-                        slot: Int8(firstEmpty.1),
-                        itemTags: itemTags
-                    )
-                } else if let slot35 = values.firstIndex(where: { itemSlot($0) == 35 }) {
-                    values[slot35] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
-                } else if !values.isEmpty {
-                    // Malformed/non-slot-indexed inventory: replace the physical last
-                    // entry rather than inventing an additional slot.
-                    values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
+                if let requestedSlot = requestedSlot {
+                    let slotNumber = Int64(requestedSlot)
+                    if let existing = values.firstIndex(where: { itemSlot($0) == slotNumber }) {
+                        values[existing] = itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags)
+                    } else if Int(requestedSlot) < values.count {
+                        values[Int(requestedSlot)] = itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags)
+                    } else {
+                        values.append(itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags))
+                    }
                 } else {
-                    values.append(itemStack(identifier: identifier, count: count, slot: 0, itemTags: itemTags))
+                    let emptyCandidates = values.indices.compactMap { valueIndex -> (Int, Int64)? in
+                        guard isEmptyInventorySlot(values[valueIndex]),
+                              let slot = itemSlot(values[valueIndex]),
+                              (0...35).contains(slot) else { return nil }
+                        return (valueIndex, slot)
+                    }.sorted { $0.1 < $1.1 }
+                    if let firstEmpty = emptyCandidates.first {
+                        values[firstEmpty.0] = itemStack(identifier: identifier, count: count, slot: Int8(firstEmpty.1), itemTags: itemTags)
+                    } else if let slot35 = values.firstIndex(where: { itemSlot($0) == 35 }) {
+                        values[slot35] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
+                    } else if !values.isEmpty {
+                        values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
+                    } else {
+                        values.append(itemStack(identifier: identifier, count: count, slot: 0, itemTags: itemTags))
+                    }
                 }
                 tags[index].value = .list(.compound, values)
                 return (.compound(tags), true)
@@ -1216,7 +1256,13 @@ final class WorldCommandExecutor {
         }
         for index in tags.indices {
             if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
-            let nested = placingPlayerItem(in: tags[index].value, identifier: identifier, count: count, itemTags: itemTags)
+            let nested = placingPlayerItem(
+                in: tags[index].value,
+                requestedSlot: requestedSlot,
+                identifier: identifier,
+                count: count,
+                itemTags: itemTags
+            )
             if nested.changed {
                 tags[index].value = nested.value
                 return (.compound(tags), true)
@@ -1235,6 +1281,147 @@ final class WorldCommandExecutor {
             guard normalized(tag.name) == "name", case .string(let name) = tag.value else { return false }
             return name.isEmpty
         }
+    }
+
+    private func placingEntityItem(
+        in value: NBTValue,
+        requestedSlot: Int8,
+        identifier: String,
+        count: Int64,
+        itemTags: [NBTNamedTag]
+    ) -> (value: NBTValue, changed: Bool, chestWritten: Bool, mainhandWritten: Bool, exceededChestSlots: Bool) {
+        let chest = placingChestItem(
+            in: value,
+            requestedSlot: requestedSlot,
+            identifier: identifier,
+            count: count,
+            itemTags: itemTags
+        )
+        if chest.found {
+            guard chest.exceededSlots else {
+                return (chest.value, true, true, false, false)
+            }
+            let mainhand = settingMainhandItem(
+                in: chest.value,
+                identifier: identifier,
+                count: count,
+                itemTags: itemTags,
+                createIfMissing: true
+            )
+            return (mainhand.value, true, true, mainhand.changed, true)
+        }
+        let mainhand = settingMainhandItem(
+            in: value,
+            identifier: identifier,
+            count: count,
+            itemTags: itemTags,
+            createIfMissing: true
+        )
+        return (mainhand.value, mainhand.changed, false, mainhand.changed, false)
+    }
+
+    private func placingChestItem(
+        in value: NBTValue,
+        requestedSlot: Int8,
+        identifier: String,
+        count: Int64,
+        itemTags: [NBTNamedTag]
+    ) -> (value: NBTValue, found: Bool, exceededSlots: Bool) {
+        guard case .compound(var tags) = value else { return (value, false, false) }
+        for index in tags.indices where normalized(tags[index].name) == "chestitems" {
+            guard case .list(let type, var values) = tags[index].value,
+                  type == .compound || values.isEmpty else { continue }
+            let requestedIndex = Int(requestedSlot)
+            if requestedIndex < values.count {
+                let exact = values.firstIndex(where: { itemSlot($0) == Int64(requestedSlot) }) ?? requestedIndex
+                values[exact] = itemStack(
+                    identifier: identifier,
+                    count: count,
+                    slot: requestedSlot,
+                    wasPickedUp: 1,
+                    itemTags: itemTags
+                )
+                tags[index].value = .list(.compound, values)
+                return (.compound(tags), true, false)
+            }
+            if values.isEmpty {
+                values.append(itemStack(identifier: identifier, count: count, slot: 0, wasPickedUp: 1, itemTags: itemTags))
+            } else {
+                let lastIndex = values.count - 1
+                let existingLastSlot = itemSlot(values[lastIndex]).flatMap(Int8.init(exactly:))
+                let lastSlot = existingLastSlot ?? Int8(clamping: lastIndex)
+                values[lastIndex] = itemStack(
+                    identifier: identifier,
+                    count: count,
+                    slot: lastSlot,
+                    wasPickedUp: 1,
+                    itemTags: itemTags
+                )
+            }
+            tags[index].value = .list(.compound, values)
+            return (.compound(tags), true, true)
+        }
+        for index in tags.indices {
+            if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
+            let nested = placingChestItem(
+                in: tags[index].value,
+                requestedSlot: requestedSlot,
+                identifier: identifier,
+                count: count,
+                itemTags: itemTags
+            )
+            if nested.found {
+                tags[index].value = nested.value
+                return (.compound(tags), true, nested.exceededSlots)
+            }
+        }
+        return (value, false, false)
+    }
+
+    private func settingMainhandItem(
+        in value: NBTValue,
+        identifier: String,
+        count: Int64,
+        itemTags: [NBTNamedTag],
+        createIfMissing: Bool
+    ) -> (value: NBTValue, changed: Bool) {
+        guard case .compound(var tags) = value else { return (value, false) }
+        let names: Set<String> = ["mainhand", "mainhanditem", "mainhandinventory"]
+        for index in tags.indices where names.contains(normalized(tags[index].name)) {
+            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1, itemTags: itemTags)
+            switch tags[index].value {
+            case .compound:
+                tags[index].value = stack
+                return (.compound(tags), true)
+            case .list(_, var values):
+                if values.isEmpty { values.append(stack) }
+                else { values[0] = stack }
+                tags[index].value = .list(.compound, values)
+                return (.compound(tags), true)
+            default:
+                continue
+            }
+        }
+        for index in tags.indices {
+            if tradeContainerNames.contains(normalized(tags[index].name)) { continue }
+            let nested = settingMainhandItem(
+                in: tags[index].value,
+                identifier: identifier,
+                count: count,
+                itemTags: itemTags,
+                createIfMissing: false
+            )
+            if nested.changed {
+                tags[index].value = nested.value
+                return (.compound(tags), true)
+            }
+        }
+        if createIfMissing {
+            let stack = itemStack(identifier: identifier, count: count, wasPickedUp: 1, itemTags: itemTags)
+            tags.append(NBTNamedTag(name: "Mainhand", value: .list(.compound, [stack])))
+            return (.compound(tags), true)
+        }
+        return (value, false)
     }
 
     private func replacingMainhandItem(
