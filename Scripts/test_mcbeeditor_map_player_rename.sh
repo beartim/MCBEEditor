@@ -35,6 +35,9 @@ assert pos == sorted(pos), pos
 assert 'defaults.set(modeControl.selectedSegmentIndex' not in s
 assert 'defaults.removeObject(forKey: mapStatePrefix + "mode")' in s
 assert 'modeControl.selectedSegmentIndex = 0' in s
+# renderRegion has one declaration and two call sites; all call sites must
+# supply the playerCoordinates argument after the player-map-layer change.
+assert s.count('playerCoordinates:') == 3, s.count('playerCoordinates:')
 PY
 
 grep -q 'private static let formatIdentifier = "mcbeeditor-nbt-json"' "$JSON"

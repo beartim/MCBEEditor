@@ -4264,6 +4264,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
                         mode: mode,
                         drawGrid: drawGrid,
                         spawnCoordinates: selectedSpawns,
+                        playerCoordinates: [],
                         worldObjects: uniqueObjects,
                         displayEntities: layers.entities,
                         displayBlockEntities: layers.blockEntities,
