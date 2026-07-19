@@ -231,6 +231,14 @@ struct Main {
         _ = try WorldCommandParser.parse("spawnpoint @a the_end 0 100 0")
         _ = try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10")
         _ = try WorldCommandParser.parse("teleport @a overworld 0 Auto 0")
+        _ = try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0")
+        _ = try WorldCommandParser.parse("time query daytime")
+        _ = try WorldCommandParser.parse("time query gametime")
+        _ = try WorldCommandParser.parse("time query day")
+        _ = try WorldCommandParser.parse("time add -1000")
+        _ = try WorldCommandParser.parse("time set 12013000")
+        _ = try WorldCommandParser.parse("time ceil sunset")
+        _ = try WorldCommandParser.parse("time floor midnight")
         _ = try WorldCommandParser.parse("weather clear 1")
         _ = try WorldCommandParser.parse("weather rain 6000 0.5 1")
         _ = try WorldCommandParser.parse("weather thunder 12000 1.0 0")
@@ -238,7 +246,7 @@ struct Main {
         _ = try WorldCommandParser.parse("structure load mystructure:1 nether 9 50 9")
         _ = try WorldCommandParser.parse("structure delete ALL")
         _ = try WorldCommandParser.parse("tickingarea add square nether 0 0 1 1 Base 1")
-        _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 Circle 0")
+        _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 4 Circle 0")
         _ = try WorldCommandParser.parse("tickingarea delete ALL")
         _ = try WorldCommandParser.parse("tickingarea list overworld")
         let effectRoot = NBTValue.compound([
@@ -298,16 +306,24 @@ struct Main {
             preconditionFailure("effect clear must reject extra parameters")
         } catch {}
         do {
-            _ = try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0")
-            preconditionFailure("teleport identifier target should fail")
+            _ = try WorldCommandParser.parse("time set -1")
+            preconditionFailure("time set must reject negative values")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("time ceil dusk")
+            preconditionFailure("time ceil must reject unknown periods")
         } catch {}
         do {
             _ = try WorldCommandParser.parse("weather rain 12000 1.1 0")
             preconditionFailure("weather intensity above one should fail")
         } catch {}
         do {
-            _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 4 0 Circle 0")
-            preconditionFailure("legacy tickingarea circle arguments should fail")
+            _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 Circle 0")
+            preconditionFailure("circle tickingarea must require a radius")
+        } catch {}
+        do {
+            _ = try WorldCommandParser.parse("tickingarea add circle overworld 0 0 5 Circle 0")
+            preconditionFailure("circle tickingarea radius above four should fail")
         } catch {}
         do {
             _ = try WorldCommandParser.parse("effect give @a unknown_effect 20 0")
@@ -3256,12 +3272,12 @@ if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
 fi
 echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
 
-# Fixed v1.0.0: world/structure/tickingarea plus teleport and weather commands.
-grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count == 7 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
-  echo 'error: world/structure/tickingarea/teleport/weather command support is incomplete' >&2
+# Fixed v1.0.0: world/structure/tickingarea plus teleport, time and weather commands.
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count == 8 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+  echo 'error: world/structure/tickingarea/teleport/time/weather command support is incomplete' >&2
   exit 1
 }
-echo 'World spawn, setblock, structure, tickingarea, teleport and weather command support passed'
+echo 'World spawn, setblock, structure, tickingarea, teleport, time and weather command support passed'
 
 # v1.1.18: effect command with status-effect IDs and complete ActiveEffects NBT.
 grep -qF 'case effect(operation: CommandEffectOperation' "$COMMAND_PARSER" && grep -qF 'case "effect"' "$COMMAND_PARSER" && grep -qF 'effect give @a strength 12000 50' "$COMMAND_PARSER" && grep -qF 'effect clear @e ALL' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationEasy"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationNormal"' "$COMMAND_PARSER" && grep -qF 'NBTNamedTag(name: "DurationHard"' "$COMMAND_PARSER" && ! grep -qF 'FactorCalculationData' "$COMMAND_PARSER" && grep -qF 'encodedUnmovedEntityReplacements' "$COMMAND_EXECUTOR" && grep -qF 'session.database().applyBatch(puts: allPuts' "$COMMAND_EXECUTOR" || {
@@ -3314,7 +3330,8 @@ final class WorldSession {
             document: NBTDocument(rootName: "", root: .compound([
                 NBTNamedTag(name: "SpawnX", value: .int(0)),
                 NBTNamedTag(name: "SpawnY", value: .int(64)),
-                NBTNamedTag(name: "SpawnZ", value: .int(0))
+                NBTNamedTag(name: "SpawnZ", value: .int(0)),
+                NBTNamedTag(name: "Time", value: .long(12_013_000))
             ]))
         )
         try? document.writeLevelDat(initial)
@@ -3341,6 +3358,9 @@ struct BedrockBlockColumnResult {
 final class ChunkSurfaceRenderer {
     init(database: MojangLevelDB) {}
     func blockColumn(blockX: Int64, blockZ: Int64, dimension: Int32) throws -> BedrockBlockColumnResult {
+        if blockX == 999 && blockZ == 999 {
+            return BedrockBlockColumnResult(blocks: [], diagnostics: ["测试空列"])
+        }
         let stone = BedrockBlockState(
             nbt: .compound([
                 NBTNamedTag(name: "name", value: .string("minecraft:stone")),
@@ -3365,14 +3385,17 @@ cat > "$TMP/effect_command_test.swift" <<'SWIFT'
 import Foundation
 @main
 struct EffectCommandTest {
-    static func entity(_ identifier: String, _ uniqueID: Int64, _ x: Float) -> NBTDocument {
-        NBTDocument(rootName: "", root: .compound([
-            NBTNamedTag(name: "identifier", value: .string(identifier)),
+    static func entity(_ identifier: String, _ uniqueID: Int64, _ x: Float, definitionsOnly: Bool = false) -> NBTDocument {
+        var tags = [
             NBTNamedTag(name: "definitions", value: .list(.string, [.string("+\(identifier)")])),
             NBTNamedTag(name: "UniqueID", value: .long(uniqueID)),
             NBTNamedTag(name: "DimensionId", value: .int(0)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(x), .float(64), .float(1)]))
-        ]))
+        ]
+        if !definitionsOnly {
+            tags.insert(NBTNamedTag(name: "identifier", value: .string(identifier)), at: 0)
+        }
+        return NBTDocument(rootName: "", root: .compound(tags))
     }
     static func effectCount(_ root: NBTValue) -> Int? {
         guard case .list(.compound, let values)? = root.compoundValue(named: "ActiveEffects") else { return nil }
@@ -3390,7 +3413,11 @@ struct EffectCommandTest {
             recordType: .entity,
             subChunkIndex: nil
         ).encoded()
-        let documents = [entity("minecraft:cow", 2, 1), entity("minecraft:pig", 3, 2)]
+        let documents = [
+            entity("minecraft:cow", 2, 1),
+            entity("minecraft:pig", 3, 2),
+            entity("minecraft:cow", 4, 3, definitionsOnly: true)
+        ]
         let records = try documents.map { document -> ConsecutiveNBTRecord in
             let raw = try BedrockNBTCodec.encode(document)
             return ConsecutiveNBTRecord(document: document, rawData: raw, encoding: .littleEndian)
@@ -3403,7 +3430,7 @@ struct EffectCommandTest {
         let localAfterGive = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
         precondition(effectCount(localAfterGive) == 1)
         let entitiesAfterGive = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
-        precondition(entitiesAfterGive.count == 2)
+        precondition(entitiesAfterGive.count == 3)
         precondition(entitiesAfterGive.allSatisfy { effectCount($0.document.root) == 1 })
 
         let cleared = try executor.execute(try WorldCommandParser.parse("effect clear @e strength"))
@@ -3449,6 +3476,19 @@ struct EffectCommandTest {
         precondition(teleportedPos[1].numericDoubleValue == 72)
         precondition(teleportedPos[2].numericDoubleValue == -4)
 
+        let identifierTeleport = try executor.execute(try WorldCommandParser.parse("teleport minecraft:cow overworld 8 65 8"))
+        precondition(identifierTeleport.changedWorld)
+        let entitiesAfterIdentifierTeleport = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
+        let cowPositions = entitiesAfterIdentifierTeleport.filter {
+            BedrockEntityCommonNBT.identifier(in: $0.document.root) == "minecraft:cow"
+        }.compactMap { BedrockEntityCommonNBT.position(in: $0.document.root) }
+        let pigPosition = entitiesAfterIdentifierTeleport.first {
+            BedrockEntityCommonNBT.identifier(in: $0.document.root) == "minecraft:pig"
+        }.flatMap { BedrockEntityCommonNBT.position(in: $0.document.root) }
+        precondition(cowPositions.count == 2)
+        precondition(cowPositions.allSatisfy { $0.x == 8 && $0.y == 65 && $0.z == 8 })
+        precondition(pigPosition?.x == 2)
+
         let autoTeleported = try executor.execute(try WorldCommandParser.parse("teleport @s overworld 0 Auto 0"))
         precondition(autoTeleported.changedWorld)
         let localAfterAuto = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
@@ -3456,6 +3496,36 @@ struct EffectCommandTest {
             preconditionFailure("Auto teleport did not write Pos")
         }
         precondition(autoPos[1].numericDoubleValue == 71)
+
+        let fallbackAuto = try executor.execute(try WorldCommandParser.parse("teleport @s overworld 999 Auto 999"))
+        precondition(fallbackAuto.changedWorld)
+        let localAfterFallback = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        guard let fallbackPos = localAfterFallback.value(namedAny: ["Pos"])?.listValues else {
+            preconditionFailure("fallback Auto teleport did not write Pos")
+        }
+        precondition(fallbackPos[1].numericDoubleValue == 63)
+
+        let daytimeQuery = try executor.execute(try WorldCommandParser.parse("time query daytime"))
+        precondition(!daytimeQuery.changedWorld)
+        precondition(daytimeQuery.message == "daytime=13000，日落56%，全天54%")
+        let gametimeQuery = try executor.execute(try WorldCommandParser.parse("time query gametime"))
+        precondition(gametimeQuery.message == "gametime=12013000")
+        let dayQuery = try executor.execute(try WorldCommandParser.parse("time query day"))
+        precondition(dayQuery.message == "day=500")
+
+        let ceilSunset = try executor.execute(try WorldCommandParser.parse("time ceil sunset"))
+        precondition(ceilSunset.changedWorld)
+        let timeAfterCeil = try session.document.readLevelDat().document.root.int64Value(namedAny: ["Time"])
+        precondition(timeAfterCeil == 12_036_001)
+        _ = try executor.execute(try WorldCommandParser.parse("time set 12013000"))
+        let floorMidnight = try executor.execute(try WorldCommandParser.parse("time floor midnight"))
+        precondition(floorMidnight.changedWorld)
+        let timeAfterFloor = try session.document.readLevelDat().document.root.int64Value(namedAny: ["Time"])
+        precondition(timeAfterFloor == 12_018_000)
+        let addNegative = try executor.execute(try WorldCommandParser.parse("time add -18000"))
+        precondition(addNegative.changedWorld)
+        let timeAfterAdd = try session.document.readLevelDat().document.root.int64Value(namedAny: ["Time"])
+        precondition(timeAfterAdd == 12_000_000)
 
         let weather = try executor.execute(try WorldCommandParser.parse("weather thunder 12000 1.0 0"))
         precondition(weather.changedWorld)
@@ -3489,10 +3559,10 @@ struct EffectCommandTest {
         let listedArea = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
         precondition(!listedArea.changedWorld)
         precondition(listedArea.message.contains("[1]Base: 0 0 to 1 1"))
-        let addedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea add circle overworld 3 -2 Circle 0"))
+        let addedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea add circle overworld 3 -2 4 Circle 0"))
         precondition(addedCircle.changedWorld)
         let listedCircle = try executor.execute(try WorldCommandParser.parse("tickingarea list overworld"))
-        precondition(listedCircle.message.contains("Circle: 3 -2 radius: 0"))
+        precondition(listedCircle.message.contains("Circle: 3 -2 radius: 4"))
         let deletedArea = try executor.execute(try WorldCommandParser.parse("tickingarea delete ALL"))
         precondition(deletedArea.changedWorld)
 

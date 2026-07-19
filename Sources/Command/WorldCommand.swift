@@ -152,6 +152,40 @@ struct CommandWeatherSettings {
     let automaticChange: Bool
 }
 
+enum CommandTimeQuery: String {
+    case daytime
+    case gametime
+    case day
+}
+
+enum CommandTimePeriod: String {
+    case day
+    case sunset
+    case night
+    case sunrise
+    case noon
+    case midnight
+
+    var startTick: Int64 {
+        switch self {
+        case .day: return 0
+        case .noon: return 6_000
+        case .sunset: return 12_001
+        case .night: return 13_801
+        case .midnight: return 18_000
+        case .sunrise: return 22_201
+        }
+    }
+}
+
+enum CommandTimeOperation {
+    case query(CommandTimeQuery)
+    case add(Int64)
+    case set(Int64)
+    case ceil(CommandTimePeriod)
+    case floor(CommandTimePeriod)
+}
+
 enum ParsedWorldCommand {
     case help(command: String?)
     case clear(target: CommandTarget)
@@ -183,6 +217,7 @@ enum ParsedWorldCommand {
     case spawnPoint(target: CommandTarget, dimension: Int32, position: CommandBlockCoordinate)
     case teleport(target: CommandTarget, dimension: Int32, x: Int64, y: CommandTeleportY, z: Int64)
     case weather(settings: CommandWeatherSettings)
+    case time(operation: CommandTimeOperation)
     case structure(operation: CommandStructureOperation)
     case tickingArea(operation: CommandTickingAreaOperation)
 }
@@ -356,7 +391,7 @@ enum WorldCommandParser {
     static let commandNames = [
         "help", "clear", "clearspawnpoint", "clone", "effect", "fill", "give", "kill", "kick",
         "setblock", "setworldspawn", "spawnpoint", "structure", "summon", "teleport",
-        "tickingarea", "weather"
+        "tickingarea", "time", "weather"
     ]
 
     static let usage: [String: String] = [
@@ -374,8 +409,9 @@ enum WorldCommandParser {
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
         "structure": "structure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\n名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50",
         "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；最后一个参数输入 default 时不修改实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"",
-        "teleport": "teleport 目标 维度 x y或Auto z\n目标只能是非零 UniqueID、@s、@a 或 @e；维度必须为 overworld、nether 或 the_end。Y 输入 Auto 时，会读取目标 X/Z 列中最高非空气方块并传送到其上方。\n示例：teleport -4294967270 the_end 10 70 10\n示例：teleport @a overworld 0 Auto 0",
-        "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 区块X 区块Z 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形 add 只创建指定区块对应的单区块圆形常加载区域；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 Spawn 1\n示例：tickingarea list overworld",
+        "teleport": "teleport 目标 维度 x y或Auto z\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier；维度必须为 overworld、nether 或 the_end。实体缺少 identifier 标签时会读取 definitions[0]（例如 +minecraft:cow）。Y 输入 Auto 时读取目标 X/Z 列最高非空气方块的上方，未找到非空气方块时使用 Y=63。\n示例：teleport -4294967270 the_end 10 70 10\n示例：teleport @a overworld 0 Auto 0\n示例：teleport minecraft:cow overworld 0 64 0",
+        "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 x1 z1 半径 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形 add 的 x1/z1 是中心区块坐标，半径单位为区块，允许 0～4；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 4 Spawn 1\n示例：tickingarea list overworld",
+        "time": "time query daytime|gametime|day\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nday=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201；24000 等价于下一天的 0。query daytime 同时显示当前时段进度和全天进度。\n示例：time query daytime\n示例：time add -1000\n示例：time ceil sunset\n示例：time floor midnight",
         "weather": "weather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0"
     ]
 
@@ -523,12 +559,36 @@ enum WorldCommandParser {
         case "teleport":
             guard arguments.count == 5 else { throw usageError(command) }
             return .teleport(
-                target: try parseTeleportTarget(arguments[0]),
+                target: try parseTarget(arguments[0]),
                 dimension: try parseDimension(arguments[1]),
                 x: try parseTeleportHorizontalCoordinate(arguments[2], name: "X"),
                 y: try parseTeleportY(arguments[3]),
                 z: try parseTeleportHorizontalCoordinate(arguments[4], name: "Z")
             )
+        case "time":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "query":
+                guard arguments.count == 2,
+                      let query = CommandTimeQuery(rawValue: arguments[1]) else { throw usageError(command) }
+                return .time(operation: .query(query))
+            case "add":
+                guard arguments.count == 2 else { throw usageError(command) }
+                return .time(operation: .add(try parseTimeInteger(arguments[1], allowNegative: true)))
+            case "set":
+                guard arguments.count == 2 else { throw usageError(command) }
+                return .time(operation: .set(try parseTimeInteger(arguments[1], allowNegative: false)))
+            case "ceil":
+                guard arguments.count == 2,
+                      let period = CommandTimePeriod(rawValue: arguments[1]) else { throw usageError(command) }
+                return .time(operation: .ceil(period))
+            case "floor":
+                guard arguments.count == 2,
+                      let period = CommandTimePeriod(rawValue: arguments[1]) else { throw usageError(command) }
+                return .time(operation: .floor(period))
+            default:
+                throw usageError(command)
+            }
         case "weather":
             guard let condition = arguments.first.flatMap(CommandWeatherCondition.init(rawValue:)) else {
                 throw usageError(command)
@@ -606,25 +666,29 @@ enum WorldCommandParser {
                         preload: try parseBooleanFlag(arguments[8], name: "是否预加载")
                     )
                 } else {
-                    guard arguments.count == 7 else { throw usageError(command) }
+                    guard arguments.count == 8 else { throw usageError(command) }
                     let dimension = try parseDimension(arguments[2])
-                    let chunkX = try parseChunkCoordinate(arguments[3], name: "区块 X")
-                    let chunkZ = try parseChunkCoordinate(arguments[4], name: "区块 Z")
-                    let centerBlockX = Int64(chunkX) * 16
-                    let centerBlockZ = Int64(chunkZ) * 16
-                    guard let blockX = Int32(exactly: centerBlockX),
-                          let blockZ = Int32(exactly: centerBlockZ) else {
-                        throw BlocktopographError.malformedData("圆形常加载区域坐标溢出")
+                    let chunkX = try parseChunkCoordinate(arguments[3], name: "中心区块 X")
+                    let chunkZ = try parseChunkCoordinate(arguments[4], name: "中心区块 Z")
+                    let radius = try parseTickingAreaRadius(arguments[5])
+                    let centerBlockX = Int64(chunkX) * MapCoordinate.blocksPerChunk
+                    let centerBlockZ = Int64(chunkZ) * MapCoordinate.blocksPerChunk
+                    let radiusBlocks = Int64(radius) * MapCoordinate.blocksPerChunk
+                    guard let minimumX = Int32(exactly: centerBlockX - radiusBlocks),
+                          let minimumZ = Int32(exactly: centerBlockZ - radiusBlocks),
+                          let maximumX = Int32(exactly: centerBlockX + radiusBlocks),
+                          let maximumZ = Int32(exactly: centerBlockZ + radiusBlocks) else {
+                        throw BlocktopographError.malformedData("圆形常加载区域坐标或半径溢出")
                     }
                     area = CommandTickingAreaSpec(
                         dimension: dimension,
                         isCircle: true,
-                        minimumX: blockX,
-                        minimumZ: blockZ,
-                        maximumX: blockX,
-                        maximumZ: blockZ,
-                        name: try parseTickingAreaName(arguments[5]),
-                        preload: try parseBooleanFlag(arguments[6], name: "是否预加载")
+                        minimumX: minimumX,
+                        minimumZ: minimumZ,
+                        maximumX: maximumX,
+                        maximumZ: maximumZ,
+                        name: try parseTickingAreaName(arguments[6]),
+                        preload: try parseBooleanFlag(arguments[7], name: "是否预加载")
                     )
                 }
                 try validateTickingAreaSpec(area)
@@ -717,17 +781,19 @@ enum WorldCommandParser {
         return text
     }
 
-    private static func parseTeleportTarget(_ text: String) throws -> CommandTarget {
-        switch text {
-        case "@s": return .localPlayer
-        case "@a": return .allPlayers
-        case "@e": return .allEntities
-        default:
-            guard let uniqueID = Int64(text), uniqueID != 0 else {
-                throw BlocktopographError.malformedData("teleport 目标只能是非零 UniqueID、@s、@a 或 @e")
-            }
-            return .uniqueID(uniqueID)
+    private static func parseTickingAreaRadius(_ text: String) throws -> Int32 {
+        guard let value = Int32(text), value >= 0, value <= 4 else {
+            throw BlocktopographError.malformedData("圆形常加载区域半径必须是 0～4 的区块数整数")
         }
+        return value
+    }
+
+    private static func parseTimeInteger(_ text: String, allowNegative: Bool) throws -> Int64 {
+        guard let value = Int64(text), allowNegative || value >= 0 else {
+            let range = allowNegative ? "Int64 整数" : "0…9223372036854775807 的非负整数"
+            throw BlocktopographError.malformedData("time 参数必须是\(range)：\(text)")
+        }
+        return value
     }
 
     private static func parseTeleportHorizontalCoordinate(_ text: String, name: String) throws -> Int64 {

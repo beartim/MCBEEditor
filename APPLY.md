@@ -9,8 +9,10 @@ bash Scripts/bootstrap.sh
 
 本版修改：
 
-- `tickingarea add circle` 只需维度、一组区块坐标、名称和预加载布尔值；
-- 新增 `teleport`，支持目标选择器/UniqueID、跨维度传送及 Y=`Auto`；
+- 实体目标选择器支持 identifier，并在缺少 `identifier` 标签时读取 `definitions[0]`；
+- `tickingarea add circle` 使用维度、中心区块坐标、区块半径、名称和预加载布尔值；
+- `teleport` 支持目标选择器/UniqueID/identifier、跨维度传送及 Y=`Auto`，Auto 无地面时回退到 Y=63；
+- 新增 `time query/add/set/ceil/floor`；
 - 新增 `weather clear/rain/thunder`；
 - 天气命令与信息页天气栏目统一读写 `rainLevel`、`rainTime`、`lightningLevel`、`lightningTime` 和 `doWeatherCycle`；
 - 天气栏目新增“天气自动变化”开关；

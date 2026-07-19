@@ -3,10 +3,12 @@
 ## 固定版本 1.0.0：传送、天气与常加载区域命令
 
 - 软件版本固定为 **1.0.0 (100)**，后续功能修改不再提升版本号。
-- `tickingarea add circle` 改为 `tickingarea add circle 维度 区块X 区块Z 名称 0或1`，仅需一组区块坐标。
-- 新增 `teleport 目标 维度 x y或Auto z`；支持 `@s`、`@a`、`@e` 和非零 UniqueID，`Auto` 会定位到最高已加载非空气方块上方。
-- 新增 `weather clear/rain/thunder`；天气等级、持续时间和 `doWeatherCycle` 与信息页天气栏目共用同一套读写逻辑。
-- 天气栏目新增“天气自动变化”开关。
+- 所有实体目标选择器支持完整 identifier，例如 `minecraft:cow`；实体没有 `identifier` 标签时读取 `definitions[0]`，并识别 `+minecraft:cow` 形式。
+- `tickingarea add circle` 格式为 `tickingarea add circle 维度 x1 z1 半径 名称 0或1`；x1/z1 是中心区块坐标，半径单位为区块。
+- `teleport 目标 维度 x y或Auto z` 支持 identifier；`Auto` 定位到最高已加载非空气方块上方，未找到时使用 Y=63。
+- 新增 `time query/add/set/ceil/floor`，支持 day、sunset、night、sunrise、noon、midnight 六个时间点及 daytime 时段百分比输出。
+- `weather clear/rain/thunder` 的天气等级、持续时间和 `doWeatherCycle` 与信息页天气栏目共用同一套读写逻辑。
+- 天气栏目包含“天气自动变化”开关。
 
 ## v1.1.18 状态效果命令
 

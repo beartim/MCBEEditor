@@ -82,6 +82,9 @@ final class WorldCommandExecutor {
             )
         case .weather(let settings):
             return WorldCommandExecutionResult(message: try setWeather(settings), changedWorld: true)
+        case .time(let operation):
+            let result = try executeTime(operation)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         case .structure(let operation):
             let result = try executeStructure(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
@@ -212,8 +215,7 @@ final class WorldCommandExecutor {
         guard let highest = column.blocks.first(where: { block in
             block.isGenerated && block.layers.contains(where: { !$0.isAir })
         }) else {
-            let diagnostic = column.diagnostics.first.map { "；\($0)" } ?? ""
-            throw BlocktopographError.unsupported("Auto 未在 \(x) \(z) 找到已加载的非空气方块\(diagnostic)")
+            return 63
         }
         guard highest.y < Int32.max else {
             throw BlocktopographError.malformedData("最高非空气方块上方的 Y 坐标溢出")
@@ -286,6 +288,124 @@ final class WorldCommandExecutor {
                 automatic
             )
         }
+    }
+
+    // MARK: time
+
+    private func executeTime(_ operation: CommandTimeOperation) throws -> (message: String, changed: Bool) {
+        var file = try session.document.readLevelDat()
+        guard case .compound(var tags) = file.document.root else {
+            throw BlocktopographError.malformedData("level.dat 根标签不是 Compound")
+        }
+        let current = try worldTime(in: tags)
+
+        switch operation {
+        case .query(let query):
+            switch query {
+            case .gametime:
+                return ("gametime=\(current)", false)
+            case .day:
+                return ("day=\(floorDivision(current, by: 24_000))", false)
+            case .daytime:
+                let daytime = positiveRemainder(current, divisor: 24_000)
+                let segment = daytimeSegment(for: daytime)
+                let segmentPercent = roundedPercent(
+                    numerator: daytime - segment.start,
+                    denominator: segment.end - segment.start
+                )
+                let wholePercent = roundedPercent(numerator: daytime, denominator: 24_000)
+                return ("daytime=\(daytime)，\(segment.name)\(segmentPercent)%，全天\(wholePercent)%", false)
+            }
+
+        case .add(let delta):
+            let (updated, overflow) = current.addingReportingOverflow(delta)
+            guard !overflow else {
+                throw BlocktopographError.malformedData("time add 结果超出 Int64 范围")
+            }
+            try saveWorldTime(updated, tags: &tags, file: &file)
+            return ("time add 完成：time=\(updated)", true)
+
+        case .set(let value):
+            try saveWorldTime(value, tags: &tags, file: &file)
+            return ("time set 完成：time=\(value)", true)
+
+        case .ceil(let period):
+            let value = try alignedTime(current, period: period, roundingUp: true)
+            try saveWorldTime(value, tags: &tags, file: &file)
+            return ("time ceil \(period.rawValue) 完成：time=\(value)", true)
+
+        case .floor(let period):
+            let value = try alignedTime(current, period: period, roundingUp: false)
+            try saveWorldTime(value, tags: &tags, file: &file)
+            return ("time floor \(period.rawValue) 完成：time=\(value)", true)
+        }
+    }
+
+    private func worldTime(in tags: [NBTNamedTag]) throws -> Int64 {
+        guard let value = tags.first(where: { $0.name.caseInsensitiveCompare("Time") == .orderedSame })?.value else {
+            return 0
+        }
+        switch value {
+        case .byte(let number): return Int64(number)
+        case .short(let number): return Int64(number)
+        case .int(let number): return Int64(number)
+        case .long(let number): return number
+        default:
+            throw BlocktopographError.malformedData("level.dat 的 Time 标签必须是整数类型")
+        }
+    }
+
+    private func saveWorldTime(_ value: Int64, tags: inout [NBTNamedTag], file: inout LevelDatFile) throws {
+        setTopLevelTag(name: "Time", value: .long(value), in: &tags)
+        file.document.root = .compound(tags)
+        try session.document.writeLevelDat(file)
+    }
+
+    private func alignedTime(_ current: Int64, period: CommandTimePeriod, roundingUp: Bool) throws -> Int64 {
+        let dayIndex = roundingUp
+            ? ceilingDivision(current, by: 24_000)
+            : floorDivision(current, by: 24_000)
+        let (dayBase, multiplyOverflow) = dayIndex.multipliedReportingOverflow(by: 24_000)
+        guard !multiplyOverflow else {
+            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
+        }
+        let (result, addOverflow) = dayBase.addingReportingOverflow(period.startTick)
+        guard !addOverflow else {
+            throw BlocktopographError.malformedData("time 对齐结果超出 Int64 范围")
+        }
+        return result
+    }
+
+    private func floorDivision(_ value: Int64, by divisor: Int64) -> Int64 {
+        let quotient = value / divisor
+        let remainder = value % divisor
+        return remainder < 0 ? quotient - 1 : quotient
+    }
+
+    private func ceilingDivision(_ value: Int64, by divisor: Int64) -> Int64 {
+        let quotient = value / divisor
+        let remainder = value % divisor
+        return remainder > 0 ? quotient + 1 : quotient
+    }
+
+    private func positiveRemainder(_ value: Int64, divisor: Int64) -> Int64 {
+        let remainder = value % divisor
+        return remainder >= 0 ? remainder : remainder + divisor
+    }
+
+    private func daytimeSegment(for daytime: Int64) -> (name: String, start: Int64, end: Int64) {
+        switch daytime {
+        case 0...12_000: return ("白天", 0, 12_000)
+        case 12_001...13_800: return ("日落", 12_001, 13_800)
+        case 13_801...22_200: return ("夜晚", 13_801, 22_200)
+        default: return ("日出", 22_201, 23_999)
+        }
+    }
+
+    private func roundedPercent(numerator: Int64, denominator: Int64) -> Int {
+        guard denominator > 0 else { return 100 }
+        let value = (Double(numerator) * 100.0 / Double(denominator)).rounded()
+        return min(100, max(0, Int(value)))
     }
 
     // MARK: structure
@@ -586,7 +706,7 @@ final class WorldCommandExecutor {
             } else {
                 players = []
                 let wanted = normalizedIdentifier(identifier)
-                entities = allEntities.filter { normalizedIdentifier($0.identifier) == wanted }
+                entities = allEntities.filter { selectableIdentifier($0) == wanted }
             }
         case .uniqueID(let uniqueID):
             players = allPlayers.filter { playerUniqueID($0) == uniqueID }
@@ -600,7 +720,20 @@ final class WorldCommandExecutor {
     }
 
     private func isPlayerEntity(_ object: BedrockWorldObject) -> Bool {
-        normalizedIdentifier(object.identifier) == "minecraft:player"
+        selectableIdentifier(object) == "minecraft:player"
+    }
+
+    private func selectableIdentifier(_ object: BedrockWorldObject) -> String {
+        let root = object.document.root
+        if let direct = root.stringValue(namedAny: ["identifier", "Identifier"]), !direct.isEmpty {
+            return normalizedIdentifier(direct)
+        }
+        if let first = root.value(namedAny: ["definitions", "Definitions"])?.listValues?.first,
+           case .string(var definition) = first {
+            while definition.first == "+" || definition.first == "-" { definition.removeFirst() }
+            if !definition.isEmpty { return normalizedIdentifier(definition) }
+        }
+        return normalizedIdentifier(object.identifier)
     }
 
     private func normalizedIdentifier(_ value: String) -> String {
