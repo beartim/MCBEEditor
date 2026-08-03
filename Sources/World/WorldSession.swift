@@ -15,6 +15,34 @@ struct WorldSelectionCoordinate {
   }
 }
 
+/// In-memory viewed state for the currently remembered block-search result.
+/// It survives the temporary switch from the result list to the map and back,
+/// but is owned by the world session and is never persisted to disk.
+final class BlockSearchViewedState {
+  private var keys = Set<String>()
+  private let lock = NSLock()
+
+  func contains(_ key: String) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return keys.contains(key)
+  }
+
+  @discardableResult
+  func mark(_ key: String) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return keys.insert(key).inserted
+  }
+
+  @discardableResult
+  func clear(_ key: String) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return keys.remove(key) != nil
+  }
+}
+
 enum WorldSessionChangeKind: String {
   case databaseMutation
   case externalReload
@@ -33,6 +61,7 @@ final class WorldSession {
   private var selectedWorldObjectCoordinateStorage: WorldSelectionCoordinate?
   private var requestedMapBlockCoordinateStorage: WorldSelectionCoordinate?
   private var blockSearchResultStorage: BedrockBlockSearchScanResult?
+  private var blockSearchViewedStateStorage: BlockSearchViewedState?
   private let lock = NSLock()
 
   init(world: ImportedWorld, store: WorldStore = .shared) {
@@ -73,6 +102,12 @@ final class WorldSession {
     return blockSearchResultStorage
   }
 
+  var rememberedBlockSearchViewedState: BlockSearchViewedState? {
+    lock.lock()
+    defer { lock.unlock() }
+    return blockSearchViewedStateStorage
+  }
+
   func rememberSelectedBlock(x: Int64, y: Int32, z: Int64, dimension: Int32) {
     lock.lock()
     selectedBlockCoordinateStorage = WorldSelectionCoordinate(
@@ -90,9 +125,13 @@ final class WorldSession {
     lock.unlock()
   }
 
-  func rememberBlockSearchResult(_ result: BedrockBlockSearchScanResult) {
+  func rememberBlockSearchResult(
+    _ result: BedrockBlockSearchScanResult,
+    viewedState: BlockSearchViewedState
+  ) {
     lock.lock()
     blockSearchResultStorage = result
+    blockSearchViewedStateStorage = viewedState
     lock.unlock()
   }
 
@@ -110,6 +149,7 @@ final class WorldSession {
     selectedWorldObjectCoordinateStorage = nil
     requestedMapBlockCoordinateStorage = nil
     blockSearchResultStorage = nil
+    blockSearchViewedStateStorage = nil
     lock.unlock()
   }
 

@@ -5,11 +5,16 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
     private let result: BedrockBlockSearchScanResult
     private let searchController = UISearchController(searchResultsController: nil)
     private var shownHits: [BedrockBlockSearchHit]
-    private let viewedItems = ViewedItemTracker()
+    private let viewedState: BlockSearchViewedState
 
-    init(session: WorldSession, result: BedrockBlockSearchScanResult) {
+    init(
+        session: WorldSession,
+        result: BedrockBlockSearchScanResult,
+        viewedState: BlockSearchViewedState = BlockSearchViewedState()
+    ) {
         self.session = session
         self.result = result
+        self.viewedState = viewedState
         self.shownHits = result.hits
         super.init(style: .insetGrouped)
         title = "方块搜索结果"
@@ -59,12 +64,12 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
         ViewedListSupport.configure(
             cell: cell,
             isEnabled: true,
-            isViewed: viewedItems.contains(key),
+            isViewed: viewedState.contains(key),
             clearAction: { [weak self] in
                 guard let self = self else { return }
                 ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
                     guard let self = self else { return }
-                    self.viewedItems.clear(key)
+                    self.viewedState.clear(key)
                     self.tableView.reloadData()
                 }
             }
@@ -75,12 +80,12 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let hit = shownHits[indexPath.row]
-        viewedItems.mark("\(hit.dimension):\(hit.x):\(hit.y):\(hit.z)")
+        viewedState.mark("\(hit.dimension):\(hit.x):\(hit.y):\(hit.z)")
         tableView.reloadRows(at: [indexPath], with: .none)
         if let workspace = tabBarController as? WorldDetailTabBarController {
-            workspace.showMapBlockSearchHit(hit, result: result)
+            workspace.showMapBlockSearchHit(hit, result: result, viewedState: viewedState)
         } else {
-            session.rememberBlockSearchResult(result)
+            session.rememberBlockSearchResult(result, viewedState: viewedState)
             tabBarController?.selectedIndex = 0
             session.requestMapBlockSelection(x: hit.x, y: hit.y, z: hit.z, dimension: hit.dimension)
         }

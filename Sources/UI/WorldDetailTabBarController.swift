@@ -55,9 +55,12 @@ final class WorldDetailTabBarController: UITabBarController {
         viewControllers = [map, entities, chunks, nbt, commands, tools]
     }
 
-
-    func showMapBlockSearchHit(_ hit: BedrockBlockSearchHit, result: BedrockBlockSearchScanResult) {
-        session.rememberBlockSearchResult(result)
+    func showMapBlockSearchHit(
+        _ hit: BedrockBlockSearchHit,
+        result: BedrockBlockSearchScanResult,
+        viewedState: BlockSearchViewedState
+    ) {
+        session.rememberBlockSearchResult(result, viewedState: viewedState)
         selectedIndex = 0
         if let mapNavigation = viewControllers?.first as? UINavigationController {
             mapNavigation.popToRootViewController(animated: false)
@@ -67,11 +70,12 @@ final class WorldDetailTabBarController: UITabBarController {
 
     func showRememberedBlockSearchResults() {
         guard let result = session.rememberedBlockSearchResult,
+              let viewedState = session.rememberedBlockSearchViewedState,
               let mapNavigation = viewControllers?.first as? UINavigationController else { return }
         selectedIndex = 0
         mapNavigation.popToRootViewController(animated: false)
         mapNavigation.pushViewController(
-            BlockSearchResultsViewController(session: session, result: result),
+            BlockSearchResultsViewController(session: session, result: result, viewedState: viewedState),
             animated: true
         )
     }

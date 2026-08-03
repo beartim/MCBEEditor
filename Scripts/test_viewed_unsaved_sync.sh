@@ -55,16 +55,28 @@ struct Main {
     let valueMatches = NBTTreeRows.search(in: root, query: "37")
     precondition(valueMatches.map(\.name) == ["TypedOnly", "PlayerLevel"])
 
-    // Results are grouped by name first, then value, then type, without duplicates.
+    // Search stops at the first non-empty category: name, then value, then type.
     let priorityMatches = NBTTreeRows.search(in: root, query: "Int")
-    precondition(priorityMatches.map(\.name) == ["IntByName", "ValueHolder", "TypedOnly", "PlayerLevel"])
+    precondition(priorityMatches.map(\.name) == ["IntByName"])
+
+    let valueFallback = NBTTreeRows.search(in: root, query: "appears in value")
+    precondition(valueFallback.map(\.name) == ["ValueHolder"])
+
+    let typeFallback = NBTTreeRows.search(in: root, query: "Short")
+    precondition(typeFallback.map(\.name) == ["Damage"])
+
+    // Container summaries such as Compound{n}/List[n] are not tag values.
+    precondition(NBTTreeRows.search(in: root, query: "Compound{1}").isEmpty)
 
     let roots = [
       NBTDocument(rootName: "IntRoot", root: .string("alpha")),
       NBTDocument(rootName: "Other", root: .string("Int in value")),
       NBTDocument(rootName: "Typed", root: .int(1))
     ]
-    precondition(NBTTreeRows.searchDocuments(roots, query: "Int") == [0, 1, 2])
+    precondition(NBTTreeRows.searchDocuments(roots, query: "Int") == [0])
+    precondition(NBTTreeRows.searchDocuments(roots, query: "in value") == [1])
+    precondition(NBTTreeRows.searchDocuments(roots, query: "Int") != [1, 2])
+    precondition(NBTTreeRows.searchDocuments(roots, query: "Long").isEmpty)
     precondition(NBTTreeRows.searchDocuments(roots, query: "0").isEmpty)
   }
 }
@@ -87,8 +99,7 @@ grep -q 'interactivePopGestureRecognizer?.isEnabled = false' "$GUARD"
 
 for file in \
   EntityBrowserViewController.swift \
-  MapSelectionResultsViewController.swift \
-  BlockSearchResultsViewController.swift; do
+  MapSelectionResultsViewController.swift; do
   grep -q 'ViewedItemTracker' "$ROOT/Sources/UI/$file" || {
     echo "error: viewed-state support missing from $file" >&2
     exit 1
@@ -98,6 +109,11 @@ for file in \
     exit 1
   }
 done
+
+grep -q 'BlockSearchViewedState' "$ROOT/Sources/UI/BlockSearchResultsViewController.swift"
+grep -q 'viewedState: viewedState' "$ROOT/Sources/UI/WorldDetailTabBarController.swift"
+grep -q 'rememberedBlockSearchViewedState' "$ROOT/Sources/World/WorldSession.swift"
+grep -q 'isEnabled: true' "$ROOT/Sources/UI/BlockSearchResultsViewController.swift"
 
 if [[ "$(grep -R -l 'isEnabled: true' "$ROOT/Sources/UI" | wc -l | tr -d ' ')" != "3" ]]; then
   echo "error: viewed badges are enabled outside the three requested lists" >&2
@@ -111,7 +127,7 @@ if grep -q 'viewedItems.mark(object.stableID)' <(sed -n '/didSelectRowAt/,/trail
   exit 1
 fi
 
-grep -q 'Paths are intentionally never searched' "$ROOT/Sources/UI/NBTNode.swift"
+grep -q 'Paths, parent summaries and child contents are never searched' "$ROOT/Sources/UI/NBTNode.swift"
 if grep -R -q '搜索名称、路径、类型或值' "$ROOT/Sources/UI"; then
   echo "error: an NBT search field still advertises path search" >&2
   exit 1

@@ -58,58 +58,75 @@ enum NBTTreeRows {
     var allNodes = [NBTNode]()
     appendAllNodes(of: root, parentPath: [], depth: 0, to: &allNodes)
 
-    // Search priority is deterministic and shared by every NBT editor:
-    // 1. tag name, 2. direct tag value, 3. tag type. A node is emitted once,
-    // in the first group it matches. Paths are intentionally never searched.
-    var matchedPaths = Set<[NBTPathComponent]>()
-    var result = [NBTNode]()
+    // Search uses strict fallback priority across the whole tree:
+    // 1. tag name; only when there are no name matches,
+    // 2. the tag's own scalar/array value; only when there are no value matches,
+    // 3. tag type. Paths, parent summaries and child contents are never searched.
+    let nameMatches = allNodes.filter {
+      $0.name.localizedCaseInsensitiveContains(query)
+    }
+    if !nameMatches.isEmpty { return nameMatches }
 
-    appendUniqueMatches(
-      from: allNodes,
-      matching: { $0.name.localizedCaseInsensitiveContains(query) },
-      matchedPaths: &matchedPaths,
-      to: &result
-    )
-    appendUniqueMatches(
-      from: allNodes,
-      matching: { $0.value.summary.localizedCaseInsensitiveContains(query) },
-      matchedPaths: &matchedPaths,
-      to: &result
-    )
-    appendUniqueMatches(
-      from: allNodes,
-      matching: { $0.value.type.displayName.localizedCaseInsensitiveContains(query) },
-      matchedPaths: &matchedPaths,
-      to: &result
-    )
-    return result
+    let valueMatches = allNodes.filter { node in
+      directValueMatches(node.value, query: query)
+    }
+    if !valueMatches.isEmpty { return valueMatches }
+
+    return allNodes.filter {
+      $0.value.type.displayName.localizedCaseInsensitiveContains(query)
+    }
   }
 
   static func searchDocuments(_ documents: [NBTDocument], query rawQuery: String) -> [Int] {
     let query = normalizedQuery(rawQuery)
     guard !query.isEmpty else { return Array(documents.indices) }
 
-    var matched = Set<Int>()
-    var result = [Int]()
-    func append(_ predicate: (NBTDocument) -> Bool) {
-      for index in documents.indices where !matched.contains(index) && predicate(documents[index]) {
-        matched.insert(index)
-        result.append(index)
-      }
+    let nameMatches = documents.indices.filter {
+      documents[$0].rootName.localizedCaseInsensitiveContains(query)
     }
+    if !nameMatches.isEmpty { return nameMatches }
 
-    append { $0.rootName.localizedCaseInsensitiveContains(query) }
-    append { $0.root.summary.localizedCaseInsensitiveContains(query) }
-    append { $0.root.type.displayName.localizedCaseInsensitiveContains(query) }
-    return result
+    let valueMatches = documents.indices.filter { index in
+      directValueMatches(documents[index].root, query: query)
+    }
+    if !valueMatches.isEmpty { return valueMatches }
+
+    return documents.indices.filter {
+      documents[$0].root.type.displayName.localizedCaseInsensitiveContains(query)
+    }
   }
 
   static func matches(_ node: NBTNode, query rawQuery: String) -> Bool {
     let query = normalizedQuery(rawQuery)
     guard !query.isEmpty else { return false }
-    return node.name.localizedCaseInsensitiveContains(query)
-      || node.value.summary.localizedCaseInsensitiveContains(query)
-      || node.value.type.displayName.localizedCaseInsensitiveContains(query)
+    if node.name.localizedCaseInsensitiveContains(query) { return true }
+    if directValueMatches(node.value, query: query) {
+      return true
+    }
+    return node.value.type.displayName.localizedCaseInsensitiveContains(query)
+  }
+
+  private static func directValueMatches(_ value: NBTValue, query: String) -> Bool {
+    // Compound and List have no direct value. Their summaries only describe
+    // child counts and previously caused unrelated parent rows to match.
+    switch value {
+    case .byte(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .short(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .int(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .long(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .float(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .double(let number): return String(number).localizedCaseInsensitiveContains(query)
+    case .string(let text): return text.localizedCaseInsensitiveContains(query)
+    case .byteArray(let data):
+      return data.contains {
+        String(Int8(bitPattern: $0)).localizedCaseInsensitiveContains(query)
+      }
+    case .intArray(let values):
+      return values.contains { String($0).localizedCaseInsensitiveContains(query) }
+    case .longArray(let values):
+      return values.contains { String($0).localizedCaseInsensitiveContains(query) }
+    case .list, .compound: return false
+    }
   }
 
   private static func normalizedQuery(_ query: String) -> String {
@@ -178,18 +195,6 @@ enum NBTTreeRows {
       }
     default:
       break
-    }
-  }
-
-  private static func appendUniqueMatches(
-    from nodes: [NBTNode],
-    matching predicate: (NBTNode) -> Bool,
-    matchedPaths: inout Set<[NBTPathComponent]>,
-    to result: inout [NBTNode]
-  ) {
-    for node in nodes where !matchedPaths.contains(node.path) && predicate(node) {
-      matchedPaths.insert(node.path)
-      result.append(node)
     }
   }
 
