@@ -17,6 +17,7 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
     private var shownSections = [VillageSection]()
     private var diagnostics = [String]()
     private var loadGeneration = 0
+    private let viewedItems = ViewedItemTracker()
 
     init(
         session: WorldSession,
@@ -47,10 +48,21 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
             target: self,
             action: #selector(loadRecords)
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         loadRecords()
     }
 
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { loadRecords() }
+
     @objc private func loadRecords() {
+        viewedItems.reset()
         loadGeneration += 1
         let generation = loadGeneration
         navigationItem.rightBarButtonItem?.isEnabled = false
@@ -158,13 +170,26 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.detailTextLabel?.numberOfLines = 2
         cell.imageView?.image = UIImage(systemName: record.kind.iconName) ?? UIImage(systemName: "doc.text")
-        cell.accessoryType = .disclosureIndicator
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(record.keyText),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(record.keyText)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let record = record(at: indexPath)
+        viewedItems.mark(record.keyText)
+        tableView.reloadRows(at: [indexPath], with: .none)
         let controller = VillageNBTEditorViewController(record: record, store: store) { [weak self] in
             self?.loadRecords()
             self?.onSave()

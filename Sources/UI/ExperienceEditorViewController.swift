@@ -6,6 +6,7 @@ final class ExperienceEditorViewController: UITableViewController {
     private let workQueue = DispatchQueue(label: "com.wzn.mcbeeditor.experience.list", qos: .userInitiated)
     private var records = [PlayerExperienceRecord]()
     private var isLoading = false
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -19,11 +20,22 @@ final class ExperienceEditorViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(reloadPlayers))
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         reloadPlayers()
     }
 
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { reloadPlayers() }
+
     @objc private func reloadPlayers() {
         guard !isLoading else { return }
+        viewedItems.reset()
         isLoading = true
         let overlay = showBusy("读取玩家经验…")
         workQueue.async { [weak self] in
@@ -66,13 +78,27 @@ final class ExperienceEditorViewController: UITableViewController {
             Double(item.experience.progress)
         )
         cell.detailTextLabel?.numberOfLines = 2
-        cell.accessoryType = .disclosureIndicator
+        let key = item.player.keyText
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let item = records[indexPath.row]
+        viewedItems.mark(item.player.keyText)
+        tableView.reloadRows(at: [indexPath], with: .none)
         let controller = PlayerExperienceEditorViewController(session: session, record: item) { [weak self] in
             self?.reloadPlayers()
         }

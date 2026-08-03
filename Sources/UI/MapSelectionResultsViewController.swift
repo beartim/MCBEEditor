@@ -8,6 +8,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
     private let onLocate: (BedrockWorldObject) -> Void
     private let searchController = UISearchController(searchResultsController: nil)
     private var shown = [BedrockWorldObject]()
+    private let viewedItems = ViewedItemTracker()
 
     init(
         session: WorldSession,
@@ -80,13 +81,27 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         cell.detailTextLabel?.numberOfLines = 2
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: object.kind == .entity ? "person.fill" : "shippingbox.fill")
-        cell.accessoryType = .disclosureIndicator
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(object.stableID),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(object.stableID)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        showDetails(objects(in: indexPath.section)[indexPath.row], sourceRect: tableView.rectForRow(at: indexPath))
+        let object = objects(in: indexPath.section)[indexPath.row]
+        viewedItems.mark(object.stableID)
+        tableView.reloadRows(at: [indexPath], with: .none)
+        showDetails(object, sourceRect: tableView.rectForRow(at: indexPath))
     }
 
     private func showDetails(_ object: BedrockWorldObject, sourceRect: CGRect) {

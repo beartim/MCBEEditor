@@ -11,6 +11,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
     private var query = ""
     private var isBatchMode = false
     private var batchSelection = Set<ChunkPosition>()
+    private let viewedItems = ViewedItemTracker()
 
     var onSelectChunk: ((ChunkPosition) -> Void)?
     var onSelectTickingArea: ((ChunkPosition) -> Void)?
@@ -35,7 +36,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
         let search = UISearchController(searchResultsController: nil)
         search.obscuresBackgroundDuringPresentation = false
         search.searchResultsUpdater = self
-        search.searchBar.placeholder = "搜索 X、Z、维度或记录类型"
+        search.searchBar.placeholder = "搜索 X、Z、维度、记录类型或精确坐标 (0,0)"
         navigationItem.searchController = search
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
@@ -51,8 +52,18 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
             dimensionControl.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor)
         ])
         tableView.tableHeaderView = wrapper
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         reloadChunks()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { reloadChunks() }
 
     private func updateNavigationButtons() {
         if isBatchMode {
@@ -137,6 +148,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
     }
 
     @objc private func reloadChunks() {
+        viewedItems.reset()
         let overlay = showBusy("扫描世界中所有区块键…")
         workQueue.async { [weak self] in
             guard let self = self else { return }
@@ -171,9 +183,13 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
         let selectedDimension: Int32? = dimensionControl.selectedSegmentIndex == 0
             ? nil
             : BedrockDimension.allCases[dimensionControl.selectedSegmentIndex - 1].rawValue
+        let exactCoordinate = ChunkCoordinateSearch.parse(query)
         filtered = summaries.filter { summary in
             if let selectedDimension = selectedDimension, summary.position.dimension != selectedDimension { return false }
             guard !query.isEmpty else { return true }
+            if let exactCoordinate = exactCoordinate {
+                return summary.position.x == exactCoordinate.x && summary.position.z == exactCoordinate.z
+            }
             let dimension = BedrockDimension(rawValue: summary.position.dimension)?.displayName ?? "维度 \(summary.position.dimension)"
             let text = "\(summary.position.x) \(summary.position.z) \(dimension) \(summary.detailText)"
             return text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
@@ -181,7 +197,6 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
         tableView.reloadData()
         updateNavigationButtons()
     }
-
     override func numberOfSections(in tableView: UITableView) -> Int { 1 }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { filtered.count }
 
@@ -192,9 +207,24 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
         cell.textLabel?.numberOfLines = 2
         cell.textLabel?.text = "\(dimension)  \(summary.coordinateText)\n\(summary.detailText)"
         cell.textLabel?.font = .preferredFont(forTextStyle: .body)
-        cell.accessoryType = isBatchMode
-            ? (batchSelection.contains(summary.position) ? .checkmark : .none)
-            : .disclosureIndicator
+        let key = "\(summary.position.dimension):\(summary.position.x):\(summary.position.z)"
+        if isBatchMode {
+            ViewedListSupport.clearAccessory(cell)
+            cell.accessoryType = batchSelection.contains(summary.position) ? .checkmark : .none
+        } else {
+            ViewedListSupport.configure(
+                cell: cell,
+                isViewed: viewedItems.contains(key),
+                clearAction: { [weak self] in
+                    guard let self = self else { return }
+                    ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                        guard let self = self else { return }
+                        self.viewedItems.clear(key)
+                        self.tableView.reloadData()
+                    }
+                }
+            )
+        }
         return cell
     }
 
@@ -212,6 +242,9 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
             return
         }
         tableView.deselectRow(at: indexPath, animated: true)
+        let key = "\(summary.position.dimension):\(summary.position.x):\(summary.position.z)"
+        viewedItems.mark(key)
+        tableView.reloadRows(at: [indexPath], with: .none)
         showActions(for: summary, sourceView: tableView.cellForRow(at: indexPath))
     }
 

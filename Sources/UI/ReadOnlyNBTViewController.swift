@@ -7,6 +7,7 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
   private var rows = [NBTNode]()
   private var expanded = Set<[NBTPathComponent]>()
   private let searchController = UISearchController(searchResultsController: nil)
+  private let viewedItems = ViewedItemTracker()
 
   init(title: String, document: NBTDocument, rawData: Data, exportFilename: String? = nil) {
     self.document = document
@@ -77,13 +78,27 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
     cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>"
     cell.detailTextLabel?.text =
       query.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
-    cell.accessoryType = node.hasChildren ? .none : .disclosureIndicator
+    let key = node.pathDescription
+    ViewedListSupport.configure(
+      cell: cell,
+      isViewed: viewedItems.contains(key),
+      showsDisclosure: !node.hasChildren,
+      clearAction: { [weak self] in
+        guard let self = self else { return }
+        ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+          guard let self = self else { return }
+          self.viewedItems.clear(key)
+          self.tableView.reloadData()
+        }
+      })
     return cell
   }
 
   override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     let node = rows[indexPath.row]
+    viewedItems.mark(node.pathDescription)
+    tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if expanded.contains(node.path) {
         expanded.remove(node.path)

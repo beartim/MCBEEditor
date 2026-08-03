@@ -11,6 +11,7 @@ final class ChunkBiomeEditorViewController: UITableViewController {
     private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.biome-editor", qos: .userInitiated)
     private var record: BedrockChunkStore.BiomeRecord?
     private var dirty = false
+    private let viewedItems = ViewedItemTracker()
     private lazy var saveButton = UIBarButtonItem(
         barButtonSystemItem: .save,
         target: self,
@@ -35,6 +36,22 @@ final class ChunkBiomeEditorViewController: UITableViewController {
             UIBarButtonItem(title: "ID 对照", style: .plain, target: self, action: #selector(showBiomeCatalog))
         ]
         saveButton.isEnabled = false
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
+        loadRecord()
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() {
+        guard !dirty else {
+            navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，保存或放弃后再刷新。"
+            return
+        }
         loadRecord()
     }
 
@@ -46,6 +63,7 @@ final class ChunkBiomeEditorViewController: UITableViewController {
                 let value = try self.store.biomeRecord(at: self.chunk)
                 DispatchQueue.main.async {
                     overlay.removeFromSuperview()
+                    self.viewedItems.reset()
                     self.record = value
                     self.dirty = false
                     self.saveButton.isEnabled = false
@@ -88,6 +106,8 @@ final class ChunkBiomeEditorViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "BiomeLayer")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "BiomeLayer")
+        ViewedListSupport.clearAccessory(cell)
+        cell.accessoryType = .none
         guard let record = record else { return cell }
         cell.textLabel?.numberOfLines = 1
         cell.detailTextLabel?.numberOfLines = 2
@@ -121,7 +141,19 @@ final class ChunkBiomeEditorViewController: UITableViewController {
                 }.joined(separator: ", ")
                 cell.detailTextLabel?.text = "\(layer.coordinateCount) 个位置 · \(unique.count) 种 ID" + (preview.isEmpty ? "" : " · \(preview)")
             }
-            cell.accessoryType = .disclosureIndicator
+            let key = String(indexPath.row)
+            ViewedListSupport.configure(
+                cell: cell,
+                isViewed: viewedItems.contains(key),
+                clearAction: { [weak self] in
+                    guard let self = self else { return }
+                    ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                        guard let self = self else { return }
+                        self.viewedItems.clear(key)
+                        self.tableView.reloadData()
+                    }
+                }
+            )
         }
         return cell
     }
@@ -130,6 +162,8 @@ final class ChunkBiomeEditorViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         guard indexPath.section == 1, let record = record else { return }
         let layerIndex = indexPath.row
+        viewedItems.mark(String(layerIndex))
+        tableView.reloadRows(at: [indexPath], with: .none)
         let editor = BiomeLayerEditorViewController(layer: record.document.layers[layerIndex])
         editor.onCommit = { [weak self] layer in
             guard let self = self, var current = self.record else { return }
@@ -194,6 +228,7 @@ private final class BiomeLayerEditorViewController: UITableViewController, UISea
     private var layer: BedrockBiomeLayer
     private var visibleIndices = [Int]()
     private let searchController = UISearchController(searchResultsController: nil)
+    private let viewedItems = ViewedItemTracker()
     var onCommit: ((BedrockBiomeLayer) -> Void)?
 
     init(layer: BedrockBiomeLayer) {
@@ -251,13 +286,27 @@ private final class BiomeLayerEditorViewController: UITableViewController, UISea
         let identifier = BedrockBiomeCatalog.identifier(for: id) ?? "未知/自定义"
         cell.detailTextLabel?.text = "\(layer.coordinateText(for: index)) · \(identifier)"
         cell.imageView?.image = UIImage(systemName: "leaf")
-        cell.accessoryType = .disclosureIndicator
+        let key = String(index)
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let index = visibleIndices[indexPath.row]
+        viewedItems.mark(String(index))
+        tableView.reloadRows(at: [indexPath], with: .none)
         pickBiomeID(current: layer.biomeIDs[index]) { [weak self] value in
             guard let self = self else { return }
             self.layer.biomeIDs[index] = value

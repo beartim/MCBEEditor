@@ -7,6 +7,7 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
   private var rows = [NBTNode]()
   private var expanded = Set<[NBTPathComponent]>()
   private var dirty = false
+  private let viewedItems = ViewedItemTracker()
   private let searchController = UISearchController(searchResultsController: nil)
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
 
@@ -140,8 +141,24 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>"
     cell.detailTextLabel?.text =
       query.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
+    ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
       cell, node: node, normalAccessory: node.hasChildren ? .none : .disclosureIndicator)
+    if !batchSelectionCoordinator.isActive {
+      let key = node.pathDescription
+      ViewedListSupport.configure(
+        cell: cell,
+        isViewed: viewedItems.contains(key),
+        showsDisclosure: !node.hasChildren,
+        clearAction: { [weak self] in
+          guard let self = self else { return }
+          ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+            guard let self = self else { return }
+            self.viewedItems.clear(key)
+            self.tableView.reloadData()
+          }
+        })
+    }
     return cell
   }
 
@@ -149,6 +166,8 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     tableView.deselectRow(at: indexPath, animated: true)
     let node = rows[indexPath.row]
     if batchSelectionCoordinator.handleTap(on: node) { return }
+    viewedItems.mark(node.pathDescription)
+    tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
         for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
@@ -392,11 +411,11 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     )
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
     alert.addAction(
-      UIAlertAction(title: "不保存", style: .destructive) { [weak self] _ in
+      UIAlertAction(title: "不保存直接退出", style: .destructive) { [weak self] _ in
         self?.navigationController?.popViewController(animated: true)
       })
     alert.addAction(
-      UIAlertAction(title: "保存并返回", style: .default) { [weak self] _ in
+      UIAlertAction(title: "保存退出", style: .default) { [weak self] _ in
         guard let self = self else { return }
         self.saveChanges()
         self.navigationController?.popViewController(animated: true)

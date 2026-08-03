@@ -31,6 +31,7 @@ struct PlayerNBTRecord: Hashable {
 
 final class PlayerNBTStore {
     private let session: WorldSession
+    var worldSession: WorldSession { session }
 
     init(session: WorldSession) {
         self.session = session

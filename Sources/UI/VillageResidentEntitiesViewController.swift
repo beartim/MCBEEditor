@@ -6,6 +6,7 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
     private let residentKind: VillageResidentEntityKind
     private let searchController = UISearchController(searchResultsController: nil)
     private var shownObjects = [BedrockWorldObject]()
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession, objects: [BedrockWorldObject], residentKind: VillageResidentEntityKind) {
         self.session = session
@@ -70,13 +71,28 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
         cell.detailTextLabel?.numberOfLines = 2
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: residentKind.iconName) ?? UIImage(systemName: "person.fill")
-        cell.accessoryType = .disclosureIndicator
+        let key = object.stableID
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        showDetails(shownObjects[indexPath.row], sourceRect: tableView.rectForRow(at: indexPath))
+        let object = shownObjects[indexPath.row]
+        viewedItems.mark(object.stableID)
+        tableView.reloadRows(at: [indexPath], with: .none)
+        showDetails(object, sourceRect: tableView.rectForRow(at: indexPath))
     }
 
     private func showDetails(_ object: BedrockWorldObject, sourceRect: CGRect) {

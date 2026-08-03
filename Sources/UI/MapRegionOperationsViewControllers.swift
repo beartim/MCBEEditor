@@ -241,6 +241,7 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
     private let store: BedrockChunkStore
     private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.region-hardcoded-spawners", qos: .userInitiated)
     private var summaries = [BedrockChunkSummary]()
+    private let viewedItems = ViewedItemTracker()
     var onMutation: ((String) -> Void)?
 
     init(session: WorldSession, region: BedrockMapRegion) {
@@ -257,8 +258,18 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
         super.viewDidLoad()
         navigationItem.prompt = region.coordinateText
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(loadChunks))
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         loadChunks()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { loadChunks() }
 
     @objc private func loadChunks() {
         let overlay = showBusy("读取选区区块…")
@@ -270,6 +281,7 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
             }
             DispatchQueue.main.async {
                 overlay.removeFromSuperview()
+                self.viewedItems.reset()
                 self.summaries = values
                 self.tableView.reloadData()
             }
@@ -288,13 +300,28 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
         cell.textLabel?.text = "区块 (\(summary.position.x), \(summary.position.z))"
         cell.detailTextLabel?.text = summary.hasHardcodedSpawners ? "已有 HardcodedSpawners" : "没有记录，可创建"
         cell.imageView?.image = UIImage(systemName: summary.hasHardcodedSpawners ? "scope" : "plus.square")
-        cell.accessoryType = .disclosureIndicator
+        let key = "\(summary.position.dimension):\(summary.position.x):\(summary.position.z)"
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let summary = summaries[indexPath.row]
+        let key = "\(summary.position.dimension):\(summary.position.x):\(summary.position.z)"
+        viewedItems.mark(key)
+        tableView.reloadRows(at: [indexPath], with: .none)
         let controller = HardcodedSpawnersViewController(session: session, chunk: summary.position)
         controller.onSave = { [weak self] message in
             self?.onMutation?(message)

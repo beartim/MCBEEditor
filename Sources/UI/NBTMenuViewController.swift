@@ -14,6 +14,7 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
     private var allDatabaseKeys = [Data]()
     private var filteredDatabaseKeys = [Data]()
     private var isLoadingKeys = false
+    private let viewedItems = ViewedItemTracker()
 
     private let items = [
         Item(title: "世界 NBT", subtitle: "查看和修改 level.dat 世界设置", icon: "globe", fallback: "世"),
@@ -74,9 +75,12 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
             navigationItem.prompt = nil
             return
         }
+        let explicitHexQuery = query.hasPrefix("0x") ? String(query.dropFirst(2)) : nil
         filteredDatabaseKeys = allDatabaseKeys.filter { key in
             let text = String(data: key, encoding: .utf8)?.replacingOccurrences(of: "\0", with: "\\0").lowercased() ?? ""
-            return text.contains(query) || key.hexString.lowercased().contains(query) || (BedrockDBKey.parse(key)?.description.lowercased().contains(query) == true)
+            if text.contains(query) { return true }
+            guard let explicitHexQuery = explicitHexQuery, !explicitHexQuery.isEmpty else { return false }
+            return key.hexString.lowercased().contains(explicitHexQuery)
         }
         if filteredDatabaseKeys.count > 500 { filteredDatabaseKeys = Array(filteredDatabaseKeys.prefix(500)) }
         navigationItem.prompt = isLoadingKeys ? "正在读取数据库键…" : "找到 \(filteredDatabaseKeys.count) 个键（最多显示 500）"
@@ -100,7 +104,6 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.detailTextLabel?.numberOfLines = 2
         cell.imageView?.contentMode = .scaleAspectFit
-        cell.accessoryType = .disclosureIndicator
         if isSearchingKeys {
             let key = filteredDatabaseKeys[indexPath.row]
             let parsed = BedrockDBKey.parse(key)
@@ -114,6 +117,21 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
             cell.detailTextLabel?.text = item.subtitle
             cell.imageView?.image = menuIcon(systemName: item.icon, fallback: item.fallback)
         }
+        let viewedKey = isSearchingKeys
+            ? "key:" + filteredDatabaseKeys[indexPath.row].hexString
+            : "menu:" + String(indexPath.row)
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(viewedKey),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(viewedKey)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
@@ -138,6 +156,11 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        let viewedKey = isSearchingKeys
+            ? "key:" + filteredDatabaseKeys[indexPath.row].hexString
+            : "menu:" + String(indexPath.row)
+        viewedItems.mark(viewedKey)
+        tableView.reloadRows(at: [indexPath], with: .none)
         if isSearchingKeys {
             openDatabaseKey(filteredDatabaseKeys[indexPath.row])
             return

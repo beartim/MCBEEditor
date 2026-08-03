@@ -6,6 +6,7 @@ final class WorldToolsViewController: UITableViewController {
     private let importer = WorldImportService()
     private var infoRows: [WorldInfoRow] = []
     private var isLoading = false
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -26,6 +27,7 @@ final class WorldToolsViewController: UITableViewController {
 
     @objc private func reloadData() {
         guard !isLoading else { return }
+        viewedItems.reset()
         isLoading = true
         let overlay = showBusy("读取世界信息…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -70,6 +72,8 @@ final class WorldToolsViewController: UITableViewController {
             cell.textLabel?.text = row.title
             cell.detailTextLabel?.text = row.value
             cell.detailTextLabel?.numberOfLines = 2
+            ViewedListSupport.clearAccessory(cell)
+            cell.accessoryType = .none
             cell.selectionStyle = .none
             return cell
         }
@@ -114,11 +118,28 @@ final class WorldToolsViewController: UITableViewController {
         default:
             break
         }
+        let key = "world-tools-\(indexPath.section)-\(indexPath.row)"
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self, self.viewedItems.clear(key) else { return }
+                    self.tableView.reloadRows(at: [indexPath], with: .none)
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        guard indexPath.section > 0 else { return }
+        let key = "world-tools-\(indexPath.section)-\(indexPath.row)"
+        if viewedItems.mark(key) {
+            tableView.reloadRows(at: [indexPath], with: .none)
+        }
         switch indexPath.section {
         case 1:
             showBedrockDataValues(row: indexPath.row)

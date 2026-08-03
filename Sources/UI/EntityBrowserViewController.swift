@@ -76,6 +76,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
   private var diagnostics = [String]()
   private var scanGeneration = 0
   private var scanSummary = ""
+  private let viewedItems = ViewedItemTracker()
 
   init(session: WorldSession, onLocate: @escaping (BedrockWorldObject) -> Void) {
     self.session = session
@@ -484,6 +485,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
   }
 
   @objc private func scan() {
+    viewedItems.reset()
     view.endEditing(true)
     let dimensions: Set<Int32>?
     let dimensionText: String
@@ -679,13 +681,27 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
     cell.detailTextLabel?.textColor = .secondaryLabel
     cell.imageView?.image = UIImage(
       systemName: object.kind == .entity ? "person.fill" : "shippingbox.fill")
-    cell.accessoryType = .disclosureIndicator
+    ViewedListSupport.configure(
+      cell: cell,
+      isViewed: viewedItems.contains(object.stableID),
+      clearAction: { [weak self] in
+        guard let self = self else { return }
+        ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+          guard let self = self else { return }
+          self.viewedItems.clear(object.stableID)
+          self.tableView.reloadData()
+        }
+      }
+    )
     return cell
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
-    showDetails(shownObjects[indexPath.row])
+    let object = shownObjects[indexPath.row]
+    viewedItems.mark(object.stableID)
+    tableView.reloadRows(at: [indexPath], with: .none)
+    showDetails(object)
   }
 
   func tableView(

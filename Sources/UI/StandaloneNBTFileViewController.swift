@@ -7,6 +7,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
     private var presentConversionWhenVisible: Bool
     private var isBatchSelecting = false
     private var batchSelectedIndices = Set<Int>()
+    private let viewedItems = ViewedItemTracker()
 
     init(file: StandaloneNBTFile, presentConversionWhenVisible: Bool = false) {
         self.file = file
@@ -60,7 +61,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         } else {
             displayedIndices = file.documents.indices.filter { index in
                 let document = file.documents[index]
-                return String(index).contains(query) ||
+                return String(index) == query ||
                     document.rootName.lowercased().contains(query) ||
                     primaryName(of: document).lowercased().contains(query) ||
                     document.root.summary.lowercased().contains(query)
@@ -97,9 +98,24 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         cell.detailTextLabel?.text = "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName) · \(document.root.summary)"
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = NBTTagIcon.image(for: document.root.type)
-        cell.accessoryType = isBatchSelecting
-            ? (batchSelectedIndices.contains(index) ? .checkmark : .none)
-            : .disclosureIndicator
+        if isBatchSelecting {
+            ViewedListSupport.clearAccessory(cell)
+            cell.accessoryType = batchSelectedIndices.contains(index) ? .checkmark : .none
+        } else {
+            let key = String(index)
+            ViewedListSupport.configure(
+                cell: cell,
+                isViewed: viewedItems.contains(key),
+                clearAction: { [weak self] in
+                    guard let self = self else { return }
+                    ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                        guard let self = self else { return }
+                        self.viewedItems.clear(key)
+                        self.tableView.reloadData()
+                    }
+                }
+            )
+        }
         return cell
     }
 
@@ -116,6 +132,8 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
             updateBatchNavigationItems()
             return
         }
+        viewedItems.mark(String(documentIndex))
+        tableView.reloadRows(at: [indexPath], with: .none)
         openEditor(documentIndex: documentIndex)
     }
 

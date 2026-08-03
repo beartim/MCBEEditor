@@ -64,6 +64,7 @@ final class StructureNBTStore {
     static let keyPrefix = "structuretemplate"
 
     private let session: WorldSession
+    var worldSession: WorldSession { session }
 
     init(session: WorldSession) {
         self.session = session

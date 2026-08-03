@@ -68,8 +68,9 @@ enum NBTTreeRows {
   static func matches(_ node: NBTNode, query rawQuery: String) -> Bool {
     let query = normalizedQuery(rawQuery)
     guard !query.isEmpty else { return false }
+    let explicitPathSearch = query.contains("/") || query.contains("[") || query.contains("]")
     return node.name.localizedCaseInsensitiveContains(query)
-      || node.pathDescription.localizedCaseInsensitiveContains(query)
+      || (explicitPathSearch && node.pathDescription.localizedCaseInsensitiveContains(query))
       || node.value.type.displayName.localizedCaseInsensitiveContains(query)
       || node.value.summary.localizedCaseInsensitiveContains(query)
   }

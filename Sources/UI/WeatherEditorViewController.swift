@@ -29,8 +29,18 @@ final class WeatherEditorViewController: UIViewController, UITextFieldDelegate {
         view.backgroundColor = .systemGroupedBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .save, target: self, action: #selector(save))
         configureUI()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         loadWeather()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { loadWeather() }
 
     private func configureUI() {
         stack.translatesAutoresizingMaskIntoConstraints = false

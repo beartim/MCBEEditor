@@ -6,6 +6,7 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
     private let searchController = UISearchController(searchResultsController: nil)
     private var allRecords = [MetadataNBTRecord]()
     private var shownRecords = [MetadataNBTRecord]()
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -24,10 +25,21 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(loadRecords))
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         loadRecords()
     }
 
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { loadRecords() }
+
     @objc private func loadRecords() {
+        viewedItems.reset()
         let overlay = showBusy("读取元数据 NBT…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -72,13 +84,27 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.detailTextLabel?.numberOfLines = 2
         cell.imageView?.image = UIImage(systemName: record.roots == nil ? "doc.questionmark" : "doc.text.magnifyingglass")
-        cell.accessoryType = .disclosureIndicator
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(record.keyText),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(record.keyText)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        open(record: shownRecords[indexPath.row])
+        let record = shownRecords[indexPath.row]
+        viewedItems.mark(record.keyText)
+        tableView.reloadRows(at: [indexPath], with: .none)
+        open(record: record)
     }
 
     private func open(record: MetadataNBTRecord) {
@@ -96,15 +122,21 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
 }
 
 final class MetadataNBTRecordViewController: UITableViewController, UISearchResultsUpdating {
-    private let originalRecord: MetadataNBTRecord
+    private var originalRecord: MetadataNBTRecord
     private let store: MetadataNBTStore
     private let onSave: () -> Void
     private var roots: [ConsecutiveNBTRecord]
     private var displayedIndices = [Int]()
     private var dirty = false
     private let searchController = UISearchController(searchResultsController: nil)
+    private lazy var exitGuard = UnsavedNBTExitGuard(
+        controller: self,
+        isDirty: { [weak self] in self?.dirty ?? false },
+        saveChanges: { [weak self] in self?.saveChangesForExit() ?? false }
+    )
     private var isBatchSelecting = false
     private var batchSelectedIndices = Set<Int>()
+    private let viewedItems = ViewedItemTracker()
 
     init(record: MetadataNBTRecord, store: MetadataNBTStore, onSave: @escaping () -> Void) {
         self.originalRecord = record
@@ -125,7 +157,38 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         configureNavigationItems()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: store.worldSession
+        )
         rebuild()
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() {
+        guard !dirty else {
+            navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，退出或保存后再刷新。"
+            return
+        }
+        let key = originalRecord.key
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let refreshed = try? self.store.record(for: key)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self, !self.dirty else { return }
+                guard let refreshed = refreshed, let roots = refreshed.roots else {
+                    self.navigationItem.prompt = "该元数据记录已被命令删除或无法重新读取。"
+                    return
+                }
+                self.originalRecord = refreshed
+                self.roots = roots
+                self.viewedItems.reset()
+                self.rebuild()
+            }
+        }
     }
 
     private func configureNavigationItems() {
@@ -144,10 +207,11 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         displayedIndices = roots.indices.filter { index in
             let document = roots[index].document
-            return query.isEmpty || String(index).contains(query) || document.rootName.lowercased().contains(query) || document.root.summary.lowercased().contains(query)
+            return query.isEmpty || String(index) == query || document.rootName.lowercased().contains(query) || document.root.summary.lowercased().contains(query)
         }
         batchSelectedIndices.formIntersection(Set(roots.indices))
         navigationItem.prompt = "\(originalRecord.keyText)\(dirty ? " · 未保存" : "")"
+        exitGuard.synchronize()
         tableView.reloadData()
         updateBatchNavigationItems()
     }
@@ -165,9 +229,24 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         cell.detailTextLabel?.text = document.root.summary
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = NBTTagIcon.image(for: document.root.type)
-        cell.accessoryType = isBatchSelecting
-            ? (batchSelectedIndices.contains(index) ? .checkmark : .none)
-            : .disclosureIndicator
+        let key = String(index)
+        if isBatchSelecting {
+            ViewedListSupport.clearAccessory(cell)
+            cell.accessoryType = batchSelectedIndices.contains(index) ? .checkmark : .none
+        } else {
+            ViewedListSupport.configure(
+                cell: cell,
+                isViewed: viewedItems.contains(key),
+                clearAction: { [weak self] in
+                    guard let self = self else { return }
+                    ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                        guard let self = self else { return }
+                        self.viewedItems.clear(key)
+                        self.tableView.reloadData()
+                    }
+                }
+            )
+        }
         return cell
     }
 
@@ -184,6 +263,8 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
             updateBatchNavigationItems()
             return
         }
+        viewedItems.mark(String(index))
+        tableView.reloadRows(at: [indexPath], with: .none)
         let document = roots[index].document
         let editor = StandaloneNBTEditorViewController(document: document, title: originalRecord.displayName) { [weak self] updated in
             guard let self = self, self.roots.indices.contains(index) else { return }
@@ -309,15 +390,20 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         }
     }
 
-    @objc private func save() {
+    @objc private func save() { _ = saveChangesForExit() }
+
+    private func saveChangesForExit() -> Bool {
+        guard dirty else { return true }
         do {
             try store.save(record: originalRecord, roots: roots)
             dirty = false
             rebuild()
             onSave()
             navigationItem.prompt = "已保存 \(originalRecord.keyText)"
+            return true
         } catch {
             showError(error, title: "保存元数据失败")
+            return false
         }
     }
 

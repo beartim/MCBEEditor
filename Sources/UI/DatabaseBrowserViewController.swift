@@ -6,6 +6,7 @@ final class DatabaseBrowserViewController: UITableViewController, UISearchResult
     private var allEntries: [(key: Data, value: Data?)] = []
     private var filteredEntries: [(key: Data, value: Data?)] = []
     private let search = UISearchController(searchResultsController: nil)
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -43,6 +44,7 @@ final class DatabaseBrowserViewController: UITableViewController, UISearchResult
     }
 
     @objc private func loadEntries() {
+        viewedItems.reset()
         let overlay = showBusy("读取 LevelDB…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -92,7 +94,19 @@ final class DatabaseBrowserViewController: UITableViewController, UISearchResult
         let utf8 = String(data: key, encoding: .utf8)?.replacingOccurrences(of: "\0", with: "\\0")
         cell.textLabel?.text = parsed?.description ?? "Raw key (\(key.count) bytes)"
         cell.detailTextLabel?.text = utf8?.isEmpty == false ? utf8! : key.hexString
-        cell.accessoryType = .disclosureIndicator
+        let keyID = key.hexString
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(keyID),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(keyID)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
@@ -100,6 +114,8 @@ final class DatabaseBrowserViewController: UITableViewController, UISearchResult
         tableView.deselectRow(at: indexPath, animated: true)
         guard let database = database else { return }
         let key = filteredEntries[indexPath.row].key
+        viewedItems.mark(key.hexString)
+        tableView.reloadRows(at: [indexPath], with: .none)
         do {
             let value = try database.get(key) ?? Data()
             let detail = DatabaseValueViewController(title: BedrockDBKey.parse(key)?.description ?? "Raw key", data: value, editable: false)

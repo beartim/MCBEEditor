@@ -8,6 +8,7 @@ final class PlayerNBTListViewController: UITableViewController, UISearchResultsU
     private var allRecords = [PlayerNBTRecord]()
     private var shownRecords = [PlayerNBTRecord]()
     private var loadGeneration = 0
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -27,10 +28,21 @@ final class PlayerNBTListViewController: UITableViewController, UISearchResultsU
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(loadRecords))
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         loadRecords()
     }
 
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { loadRecords() }
+
     @objc private func loadRecords() {
+        viewedItems.reset()
         loadGeneration += 1
         let generation = loadGeneration
         navigationItem.rightBarButtonItem?.isEnabled = false
@@ -78,13 +90,26 @@ final class PlayerNBTListViewController: UITableViewController, UISearchResultsU
         cell.detailTextLabel?.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: record.keyText == "~local_player" || record.keyText == "LocalPlayer" ? "person.crop.circle.fill" : "person.2.fill")
-        cell.accessoryType = .disclosureIndicator
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(record.keyText),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(record.keyText)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let record = shownRecords[indexPath.row]
+        viewedItems.mark(record.keyText)
+        tableView.reloadRows(at: [indexPath], with: .none)
         let controller = PlayerNBTEditorViewController(record: record, store: store) { [weak self] in
             self?.loadRecords()
         }

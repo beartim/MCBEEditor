@@ -18,6 +18,7 @@ struct MetadataNBTRecord {
 
 final class MetadataNBTStore {
     private let session: WorldSession
+    var worldSession: WorldSession { session }
 
     private static let exactKeys: Set<String> = [
         "AutonomousEntities", "BiomeData", "mVillages", "Nether", "Overworld", "TheEnd",

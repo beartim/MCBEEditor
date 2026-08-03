@@ -10,6 +10,7 @@ final class HardcodedSpawnersViewController: UITableViewController {
   private var dirty = false
   private let initialAreaIndex: Int?
   private var didOpenInitialArea = false
+  private let viewedItems = ViewedItemTracker()
   var onSave: ((String) -> Void)?
 
   init(session: WorldSession, chunk: ChunkPosition, selectedAreaIndex: Int? = nil) {
@@ -30,6 +31,21 @@ final class HardcodedSpawnersViewController: UITableViewController {
       UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addArea)),
     ]
     navigationItem.rightBarButtonItems?.first?.isEnabled = false
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(worldDidChange),
+      name: WorldSession.worldDidChangeNotification,
+      object: session)
+    loadRecord()
+  }
+
+  deinit { NotificationCenter.default.removeObserver(self) }
+
+  @objc private func worldDidChange() {
+    guard !dirty else {
+      navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，保存或放弃后再刷新。"
+      return
+    }
     loadRecord()
   }
 
@@ -41,6 +57,7 @@ final class HardcodedSpawnersViewController: UITableViewController {
         let value = try self.store.hardcodedSpawnersRecord(at: self.chunk)
         DispatchQueue.main.async {
           overlay.removeFromSuperview()
+          self.viewedItems.reset()
           self.record = value
           self.dirty = false
           self.navigationItem.rightBarButtonItems?.first?.isEnabled = false
@@ -86,13 +103,32 @@ final class HardcodedSpawnersViewController: UITableViewController {
     cell.textLabel?.text = area.kind.displayName
     cell.detailTextLabel?.text = area.rangeText
     cell.imageView?.image = UIImage(systemName: "scope")
-    cell.accessoryType = .disclosureIndicator
+    let key = viewedKey(for: indexPath.row, area: area)
+    ViewedListSupport.configure(
+      cell: cell,
+      isViewed: viewedItems.contains(key),
+      clearAction: { [weak self] in
+        guard let self = self else { return }
+        ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+          guard let self = self else { return }
+          self.viewedItems.clear(key)
+          self.tableView.reloadData()
+        }
+      })
     return cell
   }
 
   override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
+    if let area = record?.document.areas[indexPath.row] {
+      viewedItems.mark(viewedKey(for: indexPath.row, area: area))
+      tableView.reloadRows(at: [indexPath], with: .none)
+    }
     editArea(at: indexPath.row)
+  }
+
+  private func viewedKey(for index: Int, area: HardcodedSpawnerArea) -> String {
+    "\(index):\(area.kind.displayName):\(area.rangeText)"
   }
 
   private func editArea(at index: Int) {
@@ -122,6 +158,9 @@ final class HardcodedSpawnersViewController: UITableViewController {
       return
     }
     let indexPath = IndexPath(row: index, section: 0)
+    if let area = record?.document.areas[index] {
+      viewedItems.mark(viewedKey(for: index, area: area))
+    }
     tableView.scrollToRow(at: indexPath, at: .middle, animated: false)
     DispatchQueue.main.async { [weak self] in self?.editArea(at: index) }
   }

@@ -5,6 +5,7 @@ final class EntityNBTImportReviewViewController: UITableViewController {
     private let store: BedrockWorldObjectNBTStore
     private var documents: [NBTDocument]
     private let onComplete: ([BedrockWorldObjectCreateResult]) -> Void
+    private let viewedItems = ViewedItemTracker()
 
     init(
         session: WorldSession,
@@ -52,12 +53,26 @@ final class EntityNBTImportReviewViewController: UITableViewController {
         cell.textLabel?.text = "\(indexPath.row + 1). \(identifier)"
         cell.detailTextLabel?.text = "UniqueID \(uniqueID)；\(dimension)；\(positionText)"
         cell.detailTextLabel?.numberOfLines = 2
-        cell.accessoryType = .disclosureIndicator
+        let key = String(indexPath.row)
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        viewedItems.mark(String(indexPath.row))
+        tableView.reloadRows(at: [indexPath], with: .none)
         let editor = StandaloneNBTEditorViewController(
             document: documents[indexPath.row],
             title: "实体 \(indexPath.row + 1)",

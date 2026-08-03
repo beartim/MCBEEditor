@@ -1,14 +1,20 @@
 import UIKit
 
 final class VillageNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
-  private let record: VillageNBTRecord
+  private var record: VillageNBTRecord
   private let store: VillageNBTStore
   private let onSave: () -> Void
   private var document: NBTDocument
   private var rows = [NBTNode]()
   private var expanded = Set<[NBTPathComponent]>()
   private var dirty = false
+  private let viewedItems = ViewedItemTracker()
   private let searchController = UISearchController(searchResultsController: nil)
+  private lazy var exitGuard = UnsavedNBTExitGuard(
+    controller: self,
+    isDirty: { [weak self] in self?.dirty ?? false },
+    saveChanges: { [weak self] in self?.saveChangesForExit() ?? false }
+  )
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
   private let residentOptionKinds: [VillageResidentEntityKind] = [.villager, .cat, .ironGolem]
   private var residentResolution: VillageResidentResolution?
@@ -38,8 +44,41 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     navigationItem.prompt = record.keyText
     configureNavigationItems()
     expanded.insert([])
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(worldDidChange),
+      name: WorldSession.worldDidChangeNotification,
+      object: store.worldSession)
     rebuildRows()
     if showsResidentOptions { loadResidentEntities() }
+  }
+
+  deinit { NotificationCenter.default.removeObserver(self) }
+
+  @objc private func worldDidChange() {
+    guard !dirty else {
+      navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，退出或保存后再刷新。"
+      return
+    }
+    let stableID = record.stableID
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      guard let self = self else { return }
+      let refreshed = try? self.store.records().first(where: { $0.stableID == stableID })
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self, !self.dirty else { return }
+        guard let refreshed = refreshed else {
+          self.navigationItem.prompt = "该村庄记录已被命令删除或无法重新读取。"
+          return
+        }
+        self.record = refreshed
+        self.document = refreshed.document
+        self.expanded = [[]]
+        self.viewedItems.reset()
+        self.residentResolution = nil
+        self.rebuildRows()
+        if self.showsResidentOptions { self.loadResidentEntities() }
+      }
+    }
   }
 
   private func configureNavigationItems() {
@@ -110,6 +149,7 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     }
     tableView.reloadData()
     title = dirty ? "\(record.displayName) •" : record.displayName
+    exitGuard.synchronize()
     batchSelectionCoordinator.synchronizeWithVisibleRows()
   }
 
@@ -155,7 +195,23 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
       cell.detailTextLabel?.textColor = .secondaryLabel
       cell.imageView?.image =
         UIImage(systemName: kind.iconName) ?? UIImage(systemName: "person.fill")
-      cell.accessoryType = batchSelectionCoordinator.isActive ? .none : .disclosureIndicator
+      let key = "resident:\(kind.rawValue)"
+      if batchSelectionCoordinator.isActive {
+        ViewedListSupport.clearAccessory(cell)
+        cell.accessoryType = .none
+      } else {
+        ViewedListSupport.configure(
+          cell: cell,
+          isViewed: viewedItems.contains(key),
+          clearAction: { [weak self] in
+            guard let self = self else { return }
+            ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+              guard let self = self else { return }
+              self.viewedItems.clear(key)
+              self.tableView.reloadData()
+            }
+          })
+      }
       cell.selectionStyle = batchSelectionCoordinator.isActive ? .none : .default
       return cell
     }
@@ -175,8 +231,24 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>"
     cell.detailTextLabel?.text =
       query.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
+    ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
       cell, node: node, normalAccessory: node.hasChildren ? .none : .disclosureIndicator)
+    if !batchSelectionCoordinator.isActive {
+      let key = node.pathDescription
+      ViewedListSupport.configure(
+        cell: cell,
+        isViewed: viewedItems.contains(key),
+        showsDisclosure: !node.hasChildren,
+        clearAction: { [weak self] in
+          guard let self = self else { return }
+          ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+            guard let self = self else { return }
+            self.viewedItems.clear(key)
+            self.tableView.reloadData()
+          }
+        })
+    }
     return cell
   }
 
@@ -184,12 +256,16 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     tableView.deselectRow(at: indexPath, animated: true)
     if showsResidentOptions && indexPath.section == 0 {
       if !batchSelectionCoordinator.isActive {
+        viewedItems.mark("resident:\(residentOptionKinds[indexPath.row].rawValue)")
+        tableView.reloadRows(at: [indexPath], with: .none)
         showResidentEntities(residentOptionKinds[indexPath.row])
       }
       return
     }
     let node = rows[indexPath.row]
     if batchSelectionCoordinator.handleTap(on: node) { return }
+    viewedItems.mark(node.pathDescription)
+    tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
         for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
@@ -364,14 +440,21 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
       navigationItem.prompt = "没有需要保存的修改"
       return
     }
+    _ = saveChangesForExit()
+  }
+
+  private func saveChangesForExit() -> Bool {
+    guard dirty else { return true }
     do {
       try store.save(record: record, document: document)
       dirty = false
       rebuildRows()
       navigationItem.prompt = "村庄 NBT 已保存"
       onSave()
+      return true
     } catch {
       showError(error, title: "保存村庄 NBT 失败")
+      return false
     }
   }
 

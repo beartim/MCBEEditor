@@ -1,14 +1,20 @@
 import UIKit
 
 final class WorldObjectNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
-  private let object: BedrockWorldObject
+  private var object: BedrockWorldObject
   private let store: BedrockWorldObjectNBTStore
   private let onSave: () -> Void
   private var document: NBTDocument
   private var rows = [NBTNode]()
   private var expanded = Set<[NBTPathComponent]>()
   private var dirty = false
+  private let viewedItems = ViewedItemTracker()
   private let searchController = UISearchController(searchResultsController: nil)
+  private lazy var exitGuard = UnsavedNBTExitGuard(
+    controller: self,
+    isDirty: { [weak self] in self?.dirty ?? false },
+    saveChanges: { [weak self] in self?.performSave() ?? false }
+  )
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
 
   init(object: BedrockWorldObject, session: WorldSession, onSave: @escaping () -> Void) {
@@ -32,7 +38,36 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     definesPresentationContext = true
     configureNavigationItems()
     expanded.insert([])
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(worldDidChange),
+      name: WorldSession.worldDidChangeNotification,
+      object: store.worldSession)
     rebuildRows()
+  }
+
+  deinit { NotificationCenter.default.removeObserver(self) }
+
+  @objc private func worldDidChange() {
+    guard !dirty else {
+      navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，退出或保存后再刷新。"
+      return
+    }
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      guard let self = self else { return }
+      let refreshed = try? self.store.document(for: self.object)
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self, !self.dirty else { return }
+        guard let refreshed = refreshed else {
+          self.navigationItem.prompt = "该实体记录已被命令移动、删除或无法重新读取，请返回列表重新打开。"
+          return
+        }
+        self.document = refreshed
+        self.expanded = [[]]
+        self.viewedItems.reset()
+        self.rebuildRows()
+      }
+    }
   }
 
   private func configureNavigationItems() {
@@ -65,6 +100,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
       navigationItem.prompt = "找到 \(rows.count) 个节点"
     }
     title = dirty ? "\(object.displayName) •" : object.displayName
+    exitGuard.synchronize()
     tableView.reloadData()
     batchSelectionCoordinator.synchronizeWithVisibleRows()
   }
@@ -94,8 +130,24 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>\(protected)"
     cell.detailTextLabel?.text =
       query.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
+    ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
       cell, node: node, normalAccessory: node.hasChildren ? .none : .disclosureIndicator)
+    if !batchSelectionCoordinator.isActive {
+      let key = node.pathDescription
+      ViewedListSupport.configure(
+        cell: cell,
+        isViewed: viewedItems.contains(key),
+        showsDisclosure: !node.hasChildren,
+        clearAction: { [weak self] in
+          guard let self = self else { return }
+          ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+            guard let self = self else { return }
+            self.viewedItems.clear(key)
+            self.tableView.reloadData()
+          }
+        })
+    }
     return cell
   }
 
@@ -103,6 +155,8 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     tableView.deselectRow(at: indexPath, animated: true)
     let node = rows[indexPath.row]
     if batchSelectionCoordinator.handleTap(on: node) { return }
+    viewedItems.mark(node.pathDescription)
+    tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
         for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
@@ -341,7 +395,9 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     present(alert, animated: true)
   }
 
-  private func performSave() {
+  @discardableResult
+  private func performSave() -> Bool {
+    guard dirty else { return true }
     do {
       let result = try store.save(object: object, document: document)
       dirty = false
@@ -356,8 +412,10 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         : ""
       navigationItem.prompt = "已保存\(movedText)\(identityText)"
       onSave()
+      return true
     } catch {
       showError(error, title: "保存 \(object.kind.displayName) NBT 失败")
+      return false
     }
   }
 

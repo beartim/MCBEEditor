@@ -659,7 +659,7 @@ grep -qF 'title: "返回"' "$ROOT/Sources/UI/StandaloneNBTEditorViewController.s
   echo "error: standalone NBT editor return button is missing" >&2
   exit 1
 }
-grep -qF 'title: "保存并返回"' "$ROOT/Sources/UI/StandaloneNBTEditorViewController.swift" || {
+grep -qF 'title: "保存退出"' "$ROOT/Sources/UI/StandaloneNBTEditorViewController.swift" || {
   echo "error: standalone NBT editor save-and-return flow is missing" >&2
   exit 1
 }
@@ -4072,3 +4072,5 @@ swiftc -j 4 \
   "$TMP/EffectCommandStubs.swift" \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"
+
+"$ROOT/Scripts/test_viewed_unsaved_sync.sh"

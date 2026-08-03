@@ -6,7 +6,13 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
   private var rows: [NBTNode] = []
   private var expanded = Set<[NBTPathComponent]>()
   private var dirty = false
+  private let viewedItems = ViewedItemTracker()
   private let searchController = UISearchController(searchResultsController: nil)
+  private lazy var exitGuard = UnsavedNBTExitGuard(
+    controller: self,
+    isDirty: { [weak self] in self?.dirty ?? false },
+    saveChanges: { [weak self] in self?.saveChanges() ?? false }
+  )
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
 
   init(session: WorldSession) {
@@ -49,11 +55,18 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     ]
   }
 
-  @objc private func worldDidChange() { loadDocument() }
+  @objc private func worldDidChange() {
+    guard !dirty else {
+      navigationItem.prompt = "世界已被命令修改；当前未保存内容仍保留，退出或保存后再刷新。"
+      return
+    }
+    loadDocument()
+  }
 
   @objc private func loadDocument() {
     do {
       levelDat = try session.document.readLevelDat()
+      viewedItems.reset()
       expanded = [[]]
       dirty = false
       rebuildRows()
@@ -72,8 +85,11 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     )
   }
 
-  @objc private func save() {
-    guard let levelDat = levelDat else { return }
+  @objc private func save() { _ = saveChanges() }
+
+  private func saveChanges() -> Bool {
+    guard let levelDat = levelDat else { return false }
+    guard dirty else { return true }
     do {
       try session.document.writeLevelDat(levelDat)
       dirty = false
@@ -82,8 +98,10 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
       DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
         if self?.searchQuery.isEmpty == true { self?.navigationItem.prompt = nil }
       }
+      return true
     } catch {
       showError(error, title: "保存失败")
+      return false
     }
   }
 
@@ -112,6 +130,7 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     }
     tableView.reloadData()
     title = dirty ? "世界 NBT •" : "世界 NBT"
+    exitGuard.synchronize()
     batchSelectionCoordinator.synchronizeWithVisibleRows()
   }
 
@@ -145,8 +164,24 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>"
     cell.detailTextLabel?.text =
       searchQuery.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
+    ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
       cell, node: node, normalAccessory: node.hasChildren ? .none : .disclosureIndicator)
+    if !batchSelectionCoordinator.isActive {
+      let key = node.pathDescription
+      ViewedListSupport.configure(
+        cell: cell,
+        isViewed: viewedItems.contains(key),
+        showsDisclosure: !node.hasChildren,
+        clearAction: { [weak self] in
+          guard let self = self else { return }
+          ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+            guard let self = self else { return }
+            self.viewedItems.clear(key)
+            self.tableView.reloadData()
+          }
+        })
+    }
     return cell
   }
 
@@ -154,6 +189,8 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     tableView.deselectRow(at: indexPath, animated: true)
     let node = rows[indexPath.row]
     if batchSelectionCoordinator.handleTap(on: node) { return }
+    viewedItems.mark(node.pathDescription)
+    tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !searchQuery.isEmpty {
         reveal(node)

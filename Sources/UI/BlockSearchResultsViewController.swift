@@ -5,6 +5,7 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
     private let result: BedrockBlockSearchScanResult
     private let searchController = UISearchController(searchResultsController: nil)
     private var shownHits: [BedrockBlockSearchHit]
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession, result: BedrockBlockSearchScanResult) {
         self.session = session
@@ -54,13 +55,27 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
         cell.detailTextLabel?.text = "\(hit.dimensionName) · \(hit.coordinateText)"
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: "cube.fill")
-        cell.accessoryType = .disclosureIndicator
+        let key = "\(hit.dimension):\(hit.x):\(hit.y):\(hit.z)"
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(key)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let hit = shownHits[indexPath.row]
+        viewedItems.mark("\(hit.dimension):\(hit.x):\(hit.y):\(hit.z)")
+        tableView.reloadRows(at: [indexPath], with: .none)
         if let workspace = tabBarController as? WorldDetailTabBarController {
             workspace.showMapBlockSearchHit(hit, result: result)
         } else {

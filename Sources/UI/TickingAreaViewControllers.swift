@@ -283,6 +283,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
     private var query = ""
     private var isBatchMode = false
     private var selectedIDs = Set<String>()
+    private let viewedItems = ViewedItemTracker()
 
     var onSelectChunk: ((ChunkPosition) -> Void)?
     var onMutation: ((String) -> Void)?
@@ -327,9 +328,19 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
             dimensionControl.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor)
         ])
         tableView.tableHeaderView = wrapper
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(worldDidChange),
+            name: WorldSession.worldDidChangeNotification,
+            object: session
+        )
         updateNavigationButtons()
         reloadRecords()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func worldDidChange() { reloadRecords() }
 
     private func updateNavigationButtons() {
         if isBatchMode {
@@ -355,6 +366,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
     }
 
     @objc private func reloadRecords() {
+        viewedItems.reset()
         let overlay = showBusy("读取常加载区域…")
         workQueue.async { [weak self] in
             guard let self = self else { return }
@@ -438,6 +450,8 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
             updateNavigationButtons()
             return
         }
+        viewedItems.mark(record.stableID)
+        tableView.reloadRows(at: [indexPath], with: .none)
         showActions(record, source: tableView.cellForRow(at: indexPath))
     }
 

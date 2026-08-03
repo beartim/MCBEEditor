@@ -9,6 +9,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     private var allRecords = [StructureNBTRecord]()
     private var shownRecords = [StructureNBTRecord]()
     private var loadGeneration = 0
+    private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
         self.session = session
@@ -45,6 +46,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     @objc private func worldDidChange() { loadRecords() }
 
     @objc private func loadRecords() {
+        viewedItems.reset()
         loadGeneration += 1
         let generation = loadGeneration
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = false }
@@ -230,13 +232,26 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
         cell.detailTextLabel?.numberOfLines = 2
         cell.imageView?.image = UIImage(systemName: record.document == nil ? "exclamationmark.triangle" : "square.3.layers.3d")
         cell.imageView?.tintColor = record.document == nil ? .systemOrange : .systemBlue
-        cell.accessoryType = .disclosureIndicator
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(record.keyText),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self else { return }
+                    self.viewedItems.clear(record.keyText)
+                    self.tableView.reloadData()
+                }
+            }
+        )
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let record = shownRecords[indexPath.row]
+        viewedItems.mark(record.keyText)
+        tableView.reloadRows(at: [indexPath], with: .none)
         if record.document != nil {
             let controller = StructureNBTEditorViewController(
                 record: record,

@@ -19,6 +19,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
     private let searchController = UISearchController(searchResultsController: nil)
     private var pickerPurpose: PickerPurpose?
     private var sortMode: SortMode = .importedAt
+    private let viewedItems = ViewedItemTracker()
 
     private var displayedWorlds: [ImportedWorld] {
         let query = searchController.searchBar.text?
@@ -379,8 +380,8 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             cell.detailTextLabel?.textColor = .secondaryLabel
             cell.imageView?.image = NBTTagIcon.toolImage()
             cell.imageView?.contentMode = .center
-            cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
+            configureViewedAccessory(cell, key: "home-nbt-tool", at: indexPath)
             return cell
         }
 
@@ -399,8 +400,8 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             cell.detailTextLabel?.text = rows[indexPath.row].1
             cell.detailTextLabel?.textColor = .secondaryLabel
             cell.imageView?.image = nil
-            cell.accessoryType = .disclosureIndicator
             cell.selectionStyle = .default
+            configureViewedAccessory(cell, key: "home-data-\(indexPath.row)", at: indexPath)
             return cell
         }
 
@@ -417,6 +418,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             cell.detailTextLabel?.textColor = .secondaryLabel
             cell.textLabel?.textColor = .secondaryLabel
             cell.imageView?.image = UIImage(systemName: "tray")
+            ViewedListSupport.clearAccessory(cell)
             cell.accessoryType = .none
             cell.selectionStyle = .none
             return cell
@@ -431,24 +433,55 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
         cell.detailTextLabel?.text = "\(world.sourceKind == .mcworld ? ".mcworld" : "目录") · \(formatter.string(from: world.importedAt))"
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: "cube.transparent")
-        cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
+        configureViewedAccessory(cell, key: "world:\(world.id.uuidString)", at: indexPath)
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         if indexPath.section == 1 {
+            markViewed("home-nbt-tool", at: indexPath)
             presentNBTFilePicker(for: .nbtEdit)
             return
         }
         if indexPath.section == 2 {
+            markViewed("home-data-\(indexPath.row)", at: indexPath)
             showBedrockDataValues(row: indexPath.row)
             return
         }
         let worlds = displayedWorlds
         guard worlds.indices.contains(indexPath.row) else { return }
-        open(worlds[indexPath.row])
+        let world = worlds[indexPath.row]
+        markViewed("world:\(world.id.uuidString)", at: indexPath)
+        open(world)
+    }
+
+    private func markViewed(_ key: String, at indexPath: IndexPath) {
+        guard viewedItems.mark(key) else { return }
+        tableView.reloadRows(at: [indexPath], with: .none)
+    }
+
+    private func configureViewedAccessory(
+        _ cell: UITableViewCell,
+        key: String,
+        at indexPath: IndexPath
+    ) {
+        ViewedListSupport.configure(
+            cell: cell,
+            isViewed: viewedItems.contains(key),
+            clearAction: { [weak self] in
+                guard let self = self else { return }
+                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
+                    guard let self = self, self.viewedItems.clear(key) else { return }
+                    if self.tableView.indexPathsForVisibleRows?.contains(indexPath) == true {
+                        self.tableView.reloadRows(at: [indexPath], with: .none)
+                    } else {
+                        self.tableView.reloadData()
+                    }
+                }
+            }
+        )
     }
 
     private func showBedrockDataValues(row: Int) {
