@@ -23,7 +23,7 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
     super.viewDidLoad()
     searchController.searchResultsUpdater = self
     searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索名称、路径、类型或值"
+    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
     navigationItem.searchController = searchController
     navigationItem.hidesSearchBarWhenScrolling = false
     definesPresentationContext = true

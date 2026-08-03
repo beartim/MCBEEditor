@@ -58,6 +58,7 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
         let key = "\(hit.dimension):\(hit.x):\(hit.y):\(hit.z)"
         ViewedListSupport.configure(
             cell: cell,
+            isEnabled: true,
             isViewed: viewedItems.contains(key),
             clearAction: { [weak self] in
                 guard let self = self else { return }

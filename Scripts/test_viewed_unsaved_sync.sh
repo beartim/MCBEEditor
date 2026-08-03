@@ -32,6 +32,9 @@ import Foundation
 struct Main {
   static func main() {
     let root: NBTValue = .compound([
+      NBTNamedTag(name: "IntByName", value: .string("value-one")),
+      NBTNamedTag(name: "ValueHolder", value: .string("Int appears in value")),
+      NBTNamedTag(name: "TypedOnly", value: .int(37)),
       NBTNamedTag(name: "Inventory", value: .compound([
         NBTNamedTag(name: "Slot", value: .byte(1)),
         NBTNamedTag(name: "Nested", value: .compound([
@@ -45,13 +48,24 @@ struct Main {
     precondition(nameMatches.count == 1)
     precondition(nameMatches[0].pathDescription == "/Inventory")
 
-    let explicitPathMatches = NBTTreeRows.search(in: root, query: "/Inventory/Nested/Damage")
-    precondition(explicitPathMatches.count == 1)
-    precondition(explicitPathMatches[0].name == "Damage")
+    // Paths are never searchable, even when the query contains path syntax.
+    let pathMatches = NBTTreeRows.search(in: root, query: "/Inventory/Nested/Damage")
+    precondition(pathMatches.isEmpty)
 
     let valueMatches = NBTTreeRows.search(in: root, query: "37")
-    precondition(valueMatches.count == 1)
-    precondition(valueMatches[0].name == "PlayerLevel")
+    precondition(valueMatches.map(\.name) == ["TypedOnly", "PlayerLevel"])
+
+    // Results are grouped by name first, then value, then type, without duplicates.
+    let priorityMatches = NBTTreeRows.search(in: root, query: "Int")
+    precondition(priorityMatches.map(\.name) == ["IntByName", "ValueHolder", "TypedOnly", "PlayerLevel"])
+
+    let roots = [
+      NBTDocument(rootName: "IntRoot", root: .string("alpha")),
+      NBTDocument(rootName: "Other", root: .string("Int in value")),
+      NBTDocument(rootName: "Typed", root: .int(1))
+    ]
+    precondition(NBTTreeRows.searchDocuments(roots, query: "Int") == [0, 1, 2])
+    precondition(NBTTreeRows.searchDocuments(roots, query: "0").isEmpty)
   }
 }
 SWIFT
@@ -72,22 +86,42 @@ grep -q 'title: "保存退出"' "$GUARD"
 grep -q 'interactivePopGestureRecognizer?.isEnabled = false' "$GUARD"
 
 for file in \
-  ChunkListViewController.swift \
   EntityBrowserViewController.swift \
   MapSelectionResultsViewController.swift \
-  BlockSearchResultsViewController.swift \
-  PlayerNBTListViewController.swift \
-  VillageNBTListViewController.swift \
-  StructureNBTListViewController.swift \
-  MetadataNBTViewControllers.swift \
-  StandaloneNBTFileViewController.swift \
-  WorldListViewController.swift \
-  WorldToolsViewController.swift; do
+  BlockSearchResultsViewController.swift; do
   grep -q 'ViewedItemTracker' "$ROOT/Sources/UI/$file" || {
     echo "error: viewed-state support missing from $file" >&2
     exit 1
   }
+  grep -q 'isEnabled: true' "$ROOT/Sources/UI/$file" || {
+    echo "error: viewed badge is not enabled in $file" >&2
+    exit 1
+  }
 done
+
+if [[ "$(grep -R -l 'isEnabled: true' "$ROOT/Sources/UI" | wc -l | tr -d ' ')" != "3" ]]; then
+  echo "error: viewed badges are enabled outside the three requested lists" >&2
+  exit 1
+fi
+
+grep -q 'markViewedAfterOpeningEditor(object)' "$ROOT/Sources/UI/EntityBrowserViewController.swift"
+grep -q 'markViewedAfterOpeningEditor(object)' "$ROOT/Sources/UI/MapSelectionResultsViewController.swift"
+if grep -q 'viewedItems.mark(object.stableID)' <(sed -n '/didSelectRowAt/,/trailingSwipeActions/p' "$ROOT/Sources/UI/EntityBrowserViewController.swift"); then
+  echo "error: entity row tap still marks viewed before Edit NBT" >&2
+  exit 1
+fi
+
+grep -q 'Paths are intentionally never searched' "$ROOT/Sources/UI/NBTNode.swift"
+if grep -R -q '搜索名称、路径、类型或值' "$ROOT/Sources/UI"; then
+  echo "error: an NBT search field still advertises path search" >&2
+  exit 1
+fi
+grep -q '搜索根标签名、标签值或标签类型' "$ROOT/Sources/UI/StandaloneNBTFileViewController.swift"
+grep -q '搜索根标签名、标签值或标签类型' "$ROOT/Sources/UI/MetadataNBTViewControllers.swift"
+if grep -q 'String(index) == query' "$ROOT/Sources/UI/StandaloneNBTFileViewController.swift" "$ROOT/Sources/UI/MetadataNBTViewControllers.swift"; then
+  echo "error: root NBT search still matches sequence indices" >&2
+  exit 1
+fi
 
 for file in \
   NBTTreeViewController.swift \

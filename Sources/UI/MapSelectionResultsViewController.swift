@@ -83,6 +83,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         cell.imageView?.image = UIImage(systemName: object.kind == .entity ? "person.fill" : "shippingbox.fill")
         ViewedListSupport.configure(
             cell: cell,
+            isEnabled: true,
             isViewed: viewedItems.contains(object.stableID),
             clearAction: { [weak self] in
                 guard let self = self else { return }
@@ -99,9 +100,12 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let object = objects(in: indexPath.section)[indexPath.row]
-        viewedItems.mark(object.stableID)
-        tableView.reloadRows(at: [indexPath], with: .none)
         showDetails(object, sourceRect: tableView.rectForRow(at: indexPath))
+    }
+
+    private func markViewedAfterOpeningEditor(_ object: BedrockWorldObject) {
+        guard viewedItems.mark(object.stableID) else { return }
+        tableView.reloadData()
     }
 
     private func showDetails(_ object: BedrockWorldObject, sourceRect: CGRect) {
@@ -118,6 +122,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         })
         alert.addAction(UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
             guard let self = self else { return }
+            self.markViewedAfterOpeningEditor(object)
             let controller = WorldObjectNBTEditorViewController(
                 object: object,
                 session: self.session,

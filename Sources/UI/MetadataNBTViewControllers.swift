@@ -153,7 +153,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         super.viewDidLoad()
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = false
-        searchController.searchBar.placeholder = "搜索根名称、内容摘要或序号"
+        searchController.searchBar.placeholder = "搜索根标签名、标签值或标签类型"
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         configureNavigationItems()
@@ -205,10 +205,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
 
     private func rebuild() {
         let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        displayedIndices = roots.indices.filter { index in
-            let document = roots[index].document
-            return query.isEmpty || String(index) == query || document.rootName.lowercased().contains(query) || document.root.summary.lowercased().contains(query)
-        }
+        displayedIndices = NBTTreeRows.searchDocuments(roots.map(\.document), query: query)
         batchSelectedIndices.formIntersection(Set(roots.indices))
         navigationItem.prompt = "\(originalRecord.keyText)\(dirty ? " · 未保存" : "")"
         exitGuard.synchronize()

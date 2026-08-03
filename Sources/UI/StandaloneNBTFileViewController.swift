@@ -22,7 +22,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         super.viewDidLoad()
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = false
-        searchController.searchBar.placeholder = "搜索根名称、名称标签或序号"
+        searchController.searchBar.placeholder = "搜索根标签名、标签值或标签类型"
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
@@ -56,17 +56,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
     }
 
     private func rebuildDisplayedIndices() {
-        if query.isEmpty {
-            displayedIndices = Array(file.documents.indices)
-        } else {
-            displayedIndices = file.documents.indices.filter { index in
-                let document = file.documents[index]
-                return String(index) == query ||
-                    document.rootName.lowercased().contains(query) ||
-                    primaryName(of: document).lowercased().contains(query) ||
-                    document.root.summary.lowercased().contains(query)
-            }
-        }
+        displayedIndices = NBTTreeRows.searchDocuments(file.documents, query: query)
         batchSelectedIndices.formIntersection(Set(file.documents.indices))
         navigationItem.prompt = "\(file.formatDescription)\(file.dirty ? " · 有未导出的修改" : "")"
         tableView.reloadData()

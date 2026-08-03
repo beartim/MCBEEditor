@@ -54,25 +54,62 @@ enum NBTTreeRows {
   static func search(in root: NBTValue, query rawQuery: String) -> [NBTNode] {
     let query = normalizedQuery(rawQuery)
     guard !query.isEmpty else { return [] }
+
+    var allNodes = [NBTNode]()
+    appendAllNodes(of: root, parentPath: [], depth: 0, to: &allNodes)
+
+    // Search priority is deterministic and shared by every NBT editor:
+    // 1. tag name, 2. direct tag value, 3. tag type. A node is emitted once,
+    // in the first group it matches. Paths are intentionally never searched.
+    var matchedPaths = Set<[NBTPathComponent]>()
     var result = [NBTNode]()
-    appendMatches(
-      of: root,
-      parentPath: [],
-      depth: 0,
-      query: query,
+
+    appendUniqueMatches(
+      from: allNodes,
+      matching: { $0.name.localizedCaseInsensitiveContains(query) },
+      matchedPaths: &matchedPaths,
       to: &result
     )
+    appendUniqueMatches(
+      from: allNodes,
+      matching: { $0.value.summary.localizedCaseInsensitiveContains(query) },
+      matchedPaths: &matchedPaths,
+      to: &result
+    )
+    appendUniqueMatches(
+      from: allNodes,
+      matching: { $0.value.type.displayName.localizedCaseInsensitiveContains(query) },
+      matchedPaths: &matchedPaths,
+      to: &result
+    )
+    return result
+  }
+
+  static func searchDocuments(_ documents: [NBTDocument], query rawQuery: String) -> [Int] {
+    let query = normalizedQuery(rawQuery)
+    guard !query.isEmpty else { return Array(documents.indices) }
+
+    var matched = Set<Int>()
+    var result = [Int]()
+    func append(_ predicate: (NBTDocument) -> Bool) {
+      for index in documents.indices where !matched.contains(index) && predicate(documents[index]) {
+        matched.insert(index)
+        result.append(index)
+      }
+    }
+
+    append { $0.rootName.localizedCaseInsensitiveContains(query) }
+    append { $0.root.summary.localizedCaseInsensitiveContains(query) }
+    append { $0.root.type.displayName.localizedCaseInsensitiveContains(query) }
     return result
   }
 
   static func matches(_ node: NBTNode, query rawQuery: String) -> Bool {
     let query = normalizedQuery(rawQuery)
     guard !query.isEmpty else { return false }
-    let explicitPathSearch = query.contains("/") || query.contains("[") || query.contains("]")
     return node.name.localizedCaseInsensitiveContains(query)
-      || (explicitPathSearch && node.pathDescription.localizedCaseInsensitiveContains(query))
-      || node.value.type.displayName.localizedCaseInsensitiveContains(query)
       || node.value.summary.localizedCaseInsensitiveContains(query)
+      || node.value.type.displayName.localizedCaseInsensitiveContains(query)
   }
 
   private static func normalizedQuery(_ query: String) -> String {
@@ -120,44 +157,42 @@ enum NBTTreeRows {
     }
   }
 
-  private static func appendMatches(
+  private static func appendAllNodes(
     of value: NBTValue,
     parentPath: [NBTPathComponent],
     depth: Int,
-    query: String,
     to result: inout [NBTNode]
   ) {
     switch value {
     case .compound(let tags):
       for tag in tags {
         let path = parentPath + [.compound(tag.name)]
-        let node = NBTNode(path: path, name: tag.name, value: tag.value, depth: depth)
-        if matches(node, query: query) { result.append(node) }
-        appendMatches(
-          of: tag.value,
-          parentPath: path,
-          depth: depth + 1,
-          query: query,
-          to: &result
-        )
+        result.append(NBTNode(path: path, name: tag.name, value: tag.value, depth: depth))
+        appendAllNodes(of: tag.value, parentPath: path, depth: depth + 1, to: &result)
       }
     case .list(_, let values):
       for (index, child) in values.enumerated() {
         let path = parentPath + [.list(index)]
-        let node = NBTNode(path: path, name: "[\(index)]", value: child, depth: depth)
-        if matches(node, query: query) { result.append(node) }
-        appendMatches(
-          of: child,
-          parentPath: path,
-          depth: depth + 1,
-          query: query,
-          to: &result
-        )
+        result.append(NBTNode(path: path, name: "[\(index)]", value: child, depth: depth))
+        appendAllNodes(of: child, parentPath: path, depth: depth + 1, to: &result)
       }
     default:
       break
     }
   }
+
+  private static func appendUniqueMatches(
+    from nodes: [NBTNode],
+    matching predicate: (NBTNode) -> Bool,
+    matchedPaths: inout Set<[NBTPathComponent]>,
+    to result: inout [NBTNode]
+  ) {
+    for node in nodes where !matchedPaths.contains(node.path) && predicate(node) {
+      matchedPaths.insert(node.path)
+      result.append(node)
+    }
+  }
+
 }
 
 enum NBTTreeMutation {

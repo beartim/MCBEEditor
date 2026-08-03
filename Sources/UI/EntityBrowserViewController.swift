@@ -683,6 +683,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
       systemName: object.kind == .entity ? "person.fill" : "shippingbox.fill")
     ViewedListSupport.configure(
       cell: cell,
+      isEnabled: true,
       isViewed: viewedItems.contains(object.stableID),
       clearAction: { [weak self] in
         guard let self = self else { return }
@@ -699,8 +700,6 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     let object = shownObjects[indexPath.row]
-    viewedItems.mark(object.stableID)
-    tableView.reloadRows(at: [indexPath], with: .none)
     showDetails(object)
   }
 
@@ -774,6 +773,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
   }
 
   private func openEditor(_ object: BedrockWorldObject) {
+    markViewedAfterOpeningEditor(object)
     let controller = WorldObjectNBTEditorViewController(
       object: object,
       session: session,
@@ -782,6 +782,15 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
       }
     )
     navigationController?.pushViewController(controller, animated: true)
+  }
+
+  private func markViewedAfterOpeningEditor(_ object: BedrockWorldObject) {
+    guard viewedItems.mark(object.stableID) else { return }
+    if let row = shownObjects.firstIndex(where: { $0.stableID == object.stableID }) {
+      tableView.reloadRows(at: [IndexPath(row: row, section: 0)], with: .none)
+    } else {
+      tableView.reloadData()
+    }
   }
 
   private func showDetails(_ object: BedrockWorldObject) {
