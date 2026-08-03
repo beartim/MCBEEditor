@@ -4,6 +4,8 @@ APPLY.md
 CHANGES_CODE_AUDIT.md
 CHANGES_GIVE_EXISTING_MAINHAND.md
 CHANGES_MCBEDITOR_PLAYER_MAP_RENAME.md
+CHANGES_METADATA_VARIANT_SEARCH_FIX.md
+CHANGES_VIEWED_NBT_SEARCH_FIX.md
 CHANGES_VIEWED_UNSAVED_SYNC.md
 CHANGES_v1.1.0.md
 CHANGES_v1.1.1.md
@@ -56,6 +58,7 @@ Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
 Scripts/test_mcbeeditor_map_player_rename.sh
+Scripts/test_metadata_variant_search.sh
 Scripts/test_viewed_unsaved_sync.sh
 Sources/App/AppDelegate.swift
 Sources/App/SceneDelegate.swift

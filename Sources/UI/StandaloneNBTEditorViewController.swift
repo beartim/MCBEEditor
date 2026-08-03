@@ -70,8 +70,12 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
   }
 
   private func rebuildRows() {
+    // UISearchResultsUpdating calls this once for every text change. Always
+    // rebuild from an empty array; otherwise results from earlier prefixes
+    // (for example "v", "va", …) remain in the table when the user finishes
+    // typing "variant".
+    rows.removeAll(keepingCapacity: true)
     if query.isEmpty {
-      rows.removeAll(keepingCapacity: true)
       if rootNeedsOwnRow {
         rows.append(
           NBTNode(
@@ -86,6 +90,7 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
       navigationItem.prompt =
         "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName)\(dirty ? " · 未保存" : "")"
     } else {
+      var searchRows = NBTTreeRows.search(in: document.root, query: query)
       if rootNeedsOwnRow {
         let root = NBTNode(
           path: [],
@@ -93,9 +98,9 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
           value: document.root,
           depth: 0
         )
-        if NBTTreeRows.matches(root, query: query) { rows.append(root) }
+        if NBTTreeRows.matches(root, query: query) { searchRows.insert(root, at: 0) }
       }
-      rows.append(contentsOf: NBTTreeRows.search(in: document.root, query: query))
+      rows = searchRows
       navigationItem.prompt = "找到 \(rows.count) 个节点"
     }
     title = dirty ? "\(displayTitle) •" : displayTitle
