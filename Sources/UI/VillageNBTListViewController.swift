@@ -7,6 +7,7 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
         let records: [VillageNBTRecord]
     }
 
+    private let session: WorldSession
     private let store: VillageNBTStore
     private let villageIdentifierFilter: String?
     private let villageDisplayName: String?
@@ -25,6 +26,7 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
         villageDisplayName: String? = nil,
         onSave: @escaping () -> Void = {}
     ) {
+        self.session = session
         self.store = VillageNBTStore(session: session)
         self.villageIdentifierFilter = villageIdentifier
         self.villageDisplayName = villageDisplayName
