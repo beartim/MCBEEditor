@@ -115,7 +115,7 @@ final class BedrockWorldObjectNBTStore {
     let database = try session.database()
     var puts = [(key: Data, value: Data)]()
     var deletes = Set<Data>()
-    var removedIDs = Set<Int64>()
+    var removedActorReferences = Set<Data>()
     var deletedCount = 0
 
     var chunkGroups = [Data: [(BedrockWorldObject, Int)]]()
@@ -138,7 +138,6 @@ final class BedrockWorldObjectNBTStore {
       for (object, preferredIndex) in group {
         indexes.insert(
           try locateRecord(object: object, in: records, preferredIndex: preferredIndex))
-        if let id = object.uniqueID { removedIDs.insert(id) }
       }
       for index in indexes.sorted(by: >) { records.remove(at: index) }
       deletedCount += indexes.count
@@ -158,7 +157,9 @@ final class BedrockWorldObjectNBTStore {
       for (object, preferredIndex) in group {
         indexes.insert(
           try locateRecord(object: object, in: records, preferredIndex: preferredIndex))
-        if let id = object.uniqueID { removedIDs.insert(id) }
+        if let reference = object.storage.actorStorageReference {
+          removedActorReferences.insert(reference)
+        }
       }
       for index in indexes.sorted(by: >) { records.remove(at: index) }
       deletedCount += indexes.count
@@ -169,17 +170,16 @@ final class BedrockWorldObjectNBTStore {
       }
     }
 
-    if !removedIDs.isEmpty {
+    if !removedActorReferences.isEmpty {
       for entry in try database.entries(prefix: Data("digp".utf8), includeValues: true) {
         guard let raw = entry.value else { continue }
-        var ids = try decodeActorIDs(raw)
-        let originalCount = ids.count
-        ids.removeAll { removedIDs.contains($0) }
-        guard ids.count != originalCount else { continue }
-        if ids.isEmpty {
+        let references = try decodeActorReferences(raw)
+        let filtered = references.filter { !removedActorReferences.contains($0) }
+        guard filtered.count != references.count else { continue }
+        if filtered.isEmpty {
           deletes.insert(entry.key)
         } else {
-          puts.append((key: entry.key, value: encodeActorIDs(ids)))
+          puts.append((key: entry.key, value: encodeActorReferences(filtered)))
         }
       }
     }
@@ -247,7 +247,12 @@ final class BedrockWorldObjectNBTStore {
     let database = try session.database()
     for _ in 0..<128 {
       let candidate = Int64.random(in: 1...Int64.max)
-      if try isEntityUniqueIDAvailable(candidate, excluding: nil, database: database) {
+      // New Bedrock worlds can decouple the actorprefix storage reference from
+      // the entity NBT UniqueID. A newly-created actor still uses the selected
+      // ID as its storage reference, so both namespaces must be available.
+      if try isEntityUniqueIDAvailable(candidate, excluding: nil, database: database),
+        try database.get(makeActorKey(id: candidate)) == nil
+      {
         return candidate
       }
     }
@@ -345,6 +350,10 @@ final class BedrockWorldObjectNBTStore {
         let encoding = template?.storage.encoding ?? .littleEndian
         let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
         let actorKey = makeActorKey(id: actorID)
+        guard try database.get(actorKey) == nil else {
+          throw MCBEEditorError.unsupported(
+            "Actor 存储引用与现有 actorprefix 键冲突，请改用其他 UniqueID。")
+        }
         let digestKey = makeDigestKey(
           x: chunkX,
           z: chunkZ,
@@ -423,25 +432,22 @@ final class BedrockWorldObjectNBTStore {
     digestKey: Data,
     recordIndex: Int
   ) throws -> BedrockWorldObjectSaveResult {
-    guard let originalActorID = object.uniqueID else {
-      throw MCBEEditorError.malformedData("现代实体缺少 ActorUniqueID，无法安全写回。")
-    }
-    let editedActorID =
+    let originalUniqueID =
+      object.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+      ?? object.uniqueID
+    let editedUniqueID =
       document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
-      ?? originalActorID
-    guard editedActorID != 0 else {
+      ?? originalUniqueID
+    if let editedUniqueID = editedUniqueID, editedUniqueID == 0 {
       throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
     }
 
     let database = try session.database()
-    let targetActorKey = makeActorKey(id: editedActorID)
-    if targetActorKey != actorKey, try database.get(targetActorKey) != nil {
-      throw MCBEEditorError.unsupported("UniqueID \(editedActorID) 已存在对应的 actorprefix 记录。")
-    }
-    if editedActorID != originalActorID,
-      try !isEntityUniqueIDAvailable(editedActorID, excluding: object, database: database)
+    if let originalUniqueID = originalUniqueID, let editedUniqueID = editedUniqueID,
+      editedUniqueID != originalUniqueID,
+      try !isEntityUniqueIDAvailable(editedUniqueID, excluding: object, database: database)
     {
-      throw MCBEEditorError.unsupported("UniqueID \(editedActorID) 已被其他实体占用。")
+      throw MCBEEditorError.unsupported("UniqueID \(editedUniqueID) 已被其他实体占用。")
     }
 
     guard let currentActorData = try database.get(actorKey) else {
@@ -453,52 +459,37 @@ final class BedrockWorldObjectNBTStore {
     let sourceEncoding = actorRecords[locatedIndex].encoding
     let editedRaw = try BedrockNBTCodec.encode(document, encoding: sourceEncoding)
 
+    actorRecords[locatedIndex].document = document
+    actorRecords[locatedIndex].rawData = editedRaw
+
     let destination = destination(for: object, document: document)
     let moved =
       destination.dimension != object.dimension || destination.chunkX != object.chunkX
       || destination.chunkZ != object.chunkZ
-    let uniqueIDChanged = editedActorID != originalActorID
+    let uniqueIDChanged = editedUniqueID != originalUniqueID
 
-    var changes = [DatabaseChange]()
-    if targetActorKey == actorKey {
-      actorRecords[locatedIndex].document = document
-      actorRecords[locatedIndex].rawData = editedRaw
-      changes.append(
-        DatabaseChange(
-          key: actorKey,
-          originalValue: currentActorData,
-          newValue: try ConsecutiveNBTCodec.encode(actorRecords),
-          label: "actorprefix"
-        ))
-    } else {
-      actorRecords.remove(at: locatedIndex)
-      let remainingValue = actorRecords.isEmpty ? nil : try ConsecutiveNBTCodec.encode(actorRecords)
-      changes.append(
-        DatabaseChange(
-          key: actorKey,
-          originalValue: currentActorData,
-          newValue: remainingValue,
-          label: "原 actorprefix"
-        ))
-      changes.append(
-        DatabaseChange(
-          key: targetActorKey,
-          originalValue: nil,
-          newValue: editedRaw,
-          label: "目标 actorprefix"
-        ))
+    guard let actorReference = object.storage.actorStorageReference else {
+      throw MCBEEditorError.malformedData("actorprefix 键缺少 8 字节 Actor 存储引用。")
     }
+
+    var changes = [
+      DatabaseChange(
+        key: actorKey,
+        originalValue: currentActorData,
+        newValue: try ConsecutiveNBTCodec.encode(actorRecords),
+        label: "actorprefix"
+      )
+    ]
 
     let destinationDigestKey = makeDigestKey(
       x: destination.chunkX,
       z: destination.chunkZ,
       dimension: destination.dimension
     )
-    try appendDigestChanges(
+    try appendDigestReferenceChanges(
       sourceKey: digestKey,
       destinationKey: destinationDigestKey,
-      originalID: originalActorID,
-      editedID: editedActorID,
+      actorReference: actorReference,
       database: database,
       changes: &changes
     )
@@ -510,27 +501,33 @@ final class BedrockWorldObjectNBTStore {
       destinationDimension: destination.dimension,
       destinationChunkX: destination.chunkX,
       destinationChunkZ: destination.chunkZ,
-      destinationUniqueID: editedActorID
+      destinationUniqueID: editedUniqueID
     )
   }
 
-  private func appendDigestChanges(
+  /// Moves the raw actor-storage reference between `digp` records. Do not
+  /// derive this value from the entity NBT `UniqueID`: current Bedrock worlds
+  /// can use a different value in actorprefix/digp.
+  private func appendDigestReferenceChanges(
     sourceKey: Data,
     destinationKey: Data,
-    originalID: Int64,
-    editedID: Int64,
+    actorReference: Data,
     database: MojangLevelDB,
     changes: inout [DatabaseChange]
   ) throws {
+    guard actorReference.count == 8 else {
+      throw MCBEEditorError.malformedData("Actor 存储引用必须为 8 字节。")
+    }
+
     if sourceKey.isEmpty {
       let targetOriginal = try database.get(destinationKey)
-      var targetIDs = try targetOriginal.map(decodeActorIDs) ?? []
-      if !targetIDs.contains(editedID) { targetIDs.append(editedID) }
+      var targetReferences = try targetOriginal.map(decodeActorReferences) ?? []
+      if !targetReferences.contains(actorReference) { targetReferences.append(actorReference) }
       changes.append(
         DatabaseChange(
           key: destinationKey,
           originalValue: targetOriginal,
-          newValue: encodeActorIDs(targetIDs),
+          newValue: encodeActorReferences(targetReferences),
           label: "目标 digp"
         ))
       return
@@ -540,48 +537,40 @@ final class BedrockWorldObjectNBTStore {
       guard let currentDigest = try database.get(sourceKey) else {
         throw MCBEEditorError.malformedData("实体 digp 摘要已不存在，请重新扫描实体。")
       }
-      var ids = try decodeActorIDs(currentDigest)
-      guard ids.contains(originalID) else {
-        throw MCBEEditorError.malformedData("digp 摘要不再引用原 UniqueID，请重新扫描后再编辑。")
+      let references = try decodeActorReferences(currentDigest)
+      guard references.contains(actorReference) else {
+        throw MCBEEditorError.malformedData("digp 摘要不再引用此 actorprefix，请重新扫描后再编辑。")
       }
-      ids.removeAll { $0 == originalID || $0 == editedID }
-      ids.append(editedID)
-      changes.append(
-        DatabaseChange(
-          key: sourceKey,
-          originalValue: currentDigest,
-          newValue: encodeActorIDs(ids),
-          label: "digp"
-        ))
+      // Position stayed in the same chunk. Keep digest bytes byte-for-byte.
       return
     }
 
     guard let sourceOriginal = try database.get(sourceKey) else {
       throw MCBEEditorError.malformedData("原 digp 摘要已不存在，请重新扫描实体。")
     }
-    var sourceIDs = try decodeActorIDs(sourceOriginal)
-    guard sourceIDs.contains(originalID) else {
-      throw MCBEEditorError.malformedData("原 digp 摘要不再引用此实体，请重新扫描后再编辑。")
+    var sourceReferences = try decodeActorReferences(sourceOriginal)
+    guard sourceReferences.contains(actorReference) else {
+      throw MCBEEditorError.malformedData("原 digp 摘要不再引用此 actorprefix，请重新扫描后再编辑。")
     }
-    sourceIDs.removeAll { $0 == originalID }
+    sourceReferences.removeAll { $0 == actorReference }
 
     let targetOriginal = try database.get(destinationKey)
-    var targetIDs = try targetOriginal.map(decodeActorIDs) ?? []
-    targetIDs.removeAll { $0 == editedID }
-    targetIDs.append(editedID)
+    var targetReferences = try targetOriginal.map(decodeActorReferences) ?? []
+    targetReferences.removeAll { $0 == actorReference }
+    targetReferences.append(actorReference)
 
     changes.append(
       DatabaseChange(
         key: destinationKey,
         originalValue: targetOriginal,
-        newValue: encodeActorIDs(targetIDs),
+        newValue: encodeActorReferences(targetReferences),
         label: "目标 digp"
       ))
     changes.append(
       DatabaseChange(
         key: sourceKey,
         originalValue: sourceOriginal,
-        newValue: sourceIDs.isEmpty ? nil : encodeActorIDs(sourceIDs),
+        newValue: sourceReferences.isEmpty ? nil : encodeActorReferences(sourceReferences),
         label: "原 digp"
       ))
   }
@@ -803,8 +792,10 @@ final class BedrockWorldObjectNBTStore {
 
   private func digestContainsExistingActor(_ digest: Data, database: MojangLevelDB) throws -> Bool {
     guard digest.count % 8 == 0 else { return false }
-    for actorID in try decodeActorIDs(digest) {
-      if try database.get(makeActorKey(id: actorID)) != nil { return true }
+    for reference in try decodeActorReferences(digest) {
+      var key = Data("actorprefix".utf8)
+      key.append(reference)
+      if try database.get(key) != nil { return true }
     }
     return false
   }
@@ -1012,16 +1003,31 @@ final class BedrockWorldObjectNBTStore {
     excluding object: BedrockWorldObject?,
     database: MojangLevelDB
   ) throws -> Bool {
-    let key = makeActorKey(id: uniqueID)
-    if let object = object,
-      case .modernActor(let currentKey, _, _, _) = object.storage,
-      currentKey == key
-    {
-      // The selected modern actor owns this key.
-    } else if try database.get(key) != nil {
-      return false
+    // `actorprefix` is a storage namespace, not a reliable UniqueID index in
+    // current Bedrock saves. Check the NBT UniqueID inside every actor record.
+    let actorPrefix = Data("actorprefix".utf8)
+    for entry in try database.entries(prefix: actorPrefix, includeValues: true, limit: 0) {
+      guard let data = entry.value, let records = try? ConsecutiveNBTCodec.decode(data) else {
+        continue
+      }
+      for record in records {
+        guard
+          record.document.root.int64Value(namedAny: [
+            "UniqueID", "UniqueId", "uniqueID", "uniqueId",
+          ]) == uniqueID
+        else { continue }
+        if let object = object,
+          case .modernActor(let sourceKey, _, _, _) = object.storage,
+          sourceKey == entry.key,
+          record.rawData == object.rawData
+        {
+          continue
+        }
+        return false
+      }
     }
 
+    // Legacy chunk Entity records still keep their UniqueID only in NBT.
     for entry in try database.entries(includeValues: false, limit: 0) {
       guard let parsed = BedrockDBKey.parse(entry.key), parsed.recordType == .entity else {
         continue
@@ -1076,6 +1082,28 @@ final class BedrockWorldObjectNBTStore {
       return fallback
     }
     return Int32(clamping: raw)
+  }
+
+  private func decodeActorReferences(_ data: Data) throws -> [Data] {
+    guard data.count % 8 == 0 else {
+      throw MCBEEditorError.malformedData("digp 摘要长度 \(data.count) 不是 8 的倍数。")
+    }
+    var values = [Data]()
+    values.reserveCapacity(data.count / 8)
+    var offset = 0
+    while offset < data.count {
+      values.append(data.subdata(in: offset..<(offset + 8)))
+      offset += 8
+    }
+    return values
+  }
+
+  private func encodeActorReferences(_ references: [Data]) -> Data {
+    var data = Data()
+    for reference in references where reference.count == 8 {
+      data.append(reference)
+    }
+    return data
   }
 
   private func decodeActorIDs(_ data: Data) throws -> [Int64] {

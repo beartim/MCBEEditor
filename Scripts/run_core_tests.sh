@@ -1072,21 +1072,20 @@ import Foundation
 @main
 struct EntityTest {
     static func main() throws {
-        let actorID: Int64 = 123456789
+        // Matches the shape observed in the uploaded new-version world:
+        // actorprefix suffix 00 00 00 01 00 00 00 13 while NBT UniqueID is
+        // -4294967277. These two identities must remain independent.
+        let actorStorageReference = Data([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x13])
+        let actorUniqueID: Int64 = -4_294_967_277
         let actorDocument = NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "id", value: .short(44)),
-            NBTNamedTag(name: "UniqueID", value: .long(actorID)),
+            NBTNamedTag(name: "UniqueID", value: .long(actorUniqueID)),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(1.5), .float(64), .float(-2.25)]))
         ]))
         let actorData = try BedrockNBTCodec.encode(actorDocument)
-        let actorBits = UInt64(bitPattern: actorID)
         var actorKey = Data("actorprefix".utf8)
-        var digest = Data()
-        for shift in stride(from: 0, through: 56, by: 8) {
-            let byte = UInt8(truncatingIfNeeded: actorBits >> shift)
-            actorKey.append(byte)
-            digest.append(byte)
-        }
+        actorKey.append(actorStorageReference)
+        var digest = actorStorageReference
 
         let definitionActorID: Int64 = 987654321
         let definitionActorDocument = NBTDocument(rootName: "", root: .compound([
@@ -1139,8 +1138,9 @@ struct EntityTest {
             includeBlockEntities: true
         )
         precondition(result.objects.count == 3)
-        precondition(result.objects.first(where: { $0.uniqueID == actorID })?.identifier == "minecraft:zombie_villager")
-        precondition(result.objects.first(where: { $0.uniqueID == actorID })?.position?.blockZ == -3)
+        precondition(result.objects.first(where: { $0.uniqueID == actorUniqueID })?.identifier == "minecraft:zombie_villager")
+        precondition(result.objects.first(where: { $0.uniqueID == actorUniqueID })?.position?.blockZ == -3)
+        precondition(result.objects.first(where: { $0.uniqueID == actorUniqueID })?.storage.primaryKey == actorKey)
         precondition(result.objects.first(where: { $0.uniqueID == definitionActorID })?.identifier == "minecraft:drowned")
         precondition(result.objects.first(where: { $0.kind == .blockEntity })?.displayName == "仓库")
 
@@ -1153,6 +1153,12 @@ struct EntityTest {
         precondition(worldWide.actorDigestCount == 1)
         precondition(worldWide.actorRecordCount == 2)
         precondition(worldWide.blockEntityRecordCount == 1)
+        let selectedByNBTID = try BedrockWorldObjectScanner(database: database).scanEntities(
+            uniqueIDs: [actorUniqueID]
+        )
+        precondition(selectedByNBTID.objects.count == 1)
+        precondition(selectedByNBTID.objects[0].uniqueID == actorUniqueID)
+        precondition(selectedByNBTID.objects[0].storage.primaryKey == actorKey)
         let otherDimension = try BedrockWorldObjectScanner(database: database).scanAll(
             dimensions: [1],
             includeEntities: true,
@@ -1554,7 +1560,7 @@ done
 for expected in \
   'case modernActor(actorKey: Data, digestKey: Data' \
   'case chunkRecord(key: Data, recordIndex: Int' \
-  'sourceIDs.removeAll { $0 == originalID }' \
+  'actorStorageReference' \
   'database.applyBatch(puts: puts, deletes: deletes' \
   'UniqueID 可修改但不能删除或重命名'; do
   grep -qF "$expected" \
@@ -1570,7 +1576,7 @@ for expected in \
   'func create(' \
   'func delete(object:' \
   'uniqueIDChanged: Bool' \
-  'makeActorKey(id: editedActorID)' \
+  'appendDigestReferenceChanges' \
   'WorldObjectCreationViewController(' \
   '复制为新\(object.kind.displayName)' \
   'confirmDelete(_ object:'; do
@@ -1579,7 +1585,7 @@ for expected in \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
     "$ROOT/Sources/UI/EntityBrowserViewController.swift" \
     "$ROOT/Sources/UI/WorldObjectCreationViewController.swift" || {
-      echo "error: entity/block-entity create/delete or UniqueID migration is missing: $expected" >&2
+      echo "error: entity/block-entity create/delete or UniqueID/storage-reference handling is missing: $expected" >&2
       exit 1
     }
 done
@@ -1737,7 +1743,9 @@ struct WorldObjectNBTTest {
         precondition(targetRecords.count == 1)
         precondition(targetRecords[0].document.root.stringValue(namedAny: ["id"]) == "Chest")
 
-        // UniqueID changes must migrate both actorprefix and digp references.
+        // Current Bedrock actorprefix/digp uses a storage reference that is
+        // independent from the NBT UniqueID. Editing UniqueID must keep the
+        // storage key and digest reference unchanged.
         let movedActor = try scanner.scanRegion(
             centerX: 2, centerZ: 0, dimension: 0, radius: 0,
             includeEntities: true, includeBlockEntities: false
@@ -1751,15 +1759,20 @@ struct WorldObjectNBTTest {
             document: identityEdited
         )
         precondition(identityResult.uniqueIDChanged && identityResult.destinationUniqueID == 84)
-        precondition(database.values[actorKey(actorID)] == nil)
-        precondition(database.values[actorKey(84)] != nil)
-        precondition(database.values[digestKey(2, 0, 0)] == digest(84))
+        precondition(database.values[actorKey(actorID)] != nil)
+        precondition(database.values[actorKey(84)] == nil)
+        precondition(database.values[digestKey(2, 0, 0)] == digest(actorID))
+        let resolvedByNBTUniqueID = try scanner.scanEntities(uniqueIDs: [84])
+        precondition(resolvedByNBTUniqueID.objects.count == 1)
+        precondition(resolvedByNBTUniqueID.objects[0].uniqueID == 84)
+        precondition(resolvedByNBTUniqueID.objects[0].storage.primaryKey == actorKey(actorID))
 
         let renamedActor = try scanner.scanRegion(
             centerX: 2, centerZ: 0, dimension: 0, radius: 0,
             includeEntities: true, includeBlockEntities: false
         ).objects[0]
         try BedrockWorldObjectNBTStore(session: session).delete(object: renamedActor)
+        precondition(database.values[actorKey(actorID)] == nil)
         precondition(database.values[actorKey(84)] == nil)
         precondition(database.values[digestKey(2, 0, 0)] == nil)
 
@@ -2798,6 +2811,16 @@ enum ChunkAuxiliaryDataTests {
                 BedrockBiomeLayer(baseY: -48, biomeIDs: Array(repeating: 0, count: 4096), isAbsent: true)
             ]
         )
+        let inherited3D = try BedrockBiomeDocument.decode(
+            recordType: .data3D,
+            data: data3D.encoded()
+        )
+        precondition(inherited3D.layers[1].isAbsent)
+        precondition(inherited3D.biomeID(localX: 0, y: -48, localZ: 0) == 1)
+        precondition(inherited3D.biomeID(localX: 15, y: -48, localZ: 15) == 255)
+        var filled3D = inherited3D
+        try filled3D.fillAllData3DLayers(id: 188)
+        precondition(filled3D.layers.allSatisfy { !$0.isAbsent && Set($0.biomeIDs) == [188] })
         try data3D.updateBiomeID(layerIndex: 1, valueIndex: 15, id: 7)
         let encoded3D = try data3D.encoded()
         let decoded3D = try BedrockBiomeDocument.decode(recordType: .data3D, data: encoded3D)
@@ -3121,6 +3144,9 @@ for action in \
   }
 done
 grep -q 'expandedToChunkBounds' "$REGION_STORE" && \
+grep -q '对齐区块边界' "$ROOT/Sources/UI/MapSelectionOverlayView.swift" && \
+grep -q 'onAlignToChunkBounds' "$ROOT/Sources/UI/MapSelectionOverlayView.swift" && \
+grep -q 'alignSelectionToChunkBounds' "$MAP_VIEW" && \
 grep -q 'func clearRegion' "$REGION_STORE" && \
 grep -q 'func regenerateRegion' "$REGION_STORE" && \
 grep -q 'func copyRegion' "$REGION_STORE" && \

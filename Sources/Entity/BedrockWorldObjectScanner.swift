@@ -461,41 +461,93 @@ final class BedrockWorldObjectScanner {
     )
   }
 
-  /// Resolves a specific set of entity UniqueIDs across the whole world.
-  /// Modern actor records are addressed directly; unresolved IDs are then
-  /// searched in every legacy chunk Entity record.
+  /// Resolves a specific set of entity NBT UniqueIDs across the whole world.
+  /// Current Bedrock versions can use an independent 8-byte actor-storage
+  /// reference in `actorprefix`/`digp`, so never derive an actor key from the
+  /// NBT `UniqueID` here.
   func scanEntities(
     uniqueIDs: Set<Int64>,
     shouldCancel: () -> Bool = { false }
   ) throws -> BedrockWorldObjectScanResult {
     guard !uniqueIDs.isEmpty else { return .empty }
 
+    struct ActorDigestLocation {
+      let key: Data
+      let dimension: Int32
+      let chunkX: Int32
+      let chunkZ: Int32
+    }
+
     var objects = [BedrockWorldObject]()
     var diagnostics = [String]()
     var actorRecordCount = 0
     var legacyEntityRecordCount = 0
-    let digestKeys = try digestKeys(for: uniqueIDs, shouldCancel: shouldCancel)
+    var matchedDigestKeys = Set<Data>()
 
-    for actorID in uniqueIDs.sorted() {
+    // Build a raw actor-reference -> digp location index. The raw eight bytes
+    // are the identity used by storage; converting them to an Int64 is only a
+    // compatibility fallback for records whose NBT omits UniqueID.
+    let digestPrefix = Data("digp".utf8)
+    var digestLocationByReference = [Data: ActorDigestLocation]()
+    for entry in try database.entries(prefix: digestPrefix, includeValues: true, limit: 0) {
       if shouldCancel() { break }
-      let storageKey = actorKey(id: actorID)
-      guard let data = try database.get(storageKey) else { continue }
-      actorRecordCount += 1
+      guard let value = entry.value else { continue }
+      let location: ActorDigestLocation
+      if entry.key.count == digestPrefix.count + 8,
+        let x = try? entry.key.littleEndianInt32(at: digestPrefix.count),
+        let z = try? entry.key.littleEndianInt32(at: digestPrefix.count + 4)
+      {
+        location = ActorDigestLocation(key: entry.key, dimension: 0, chunkX: x, chunkZ: z)
+      } else if entry.key.count >= digestPrefix.count + 12,
+        let x = try? entry.key.littleEndianInt32(at: digestPrefix.count),
+        let z = try? entry.key.littleEndianInt32(at: digestPrefix.count + 4),
+        let dimension = try? entry.key.littleEndianInt32(at: digestPrefix.count + 8)
+      {
+        location = ActorDigestLocation(key: entry.key, dimension: dimension, chunkX: x, chunkZ: z)
+      } else {
+        continue
+      }
+      let usable = value.count - value.count % 8
+      var offset = 0
+      while offset < usable {
+        let reference = value.subdata(in: offset..<(offset + 8))
+        offset += 8
+        if digestLocationByReference[reference] == nil {
+          digestLocationByReference[reference] = location
+        }
+      }
+    }
+
+    let actorPrefix = Data("actorprefix".utf8)
+    for entry in try database.entries(prefix: actorPrefix, includeValues: true, limit: 0) {
+      if shouldCancel() { break }
+      guard entry.key.count == actorPrefix.count + 8, let data = entry.value else { continue }
+      let reference = Data(entry.key.suffix(8))
+      guard let location = digestLocationByReference[reference] else { continue }
+      let fallbackActorID = try littleEndianInt64(reference, at: 0)
       do {
         let decoded = try decodeObjects(
           data: data,
           kind: .entity,
-          dimension: 0,
-          chunkX: 0,
-          chunkZ: 0,
+          dimension: location.dimension,
+          chunkX: location.chunkX,
+          chunkZ: location.chunkZ,
           source: .modernActor,
-          actorID: actorID,
-          storageKey: storageKey,
-          digestKey: digestKeys[actorID]
+          actorID: fallbackActorID,
+          storageKey: entry.key,
+          digestKey: location.key
         )
-        objects.append(contentsOf: decoded.filter { uniqueIDs.contains($0.uniqueID ?? actorID) })
+        let matches = decoded.filter { object in
+          guard let uniqueID = object.uniqueID else { return false }
+          return uniqueIDs.contains(uniqueID)
+        }
+        if !matches.isEmpty {
+          actorRecordCount += 1
+          matchedDigestKeys.insert(location.key)
+          objects.append(contentsOf: matches)
+        }
       } catch {
-        diagnostics.append("实体 \(actorID)：\(error.localizedDescription)")
+        diagnostics.append("actorprefix \(entry.key.hexString)：\(error.localizedDescription)")
       }
     }
 
@@ -555,34 +607,11 @@ final class BedrockWorldObjectScanner {
     return BedrockWorldObjectScanResult(
       objects: sorted,
       diagnostics: diagnostics,
-      actorDigestCount: digestKeys.count,
+      actorDigestCount: matchedDigestKeys.count,
       actorRecordCount: actorRecordCount,
       legacyEntityRecordCount: legacyEntityRecordCount,
       blockEntityRecordCount: 0
     )
-  }
-
-  private func digestKeys(
-    for uniqueIDs: Set<Int64>,
-    shouldCancel: () -> Bool
-  ) throws -> [Int64: Data] {
-    let prefix = Data("digp".utf8)
-    var result = [Int64: Data]()
-    for entry in try database.entries(prefix: prefix, includeValues: true) {
-      if shouldCancel() { break }
-      guard let value = entry.value else { continue }
-      let usable = value.count - value.count % 8
-      var offset = 0
-      while offset < usable {
-        let actorID = try littleEndianInt64(value, at: offset)
-        offset += 8
-        if uniqueIDs.contains(actorID), result[actorID] == nil {
-          result[actorID] = entry.key
-        }
-      }
-      if result.count == uniqueIDs.count { break }
-    }
-    return result
   }
 
   private func actorDigestKeys(x: Int32, z: Int32, dimension: Int32) -> [Data] {
@@ -677,11 +706,18 @@ final class BedrockWorldObjectScanner {
     let position = extractPosition(root: root, kind: kind)
     let chunkX = position.map { MapCoordinate.chunk(fromBlock: $0.blockX) } ?? fallbackChunkX
     let chunkZ = position.map { MapCoordinate.chunk(fromBlock: $0.blockZ) } ?? fallbackChunkZ
-    let uniqueID =
-      actorID ?? root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+    // `actorprefix`/`digp` use an actor-storage reference. Newer Bedrock
+    // versions no longer guarantee that this 8-byte storage reference has the
+    // same numeric value as the entity NBT `UniqueID`. Always display/select
+    // by the NBT value when it exists and use the storage reference only as a
+    // compatibility fallback for older records that omit `UniqueID`.
+    let nbtUniqueID = root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
+    let uniqueID = nbtUniqueID ?? actorID
     let itemCount = countItems(in: root)
     let stableID: String
-    if let uniqueID = uniqueID {
+    if source == .modernActor {
+      stableID = "actorprefix:\(storage.primaryKey.hexString):\(index)"
+    } else if let uniqueID = uniqueID {
       stableID = "actor:\(uniqueID)"
     } else if let position = position {
       stableID =

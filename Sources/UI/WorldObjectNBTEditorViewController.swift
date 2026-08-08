@@ -384,7 +384,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     let alert = UIAlertController(
       title: "保存 \(object.kind.displayName) NBT？",
       message:
-        "将直接修改世界 LevelDB；若坐标跨区块或实体 UniqueID 改变，actorprefix 与 digp 索引会同步迁移。UniqueID 可修改但不能删除或重命名。保存前请退出 Minecraft。",
+        "将直接修改世界 LevelDB；坐标跨区块或维度时会移动原始 actorprefix/digp 存储引用。UniqueID 只修改实体 NBT，不会重命名 actorprefix 键；UniqueID 可修改但不能删除或重命名。保存前请退出 Minecraft。",
       preferredStyle: .alert
     )
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
@@ -408,7 +408,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         : ""
       let identityText =
         result.uniqueIDChanged
-        ? result.destinationUniqueID.map { "；UniqueID 已改为 \($0)，索引已迁移" } ?? "；UniqueID 已修改"
+        ? result.destinationUniqueID.map { "；UniqueID 已改为 \($0)，Actor 存储引用保持不变" } ?? "；UniqueID 已修改"
         : ""
       navigationItem.prompt = "已保存\(movedText)\(identityText)"
       onSave()

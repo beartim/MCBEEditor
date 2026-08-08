@@ -42,6 +42,16 @@ enum BedrockWorldObjectStorage {
         case .chunkRecord(_, _, let encoding): return encoding
         }
     }
+
+    /// Raw 8-byte actor-storage reference used by `actorprefix` and `digp`.
+    /// It is deliberately kept separate from the entity NBT `UniqueID`;
+    /// recent Bedrock versions can store different values for the two.
+    var actorStorageReference: Data? {
+        guard case .modernActor(let actorKey, _, _, _) = self else { return nil }
+        let prefixCount = Data("actorprefix".utf8).count
+        guard actorKey.count == prefixCount + 8 else { return nil }
+        return Data(actorKey.suffix(8))
+    }
 }
 
 struct BedrockWorldObjectPosition {

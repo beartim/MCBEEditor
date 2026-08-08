@@ -148,7 +148,7 @@ enum BedrockDataValueCatalog {
         value(150, "minecraft:zombie_nautilus", "僵尸鹦鹉螺"),
         value(151, "minecraft:parched", "焦骸"),
         value(152, "minecraft:camel_husk", "骆驼尸壳"),
-        value(153, "minecraft:sulfur_cube", "硫磺方块"),
+        value(153, "minecraft:sulfur_cube", "硫方怪"),
         value(154, "minecraft:cushion", "坐垫"),
         value(157, "minecraft:trader_llama", "行商羊驼"),
         value(218, "minecraft:chest_boat", "运输船"),

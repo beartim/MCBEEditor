@@ -1,5 +1,15 @@
 # MCBEEditor iOS 13 rewrite
 
+## 1.0.0 新版 Actor、Data3D 与框选兼容修复
+
+- 根据新版 Minecraft 存档实测，现代 `actorprefix/digp` 的 8 字节 Actor 存储引用与实体 NBT 内 `UniqueID` 已可能不同。MCBEEditor 现在将两者完全分离：列表、选择器和命令显示 NBT `UniqueID`；定位、写回、移动和删除继续使用原始 actorprefix/digp 存储引用。修改 NBT `UniqueID` 不再错误重命名 actorprefix 键。
+- `scanEntities(uniqueIDs:)` 不再用 NBT `UniqueID` 拼接 actorprefix 键，而是先建立原始 8 字节存储引用到 digp 的索引，再扫描 actor NBT 精确匹配 `UniqueID`，适配村民 Dwellers 等按 UniqueID 反查实体的功能。
+- `minecraft:sulfur_cube` 中文名称修正为“硫方怪”。
+- Data3D 的 `0xff` 未单独保存层按实际继承规则显示上一保存层最高 Y 平面的有效生物群系，不再显示成空层；每层摘要列出所有生物群系 ID、中文名和位置数量。
+- Data3D 生物群系编辑器新增“整区块设置”，可一次将全部 16×384×16 生物群系位置设为同一 ID，并将继承层转为显式保存层。
+- 地图框选面板新增“对齐区块边界”，把当前 X/Z 范围向外扩展到所有与之相交区块的完整边界，负坐标同样按区块 floor 规则处理。
+- 软件版本仍固定为 **1.0.0（100）**。
+
 ## 1.0.0 列表查看状态、NBT 退出保护与命令同步
 
 - “已查看”仅用于实体/框选实体或方块实体在打开 NBT 后，以及方块搜索结果在点按后；从地图点击“返回方块列表”会保留本次搜索的黄色标签。新搜索、刷新对应列表或退出世界编辑器后不保存记录。
@@ -292,7 +302,7 @@
 - 旧版区块实体会重建 `Entity (0x32)` 连续 NBT 记录；
 - 方块实体会重建 `BlockEntity (0x31)` 连续 NBT 记录；
 - 修改坐标跨区块或维度时，记录会自动从原区块迁移到目标区块；
-- `UniqueID` 可直接修改；保存时会同步迁移 `actorprefix` 键与 `digp` 区块摘要，仍禁止删除或重命名该标签；
+- `UniqueID` 可直接修改；现代新版存档只修改实体 NBT 内的 `UniqueID`，保持 actorprefix/digp 的原始 8 字节存储引用不变；旧版连续 Entity 记录仍按 NBT 精确写回。该标签仍禁止删除或重命名；
 - 多键写入失败时会尝试按相反顺序恢复原值；
 - 编辑完成后地图和实体列表自动重新扫描。
 
@@ -360,7 +370,7 @@
 
 实体读取同时兼容：
 
-- 现代 `digp<Chunk Key> → actorprefix<ActorUniqueID>` 存储；
+- 现代 `digp<Chunk Key> → actorprefix<8字节Actor存储引用>` 存储；存储引用与实体 NBT `UniqueID` 分开处理；
 - 旧版区块 `Entity (0x32)` 连续 Little-Endian NBT；
 - 区块 `BlockEntity (0x31)` 连续 Little-Endian NBT；
 - 过渡世界中现代/旧版实体记录按 UniqueID 去重，并优先采用现代 Actor 记录。
@@ -467,7 +477,7 @@ build/output/MCBEEditor-iOS13-unsigned.ipa
 - 对象详情、长按菜单和侧滑菜单支持复制为新对象与删除整个对象；NBT 编辑器工具栏也提供整对象删除。
 - 新建时可使用当前地图选中位置；复制模式会保留原对象完整 NBT，并替换 ID、坐标、维度与实体 UniqueID。
 - 删除现代实体会原子清理 `actorprefix` 记录和所在区块 `digp` 引用；旧实体及方块实体会从连续 NBT 记录中精确移除。
-- 实体 `UniqueID` 开放修改；保存时自动迁移 actor 键及源/目标 `digp` 引用，并检查 ID 冲突。
+- 实体 `UniqueID` 开放修改；当前实现会检查 NBT ID 冲突，但保持现代 actorprefix/digp 的原始存储引用不变；只有坐标或维度变化时才移动 digp 引用。
 - `UniqueID` 仍不能删除或重命名，以避免生成没有主键的现代实体。
 - 版本更新为 1.1.3（构建号 113）。
 

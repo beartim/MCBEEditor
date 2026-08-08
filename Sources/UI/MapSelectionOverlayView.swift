@@ -44,6 +44,7 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
     private let z0Field = UITextField()
     private let x1Field = UITextField()
     private let z1Field = UITextField()
+    private let alignChunkButton = UIButton(type: .system)
     private let actionButton = UIButton(type: .system)
     private var handles = [MapSelectionEdge: UIView]()
     private var passesBackgroundTouches = false
@@ -51,6 +52,7 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
     private(set) var selectionRect: CGRect?
     var onEdgePan: ((MapSelectionEdge, CGPoint, UIGestureRecognizer.State) -> Void)?
     var onCoordinatesChanged: ((Int64, Int64, Int64, Int64) -> Void)?
+    var onAlignToChunkBounds: (() -> Void)?
     var onShowActions: (() -> Void)?
 
     override init(frame: CGRect) {
@@ -115,13 +117,18 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
         x1Field.placeholder = "X1"
         z1Field.placeholder = "Z1"
 
+        alignChunkButton.setTitle("对齐区块边界", for: .normal)
+        alignChunkButton.titleLabel?.font = .preferredFont(forTextStyle: .body)
+        alignChunkButton.addTarget(self, action: #selector(alignToChunkBounds), for: .touchUpInside)
+        alignChunkButton.isEnabled = false
+
         actionButton.setTitle("操作…", for: .normal)
         actionButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         actionButton.addTarget(self, action: #selector(showActions), for: .touchUpInside)
 
         let row0 = coordinateRow("起点", x0Field, z0Field)
         let row1 = coordinateRow("终点", x1Field, z1Field)
-        let stack = UIStackView(arrangedSubviews: [title, row0, row1, actionButton])
+        let stack = UIStackView(arrangedSubviews: [title, row0, row1, alignChunkButton, actionButton])
         stack.axis = .vertical
         stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -192,6 +199,7 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
         CATransaction.commit()
         panel.isHidden = false
         handles.values.forEach { $0.isHidden = false }
+        alignChunkButton.isEnabled = region != nil
         if let region = region { updateCoordinateFields(region) }
         setNeedsLayout()
     }
@@ -214,6 +222,7 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
         borderLayer.path = nil
         CATransaction.commit()
         panel.isHidden = true
+        alignChunkButton.isEnabled = false
         handles.values.forEach { $0.isHidden = true }
     }
 
@@ -269,6 +278,8 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
               let z1 = Int64(z1Field.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else { return }
         onCoordinatesChanged?(x0, z0, x1, z1)
     }
+
+    @objc private func alignToChunkBounds() { onAlignToChunkBounds?() }
 
     @objc private func showActions() { onShowActions?() }
 

@@ -166,6 +166,7 @@ final class MCBEEditorTests: XCTestCase {
         XCTAssertEqual(BedrockDataValueCatalog.entities.first { $0.id == 79 }?.displayName, "末影龙火球")
         XCTAssertEqual(BedrockDataValueCatalog.entities.first { $0.id == 116 }?.displayName, "僵尸村民")
         XCTAssertEqual(BedrockDataValueCatalog.entities.first { $0.id == 145 }?.displayName, "不祥之物生成器")
+        XCTAssertEqual(BedrockDataValueCatalog.entity(forIdentifier: "minecraft:sulfur_cube")?.displayName, "硫方怪")
         XCTAssertEqual(BedrockDataValueCatalog.entities.first { $0.id == 154 }?.identifier, "minecraft:cushion")
         XCTAssertEqual(BedrockDataValueCatalog.entities.first { $0.id == 154 }?.hexadecimalID, "0x9A")
         XCTAssertEqual(BedrockDataValueCatalog.entity(forNumericID: 44)?.identifier, "minecraft:zombie_villager")

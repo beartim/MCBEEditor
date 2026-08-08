@@ -1190,6 +1190,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     selectionOverlayView.onCoordinatesChanged = { [weak self] x0, z0, x1, z1 in
       self?.setSelectionCoordinates(x0: x0, z0: z0, x1: x1, z1: z1)
     }
+    selectionOverlayView.onAlignToChunkBounds = { [weak self] in
+      self?.alignSelectionToChunkBounds()
+    }
     selectionOverlayView.onShowActions = { [weak self] in self?.presentSelectionActions() }
     view.addSubview(selectionOverlayView)
     view.addSubview(zoomLabel)
@@ -3021,6 +3024,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     updateSelectionOverlay(for: region)
     updateSelectionGestureAvailability()
     statusLabel.text = "已输入选择范围：\(region.coordinateText)。"
+  }
+
+  private func alignSelectionToChunkBounds() {
+    guard isSelectionMode, let current = selectedRegion else { return }
+    let aligned = current.expandedToChunkBounds
+    selectedRegion = aligned
+    selectionEdgeDragOrigin = nil
+    updateSelectionOverlay(for: aligned)
+    updateSelectionGestureAvailability()
+    statusLabel.text =
+      "已向外对齐区块边界：\(aligned.coordinateText)，覆盖 \(aligned.chunkCount) 个完整区块。"
   }
 
   private func adjustSelectionEdge(

@@ -174,6 +174,12 @@ struct BedrockBiomeDocument: Equatable {
                 layers.append(BedrockBiomeLayer(baseY: baseY, biomeIDs: values, isAbsent: false))
                 baseY += 16
             }
+            // In Data3D, an absent (0xff) biome storage does not mean
+            // "unknown biome". Bedrock inherits the highest Y plane from the
+            // preceding saved storage. Materialize that effective value for
+            // display/editing while keeping `isAbsent = true`, so an untouched
+            // document still encodes byte-for-byte equivalent 0xff markers.
+            Self.materializeInheritedData3DLayers(&layers)
             return BedrockBiomeDocument(format: format, heightMap: heights, layers: layers)
         }
     }
@@ -243,6 +249,58 @@ struct BedrockBiomeDocument: Equatable {
         }
         layers[layerIndex].biomeIDs = Array(repeating: id, count: layers[layerIndex].biomeIDs.count)
         layers[layerIndex].isAbsent = false
+    }
+
+    /// Sets every biome position in a Data3D chunk, including currently
+    /// inherited/absent layers, to one numeric biome ID.
+    mutating func fillAllData3DLayers(id: UInt32) throws {
+        guard format == .data3D else {
+            throw MCBEEditorError.unsupported("整区块生物群系设置仅适用于 Data3D")
+        }
+        guard !layers.isEmpty else {
+            throw MCBEEditorError.malformedData("Data3D 没有可编辑的生物群系层")
+        }
+        for index in layers.indices {
+            guard layers[index].biomeIDs.count == 4096 else {
+                throw MCBEEditorError.malformedData("Data3D 每层必须包含 4096 个生物群系 ID")
+            }
+            layers[index].biomeIDs = Array(repeating: id, count: 4096)
+            layers[index].isAbsent = false
+        }
+    }
+
+    /// Expands effective values for 0xff Data3D layers without marking those
+    /// layers as explicitly stored. Ordering follows this file's X-Z-Y layout.
+    private static func materializeInheritedData3DLayers(_ layers: inout [BedrockBiomeLayer]) {
+        var inheritedTopPlane: [UInt32]?
+        for index in layers.indices {
+            if layers[index].isAbsent {
+                guard let top = inheritedTopPlane, top.count == 256 else { continue }
+                var values = [UInt32](repeating: 0, count: 4096)
+                for x in 0..<16 {
+                    for z in 0..<16 {
+                        let value = top[x * 16 + z]
+                        let start = x * 256 + z * 16
+                        for localY in 0..<16 { values[start + localY] = value }
+                    }
+                }
+                layers[index].biomeIDs = values
+                // The top plane remains the same after an inherited layer.
+                continue
+            }
+
+            guard layers[index].biomeIDs.count == 4096 else {
+                inheritedTopPlane = nil
+                continue
+            }
+            var top = [UInt32](repeating: 0, count: 256)
+            for x in 0..<16 {
+                for z in 0..<16 {
+                    top[x * 16 + z] = layers[index].biomeIDs[x * 256 + z * 16 + 15]
+                }
+            }
+            inheritedTopPlane = top
+        }
     }
 
     private static func encodePalettedLayer(_ values: [UInt32], into writer: inout BinaryWriter) throws {

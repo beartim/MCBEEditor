@@ -11,11 +11,16 @@ final class ChunkBiomeEditorViewController: UITableViewController {
     private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.biome-editor", qos: .userInitiated)
     private var record: BedrockChunkStore.BiomeRecord?
     private var dirty = false
-    private let viewedItems = ViewedItemTracker()
     private lazy var saveButton = UIBarButtonItem(
         barButtonSystemItem: .save,
         target: self,
         action: #selector(confirmSave)
+    )
+    private lazy var fillChunkButton = UIBarButtonItem(
+        title: "整区块设置",
+        style: .plain,
+        target: self,
+        action: #selector(fillWholeChunk)
     )
     var onSave: ((String) -> Void)?
 
@@ -33,9 +38,13 @@ final class ChunkBiomeEditorViewController: UITableViewController {
         super.viewDidLoad()
         navigationItem.rightBarButtonItems = [
             saveButton,
+            fillChunkButton,
             UIBarButtonItem(title: "ID 对照", style: .plain, target: self, action: #selector(showBiomeCatalog))
         ]
         saveButton.isEnabled = false
+        fillChunkButton.isEnabled = false
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 68
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(worldDidChange),
@@ -63,10 +72,10 @@ final class ChunkBiomeEditorViewController: UITableViewController {
                 let value = try self.store.biomeRecord(at: self.chunk)
                 DispatchQueue.main.async {
                     overlay.removeFromSuperview()
-                    self.viewedItems.reset()
                     self.record = value
                     self.dirty = false
                     self.saveButton.isEnabled = false
+                    self.fillChunkButton.isEnabled = value?.document.format == .data3D
                     self.tableView.reloadData()
                     if value == nil {
                         let alert = UIAlertController(
@@ -100,17 +109,17 @@ final class ChunkBiomeEditorViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         guard section == 1 else { return nil }
-        return "点击一层后可按数字 ID、中文名称、identifier 或坐标搜索并修改。Data3D 使用 X-Z-Y 顺序；保存会直接写回世界数据库。"
+        return "点击一层后可按数字 ID、中文名称、identifier 或坐标搜索并修改。Data3D 中未单独保存（0xff）的层会按实际读取规则显示其继承的上一保存层顶部生物群系；“整区块设置”可一次覆盖全部 16×384×16 位置。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "BiomeLayer")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "BiomeLayer")
-        ViewedListSupport.clearAccessory(cell)
+        cell.accessoryView = nil
         cell.accessoryType = .none
         guard let record = record else { return cell }
         cell.textLabel?.numberOfLines = 1
-        cell.detailTextLabel?.numberOfLines = 2
+        cell.detailTextLabel?.numberOfLines = 0
         cell.detailTextLabel?.textColor = .secondaryLabel
         if indexPath.section == 0 {
             switch indexPath.row {
@@ -132,28 +141,19 @@ final class ChunkBiomeEditorViewController: UITableViewController {
             } else {
                 cell.textLabel?.text = "16×16 平面"
             }
-            if layer.isAbsent {
-                cell.detailTextLabel?.text = "未保存的层 · 点击可创建"
-            } else {
-                let unique = layer.uniqueBiomeIDs
-                let preview = unique.prefix(5).map { id in
-                    "\(id):\(BedrockBiomeCatalog.displayName(for: id))"
-                }.joined(separator: ", ")
-                cell.detailTextLabel?.text = "\(layer.coordinateCount) 个位置 · \(unique.count) 种 ID" + (preview.isEmpty ? "" : " · \(preview)")
-            }
-            let key = String(indexPath.row)
-            ViewedListSupport.configure(
-                cell: cell,
-                isViewed: viewedItems.contains(key),
-                clearAction: { [weak self] in
-                    guard let self = self else { return }
-                    ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
-                        guard let self = self else { return }
-                        self.viewedItems.clear(key)
-                        self.tableView.reloadData()
-                    }
-                }
-            )
+            var counts = [UInt32: Int]()
+            for id in layer.biomeIDs { counts[id, default: 0] += 1 }
+            let summary = counts.sorted { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value > rhs.value }
+                return lhs.key < rhs.key
+            }.map { id, count in
+                "\(id):\(BedrockBiomeCatalog.displayName(for: id))×\(count)"
+            }.joined(separator: ", ")
+            let prefix = layer.isAbsent ? "未单独保存 · 继承上一保存层顶部 · " : ""
+            cell.detailTextLabel?.text =
+                "\(prefix)\(layer.coordinateCount) 个位置 · \(counts.count) 种 ID"
+                + (summary.isEmpty ? "" : " · \(summary)")
+            cell.accessoryType = .disclosureIndicator
         }
         return cell
     }
@@ -162,8 +162,6 @@ final class ChunkBiomeEditorViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         guard indexPath.section == 1, let record = record else { return }
         let layerIndex = indexPath.row
-        viewedItems.mark(String(layerIndex))
-        tableView.reloadRows(at: [indexPath], with: .none)
         let editor = BiomeLayerEditorViewController(layer: record.document.layers[layerIndex])
         editor.onCommit = { [weak self] layer in
             guard let self = self, var current = self.record else { return }
@@ -174,6 +172,27 @@ final class ChunkBiomeEditorViewController: UITableViewController {
             self.tableView.reloadRows(at: [indexPath], with: .automatic)
         }
         navigationController?.pushViewController(editor, animated: true)
+    }
+
+    @objc private func fillWholeChunk() {
+        guard let record = record, record.document.format == .data3D else { return }
+        let currentID = record.document.layers.first?.biomeIDs.first ?? 0
+        let picker = BiomeIDPickerViewController(currentID: currentID, selectionEnabled: true)
+        picker.onSelect = { [weak self] id in
+            guard let self = self, var current = self.record else { return }
+            do {
+                try current.document.fillAllData3DLayers(id: id)
+                self.record = current
+                self.dirty = true
+                self.saveButton.isEnabled = true
+                self.tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+                self.navigationItem.prompt =
+                    "已将整区块 16×384×16 生物群系设为 \(id):\(BedrockBiomeCatalog.displayName(for: id))；保存后写入世界。"
+            } catch {
+                self.showError(error, title: "整区块设置失败")
+            }
+        }
+        navigationController?.pushViewController(picker, animated: true)
     }
 
     @objc private func showBiomeCatalog() {
@@ -228,7 +247,6 @@ private final class BiomeLayerEditorViewController: UITableViewController, UISea
     private var layer: BedrockBiomeLayer
     private var visibleIndices = [Int]()
     private let searchController = UISearchController(searchResultsController: nil)
-    private let viewedItems = ViewedItemTracker()
     var onCommit: ((BedrockBiomeLayer) -> Void)?
 
     init(layer: BedrockBiomeLayer) {
@@ -286,27 +304,13 @@ private final class BiomeLayerEditorViewController: UITableViewController, UISea
         let identifier = BedrockBiomeCatalog.identifier(for: id) ?? "未知/自定义"
         cell.detailTextLabel?.text = "\(layer.coordinateText(for: index)) · \(identifier)"
         cell.imageView?.image = UIImage(systemName: "leaf")
-        let key = String(index)
-        ViewedListSupport.configure(
-            cell: cell,
-            isViewed: viewedItems.contains(key),
-            clearAction: { [weak self] in
-                guard let self = self else { return }
-                ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
-                    guard let self = self else { return }
-                    self.viewedItems.clear(key)
-                    self.tableView.reloadData()
-                }
-            }
-        )
+        cell.accessoryType = .disclosureIndicator
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let index = visibleIndices[indexPath.row]
-        viewedItems.mark(String(index))
-        tableView.reloadRows(at: [indexPath], with: .none)
         pickBiomeID(current: layer.biomeIDs[index]) { [weak self] value in
             guard let self = self else { return }
             self.layer.biomeIDs[index] = value
