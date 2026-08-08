@@ -196,51 +196,137 @@ final class BedrockWorldObjectNBTStore {
     try repairAppCreatedOverworldActorDigests(database: session.database())
   }
 
+  /// Prepares an imported entity without synthesizing any common/default tags.
+  /// Import intentionally changes only Pos and UniqueID; every other source tag,
+  /// including a present/missing DimensionId, is preserved byte-semantically at
+  /// the NBT level.
   func prepareEntityDocument(
     _ source: NBTDocument,
-    fallbackIdentifier: String,
     position: BedrockWorldObjectPosition,
-    dimension: Int32,
     uniqueID: Int64
   ) throws -> NBTDocument {
-    let identifier = BedrockEntityCommonNBT.identifier(in: source.root) ?? fallbackIdentifier
+    guard case .compound = source.root else {
+      throw MCBEEditorError.malformedData("实体 NBT 根必须是 Compound。")
+    }
+    guard position.x.isFinite, position.y.isFinite, position.z.isFinite,
+      Float(position.x).isFinite, Float(position.y).isFinite, Float(position.z).isFinite
+    else {
+      throw MCBEEditorError.malformedData("实体 Pos 必须是可写入 Float List 的有限数值。")
+    }
+    guard uniqueID != 0 else {
+      throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
+    }
+
+    var document = source
+    document.root = setTopLevelTag(
+      in: document.root,
+      names: ["Pos", "pos", "Position", "position"],
+      preferredName: "Pos",
+      value: .list(.float, [
+        .float(Float(position.x)), .float(Float(position.y)), .float(Float(position.z)),
+      ])
+    )
+    document.root = setTopLevelTag(
+      in: document.root,
+      names: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"],
+      preferredName: "UniqueID",
+      value: .long(uniqueID)
+    )
+    return document
+  }
+
+  /// Imports a prepared entity document as-is. Pos and UniqueID are the only
+  /// required entity tags. DimensionId is optional; when absent, the caller
+  /// supplies the database/storage dimension without inserting a DimensionId
+  /// tag into the document.
+  func createEntity(
+    from document: NBTDocument,
+    fallbackDimension: Int32? = nil
+  ) throws -> BedrockWorldObjectCreateResult {
+    guard case .compound = document.root,
+      let position = BedrockEntityCommonNBT.position(in: document.root),
+      let uniqueID = BedrockEntityCommonNBT.uniqueID(in: document.root)
+    else {
+      throw MCBEEditorError.malformedData("导入实体 NBT 只要求根为 Compound，并包含 Pos 和 UniqueID。")
+    }
+    guard position.x.isFinite, position.y.isFinite, position.z.isFinite,
+      Float(position.x).isFinite, Float(position.y).isFinite, Float(position.z).isFinite
+    else {
+      throw MCBEEditorError.malformedData("实体 Pos 必须是可写入 Float List 的有限数值。")
+    }
+    guard uniqueID != 0 else {
+      throw MCBEEditorError.malformedData("实体 UniqueID 不能为 0。")
+    }
+    guard let dimension = BedrockEntityCommonNBT.dimension(in: document.root) ?? fallbackDimension else {
+      throw MCBEEditorError.malformedData("实体缺少 DimensionId；请选择要写入的维度。")
+    }
+
     let database = try session.database()
-    let mode = try preferredEntityCreationStorage(
+    guard try isEntityUniqueIDAvailable(uniqueID, excluding: nil, database: database) else {
+      throw MCBEEditorError.unsupported("UniqueID \(uniqueID) 已被其他实体占用。")
+    }
+
+    let chunkX = MapCoordinate.chunk(fromBlock: position.blockX)
+    let chunkZ = MapCoordinate.chunk(fromBlock: position.blockZ)
+    let storageMode = try preferredEntityCreationStorage(
       template: nil,
-      chunkX: MapCoordinate.chunk(fromBlock: position.blockX),
-      chunkZ: MapCoordinate.chunk(fromBlock: position.blockZ),
+      chunkX: chunkX,
+      chunkZ: chunkZ,
       dimension: dimension,
       database: database
     )
-    return try makeCreationDocument(
-      kind: .entity,
-      identifier: identifier,
-      position: position,
-      dimension: dimension,
-      uniqueID: uniqueID,
-      template: source,
-      templateIdentifier: BedrockEntityCommonNBT.identifier(in: source.root),
-      entityStorageMode: mode
-    )
-  }
 
-  func createEntity(from document: NBTDocument) throws -> BedrockWorldObjectCreateResult {
-    guard let identifier = BedrockEntityCommonNBT.identifier(in: document.root),
-      let position = BedrockEntityCommonNBT.position(in: document.root),
-      let dimension = BedrockEntityCommonNBT.dimension(in: document.root),
-      let uniqueID = BedrockEntityCommonNBT.uniqueID(in: document.root)
-    else {
-      throw MCBEEditorError.malformedData("实体 NBT 必须包含可识别的实体 ID、Pos、DimensionId 和 UniqueID。")
+    switch storageMode {
+    case .legacyChunkEntity:
+      let entityKey = BedrockDBKey(
+        position: ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension),
+        recordType: .entity,
+        subChunkIndex: nil
+      ).encoded()
+      let original = try database.get(entityKey)
+      var records = try original.map(ConsecutiveNBTCodec.decode) ?? []
+      let encoding = records.first?.encoding ?? .littleEndian
+      let raw = try BedrockNBTCodec.encode(document, encoding: encoding)
+      records.append(ConsecutiveNBTRecord(document: document, rawData: raw, encoding: encoding))
+      try database.put(try ConsecutiveNBTCodec.encode(records), for: entityKey, sync: true)
+      return BedrockWorldObjectCreateResult(
+        kind: .entity,
+        dimension: dimension,
+        chunkX: chunkX,
+        chunkZ: chunkZ,
+        uniqueID: uniqueID,
+        source: .legacyChunkEntity
+      )
+
+    case .modernActor:
+      _ = try repairAppCreatedOverworldActorDigests(database: database)
+      let actorKey = makeActorKey(id: uniqueID)
+      guard try database.get(actorKey) == nil else {
+        throw MCBEEditorError.unsupported(
+          "Actor 存储引用与现有 actorprefix 键冲突，请改用其他 UniqueID。")
+      }
+      let actorValue = try BedrockNBTCodec.encode(document, encoding: .littleEndian)
+      let digestKey = makeDigestKey(x: chunkX, z: chunkZ, dimension: dimension)
+      let currentDigest = try database.get(digestKey)
+      var actorIDs = try currentDigest.map(decodeActorIDs) ?? []
+      if !actorIDs.contains(uniqueID) { actorIDs.append(uniqueID) }
+      try database.applyBatch(
+        puts: [
+          (key: actorKey, value: actorValue),
+          (key: digestKey, value: encodeActorIDs(actorIDs)),
+        ],
+        deletes: [],
+        sync: true
+      )
+      return BedrockWorldObjectCreateResult(
+        kind: .entity,
+        dimension: dimension,
+        chunkX: chunkX,
+        chunkZ: chunkZ,
+        uniqueID: uniqueID,
+        source: .modernActor
+      )
     }
-    return try create(
-      kind: .entity,
-      identifier: identifier,
-      position: position,
-      dimension: dimension,
-      uniqueID: uniqueID,
-      template: nil,
-      templateDocument: document
-    )
   }
 
   func suggestedUniqueID() throws -> Int64 {

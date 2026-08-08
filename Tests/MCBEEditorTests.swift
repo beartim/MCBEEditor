@@ -477,6 +477,14 @@ final class MCBEEditorTests: XCTestCase {
         XCTAssertNoThrow(try WorldCommandParser.parse("kick -123456789"))
         XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\""))
         XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 default"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("summon minecraft:pig overworld 10.5 64.25 -3.75 default"))
+        if case .summon(_, _, let floatingSummon, _) = try WorldCommandParser.parse("summon minecraft:pig overworld 10.5 64.25 -3.75 default") {
+            XCTAssertEqual(floatingSummon.x, 10.5)
+            XCTAssertEqual(floatingSummon.y, 64.25)
+            XCTAssertEqual(floatingSummon.z, -3.75)
+        } else {
+            XCTFail("floating-point summon was not parsed")
+        }
         XCTAssertNoThrow(try WorldCommandParser.parse("effect give @a strength 12000 50"))
         XCTAssertNoThrow(try WorldCommandParser.parse("effect clear @e ALL"))
         XCTAssertNoThrow(try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL"))
@@ -485,6 +493,25 @@ final class MCBEEditorTests: XCTestCase {
         XCTAssertNoThrow(try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10"))
         XCTAssertNoThrow(try WorldCommandParser.parse("teleport @a overworld 0 Auto 0"))
         XCTAssertNoThrow(try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("teleport @a overworld -10.0 64 5"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("teleport @a overworld 100.0 70.0 100.0"))
+        if case .teleport(_, _, let x, let y, let z) = try WorldCommandParser.parse("teleport @a overworld -10.0 64 5") {
+            XCTAssertEqual(x, -10.0)
+            XCTAssertEqual(z, 5.0)
+            if case .fixed(let value, let integerLiteral) = y {
+                XCTAssertEqual(value, 64)
+                XCTAssertTrue(integerLiteral)
+            } else {
+                XCTFail("integer teleport Y was not parsed as fixed")
+            }
+        }
+        if case .teleport(_, _, _, let y, _) = try WorldCommandParser.parse("teleport @a overworld 100.0 70.0 100.0"),
+           case .fixed(let value, let integerLiteral) = y {
+            XCTAssertEqual(value, 70)
+            XCTAssertFalse(integerLiteral)
+        } else {
+            XCTFail("floating teleport Y was not parsed as fixed float")
+        }
         XCTAssertNoThrow(try WorldCommandParser.parse("spread @e"))
         XCTAssertNoThrow(try WorldCommandParser.parse("spread minecraft:cow"))
         XCTAssertNoThrow(try WorldCommandParser.parse("daylock 0"))

@@ -108,7 +108,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         noticeLabel.translatesAutoresizingMaskIntoConstraints = false
         if template == nil {
             noticeLabel.text = kind == .entity
-                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。空白模板包含实体通用 NBT 标签；类型专属数据可从现有同类实体复制，或从实体 NBT／JSON 文件导入。"
+                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。点击“创建”的空白实体仍使用通用 NBT 模板；从实体 NBT／JSON 文件导入时不会补充默认标签，只修改 Pos 和 UniqueID。文件缺少 DimensionId 时会在最终导入前选择写入维度。"
                 : "方块实体会写入目标区块的 BlockEntity(0x31) 记录。请确保目标坐标的方块类型与方块实体 ID 相匹配。"
         } else {
             noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并根据目标世界及原对象自动选择区块 Entity 或 actorprefix；原对象不会被修改。"
@@ -273,9 +273,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
                 }
                 prepared.append(try store.prepareEntityDocument(
                     document,
-                    fallbackIdentifier: configuration.identifier,
                     position: configuration.position,
-                    dimension: configuration.dimension,
                     uniqueID: addition.partialValue
                 ))
             }
@@ -302,30 +300,24 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
     }
 
     private func entityImportConfiguration() throws -> (
-        identifier: String,
         position: BedrockWorldObjectPosition,
-        dimension: Int32,
         uniqueID: Int64
     ) {
         guard kind == .entity, template == nil else {
             throw MCBEEditorError.unsupported("只有空白新建实体支持从 NBT／JSON 文件导入。")
         }
-        let identifier = identifierField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !identifier.isEmpty else { throw MCBEEditorError.malformedData("请先填写实体 ID。") }
         guard let x = Double(xField.text ?? ""),
               let y = Double(yField.text ?? ""),
               let z = Double(zField.text ?? ""),
-              x.isFinite, y.isFinite, z.isFinite else {
-            throw MCBEEditorError.malformedData("请先填写有效的实体 X、Y、Z 坐标。")
+              x.isFinite, y.isFinite, z.isFinite,
+              Float(x).isFinite, Float(y).isFinite, Float(z).isFinite else {
+            throw MCBEEditorError.malformedData("请先填写可写入实体 Pos 的有效 X、Y、Z 坐标。")
         }
         guard let uniqueID = Int64(uniqueIDField.text ?? ""), uniqueID != 0 else {
             throw MCBEEditorError.malformedData("请先填写非零 Int64 UniqueID。")
         }
-        let index = max(0, dimensionControl.selectedSegmentIndex)
         return (
-            identifier,
             BedrockWorldObjectPosition(x: x, y: y, z: z),
-            BedrockDimension.allCases[index].rawValue,
             uniqueID
         )
     }

@@ -201,26 +201,32 @@ final class WorldCommandExecutor {
     private func teleport(
         target: CommandTarget,
         dimension: Int32,
-        x: Int64,
+        x: Double,
         y: CommandTeleportY,
-        z: Int64
+        z: Double
     ) throws -> String {
-        let resolvedY: Int32
+        let resolvedY: Double
         switch y {
-        case .fixed(let value):
+        case .fixed(let value, _):
             resolvedY = value
         case .automatic:
-            resolvedY = try automaticTeleportY(x: x, z: z, dimension: dimension)
+            resolvedY = Double(try automaticTeleportY(x: x, z: z, dimension: dimension))
         }
 
         let targets = try resolveTargets(target)
-        let position = BedrockWorldObjectPosition(x: Double(x), y: Double(resolvedY), z: Double(z))
+        let entityPosition = BedrockWorldObjectPosition(x: x, y: resolvedY, z: z)
+        let playerY = resolvedY + (y.addsPlayerEyeHeight ? 1.62 : 0)
+        guard Float(playerY).isFinite else {
+            throw MCBEEditorError.malformedData("玩家 teleport 的 Y 坐标增加 1.62 后超出 Pos 可写入范围")
+        }
+        let playerPosition = BedrockWorldObjectPosition(x: x, y: playerY, z: z)
+
         var playerPuts = [(key: Data, value: Data)]()
         playerPuts.reserveCapacity(targets.players.count)
         for record in targets.players {
             let document = try teleportedDocument(
                 record.document,
-                position: position,
+                position: playerPosition,
                 dimension: dimension
             )
             playerPuts.append((
@@ -237,20 +243,37 @@ final class WorldCommandExecutor {
         for object in stableEntityMutationOrder(targets.entities) {
             let document = try teleportedDocument(
                 object.document,
-                position: position,
+                position: entityPosition,
                 dimension: dimension
             )
             _ = try entityStore.save(object: object, document: document)
             movedEntities += 1
         }
 
-        let yText = y.displayText == "Auto" ? "Auto→\(resolvedY)" : String(resolvedY)
-        return "teleport 完成：将 \(targets.players.count) 个玩家和 \(movedEntities) 个实体传送到 \(WorldCommandParser.dimensionName(for: dimension)) 的 \(x) \(yText) \(z)。"
+        let resolvedText = WorldCommandParser.coordinateText(resolvedY)
+        let yText = y.displayText == "Auto" ? "Auto→\(resolvedText)" : y.displayText
+        let playerSuffix = targets.players.isEmpty || !y.addsPlayerEyeHeight
+            ? ""
+            : "；玩家 Pos Y=\(WorldCommandParser.coordinateText(playerY))"
+        return "teleport 完成：将 \(targets.players.count) 个玩家和 \(movedEntities) 个实体传送到 \(WorldCommandParser.dimensionName(for: dimension)) 的 \(WorldCommandParser.coordinateText(x)) \(yText) \(WorldCommandParser.coordinateText(z))\(playerSuffix)。"
     }
 
-    private func automaticTeleportY(x: Int64, z: Int64, dimension: Int32) throws -> Int32 {
+    private func automaticTeleportY(x: Double, z: Double, dimension: Int32) throws -> Int32 {
+        let blockX = try teleportAutoBlockCoordinate(x, name: "X")
+        let blockZ = try teleportAutoBlockCoordinate(z, name: "Z")
         let renderer = ChunkSurfaceRenderer(database: try session.database())
-        return try nonAirTeleportY(x: x, z: z, dimension: dimension, renderer: renderer) ?? 63
+        return try nonAirTeleportY(x: blockX, z: blockZ, dimension: dimension, renderer: renderer) ?? 63
+    }
+
+    private func teleportAutoBlockCoordinate(_ value: Double, name: String) throws -> Int64 {
+        guard value.isFinite else {
+            throw MCBEEditorError.malformedData("Auto 的 \(name) 坐标必须是有限数值")
+        }
+        let floored = floor(value)
+        guard floored >= Double(Int64.min), floored <= Double(Int64.max) else {
+            throw MCBEEditorError.malformedData("Auto 的 \(name) 坐标超出 Int64 方块坐标范围")
+        }
+        return Int64(floored)
     }
 
     private func nonAirTeleportY(
@@ -351,7 +374,7 @@ final class WorldCommandExecutor {
                 generator: &generator
             )
             let position = BedrockWorldObjectPosition(
-                x: Double(destination.x), y: Double(destination.y), z: Double(destination.z)
+                x: Double(destination.x), y: Double(destination.y) + 1.62, z: Double(destination.z)
             )
             let document = try teleportedDocument(
                 record.document,
@@ -367,7 +390,8 @@ final class WorldCommandExecutor {
                 text: spreadOutputLine(
                     identifier: "minecraft:player",
                     uniqueID: playerUniqueID(record),
-                    destination: destination
+                    dimension: destination.dimension,
+                    position: position
                 ),
                 style: style
             ))
@@ -397,7 +421,8 @@ final class WorldCommandExecutor {
                 text: spreadOutputLine(
                     identifier: selectableIdentifier(object),
                     uniqueID: object.uniqueID,
-                    destination: destination
+                    dimension: destination.dimension,
+                    position: position
                 ),
                 style: .entity
             ))
@@ -452,15 +477,20 @@ final class WorldCommandExecutor {
         throw MCBEEditorError.unsupported("所有已加载区块都没有可用的非空气方块列，无法执行 spread。")
     }
 
-    private func spreadOutputLine(identifier: String, uniqueID: Int64?, destination: SpreadDestination) -> String {
+    private func spreadOutputLine(
+        identifier: String,
+        uniqueID: Int64?,
+        dimension: Int32,
+        position: BedrockWorldObjectPosition
+    ) -> String {
         let dimensionName: String
-        switch destination.dimension {
+        switch dimension {
         case 0: dimensionName = "主世界"
         case 1: dimensionName = "下界"
         case 2: dimensionName = "末地"
-        default: dimensionName = "维度 \(destination.dimension)"
+        default: dimensionName = "维度 \(dimension)"
         }
-        return "\(identifier) \(uniqueID.map(String.init) ?? "无UniqueID") \(dimensionName) \(destination.x) \(destination.y) \(destination.z)"
+        return "\(identifier) \(uniqueID.map(String.init) ?? "无UniqueID") \(dimensionName) \(WorldCommandParser.coordinateText(position.x)) \(WorldCommandParser.coordinateText(position.y)) \(WorldCommandParser.coordinateText(position.z))"
     }
 
     private func setDayLock(_ locked: Bool) throws -> String {
@@ -741,15 +771,15 @@ final class WorldCommandExecutor {
     private func summon(
         identifier: String,
         dimension: Int32,
-        position: CommandBlockCoordinate,
+        position: CommandEntityCoordinate,
         additions: [NBTNamedTag]
     ) throws -> String {
         let store = BedrockWorldObjectNBTStore(session: session)
         let uniqueID = try store.suggestedUniqueID()
         let worldPosition = BedrockWorldObjectPosition(
-            x: Double(position.x),
-            y: Double(position.y),
-            z: Double(position.z)
+            x: position.x,
+            y: position.y,
+            z: position.z
         )
         var root: NBTValue = .compound([
             NBTNamedTag(name: "identifier", value: .string(identifier))
@@ -769,7 +799,7 @@ final class WorldCommandExecutor {
             template: nil,
             templateDocument: NBTDocument(rootName: "", root: root)
         )
-        return "summon 完成：创建 \(identifier)，维度 \(WorldCommandParser.dimensionName(for: dimension))，坐标 \(position.x) \(position.y) \(position.z)，UniqueID \(uniqueID)，存储方式 \(result.source.rawValue)。"
+        return "summon 完成：创建 \(identifier)，维度 \(WorldCommandParser.dimensionName(for: dimension))，坐标 \(WorldCommandParser.coordinateText(position.x)) \(WorldCommandParser.coordinateText(position.y)) \(WorldCommandParser.coordinateText(position.z))，UniqueID \(uniqueID)，存储方式 \(result.source.rawValue)。"
     }
 
 

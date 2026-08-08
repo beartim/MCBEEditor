@@ -37,7 +37,7 @@ final class EntityNBTImportReviewViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { documents.count }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        "文件中的每个根标签都会创建一个实体。坐标、维度和 UniqueID 已按选取文件前填写的值写入；后续仍可在此逐项修改。"
+        "文件中的每个根标签都会创建一个实体。导入准备阶段只修改 Pos 和 UniqueID，不补充任何默认实体标签，也不改动 DimensionId；缺少 DimensionId 的实体会在点击“导入全部”时统一选择写入维度。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -86,11 +86,38 @@ final class EntityNBTImportReviewViewController: UITableViewController {
     }
 
     @objc private func importAll() {
+        let missingDimensionCount = documents.reduce(into: 0) { count, document in
+            if BedrockEntityCommonNBT.dimension(in: document.root) == nil { count += 1 }
+        }
+        guard missingDimensionCount > 0 else {
+            performImport(fallbackDimension: nil)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "选择维度",
+            message: "有 \(missingDimensionCount) 个实体缺少 DimensionId。选择这些实体要写入的维度；不会向实体 NBT 中添加 DimensionId 标签。",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "主世界", style: .default) { [weak self] _ in
+            self?.performImport(fallbackDimension: 0)
+        })
+        alert.addAction(UIAlertAction(title: "下界", style: .default) { [weak self] _ in
+            self?.performImport(fallbackDimension: 1)
+        })
+        alert.addAction(UIAlertAction(title: "末地", style: .default) { [weak self] _ in
+            self?.performImport(fallbackDimension: 2)
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func performImport(fallbackDimension: Int32?) {
         navigationItem.rightBarButtonItem?.isEnabled = false
         do {
             var results = [BedrockWorldObjectCreateResult]()
             for document in documents {
-                results.append(try store.createEntity(from: document))
+                results.append(try store.createEntity(from: document, fallbackDimension: fallbackDimension))
             }
             session.notifyAfterDatabaseMutation()
             onComplete(results)

@@ -1,5 +1,11 @@
 # MCBEEditor iOS 13 rewrite
 
+## 实体导入与实体命令浮点坐标
+
+- 从实体 NBT／JSON 文件导入时不再补充通用默认实体标签，只覆盖/补入 `Pos` 与 `UniqueID`；导入对象不再要求 identifier。
+- `DimensionId` 缺失时在“导入全部”阶段选择主世界/下界/末地，选择结果只用于实体数据库存储位置，不会向 NBT 中写入 `DimensionId`。
+- `teleport` 与 `summon` 坐标支持浮点数。玩家 teleport 的 Y 参数若为整数或 `Auto`，实际 `Pos[1]` 增加 1.62；若 Y 以浮点形式输入则直接写入。`spread` 对玩家同样在 Auto 落脚高度上增加 1.62。
+
 ## 1.0.0 新版 Actor、Data3D 与框选兼容修复
 
 - 根据新版 Minecraft 存档实测，现代 `actorprefix/digp` 的 8 字节 Actor 存储引用与实体 NBT 内 `UniqueID` 已可能不同。MCBEEditor 现在将两者完全分离：列表、选择器和命令显示 NBT `UniqueID`；定位、写回、移动和删除继续使用原始 actorprefix/digp 存储引用。修改 NBT `UniqueID` 不再错误重命名 actorprefix 键。

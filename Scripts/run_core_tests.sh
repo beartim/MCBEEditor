@@ -216,6 +216,7 @@ struct Main {
         _ = try WorldCommandParser.parse("kick @a")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"")
         _ = try WorldCommandParser.parse("summon minecraft:pig overworld 0 64 0 default")
+        _ = try WorldCommandParser.parse("summon minecraft:pig overworld 10.5 64.25 -3.75 default")
         let effectGive = try WorldCommandParser.parse("effect give @a strength 12000 50")
         guard case .effect(.give(let duration, let amplifier), .allPlayers, .single(let effectEntry)) = effectGive else {
             preconditionFailure("effect give parsed as wrong command")
@@ -232,6 +233,8 @@ struct Main {
         _ = try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10")
         _ = try WorldCommandParser.parse("teleport @a overworld 0 Auto 0")
         _ = try WorldCommandParser.parse("teleport minecraft:cow overworld 0 64 0")
+        _ = try WorldCommandParser.parse("teleport @a overworld -10.0 64 5")
+        _ = try WorldCommandParser.parse("teleport @a overworld 100.0 70.0 100.0")
         _ = try WorldCommandParser.parse("spread @e")
         _ = try WorldCommandParser.parse("spread minecraft:cow")
         _ = try WorldCommandParser.parse("daylock 0")
@@ -3840,8 +3843,18 @@ struct EffectCommandTest {
             preconditionFailure("teleport did not write Pos")
         }
         precondition(teleportedPos[0].numericDoubleValue == 10)
-        precondition(teleportedPos[1].numericDoubleValue == 72)
+        precondition(abs((teleportedPos[1].numericDoubleValue ?? 0) - 73.62) < 0.001)
         precondition(teleportedPos[2].numericDoubleValue == -4)
+
+        let floatingTeleport = try executor.execute(try WorldCommandParser.parse("teleport @s overworld 100.25 70.0 -100.75"))
+        precondition(floatingTeleport.changedWorld)
+        let localAfterFloatingTeleport = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
+        guard let floatingTeleportPos = localAfterFloatingTeleport.value(namedAny: ["Pos"])?.listValues else {
+            preconditionFailure("floating teleport did not write Pos")
+        }
+        precondition(floatingTeleportPos[0].numericDoubleValue == 100.25)
+        precondition(floatingTeleportPos[1].numericDoubleValue == 70)
+        precondition(floatingTeleportPos[2].numericDoubleValue == -100.75)
 
         let identifierTeleport = try executor.execute(try WorldCommandParser.parse("teleport minecraft:cow overworld 8 65 8"))
         precondition(identifierTeleport.changedWorld)
@@ -3862,7 +3875,7 @@ struct EffectCommandTest {
         guard let autoPos = localAfterAuto.value(namedAny: ["Pos"])?.listValues else {
             preconditionFailure("Auto teleport did not write Pos")
         }
-        precondition(autoPos[1].numericDoubleValue == 71)
+        precondition(abs((autoPos[1].numericDoubleValue ?? 0) - 72.62) < 0.001)
 
         let netherAuto = try executor.execute(try WorldCommandParser.parse("teleport @s nether 4 Auto 4"))
         precondition(netherAuto.changedWorld)
@@ -3871,7 +3884,7 @@ struct EffectCommandTest {
             preconditionFailure("Nether Auto teleport did not write Pos")
         }
         precondition(localAfterNetherAuto.intValue(named: "DimensionId") == 1)
-        precondition(netherAutoPos[1].numericDoubleValue == 61)
+        precondition(abs((netherAutoPos[1].numericDoubleValue ?? 0) - 62.62) < 0.001)
 
         let fallbackAuto = try executor.execute(try WorldCommandParser.parse("teleport @s overworld 999 Auto 999"))
         precondition(fallbackAuto.changedWorld)
@@ -3879,7 +3892,7 @@ struct EffectCommandTest {
         guard let fallbackPos = localAfterFallback.value(namedAny: ["Pos"])?.listValues else {
             preconditionFailure("fallback Auto teleport did not write Pos")
         }
-        precondition(fallbackPos[1].numericDoubleValue == 63)
+        precondition(abs((fallbackPos[1].numericDoubleValue ?? 0) - 64.62) < 0.001)
 
         let daytimeQuery = try executor.execute(try WorldCommandParser.parse("time query daytime"))
         precondition(!daytimeQuery.changedWorld)
@@ -4019,13 +4032,16 @@ struct EffectCommandTest {
         precondition(spread.outputLines[0].text.contains("minecraft:player 1 主世界"))
         precondition(spread.outputLines[1].text.contains("minecraft:player 5 主世界"))
         precondition(spread.outputLines.dropFirst(2).allSatisfy { $0.text.contains("minecraft:") && !$0.text.contains("无UniqueID") })
-        precondition(spread.outputLines.allSatisfy { $0.text.contains("主世界") && $0.text.contains(" 71 ") })
+        precondition(spread.outputLines.allSatisfy { $0.text.contains("主世界") })
+        precondition(spread.outputLines[0].text.contains(" 72.62 "))
+        precondition(spread.outputLines[1].text.contains(" 72.62 "))
+        precondition(spread.outputLines.dropFirst(2).allSatisfy { $0.text.contains(" 71 ") })
         let localAfterSpread = try BedrockNBTCodec.decode(session.db.values[localKey]!).root
         let onlineAfterSpread = try BedrockNBTCodec.decode(session.db.values[onlineKey]!).root
         precondition(localAfterSpread.intValue(named: "DimensionId") == 0)
         precondition(onlineAfterSpread.intValue(named: "DimensionId") == 0)
-        precondition(localAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue == 71)
-        precondition(onlineAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue == 71)
+        precondition(abs((localAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue ?? 0) - 72.62) < 0.001)
+        precondition(abs((onlineAfterSpread.value(namedAny: ["Pos"])?.listValues?[1].numericDoubleValue ?? 0) - 72.62) < 0.001)
 
         let saved = try executor.execute(try WorldCommandParser.parse("structure save test:one overworld 0 0 0 0 0 0"))
         precondition(saved.changedWorld)
@@ -4056,7 +4072,77 @@ struct EffectCommandTest {
         let deletedArea = try executor.execute(try WorldCommandParser.parse("tickingarea delete ALL"))
         precondition(deletedArea.changedWorld)
 
-        print("Effect and world command executor tests passed")
+        // Imported entity NBT must remain source-authored except for Pos and UniqueID.
+        // Missing DimensionId selects only the database/storage dimension and must
+        // not synthesize DimensionId or the common default entity tags.
+        let importStore = BedrockWorldObjectNBTStore(session: session)
+        let importSource = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "CustomOnly", value: .string("keep"))
+        ]))
+        let preparedImport = try importStore.prepareEntityDocument(
+            importSource,
+            position: BedrockWorldObjectPosition(x: 12.5, y: 70.25, z: -3.75),
+            uniqueID: 909_001
+        )
+        precondition(preparedImport.root.stringValue(namedAny: ["CustomOnly"]) == "keep")
+        precondition(BedrockEntityCommonNBT.position(in: preparedImport.root)?.x == 12.5)
+        precondition(BedrockEntityCommonNBT.position(in: preparedImport.root)?.y == 70.25)
+        precondition(BedrockEntityCommonNBT.uniqueID(in: preparedImport.root) == 909_001)
+        precondition(BedrockEntityCommonNBT.dimension(in: preparedImport.root) == nil)
+        precondition(preparedImport.root.compoundValue(named: "Air") == nil)
+        precondition(preparedImport.root.compoundValue(named: "Motion") == nil)
+        precondition(preparedImport.root.compoundValue(named: "definitions") == nil)
+        let importedEntity = try importStore.createEntity(from: preparedImport, fallbackDimension: 2)
+        precondition(importedEntity.dimension == 2)
+        let importedRoot: NBTValue?
+        switch importedEntity.source {
+        case .modernActor:
+            let importedActorEntries = try session.db.entries(prefix: Data("actorprefix".utf8), includeValues: true, limit: 0)
+            importedRoot = try importedActorEntries.compactMap { entry -> NBTValue? in
+                guard let value = entry.value else { return nil }
+                return try ConsecutiveNBTCodec.decode(value).first(where: {
+                    BedrockEntityCommonNBT.uniqueID(in: $0.document.root) == 909_001
+                })?.document.root
+            }.first
+        case .legacyChunkEntity:
+            let importedKey = BedrockDBKey(
+                position: ChunkPosition(
+                    x: importedEntity.chunkX,
+                    z: importedEntity.chunkZ,
+                    dimension: importedEntity.dimension
+                ),
+                recordType: .entity,
+                subChunkIndex: nil
+            ).encoded()
+            importedRoot = try session.db.get(importedKey).flatMap { raw in
+                try ConsecutiveNBTCodec.decode(raw).first(where: {
+                    BedrockEntityCommonNBT.uniqueID(in: $0.document.root) == 909_001
+                })?.document.root
+            }
+        case .blockEntity:
+            importedRoot = nil
+        }
+        precondition(importedRoot != nil)
+        precondition(BedrockEntityCommonNBT.dimension(in: importedRoot!) == nil)
+        precondition(importedRoot!.stringValue(namedAny: ["CustomOnly"]) == "keep")
+
+        let floatingSummon = try executor.execute(try WorldCommandParser.parse(
+            "summon minecraft:pig overworld 12.5 66.25 -2.75 default"
+        ))
+        precondition(floatingSummon.changedWorld)
+        let summonedObjects = try BedrockWorldObjectScanner(database: session.db).scanAll(
+            dimensions: Set([Int32(0)]),
+            includeEntities: true,
+            includeBlockEntities: false
+        ).objects
+        precondition(summonedObjects.contains(where: { object in
+            object.identifier == "minecraft:pig"
+                && object.position?.x == 12.5
+                && object.position?.y == 66.25
+                && object.position?.z == -2.75
+        }))
+
+        print("Effect, entity-import and world command executor tests passed")
     }
 }
 SWIFT
