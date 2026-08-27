@@ -31,40 +31,38 @@ extension BedrockChunkStore {
         var puts = [(key: Data, value: Data)]()
         var matched = 0
         var skipped = 0
+        var modifiedSubChunks = 0
 
         for chunk in region.chunkPositions {
             guard let ranges = region.localRanges(in: chunk) else { continue }
+            var edited = [Int8: BedrockSubChunk]()
             for record in try regionSubChunkRecords(at: chunk, database: database) {
                 do {
-                    let decoded = try BedrockSubChunk.decode(record.value, keyYIndex: record.y)
-                    let result = try decoded.replacingBlocks(
+                    let result = try record.subChunk.replacingBlocks(
                         coordinatedOperation: operation,
                         localXRange: ranges.x,
                         localZRange: ranges.z
                     )
                     guard result.matchedBlockCount > 0 else { continue }
-                    puts.append((record.key, try result.subChunk.encodePersistent()))
+                    edited[record.y] = result.subChunk
                     matched += result.matchedBlockCount
-                } catch MCBEEditorError.unsupported {
-                    skipped += 1
-                }
+                } catch MCBEEditorError.unsupported { skipped += 1 }
+            }
+            if !edited.isEmpty {
+                puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+                    database: database, position: chunk, edited: edited
+                ))
+                modifiedSubChunks += edited.count
             }
         }
 
         guard !puts.isEmpty else {
-            if skipped > 0 {
-                throw MCBEEditorError.unsupported("区域内没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
-            }
+            if skipped > 0 { throw MCBEEditorError.unsupported("区域内没有匹配方块；另有 \(skipped) 个不支持的 SubChunk 被跳过") }
             throw MCBEEditorError.unsupported("区域内没有匹配搜索条件的方块")
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
-        return BedrockChunkReplaceResult(
-            matchedBlockCount: matched,
-            modifiedSubChunkCount: puts.count,
-            skippedSubChunkCount: skipped
-        )
+        return BedrockChunkReplaceResult(matchedBlockCount: matched, modifiedSubChunkCount: modifiedSubChunks, skippedSubChunkCount: skipped)
     }
-
 
     func bulkReplaceLayer(
         in region: BedrockMapRegion,
@@ -79,13 +77,14 @@ extension BedrockChunkStore {
         var puts = [(key: Data, value: Data)]()
         var affected = 0
         var skipped = 0
+        var modifiedSubChunks = 0
 
         for chunk in region.chunkPositions {
             guard let ranges = region.localRanges(in: chunk) else { continue }
+            var edited = [Int8: BedrockSubChunk]()
             for record in try regionSubChunkRecords(at: chunk, database: database) {
                 do {
-                    let decoded = try BedrockSubChunk.decode(record.value, keyYIndex: record.y)
-                    let result = try decoded.bulkReplacingLayer(
+                    let result = try record.subChunk.bulkReplacingLayer(
                         layer,
                         replacement: replacement,
                         includeCompletelyAirCells: includeCompletelyAirCells,
@@ -93,26 +92,24 @@ extension BedrockChunkStore {
                         localZRange: ranges.z
                     )
                     guard result.changed else { continue }
-                    puts.append((record.key, try result.subChunk.encodePersistent()))
+                    edited[record.y] = result.subChunk
                     affected += result.affectedBlockCount
-                } catch MCBEEditorError.unsupported {
-                    skipped += 1
-                }
+                } catch MCBEEditorError.unsupported { skipped += 1 }
+            }
+            if !edited.isEmpty {
+                puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+                    database: database, position: chunk, edited: edited
+                ))
+                modifiedSubChunks += edited.count
             }
         }
 
         guard !puts.isEmpty else {
-            if skipped > 0 {
-                throw MCBEEditorError.unsupported("框选区域内没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk")
-            }
+            if skipped > 0 { throw MCBEEditorError.unsupported("框选区域内没有可修改的 SubChunk；跳过 \(skipped) 个不支持的 SubChunk") }
             throw MCBEEditorError.unsupported("框选区域内没有符合批量选择条件的方块")
         }
         try database.applyBatch(puts: puts, deletes: [], sync: true)
-        return BedrockChunkBulkLayerResult(
-            affectedBlockCount: affected,
-            modifiedSubChunkCount: puts.count,
-            skippedSubChunkCount: skipped
-        )
+        return BedrockChunkBulkLayerResult(affectedBlockCount: affected, modifiedSubChunkCount: modifiedSubChunks, skippedSubChunkCount: skipped)
     }
 
     func setBiomeID(_ id: UInt32, in region: BedrockMapRegion) throws -> BedrockRegionMutationResult {
@@ -282,12 +279,7 @@ extension BedrockChunkStore {
         for sourceChunk in source.chunkPositions {
             guard let ranges = source.localRanges(in: sourceChunk) else { continue }
             for record in try regionSubChunkRecords(at: sourceChunk, database: database) {
-                let decoded: BedrockSubChunk
-                do {
-                    decoded = try BedrockSubChunk.decode(record.value, keyYIndex: record.y)
-                } catch MCBEEditorError.unsupported {
-                    continue
-                }
+                let decoded = record.subChunk
                 for localX in ranges.x {
                     let absoluteX = MapCoordinate.absoluteBlock(chunk: sourceChunk.x, local: localX)
                     let targetAbsoluteX = destination.minimumX + (absoluteX - source.minimumX)
@@ -303,16 +295,11 @@ extension BedrockChunkStore {
                             let targetIndex = (targetLocalX << 8) | (targetLocalZ << 4) | localY
                             for layer in 0..<min(BedrockBlockRecord.editableLayerCount, decoded.storages.count) {
                                 guard let state = decoded.storages[layer].blockState(x: localX, y: localY, z: localZ) else { continue }
-                                guard state.nbt != nil else {
-                                    skippedLegacy += 1
-                                    continue
-                                }
                                 var layers = edits[targetKey] ?? [:]
                                 var values = layers[layer] ?? [:]
                                 values[targetIndex] = state
                                 layers[layer] = values
                                 edits[targetKey] = layers
-                                copied += 1
                             }
                         }
                     }
@@ -320,27 +307,79 @@ extension BedrockChunkStore {
             }
         }
 
-        var puts = [(key: Data, value: Data)]()
-        puts.reserveCapacity(edits.count + destination.chunkCount * 2)
+        let targetProfile = try BedrockEmptyChunk.profile(database: database, dimension: targetDimension, preferLegacy: false)
+        var editedByChunk = [ChunkPosition: [Int8: BedrockSubChunk]]()
+        var writtenSubChunks = 0
         for (target, layerEdits) in edits {
-            let key = BedrockDBKey.subChunk(x: target.chunkX, z: target.chunkZ, dimension: target.dimension, index: target.y)
-            let decoded: BedrockSubChunk
-            if let raw = try database.get(key) {
-                decoded = try BedrockSubChunk.decode(raw, keyYIndex: target.y)
-            } else {
-                let version = layerEdits.values.flatMap { $0.values }.compactMap(\.paletteVersion).first
-                let air = BedrockBlockState.editableAir(version: version)
-                decoded = BedrockSubChunk(
-                    version: 9,
-                    yIndex: target.y,
-                    storages: [.airFilled(with: air)],
-                    trailingData: Data()
-                )
+            let targetPosition = ChunkPosition(x: target.chunkX, z: target.chunkZ, dimension: target.dimension)
+            let replacementStates = layerEdits.values.flatMap { $0.values }
+            let sourceIsLegacy = !replacementStates.isEmpty
+                && replacementStates.allSatisfy { $0.nbt == nil && $0.legacyID != nil }
+            let sourceIsModern = !replacementStates.isEmpty
+                && replacementStates.allSatisfy { $0.nbt != nil }
+            guard sourceIsLegacy || sourceIsModern else {
+                skippedLegacy += replacementStates.count
+                continue
             }
-            let updated = try decoded.replacingBlockStates(layerEdits)
-            puts.append((key, try updated.encodePersistent()))
+
+            let decoded: BedrockSubChunk
+            if let stored = try BedrockChunkSubChunkAccess.record(
+                database: database,
+                position: targetPosition,
+                yIndex: target.y
+            ) {
+                guard stored.subChunk.isLegacyNumeric == sourceIsLegacy else {
+                    skippedLegacy += replacementStates.count
+                    continue
+                }
+                decoded = stored.subChunk
+            } else {
+                let targetUsesLegacySubChunks = targetProfile.usesLegacyTerrain
+                    || [UInt8(0), 2, 3, 4, 5, 6, 7].contains(targetProfile.subChunkVersion)
+                guard targetUsesLegacySubChunks == sourceIsLegacy else {
+                    skippedLegacy += replacementStates.count
+                    continue
+                }
+                if targetUsesLegacySubChunks {
+                    let legacyVersion: UInt8 = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(targetProfile.subChunkVersion)
+                        ? targetProfile.subChunkVersion
+                        : 0
+                    decoded = try BedrockSubChunk.emptyLegacy(version: legacyVersion, yIndex: target.y)
+                } else {
+                    let version: UInt8 = [UInt8(1), 8, 9].contains(targetProfile.subChunkVersion)
+                        ? targetProfile.subChunkVersion
+                        : 9
+                    let paletteVersion = replacementStates.compactMap(\.paletteVersion).first
+                        ?? targetProfile.blockPaletteVersion
+                    decoded = BedrockSubChunk(
+                        version: version,
+                        yIndex: target.y,
+                        storages: [.airFilled(with: .editableAir(version: paletteVersion))],
+                        trailingData: Data()
+                    )
+                }
+            }
+
+            do {
+                let updated = try decoded.replacingBlockStates(layerEdits)
+                editedByChunk[targetPosition, default: [:]][target.y] = updated
+                copied += replacementStates.count
+                writtenSubChunks += 1
+            } catch MCBEEditorError.unsupported {
+                skippedLegacy += replacementStates.count
+            }
         }
-        let writtenSubChunks = puts.count
+
+        var puts = [(key: Data, value: Data)]()
+        puts.reserveCapacity(editedByChunk.count + destination.chunkCount * 2)
+        for (position, editedSubChunks) in editedByChunk {
+            puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+                database: database,
+                position: position,
+                edited: editedSubChunks,
+                preferLegacyTerrainIfMissing: targetProfile.usesLegacyTerrain
+            ))
+        }
 
         let biomeCopy = try copyRegionBiomes(source: source, destination: destination, database: database)
         puts.append(contentsOf: biomeCopy.puts)
@@ -349,7 +388,7 @@ extension BedrockChunkStore {
         puts.append(contentsOf: blockEntityCopy.puts)
 
         guard !puts.isEmpty || !blockEntityCopy.deletes.isEmpty else {
-            throw MCBEEditorError.unsupported("源区域内没有可复制的现代方块、生物群系或方块实体数据")
+            throw MCBEEditorError.unsupported("源区域内没有可复制的兼容方块、生物群系或方块实体数据")
         }
         try database.applyBatch(puts: puts, deletes: blockEntityCopy.deletes, sync: true)
         return BedrockRegionCopyResult(
@@ -571,20 +610,13 @@ extension BedrockChunkStore {
     }
 
     private struct RegionSubChunkRecord {
-        let key: Data
-        let value: Data
+        let subChunk: BedrockSubChunk
         let y: Int8
     }
 
     private func regionSubChunkRecords(at position: ChunkPosition, database: MojangLevelDB) throws -> [RegionSubChunkRecord] {
-        var prefix = Data()
-        prefix.appendLE(position.x)
-        prefix.appendLE(position.z)
-        return try database.entries(prefix: prefix, includeValues: true, limit: 0).compactMap { entry in
-            guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position,
-                  parsed.recordType == .subChunk, let y = parsed.subChunkIndex,
-                  let value = entry.value else { return nil }
-            return RegionSubChunkRecord(key: entry.key, value: value, y: y)
+        try BedrockChunkSubChunkAccess.records(database: database, position: position).map {
+            RegionSubChunkRecord(subChunk: $0.subChunk, y: $0.yIndex)
         }
     }
 }

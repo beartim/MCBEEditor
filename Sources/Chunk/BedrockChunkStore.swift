@@ -71,7 +71,7 @@ final class BedrockChunkStore {
     func listChunks() throws -> [BedrockChunkSummary] {
         struct Accumulator {
             var records = 0
-            var subChunkYs = [Int8]()
+            var subChunkYs = Set<Int8>()
             var hasBlockEntities = false
             var hasLegacyEntities = false
             var hasActorDigest = false
@@ -85,7 +85,10 @@ final class BedrockChunkStore {
             if let key = BedrockDBKey.parse(entry.key) {
                 var value = chunks[key.position] ?? Accumulator()
                 value.records += 1
-                if key.recordType == .subChunk, let y = key.subChunkIndex { value.subChunkYs.append(y) }
+                if key.recordType == .subChunk, let y = key.subChunkIndex { value.subChunkYs.insert(y) }
+                if key.recordType == .legacyTerrain {
+                    for y in Int8(0)...Int8(7) { value.subChunkYs.insert(y) }
+                }
                 if key.recordType == .blockEntity { value.hasBlockEntities = true }
                 if key.recordType == .entity { value.hasLegacyEntities = true }
                 if [.data3D, .data2D, .data2DLegacy].contains(key.recordType) {
@@ -124,7 +127,7 @@ final class BedrockChunkStore {
 
     func summary(at position: ChunkPosition) throws -> BedrockChunkSummary {
         let records = try rawChunkRecords(at: position, includeValues: false)
-        var subChunkYs = [Int8]()
+        var subChunkYs = Set<Int8>()
         var hasBlockEntities = false
         var hasLegacyEntities = false
         var biomeRecordType: ChunkRecordType?
@@ -132,7 +135,10 @@ final class BedrockChunkStore {
 
         for record in records {
             guard let parsed = BedrockDBKey.parse(record.key), parsed.position == position else { continue }
-            if parsed.recordType == .subChunk, let y = parsed.subChunkIndex { subChunkYs.append(y) }
+            if parsed.recordType == .subChunk, let y = parsed.subChunkIndex { subChunkYs.insert(y) }
+            if parsed.recordType == .legacyTerrain {
+                for y in Int8(0)...Int8(7) { subChunkYs.insert(y) }
+            }
             if parsed.recordType == .blockEntity { hasBlockEntities = true }
             if parsed.recordType == .entity { hasLegacyEntities = true }
             if [.data3D, .data2D, .data2DLegacy].contains(parsed.recordType) {
@@ -339,40 +345,28 @@ final class BedrockChunkStore {
         guard operation.searchLayer0 != nil || operation.searchLayer1 != nil else {
             throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
         }
+        let database = try session.database()
+        let records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+        guard !records.isEmpty else { throw MCBEEditorError.unsupported("该区块没有 SubChunk/LegacyTerrain 地形记录") }
 
-        let records = try standardRecords(at: position, includeValues: true)
-            .filter { $0.parsed.recordType == .subChunk }
-        guard !records.isEmpty else {
-            throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录")
-        }
-
-        var puts = [(key: Data, value: Data)]()
+        var edited = [Int8: BedrockSubChunk]()
         var matched = 0
         var skipped = 0
         for record in records {
-            guard let raw = record.value else { continue }
             do {
-                let decoded = try BedrockSubChunk.decode(raw, keyYIndex: record.parsed.subChunkIndex)
-                let result = try decoded.replacingBlocks(coordinatedOperation: operation)
+                let result = try record.subChunk.replacingBlocks(coordinatedOperation: operation)
                 guard result.matchedBlockCount > 0 else { continue }
-                puts.append((record.key, try result.subChunk.encodePersistent()))
+                edited[record.yIndex] = result.subChunk
                 matched += result.matchedBlockCount
-            } catch MCBEEditorError.unsupported {
-                skipped += 1
-            }
+            } catch MCBEEditorError.unsupported { skipped += 1 }
         }
-        guard !puts.isEmpty else {
-            if skipped > 0 {
-                throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
-            }
+        guard !edited.isEmpty else {
+            if skipped > 0 { throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个不支持的 SubChunk 被跳过") }
             throw MCBEEditorError.unsupported("当前区块没有匹配搜索条件的方块")
         }
-        try session.database().applyBatch(puts: puts, deletes: [], sync: true)
-        return BedrockChunkReplaceResult(
-            matchedBlockCount: matched,
-            modifiedSubChunkCount: puts.count,
-            skippedSubChunkCount: skipped
-        )
+        let puts = try BedrockChunkSubChunkAccess.persistentPuts(database: database, position: position, edited: edited)
+        try database.applyBatch(puts: puts, deletes: [], sync: true)
+        return BedrockChunkReplaceResult(matchedBlockCount: matched, modifiedSubChunkCount: edited.count, skippedSubChunkCount: skipped)
     }
 
     func replaceBlocks(
@@ -398,9 +392,7 @@ final class BedrockChunkStore {
         in position: ChunkPosition,
         operations: [BedrockLayerBlockOperation]
     ) throws -> BedrockChunkReplaceResult {
-        guard !operations.isEmpty else {
-            throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件")
-        }
+        guard !operations.isEmpty else { throw MCBEEditorError.malformedData("至少填写层 0 或层 1 的搜索条件") }
         for operation in operations {
             guard (0..<BedrockBlockRecord.editableLayerCount).contains(operation.layer) else {
                 throw MCBEEditorError.malformedData("只支持层 0 和层 1")
@@ -409,40 +401,28 @@ final class BedrockChunkStore {
                 throw MCBEEditorError.malformedData("层 \(operation.layer) 至少填写一个 name 或 states 搜索条件")
             }
         }
+        let database = try session.database()
+        let records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+        guard !records.isEmpty else { throw MCBEEditorError.unsupported("该区块没有 SubChunk/LegacyTerrain 地形记录") }
 
-        let records = try standardRecords(at: position, includeValues: true)
-            .filter { $0.parsed.recordType == .subChunk }
-        guard !records.isEmpty else {
-            throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录")
-        }
-
-        var puts = [(key: Data, value: Data)]()
+        var edited = [Int8: BedrockSubChunk]()
         var matched = 0
         var skipped = 0
         for record in records {
-            guard let raw = record.value else { continue }
             do {
-                let decoded = try BedrockSubChunk.decode(raw, keyYIndex: record.parsed.subChunkIndex)
-                let result = try decoded.replacingBlocks(operations: operations)
+                let result = try record.subChunk.replacingBlocks(operations: operations)
                 guard result.matchedBlockCount > 0 else { continue }
-                puts.append((record.key, try result.subChunk.encodePersistent()))
+                edited[record.yIndex] = result.subChunk
                 matched += result.matchedBlockCount
-            } catch MCBEEditorError.unsupported {
-                skipped += 1
-            }
+            } catch MCBEEditorError.unsupported { skipped += 1 }
         }
-        guard !puts.isEmpty else {
-            if skipped > 0 {
-                throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个旧版或不支持的 SubChunk 被跳过")
-            }
+        guard !edited.isEmpty else {
+            if skipped > 0 { throw MCBEEditorError.unsupported("没有匹配方块；另有 \(skipped) 个不支持的 SubChunk 被跳过") }
             throw MCBEEditorError.unsupported("当前区块没有匹配搜索条件的方块")
         }
-        try session.database().applyBatch(puts: puts, deletes: [], sync: true)
-        return BedrockChunkReplaceResult(
-            matchedBlockCount: matched,
-            modifiedSubChunkCount: puts.count,
-            skippedSubChunkCount: skipped
-        )
+        let puts = try BedrockChunkSubChunkAccess.persistentPuts(database: database, position: position, edited: edited)
+        try database.applyBatch(puts: puts, deletes: [], sync: true)
+        return BedrockChunkReplaceResult(matchedBlockCount: matched, modifiedSubChunkCount: edited.count, skippedSubChunkCount: skipped)
     }
 
     func bulkReplaceLayer(
@@ -454,27 +434,29 @@ final class BedrockChunkStore {
         guard replacement.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             throw MCBEEditorError.malformedData("批量替换必须填写目标方块 name")
         }
-        let records = try standardRecords(at: position, includeValues: true).filter { $0.parsed.recordType == .subChunk }
-        guard !records.isEmpty else { throw MCBEEditorError.unsupported("该区块没有 SubChunk 记录") }
-        var puts = [(key: Data, value: Data)]()
+        let database = try session.database()
+        let records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+        guard !records.isEmpty else { throw MCBEEditorError.unsupported("该区块没有 SubChunk/LegacyTerrain 地形记录") }
+        var edited = [Int8: BedrockSubChunk]()
         var affected = 0
         var skipped = 0
         for record in records {
-            guard let raw = record.value else { continue }
             do {
-                let decoded = try BedrockSubChunk.decode(raw, keyYIndex: record.parsed.subChunkIndex)
-                let result = try decoded.bulkReplacingLayer(layer, replacement: replacement, includeCompletelyAirCells: includeCompletelyAirCells)
+                let result = try record.subChunk.bulkReplacingLayer(
+                    layer, replacement: replacement, includeCompletelyAirCells: includeCompletelyAirCells
+                )
                 guard result.changed else { continue }
-                puts.append((record.key, try result.subChunk.encodePersistent()))
+                edited[record.yIndex] = result.subChunk
                 affected += result.affectedBlockCount
             } catch MCBEEditorError.unsupported { skipped += 1 }
         }
-        guard !puts.isEmpty else {
-            if skipped > 0 { throw MCBEEditorError.unsupported("没有可修改的现代 SubChunk；跳过 \(skipped) 个旧版 SubChunk") }
+        guard !edited.isEmpty else {
+            if skipped > 0 { throw MCBEEditorError.unsupported("没有可修改的 SubChunk；跳过 \(skipped) 个不支持的 SubChunk") }
             throw MCBEEditorError.unsupported("没有符合批量选择条件的方块")
         }
-        try session.database().applyBatch(puts: puts, deletes: [], sync: true)
-        return BedrockChunkBulkLayerResult(affectedBlockCount: affected, modifiedSubChunkCount: puts.count, skippedSubChunkCount: skipped)
+        let puts = try BedrockChunkSubChunkAccess.persistentPuts(database: database, position: position, edited: edited)
+        try database.applyBatch(puts: puts, deletes: [], sync: true)
+        return BedrockChunkBulkLayerResult(affectedBlockCount: affected, modifiedSubChunkCount: edited.count, skippedSubChunkCount: skipped)
     }
 
 

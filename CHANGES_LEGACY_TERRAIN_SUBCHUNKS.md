@@ -44,3 +44,22 @@ If an edit requires a modern block state, the existing whole-chunk upgrade path 
 - Unified LegacyTerrain database read/write test verifies a block edit does not create a 0x2f record.
 - Existing block-NBT/legacy-upgrade regression tests pass.
 - Existing WorldCommandExecutor regression tests pass.
+
+## Final integration fixes
+
+The first integration placed the compatibility helpers in the correct source directory, but several production call sites still bypassed them and addressed only `SubChunkPrefix (0x2f)` keys. The final integration routes the following paths through `BedrockChunkSubChunkAccess` where appropriate:
+
+- map surface rendering
+- block-column inspection
+- world block search
+- chunk-level replace/search operations
+- block edits and block-NBT persistence
+- `setblock`, `fill`, and `clone` command caching/writeback
+- map-region copy/replace operations
+- empty/generated chunk creation
+
+Region operations now merge edited legacy slices back into one 83,200-byte `LegacyTerrain (0x30)` value instead of creating mixed-format 0x2f records. Empty chunks in dimensions detected as LegacyTerrain worlds also use 0x30 storage.
+
+Persistent paletted storage encoding was also corrected for `bitsPerBlock == 0`: the single block-state NBT follows the storage header directly, without a normal Int32 palette-count field.
+
+Final regression coverage includes the complete core test suite in segments (to avoid runner wall-clock limits), the dedicated LegacyTerrain/SubChunk v0-v9 persistence test, the large WorldCommandExecutor semantic/runtime test, and the viewed/unsaved-state regression test. All completed successfully.

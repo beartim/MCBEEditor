@@ -13,6 +13,9 @@ struct BedrockEmptyChunkProfile: Equatable {
     /// Preferred persistent SubChunk encoding used by this dimension/world.
     /// LegacyVersion/Data2D worlds may still use paletted v8 SubChunks.
     let subChunkVersion: UInt8
+    /// True for pre-Anvil LevelDB worlds whose terrain is stored as one
+    /// 0x30 LegacyTerrain value per 16×128×16 chunk instead of 0x2F records.
+    let usesLegacyTerrain: Bool
     let terrainRecordType: ChunkRecordType?
     let terrainValue: Data?
 
@@ -21,6 +24,7 @@ struct BedrockEmptyChunkProfile: Equatable {
         versionValue: Data([40]),
         blockPaletteVersion: 18_153_728,
         subChunkVersion: 9,
+        usesLegacyTerrain: false,
         terrainRecordType: nil,
         terrainValue: nil
     )
@@ -30,6 +34,7 @@ struct BedrockEmptyChunkProfile: Equatable {
         versionValue: Data([15]),
         blockPaletteVersion: 18_153_728,
         subChunkVersion: 7,
+        usesLegacyTerrain: false,
         terrainRecordType: nil,
         terrainValue: nil
     )
@@ -54,6 +59,7 @@ enum BedrockEmptyChunk {
         var data2D: Data?
         var data2DLegacy: Data?
         var subChunkVersionCounts = [UInt8: Int]()
+        var legacyTerrainCount = 0
         let entries = try database.entries(includeValues: true, limit: 0)
         for entry in entries {
             guard let key = BedrockDBKey.parse(entry.key), key.position.dimension == dimension else { continue }
@@ -65,6 +71,9 @@ enum BedrockEmptyChunk {
                 if key.recordType == .data3D, data3D == nil { data3D = value }
                 if key.recordType == .data2D, data2D == nil { data2D = value }
                 if key.recordType == .data2DLegacy, data2DLegacy == nil { data2DLegacy = value }
+            }
+            if key.recordType == .legacyTerrain {
+                legacyTerrainCount += 1
             }
             if key.recordType == .subChunk,
                let value = entry.value,
@@ -82,6 +91,30 @@ enum BedrockEmptyChunk {
             if lhs.value != rhs.value { return lhs.value < rhs.value }
             return lhs.key < rhs.key
         }?.key
+        // Early LevelDB worlds such as PE 0.9/0.10 store one 83,200-byte
+        // LegacyTerrain record per chunk and may have no Version/SubChunk records
+        // at all. Do not infer a modern empty-chunk profile just because those
+        // later metadata families are absent.
+        let subChunkRecordCount = subChunkVersionCounts.values.reduce(0, +)
+        // Treat a dimension as pre-Anvil when LegacyTerrain is the dominant
+        // terrain family and there is no modern Version record. Weight each
+        // 0x30 record as eight virtual Y slices so a stray 0x2F written by an
+        // older editor build does not permanently switch a 0.10.x world to the
+        // wrong missing-chunk format.
+        let usesLegacyTerrain = legacyTerrainCount > 0
+            && modernVersion == nil
+            && legacyTerrainCount * 8 >= subChunkRecordCount
+        if usesLegacyTerrain {
+            return BedrockEmptyChunkProfile(
+                versionRecordType: .legacyVersion,
+                versionValue: legacyVersion ?? Data([0]),
+                blockPaletteVersion: blockVersion,
+                subChunkVersion: 0,
+                usesLegacyTerrain: true,
+                terrainRecordType: nil,
+                terrainValue: nil
+            )
+        }
         let legacyTerrain: (ChunkRecordType?, Data?) = {
             if let data2D { return (.data2D, data2D) }
             if let data2DLegacy { return (.data2DLegacy, data2DLegacy) }
@@ -91,6 +124,7 @@ enum BedrockEmptyChunk {
             return BedrockEmptyChunkProfile(
                 versionRecordType: .legacyVersion, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 7,
+                usesLegacyTerrain: false,
                 terrainRecordType: legacyTerrain.0, terrainValue: legacyTerrain.1
             )
         }
@@ -98,6 +132,7 @@ enum BedrockEmptyChunk {
             return BedrockEmptyChunkProfile(
                 versionRecordType: .version, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 9,
+                usesLegacyTerrain: false,
                 terrainRecordType: data3D == nil ? nil : .data3D, terrainValue: data3D
             )
         }
@@ -109,6 +144,7 @@ enum BedrockEmptyChunk {
             return BedrockEmptyChunkProfile(
                 versionRecordType: .legacyVersion, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 7,
+                usesLegacyTerrain: false,
                 terrainRecordType: legacyTerrain.0, terrainValue: legacyTerrain.1
             )
         }
@@ -117,6 +153,7 @@ enum BedrockEmptyChunk {
             versionValue: Data([40]),
             blockPaletteVersion: blockVersion,
             subChunkVersion: observedSubChunkVersion ?? 9,
+            usesLegacyTerrain: false,
             terrainRecordType: data3D == nil ? nil : .data3D,
             terrainValue: data3D
         )
@@ -130,9 +167,9 @@ enum BedrockEmptyChunk {
         var counts = [UInt8: Int]()
         let entries = try database.entries(includeValues: true, limit: 0)
         for entry in entries {
-            guard let parsed = BedrockDBKey.parse(entry.key),
-                  parsed.position == position,
-                  parsed.recordType == .subChunk,
+            guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position else { continue }
+            if parsed.recordType == .legacyTerrain { return 0 }
+            guard parsed.recordType == .subChunk,
                   let raw = entry.value,
                   let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex) else { continue }
             counts[decoded.version, default: 0] += 1
@@ -144,7 +181,7 @@ enum BedrockEmptyChunk {
     }
 
     static func hasChunkMetadata(database: MojangLevelDB, at position: ChunkPosition) throws -> Bool {
-        let metadataTypes: [ChunkRecordType] = [.version, .legacyVersion, .finalizedState, .data3D, .data2D, .data2DLegacy]
+        let metadataTypes: [ChunkRecordType] = [.version, .legacyVersion, .finalizedState, .data3D, .data2D, .data2DLegacy, .legacyTerrain]
         return try database.entries(includeValues: false, limit: 0).contains { entry in
             guard let parsed = BedrockDBKey.parse(entry.key) else { return false }
             return parsed.position == position && metadataTypes.contains(parsed.recordType)
@@ -155,6 +192,13 @@ enum BedrockEmptyChunk {
         at position: ChunkPosition,
         profile: BedrockEmptyChunkProfile = .modernDefault
     ) -> [BedrockEmptyChunkRecord] {
+        if profile.usesLegacyTerrain {
+            return [BedrockEmptyChunkRecord(
+                key: BedrockDBKey(position: position, recordType: .legacyTerrain, subChunkIndex: nil).encoded(),
+                value: BedrockLegacyTerrain.emptyPersistentData,
+                recordType: .legacyTerrain
+            )]
+        }
         let version = BedrockEmptyChunkRecord(
             key: BedrockDBKey(position: position, recordType: profile.versionRecordType, subChunkIndex: nil).encoded(),
             value: profile.versionValue,

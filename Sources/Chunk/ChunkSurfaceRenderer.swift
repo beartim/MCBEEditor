@@ -118,40 +118,44 @@ final class ChunkSurfaceRenderer {
         var decoded = 0
         var errors = [String]()
 
-        // Bedrock 1.18+ commonly stores subchunks from -4 through 19.
-        // Scanning top-down lets surface/height modes stop once all columns
-        // have a visible block. X-ray mode deliberately scans the full range.
-        for yValue in Array(-4...19).reversed() {
+        // Read through the unified terrain accessor. Besides normal 0x2F
+        // SubChunkPrefix records this exposes pre-Anvil 0x30 LegacyTerrain as
+        // eight virtual Y=0...7 numeric-ID SubChunks. Sorting by the logical
+        // Y stored in v9 also handles historical keys whose suffix is offset.
+        let position = ChunkPosition(x: x, z: z, dimension: dimension)
+        let terrainRecords: [BedrockStoredSubChunk]
+        do {
+            terrainRecords = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+        } catch {
+            errors.append("地形：\(error.localizedDescription)")
+            terrainRecords = []
+        }
+
+        for record in terrainRecords.reversed() {
             if mode != .xray, unresolved == 0 { break }
-            let yIndex = Int8(yValue)
-            let key = BedrockDBKey.subChunk(x: x, z: z, dimension: dimension, index: yIndex)
-            guard let raw = try database.get(key) else { continue }
-            do {
-                let subChunk = try BedrockSubChunk.decode(raw, keyYIndex: yIndex)
-                decoded += 1
-                guard !subChunk.storages.isEmpty else { continue }
+            let yValue = Int(record.yIndex)
+            let subChunk = record.subChunk
+            decoded += 1
+            guard !subChunk.storages.isEmpty else { continue }
 
-                for localX in 0..<16 {
-                    for localZ in 0..<16 {
-                        let column = localZ * 16 + localX
-                        if mode != .xray, visibleBlocks[column] != nil { continue }
+            for localX in 0..<16 {
+                for localZ in 0..<16 {
+                    let column = localZ * 16 + localX
+                    if mode != .xray, visibleBlocks[column] != nil { continue }
 
-                        for localY in stride(from: 15, through: 0, by: -1) {
-                            guard let state = preferredState(in: subChunk, x: localX, y: localY, z: localZ) else { continue }
-                            let name = state.name
-                            if mode == .xray {
-                                guard visibleBlocks[column] == nil, isHighlightedOre(name) else { continue }
-                            }
-
-                            visibleBlocks[column] = name
-                            visibleHeights[column] = Int16(clamping: yValue * 16 + localY)
-                            unresolved -= 1
-                            break
+                    for localY in stride(from: 15, through: 0, by: -1) {
+                        guard let state = preferredState(in: subChunk, x: localX, y: localY, z: localZ) else { continue }
+                        let name = state.name
+                        if mode == .xray {
+                            guard visibleBlocks[column] == nil, isHighlightedOre(name) else { continue }
                         }
+
+                        visibleBlocks[column] = name
+                        visibleHeights[column] = Int16(clamping: yValue * 16 + localY)
+                        unresolved -= 1
+                        break
                     }
                 }
-            } catch {
-                errors.append("Y=\(yValue): \(error.localizedDescription)")
             }
         }
 
@@ -263,6 +267,22 @@ final class ChunkSurfaceRenderer {
             guard let raw = try database.get(key) else { continue }
             document = try BedrockBiomeDocument.decode(recordType: type, data: raw)
             break
+        }
+        if document == nil {
+            // 0.10.x and other pre-Anvil worlds keep the biome ID and legacy
+            // RGB bytes inside the 83,200-byte LegacyTerrain value instead of
+            // a separate Data2D/Data2DLegacy record.
+            let legacyKey = BedrockDBKey(position: position, recordType: .legacyTerrain, subChunkIndex: nil).encoded()
+            if let raw = try database.get(legacyKey) {
+                let terrain = try BedrockLegacyTerrain.decode(raw)
+                var result = Array(repeating: UInt32.max, count: 256)
+                for localZ in 0..<16 {
+                    for localX in 0..<16 {
+                        result[localZ * 16 + localX] = terrain.biomeID(localX: localX, localZ: localZ) ?? UInt32.max
+                    }
+                }
+                return result
+            }
         }
         guard let biomeDocument = document else {
             return Array(repeating: UInt32.max, count: 256)

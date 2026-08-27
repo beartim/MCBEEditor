@@ -93,7 +93,8 @@ enum BedrockChunkSubChunkAccess {
     static func persistentPuts(
         database: MojangLevelDB,
         position: ChunkPosition,
-        edited: [Int8: BedrockSubChunk]
+        edited: [Int8: BedrockSubChunk],
+        preferLegacyTerrainIfMissing: Bool = false
     ) throws -> [(key: Data, value: Data)] {
         guard !edited.isEmpty else { return [] }
         let existing = try records(database: database, position: position)
@@ -101,6 +102,32 @@ enum BedrockChunkSubChunkAccess {
         for record in existing where byY[record.yIndex] == nil { byY[record.yIndex] = record }
 
         let legacyKey = BedrockDBKey(position: position, recordType: .legacyTerrain, subChunkIndex: nil).encoded()
+        let hasLegacyTerrainBacking = existing.contains { record in
+            if case .legacyTerrain = record.backing { return true }
+            return false
+        }
+
+        // Never silently mix a pre-Anvil 0x30 chunk with a newly-created 0x2F
+        // slice. LegacyTerrain has a fixed Y range of 0...127 (virtual Y 0...7).
+        if hasLegacyTerrainBacking {
+            for y in edited.keys where !(0...7).contains(Int(y)) {
+                throw MCBEEditorError.unsupported("LegacyTerrain 世界只保存 Y=0…127；不能直接创建 SubChunk Y=\(y)")
+            }
+        }
+
+        // Materialising a previously-unloaded chunk in a PE 0.9/0.10-style
+        // dimension must create another LegacyTerrain value, not a v0 0x2F
+        // record that the old game does not understand.
+        if existing.isEmpty && preferLegacyTerrainIfMissing {
+            var terrain = BedrockLegacyTerrain.empty()
+            for y in edited.keys.sorted() {
+                guard (0...7).contains(Int(y)), let subChunk = edited[y] else {
+                    throw MCBEEditorError.unsupported("LegacyTerrain 世界只保存 Y=0…127")
+                }
+                try terrain.replaceSubChunk(yIndex: y, with: subChunk)
+            }
+            return [(legacyKey, try terrain.encodePersistent())]
+        }
         var legacyTerrain: BedrockLegacyTerrain?
         if edited.keys.contains(where: {
             if case .legacyTerrain? = byY[$0]?.backing { return true }

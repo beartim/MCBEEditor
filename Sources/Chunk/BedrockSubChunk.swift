@@ -131,18 +131,35 @@ struct BedrockSubChunk {
         }
 
         var indices = Array(repeating: UInt16(0), count: 4096)
-        if bitsPerBlock > 0 {
-            let entriesPerWord = 32 / bitsPerBlock
-            let wordCount = (4096 + entriesPerWord - 1) / entriesPerWord
-            let mask: UInt32 = bitsPerBlock == 32 ? UInt32.max : (UInt32(1) << UInt32(bitsPerBlock)) - 1
-            var outputIndex = 0
-            for _ in 0..<wordCount {
-                let word = try cursor.readUInt32LE()
-                for slot in 0..<entriesPerWord where outputIndex < 4096 {
-                    let shift = UInt32(slot * bitsPerBlock)
-                    indices[outputIndex] = UInt16(truncatingIfNeeded: (word >> shift) & mask)
-                    outputIndex += 1
-                }
+
+        // Persistence storage type 0 is a special single-value encoding. It
+        // contains the one NBT palette entry directly and does NOT carry the
+        // int32 palette-size field used by non-zero bit widths. This form is
+        // common for all-air/all-one-block v1/v8/v9 SubChunks.
+        if bitsPerBlock == 0 {
+            let document = try BedrockNBTCodec.decodeDocument(
+                cursor: &cursor, encoding: .littleEndian, maximumDepth: 64
+            )
+            guard document.root.type == .compound else {
+                throw MCBEEditorError.malformedData("方块状态不是 Compound")
+            }
+            return SubChunkStorage(
+                bitsPerBlock: 0,
+                palette: [BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)],
+                indices: indices
+            )
+        }
+
+        let entriesPerWord = 32 / bitsPerBlock
+        let wordCount = (4096 + entriesPerWord - 1) / entriesPerWord
+        let mask: UInt32 = (UInt32(1) << UInt32(bitsPerBlock)) - 1
+        var outputIndex = 0
+        for _ in 0..<wordCount {
+            let word = try cursor.readUInt32LE()
+            for slot in 0..<entriesPerWord where outputIndex < 4096 {
+                let shift = UInt32(slot * bitsPerBlock)
+                indices[outputIndex] = UInt16(truncatingIfNeeded: (word >> shift) & mask)
+                outputIndex += 1
             }
         }
 
@@ -231,6 +248,140 @@ extension BedrockBlockState {
 /// MCBEEditor exposes the terrain internally as eight virtual numeric-ID v0
 /// SubChunks. Only BlockIDs/Data are changed by block editing; light, height
 /// map and biome/color bytes are preserved byte-for-byte on write-back.
+
+// MARK: - Persistent SubChunk encoding
+
+extension BedrockSubChunk {
+    func encodePersistent() throws -> Data {
+        if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+            return try encodeLegacyPersistent()
+        }
+        guard [UInt8(1), 8, 9].contains(version) else {
+            throw MCBEEditorError.unsupported("SubChunk v\(version) 暂不支持重新编码")
+        }
+        if version == 1, storages.count != 1 {
+            throw MCBEEditorError.malformedData("SubChunk v1 必须恰好包含一个 storage")
+        }
+        guard storages.count <= Int(UInt8.max) else {
+            throw MCBEEditorError.malformedData("SubChunk storage 数量过多")
+        }
+
+        var writer = BinaryWriter()
+        writer.writeByte(version)
+        if version == 8 || version == 9 {
+            writer.writeByte(UInt8(storages.count))
+        }
+        if version == 9 {
+            writer.writeByte(UInt8(bitPattern: yIndex ?? 0))
+        }
+        for storage in storages {
+            try Self.encode(storage: storage, writer: &writer)
+        }
+        writer.writeData(trailingData)
+        return writer.data
+    }
+
+    private func encodeLegacyPersistent() throws -> Data {
+        guard storages.count == 1 else {
+            throw MCBEEditorError.malformedData("旧版 SubChunk 必须恰好包含一个 storage")
+        }
+        let storage = storages[0]
+        guard storage.indices.count == 4096, !storage.palette.isEmpty else {
+            throw MCBEEditorError.malformedData("旧版 SubChunk 方块数据无效")
+        }
+
+        var ids = Data(repeating: 0, count: 4096)
+        var metadata = Data(repeating: 0, count: 2048)
+        for blockIndex in 0..<4096 {
+            let paletteIndex = Int(storage.indices[blockIndex])
+            guard storage.palette.indices.contains(paletteIndex),
+                  let legacyID = storage.palette[paletteIndex].legacyID,
+                  legacyID <= 255 else {
+                throw MCBEEditorError.malformedData("旧版 SubChunk 调色板包含非数字 ID 方块")
+            }
+            let legacyData = storage.palette[paletteIndex].legacyData ?? 0
+            guard legacyData <= 15 else {
+                throw MCBEEditorError.malformedData("旧版方块数据值必须为 0…15")
+            }
+            ids[blockIndex] = UInt8(legacyID)
+            let metadataIndex = blockIndex / 2
+            if blockIndex % 2 == 0 {
+                metadata[metadataIndex] = (metadata[metadataIndex] & 0xf0) | legacyData
+            } else {
+                metadata[metadataIndex] = (metadata[metadataIndex] & 0x0f) | (legacyData << 4)
+            }
+        }
+
+        var output = Data([version])
+        output.append(ids)
+        output.append(metadata)
+        output.append(trailingData)
+        return output
+    }
+
+    private static func encode(storage: SubChunkStorage, writer: inout BinaryWriter) throws {
+        let bits = storage.bitsPerBlock
+        let allowed = [0, 1, 2, 3, 4, 5, 6, 8, 16]
+        guard allowed.contains(bits) else {
+            throw MCBEEditorError.malformedData("不支持的每方块位数：\(bits)")
+        }
+        guard storage.indices.count == 4096 else {
+            throw MCBEEditorError.malformedData("storage 必须包含 4096 个方块索引")
+        }
+        guard !storage.palette.isEmpty, storage.palette.count <= Int(Int32.max) else {
+            throw MCBEEditorError.malformedData("方块调色板大小无效")
+        }
+        let capacity = bits == 0 ? 1 : (1 << bits)
+        guard storage.palette.count <= capacity else {
+            throw MCBEEditorError.malformedData("调色板大小超过 \(bits) 位索引容量")
+        }
+
+        // Persistence palette: low bit is 0. The high seven bits store bits-per-block.
+        writer.writeByte(UInt8(bits << 1))
+
+        // Type 0 persists exactly one NBT state directly. Unlike non-zero
+        // storage types, there is no int32 palette count in this encoding.
+        if bits == 0 {
+            guard storage.palette.count == 1, let nbt = storage.palette[0].nbt else {
+                throw MCBEEditorError.malformedData("0 位 storage 必须恰好包含一个现代方块状态")
+            }
+            writer.writeData(try BedrockNBTCodec.encode(
+                NBTDocument(rootName: "", root: nbt),
+                encoding: .littleEndian
+            ))
+            return
+        }
+
+        let entriesPerWord = 32 / bits
+        let wordCount = (4096 + entriesPerWord - 1) / entriesPerWord
+        let mask: UInt32 = (UInt32(1) << UInt32(bits)) - 1
+        for wordIndex in 0..<wordCount {
+            var word: UInt32 = 0
+            for slot in 0..<entriesPerWord {
+                let sourceIndex = wordIndex * entriesPerWord + slot
+                guard sourceIndex < storage.indices.count else { break }
+                let paletteIndex = UInt32(storage.indices[sourceIndex])
+                guard paletteIndex < UInt32(storage.palette.count) else {
+                    throw MCBEEditorError.malformedData("方块调色板索引越界：\(paletteIndex)")
+                }
+                word |= (paletteIndex & mask) << UInt32(slot * bits)
+            }
+            writer.writeUInt32LE(word)
+        }
+
+        writer.writeInt32LE(Int32(storage.palette.count))
+        for state in storage.palette {
+            guard let nbt = state.nbt else {
+                throw MCBEEditorError.unsupported("现代持久化调色板不能写入旧版数字 ID 方块")
+            }
+            writer.writeData(try BedrockNBTCodec.encode(
+                NBTDocument(rootName: "", root: nbt),
+                encoding: .littleEndian
+            ))
+        }
+    }
+}
+
 struct BedrockLegacyTerrain {
     static let blockIDCount = 32_768
     static let nibbleCount = 16_384
@@ -246,7 +397,19 @@ struct BedrockLegacyTerrain {
     var biomeColors: Data
     var trailingData: Data
 
+    static var emptyPersistentData: Data {
+        var output = Data(repeating: 0, count: persistentByteCount)
+        // SkyLight occupies the third 16,384-byte nibble array and an empty
+        // exposed column is naturally full-bright. Other fields remain zero.
+        let skyStart = blockIDCount + nibbleCount
+        output.replaceSubrange(skyStart..<(skyStart + nibbleCount), with: repeatElement(UInt8(0xff), count: nibbleCount))
+        return output
+    }
+
     static func empty() -> BedrockLegacyTerrain {
+        // Keep this constructor and the raw empty record byte-identical.
+        // Decode is infallible for the fixed-size buffer, but spell the fields
+        // out to avoid a throwing API in callers constructing empty chunks.
         BedrockLegacyTerrain(
             blockIDs: Data(repeating: 0, count: blockIDCount),
             dataValues: Data(repeating: 0, count: nibbleCount),

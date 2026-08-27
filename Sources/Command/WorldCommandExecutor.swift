@@ -2342,10 +2342,10 @@ private final class CommandBlockStore {
 
     private func load(_ key: SubKey) throws -> CachedSubChunk {
         if let cached = cache[key] { return cached }
-        let dbKey = BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: key.y)
-        if let raw = try database.get(dbKey) {
-            let decoded = try BedrockSubChunk.decode(raw, keyYIndex: key.y)
-            let mutable = try MutableCommandSubChunk(decoded)
+        if let stored = try BedrockChunkSubChunkAccess.record(
+            database: database, position: key.chunk, yIndex: key.y
+        ) {
+            let mutable = try MutableCommandSubChunk(stored.subChunk)
             let cached = CachedSubChunk.value(mutable)
             cache[key] = cached
             if globalPaletteVersion == nil { globalPaletteVersion = mutable.paletteVersion }
@@ -2501,13 +2501,11 @@ private final class CommandBlockStore {
         case .value(let value): return value.isLegacy
         case .missing:
             if let cached = chunkLegacyFormat[key.chunk] { return cached }
-            for rawY in -16...31 {
-                guard let y = Int8(exactly: rawY) else { continue }
-                let dbKey = BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: y)
-                guard let raw = try database.get(dbKey) else { continue }
-                let decoded = try BedrockSubChunk.decode(raw, keyYIndex: y)
+            let records = try BedrockChunkSubChunkAccess.records(database: database, position: key.chunk)
+            if let decoded = records.first?.subChunk {
                 let legacy = decoded.isLegacyNumeric
                 chunkLegacyFormat[key.chunk] = legacy
+                chunkSubChunkVersion[key.chunk] = decoded.version
                 if globalPaletteVersion == nil {
                     globalPaletteVersion = decoded.storages.flatMap(\.palette).compactMap(\.paletteVersion).first
                 }
@@ -2543,14 +2541,12 @@ private final class CommandBlockStore {
         }
         if let globalPaletteVersion = globalPaletteVersion { return globalPaletteVersion }
         for chunk in availableChunks.prefix(32) {
-            for rawY in -16...31 {
-                guard let y = Int8(exactly: rawY) else { continue }
-                let dbKey = BedrockDBKey.subChunk(x: chunk.x, z: chunk.z, dimension: chunk.dimension, index: y)
-                guard let raw = try database.get(dbKey),
-                      let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: y),
-                      let version = decoded.storages.flatMap(\.palette).compactMap(\.paletteVersion).first else { continue }
-                globalPaletteVersion = version
-                return version
+            let records = try BedrockChunkSubChunkAccess.records(database: database, position: chunk)
+            for record in records {
+                if let version = record.subChunk.storages.flatMap(\.palette).compactMap(\.paletteVersion).first {
+                    globalPaletteVersion = version
+                    return version
+                }
             }
         }
         return BedrockEmptyChunk.currentBlockPaletteVersion
@@ -2599,10 +2595,34 @@ private final class CommandBlockStore {
     ) throws -> Int {
         var puts = pendingMetadataPuts.map { (key: $0.key, value: $0.value) }
         puts.append(contentsOf: extraPuts)
+
+        // Group coordinate edits per chunk. Existing SubChunkPrefix records keep
+        // their physical key, while virtual slices backed by one LegacyTerrain
+        // record are merged and written back as one 0x30 value.
+        var editedByChunk = [ChunkPosition: [Int8: BedrockSubChunk]]()
         for key in changedKeys.sorted(by: commandSubKeyOrder) {
             guard case .value(let mutable)? = cache[key] else { continue }
-            let data = try mutable.persistentSubChunk().encodePersistent()
-            puts.append((BedrockDBKey.subChunk(x: key.chunk.x, z: key.chunk.z, dimension: key.chunk.dimension, index: key.y), data))
+            editedByChunk[key.chunk, default: [:]][key.y] = try mutable.persistentSubChunk()
+        }
+        for (chunk, edited) in editedByChunk {
+            if modernizedChunks.contains(chunk) {
+                // The upgrade plan deletes legacy backing and creates modern v9
+                // records, so all edited slices use their logical-Y 0x2F key.
+                for y in edited.keys.sorted() {
+                    guard let subChunk = edited[y] else { continue }
+                    puts.append((
+                        BedrockDBKey.subChunk(x: chunk.x, z: chunk.z, dimension: chunk.dimension, index: y),
+                        try subChunk.encodePersistent()
+                    ))
+                }
+            } else {
+                puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+                    database: database,
+                    position: chunk,
+                    edited: edited,
+                    preferLegacyTerrainIfMissing: try emptyChunkProfile(preferLegacy: false).usesLegacyTerrain
+                ))
+            }
         }
         let deletes = Array(pendingMetadataDeletes) + extraDeletes
         try database.applyBatch(puts: puts, deletes: deletes, sync: true)
@@ -2616,20 +2636,13 @@ private final class CommandBlockStore {
                 throw MCBEEditorError.malformedData("升级前的旧版区块元数据仍然存在")
             }
         }
-        // Verify every changed SubChunk through the same LevelDB handle before a
-        // success result is returned. This catches rejected/corrupt new records
-        // instead of leaving the UI to report a successful but missing change.
         for key in changedKeys {
-            let dbKey = BedrockDBKey.subChunk(
-                x: key.chunk.x,
-                z: key.chunk.z,
-                dimension: key.chunk.dimension,
-                index: key.y
-            )
-            guard let stored = try database.get(dbKey) else {
-                throw MCBEEditorError.malformedData("SubChunk 写入后未能从 LevelDB 读回")
+            guard let stored = try BedrockChunkSubChunkAccess.record(
+                database: database, position: key.chunk, yIndex: key.y
+            ) else {
+                throw MCBEEditorError.malformedData("SubChunk/LegacyTerrain 写入后未能从 LevelDB 读回")
             }
-            _ = try BedrockSubChunk.decode(stored, keyYIndex: key.y)
+            _ = stored.subChunk
         }
         return changedKeys.count
     }
@@ -2849,10 +2862,8 @@ private struct MutableCommandSubChunk {
     }
 
     static func emptyLegacy(y: Int8, subChunkVersion: UInt8) throws -> MutableCommandSubChunk {
-        let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
-        let storage = SubChunkStorage(bitsPerBlock: 8, palette: [air], indices: Array(repeating: 0, count: 4096))
-        let persistentVersion: UInt8 = [UInt8(2), 3, 4, 5, 6, 7].contains(subChunkVersion) ? subChunkVersion : 7
-        return try MutableCommandSubChunk(BedrockSubChunk(version: persistentVersion, yIndex: y, storages: [storage], trailingData: Data()))
+        let persistentVersion: UInt8 = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(subChunkVersion) ? subChunkVersion : 7
+        return try MutableCommandSubChunk(try BedrockSubChunk.emptyLegacy(version: persistentVersion, yIndex: y))
     }
 
     var isLegacy: Bool { [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) }

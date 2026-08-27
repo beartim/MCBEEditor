@@ -63,20 +63,19 @@ extension BedrockChunkStore {
         var truncated = false
 
         chunkLoop: for position in chunks {
-            var prefix = Data()
-            prefix.appendLE(position.x)
-            prefix.appendLE(position.z)
-            let entries = try database.entries(prefix: prefix, includeValues: true, limit: 0)
             let ranges = region?.localRanges(in: position)
             let xRange = ranges?.x ?? 0...15
             let zRange = ranges?.z ?? 0...15
-            for entry in entries {
-                guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position,
-                      parsed.recordType == .subChunk, let yIndex = parsed.subChunkIndex,
-                      let raw = entry.value else { continue }
+            let records: [BedrockStoredSubChunk]
+            do {
+                records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+            } catch MCBEEditorError.unsupported {
+                skipped += 1
+                continue
+            }
+            for record in records {
                 do {
-                    let subChunk = try BedrockSubChunk.decode(raw, keyYIndex: yIndex)
-                    let matches = try subChunk.matchingBlocks(
+                    let matches = try record.subChunk.matchingBlocks(
                         coordinatedOperation: operation,
                         localXRange: xRange,
                         localZRange: zRange
@@ -88,7 +87,7 @@ extension BedrockChunkStore {
                         }
                         hits.append(BedrockBlockSearchHit(
                             x: MapCoordinate.absoluteBlock(chunk: position.x, local: match.localX),
-                            y: Int32(Int(yIndex) * 16 + match.localY),
+                            y: Int32(Int(record.yIndex) * 16 + match.localY),
                             z: MapCoordinate.absoluteBlock(chunk: position.z, local: match.localZ),
                             dimension: position.dimension,
                             layer0Name: match.layer0.name,

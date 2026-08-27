@@ -39,15 +39,38 @@ enum BedrockLegacyChunkUpgrade {
             (key: finalizedKey, value: finalized),
             (key: data3DKey, value: terrainData)
         ]
-        let metadataDeletes = [
+        var metadataDeletes = [
             BedrockDBKey(position: position, recordType: .legacyVersion, subChunkIndex: nil).encoded(),
             BedrockDBKey(position: position, recordType: .data2D, subChunkIndex: nil).encoded(),
             BedrockDBKey(position: position, recordType: .data2DLegacy, subChunkIndex: nil).encoded()
         ]
 
         var subChunkPuts = [(key: Data, value: Data)]()
+        var convertedY = Set<Int8>()
+
+        // Pre-Anvil worlds (for example PE 0.10.x) store all 16×128×16
+        // terrain in one 0x30 value. Convert its eight virtual slices when a
+        // modern block state forces an explicit chunk upgrade.
+        let legacyTerrainKey = BedrockDBKey(
+            position: position, recordType: .legacyTerrain, subChunkIndex: nil
+        ).encoded()
+        if let raw = try database.get(legacyTerrainKey) {
+            let terrain = try BedrockLegacyTerrain.decode(raw)
+            for rawY in 0..<8 {
+                let y = Int8(rawY)
+                let legacy = try terrain.subChunk(yIndex: y)
+                let upgraded = try legacy.upgradedToModern(paletteVersion: paletteVersion)
+                let key = BedrockDBKey.subChunk(
+                    x: position.x, z: position.z, dimension: position.dimension, index: y
+                )
+                subChunkPuts.append((key: key, value: try upgraded.encodePersistent()))
+                convertedY.insert(y)
+            }
+            metadataDeletes.append(legacyTerrainKey)
+        }
+
         for rawY in Int(Int8.min)...Int(Int8.max) {
-            guard let y = Int8(exactly: rawY) else { continue }
+            guard let y = Int8(exactly: rawY), !convertedY.contains(y) else { continue }
             let key = BedrockDBKey.subChunk(
                 x: position.x,
                 z: position.z,
@@ -83,6 +106,32 @@ enum BedrockLegacyChunkUpgrade {
                let document = try? BedrockBiomeDocument.decode(recordType: type, data: raw) {
                 return try document.expandedToData3D().encoded()
             }
+        }
+
+        let legacyTerrainKey = BedrockDBKey(
+            position: position, recordType: .legacyTerrain, subChunkIndex: nil
+        ).encoded()
+        if let raw = try database.get(legacyTerrainKey) {
+            let terrain = try BedrockLegacyTerrain.decode(raw)
+            var ids = [UInt32]()
+            var auxiliary = Data()
+            var heights = [Int16]()
+            ids.reserveCapacity(256)
+            auxiliary.reserveCapacity(256 * 3)
+            heights.reserveCapacity(256)
+            for index in 0..<256 {
+                let sample = index * 4
+                ids.append(UInt32(terrain.biomeColors[sample]))
+                auxiliary.append(terrain.biomeColors.subdata(in: (sample + 1)..<(sample + 4)))
+                heights.append(Int16(terrain.heightMap[index]))
+            }
+            let document = BedrockBiomeDocument(
+                format: .data2DLegacy,
+                heightMap: heights,
+                layers: [BedrockBiomeLayer(baseY: nil, biomeIDs: ids, isAbsent: false)],
+                legacyAuxiliaryBytes: auxiliary
+            )
+            return try document.expandedToData3D().encoded()
         }
 
         if fallbackProfile.terrainRecordType == .data3D,

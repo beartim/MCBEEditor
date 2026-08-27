@@ -2415,6 +2415,41 @@ struct BlockNBTEditorTest {
         precondition(legacyOnlyState?.legacyID == 5)
         precondition(legacyOnlyState?.legacyData == 2)
 
+        // PE 0.9/0.10 pre-Anvil dimensions use a single 0x30 LegacyTerrain
+        // record per chunk. Editing an unloaded destination must create another
+        // 83,200-byte 0x30 value, not duplicate it as metadata or create 0x2F.
+        let preAnvilSession = WorldSession()
+        let preAnvilDB = try preAnvilSession.database()
+        let preAnvilTemplate = ChunkPosition(x: 0, z: 8, dimension: 0)
+        let preAnvilTemplateKey = BedrockDBKey(
+            position: preAnvilTemplate, recordType: .legacyTerrain, subChunkIndex: nil
+        ).encoded()
+        try preAnvilDB.put(BedrockLegacyTerrain.emptyPersistentData, for: preAnvilTemplateKey)
+        let preAnvilBlock = BedrockBlockRecord(
+            x: 16, y: 67, z: 128, dimension: 0,
+            layers: [BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)],
+            isGenerated: false
+        )
+        _ = try BedrockBlockNBTStore(session: preAnvilSession).save(
+            block: preAnvilBlock, storageIndex: 0, document: legacyDocument
+        )
+        let preAnvilPosition = ChunkPosition(x: 1, z: 8, dimension: 0)
+        let preAnvilKey = BedrockDBKey(
+            position: preAnvilPosition, recordType: .legacyTerrain, subChunkIndex: nil
+        ).encoded()
+        guard let preAnvilRaw = try preAnvilDB.get(preAnvilKey) else {
+            preconditionFailure("pre-Anvil missing chunk was not written as LegacyTerrain")
+        }
+        precondition(preAnvilRaw.count == 83_200)
+        let unexpectedPreAnvilSubChunk = try preAnvilDB.get(
+            BedrockDBKey.subChunk(x: 1, z: 8, dimension: 0, index: 4)
+        )
+        precondition(unexpectedPreAnvilSubChunk == nil)
+        let preAnvilSlice = try BedrockLegacyTerrain.decode(preAnvilRaw).subChunk(yIndex: 4)
+        let preAnvilState = preAnvilSlice.storages[0].blockState(x: 0, y: 3, z: 0)
+        precondition(preAnvilState?.legacyID == 5)
+        precondition(preAnvilState?.legacyData == 2)
+
         // v1.1.15: a modern block or any non-empty states upgrades the whole
         // legacy chunk to Version/Data3D plus v9 SubChunks before editing.
         let upperLegacy = BedrockSubChunk(
@@ -2476,6 +2511,7 @@ swiftc \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
@@ -2483,6 +2519,8 @@ swiftc \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   -parse-as-library "$TMP/block_nbt_editor_test.swift" -o "$TMP/block-nbt-editor-tests"
 "$TMP/block-nbt-editor-tests"
+
+"$ROOT/Scripts/test_legacy_terrain_subchunks.sh"
 
 # v0.10.1: compact empty map layout, fixed layer 0/1 editing and no custom markers.
 grep -q 'controls.setContentHuggingPriority(.required, for: .vertical)' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
@@ -2880,6 +2918,9 @@ struct BedrockSubChunk {
         BedrockSubChunk(version: data.first ?? 9, storages: [])
     }
 }
+enum BedrockLegacyTerrain {
+    static let emptyPersistentData = Data(repeating: 0, count: 83_200)
+}
 SWIFT
 
 cat > "$TMP/pure_air_chunk_test.swift" <<'SWIFT'
@@ -2895,6 +2936,7 @@ enum PureAirChunkTests {
             versionValue: Data([40]),
             blockPaletteVersion: 18_153_728,
             subChunkVersion: 9,
+            usesLegacyTerrain: false,
             terrainRecordType: .data3D,
             terrainValue: terrain
         )
@@ -3325,7 +3367,7 @@ grep -q '自动识别世界的实体存储格式' "$ENTITY_CREATE_UI" || {
 grep -q 'NBTNamedTag(name: "legacy_id"' "$BLOCK_DETAIL_UI" && \
 grep -q 'NBTNamedTag(name: "legacy_data"' "$BLOCK_DETAIL_UI" && \
 grep -q 'legacyBlockState(from:' "$SUBCHUNK_EDITOR" && \
-grep -q 'encodeLegacyPersistent' "$SUBCHUNK_EDITOR" || {
+grep -q 'encodeLegacyPersistent' "$ROOT/Sources/Chunk/BedrockSubChunk.swift" || {
   echo 'error: legacy numeric block NBT editing or persistence is incomplete' >&2
   exit 1
 }
@@ -3465,7 +3507,7 @@ grep -qF 'presentEntityFormatChooser' "$ENTITY_BROWSER_UI" || {
   exit 1
 }
 grep -qF 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$BLOCK_STORE" && \
-grep -qF 'let allPuts = metadataPuts + upgradedSubChunkPuts + [(key: key, value: encoded)]' "$BLOCK_STORE" && \
+grep -qF 'let allPuts = metadataPuts + upgradedSubChunkPuts + targetPuts' "$BLOCK_STORE" && \
 grep -qF 'ensureGenerated(sourceStore.chunks(in: source))' "$COMMAND_EXECUTOR" && \
 grep -qF 'ensureGenerated(chunks(in: targetRegion))' "$COMMAND_EXECUTOR" || {
   echo 'error: unloaded-chunk air generation is incomplete' >&2
@@ -4160,12 +4202,14 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$ROOT/Sources/Chunk/HardcodedSpawners.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
   "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   "$ROOT/Sources/Chunk/BedrockChunkStore.swift" \
+  "$ROOT/Sources/Chunk/BedrockRegionStore.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \

@@ -63,13 +63,28 @@ extension ChunkSurfaceRenderer {
         let chunkZ = MapCoordinate.chunk(fromBlock: blockZ)
         let localX = Int(blockX - MapCoordinate.blockOrigin(ofChunk: chunkX))
         let localZ = Int(blockZ - MapCoordinate.blockOrigin(ofChunk: chunkZ))
+        let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension)
         var blocks = [BedrockBlockRecord]()
         var diagnostics = [String]()
-        blocks.reserveCapacity(384)
 
-        for subChunkY in stride(from: 19, through: -4, by: -1) {
-            let key = BedrockDBKey.subChunk(x: chunkX, z: chunkZ, dimension: dimension, index: Int8(subChunkY))
-            guard let raw = try database.get(key) else {
+        let records: [BedrockStoredSubChunk]
+        do {
+            records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
+        } catch {
+            diagnostics.append("地形：\(error.localizedDescription)")
+            records = []
+        }
+        let byY = Dictionary(uniqueKeysWithValues: records.map { ($0.yIndex, $0.subChunk) })
+
+        // Keep the normal editor range visible even for missing cells, but also
+        // extend to any valid logical Y actually present in the database.
+        let minimumY = min(-4, Int(records.map(\.yIndex).min() ?? -4))
+        let maximumY = max(19, Int(records.map(\.yIndex).max() ?? 19))
+        blocks.reserveCapacity((maximumY - minimumY + 1) * 16)
+
+        for subChunkY in stride(from: maximumY, through: minimumY, by: -1) {
+            let yIndex = Int8(clamping: subChunkY)
+            guard let subChunk = byY[yIndex] else {
                 for localY in stride(from: 15, through: 0, by: -1) {
                     blocks.append(BedrockBlockRecord(
                         x: blockX,
@@ -83,31 +98,16 @@ extension ChunkSurfaceRenderer {
                 continue
             }
 
-            do {
-                let subChunk = try BedrockSubChunk.decode(raw, keyYIndex: Int8(subChunkY))
-                for localY in stride(from: 15, through: 0, by: -1) {
-                    let layers = subChunk.storages.compactMap { $0.blockState(x: localX, y: localY, z: localZ) }
-                    blocks.append(BedrockBlockRecord(
-                        x: blockX,
-                        y: Int32(subChunkY * 16 + localY),
-                        z: blockZ,
-                        dimension: dimension,
-                        layers: layers,
-                        isGenerated: true
-                    ))
-                }
-            } catch {
-                diagnostics.append("SubChunk Y=\(subChunkY)：\(error.localizedDescription)")
-                for localY in stride(from: 15, through: 0, by: -1) {
-                    blocks.append(BedrockBlockRecord(
-                        x: blockX,
-                        y: Int32(subChunkY * 16 + localY),
-                        z: blockZ,
-                        dimension: dimension,
-                        layers: [],
-                        isGenerated: false
-                    ))
-                }
+            for localY in stride(from: 15, through: 0, by: -1) {
+                let layers = subChunk.storages.compactMap { $0.blockState(x: localX, y: localY, z: localZ) }
+                blocks.append(BedrockBlockRecord(
+                    x: blockX,
+                    y: Int32(subChunkY * 16 + localY),
+                    z: blockZ,
+                    dimension: dimension,
+                    layers: layers,
+                    isGenerated: true
+                ))
             }
         }
         return BedrockBlockColumnResult(blocks: blocks, diagnostics: diagnostics)

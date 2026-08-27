@@ -4,7 +4,9 @@ APPLY.md
 CHANGES_CODE_AUDIT.md
 CHANGES_ENTITY_IMPORT_FLOAT_TELEPORT.md
 CHANGES_GIVE_EXISTING_MAINHAND.md
+CHANGES_IPHONE_MAP_VIEWPORT_V2.md
 CHANGES_IPHONE_TEXT_MAP_STABILITY.md
+CHANGES_LEGACY_TERRAIN_SUBCHUNKS.md
 CHANGES_MCBEDITOR_PLAYER_MAP_RENAME.md
 CHANGES_METADATA_VARIANT_SEARCH_FIX.md
 CHANGES_NEW_ACTOR_BIOME_ALIGN.md
@@ -60,8 +62,10 @@ Scripts/bootstrap.sh
 Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
+Scripts/test_legacy_terrain_subchunks.sh
 Scripts/test_mcbeeditor_map_player_rename.sh
 Scripts/test_metadata_variant_search.sh
+Scripts/test_phone_map_viewport_v2.sh
 Scripts/test_phone_text_map_stability.sh
 Scripts/test_viewed_unsaved_sync.sh
 Sources/App/AppDelegate.swift
@@ -75,6 +79,7 @@ Sources/Chunk/BedrockBiomeData.swift
 Sources/Chunk/BedrockBlockColumn.swift
 Sources/Chunk/BedrockBlockSearchScanner.swift
 Sources/Chunk/BedrockChunkStore.swift
+Sources/Chunk/BedrockChunkSubChunkAccess.swift
 Sources/Chunk/BedrockDBKey.swift
 Sources/Chunk/BedrockEmptyChunk.swift
 Sources/Chunk/BedrockLegacyChunkUpgrade.swift
