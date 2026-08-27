@@ -31,6 +31,17 @@ private struct MapDimensionViewportState {
   let anchor: MapViewportAnchor
 }
 
+private struct MapViewportRenderRequest {
+  let centerX: Int32
+  let centerZ: Int32
+  let anchor: MapViewportAnchor
+  let sideChunks: Int
+  let requiredMinimumChunkX: Int64
+  let requiredMaximumChunkX: Int64
+  let requiredMinimumChunkZ: Int64
+  let requiredMaximumChunkZ: Int64
+}
+
 private enum MapSpawnKind: Equatable {
   case world
   case player
@@ -1122,9 +1133,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     controls.setContentCompressionResistancePriority(.required, for: .vertical)
     controls.heightAnchor.constraint(equalToConstant: 44 + 36 * 3 + 6 * 3).isActive = true
 
-    statusLabel.font = .preferredFont(forTextStyle: .footnote)
+    // Keep the map viewport height stable. On compact-width iPhones the old
+    // unlimited status label changed from one line ("正在读取…") to many
+    // lines after every render. That changed scrollView.bounds.height after
+    // applyViewport(), which shifted only the vertical/Z center and could
+    // create a self-sustaining Z-decrease/render loop.
+    statusLabel.font = traitCollection.horizontalSizeClass == .compact
+      ? .systemFont(ofSize: 10.5)
+      : .preferredFont(forTextStyle: .footnote)
     statusLabel.textColor = .secondaryLabel
-    statusLabel.numberOfLines = 0
+    statusLabel.numberOfLines = 2
+    statusLabel.lineBreakMode = .byWordWrapping
     statusLabel.isUserInteractionEnabled = true
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
     statusLabel.addGestureRecognizer(
@@ -1133,6 +1152,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     statusLabel.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
 
     scrollView.delegate = self
+    // The map supplies its own virtual pan margins. Disable UIKit's automatic
+    // safe-area content-inset adjustment so the image/content coordinate
+    // transform cannot gain a device-dependent vertical offset on iPhone.
+    scrollView.contentInsetAdjustmentBehavior = .never
     scrollView.minimumZoomScale = initialMinimumZoomScale
     scrollView.maximumZoomScale = initialMaximumZoomScale
     // Virtual content insets already provide room to pan beyond the current
@@ -1220,6 +1243,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       statusLabel.leadingAnchor.constraint(equalTo: controls.leadingAnchor),
       statusLabel.trailingAnchor.constraint(equalTo: controls.trailingAnchor),
       statusLabel.topAnchor.constraint(equalTo: controls.bottomAnchor, constant: 8),
+      statusLabel.heightAnchor.constraint(
+        equalToConstant: traitCollection.horizontalSizeClass == .compact ? 32 : 38),
       scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       scrollView.trailingAnchor.constraint(equalTo: blockDetailPanel.leadingAnchor),
       scrollView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
@@ -1586,13 +1611,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     centerZ: Int32,
     anchor: MapViewportAnchor?,
     reason: String,
-    showOverlay: Bool
+    showOverlay: Bool,
+    sideChunksOverride: Int? = nil
   ) {
     panDebounceWorkItem?.cancel()
     activeRenderToken?.cancel()
 
     let requestedZoom = max(anchor?.zoomScale ?? effectiveZoomScale, 0.0001)
-    let sideChunks = dynamicRenderSideChunks(forZoomScale: requestedZoom)
+    let sideChunks = max(
+      minimumDynamicSideChunks,
+      sideChunksOverride ?? dynamicRenderSideChunks(forZoomScale: requestedZoom)
+    )
     let leftChunks = (sideChunks - 1) / 2
     let rightChunks = sideChunks - leftChunks - 1
     let scanRadius = max(leftChunks, rightChunks)
@@ -1781,8 +1810,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             result.sampleStride > 1
             ? "；代表采样 \(result.sampledChunkCount) 个区块，步长 \(result.sampleStride)"
             : ""
-          self.statusLabel.text =
-            "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)\(samplingDetail)；玩家 \(result.playerCount)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
+          if self.traitCollection.horizontalSizeClass == .compact {
+            // Keep the compact iPhone status readable within the fixed two-line
+            // status area; detailed diagnostics remain available by tapping it.
+            self.statusLabel.text =
+              "中心(\(centerX),\(centerZ)) · \(sideChunks)×\(sideChunks)区块 · \(mode.displayName) · 玩家\(result.playerCount) 实体\(result.entityCount) 方块实体\(result.blockEntityCount) · 错误\(result.errors.count)"
+          } else {
+            self.statusLabel.text =
+              "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)\(samplingDetail)；玩家 \(result.playerCount)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
+          }
           self.saveMapState()
           DispatchQueue.main.async { [weak self] in
             self?.refreshForZoomDrivenRadiusIfNeeded()
@@ -2705,30 +2741,184 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     shareButton.isEnabled = lastRenderedImage != nil
   }
 
-  private func scheduleAutoRender(immediate: Bool = false) {
-    guard autoRenderSwitch.isOn, !isApplyingViewport, !isMapInteractionActive,
-      !isRendering, lastRenderedImage != nil
-    else {
-      return
-    }
+  private func scheduleAutoRender(immediate: Bool = false, zoomDriven: Bool = false) {
+    guard (autoRenderSwitch.isOn || zoomDriven), lastRenderedImage != nil else { return }
     panDebounceWorkItem?.cancel()
-    let item = DispatchWorkItem { [weak self] in self?.autoRenderAtViewportCenter() }
+    let item = DispatchWorkItem { [weak self] in
+      guard let self = self, (self.autoRenderSwitch.isOn || zoomDriven),
+        self.lastRenderedImage != nil
+      else { return }
+      // UIScrollView can still report isTracking for one or two run-loop turns
+      // after scrollViewDidEndZooming/DidEndDragging on iPhone. Do not drop the
+      // refresh request in that window: retry after the gesture is truly idle.
+      if self.isApplyingViewport || self.isMapInteractionActive {
+        self.scheduleAutoRender(immediate: true, zoomDriven: zoomDriven)
+        return
+      }
+      guard !self.isRendering else { return }
+      self.autoRenderAtViewportCenter(zoomDrivenOnly: zoomDriven)
+    }
     panDebounceWorkItem = item
-    DispatchQueue.main.asyncAfter(deadline: .now() + (immediate ? 0.02 : 0.28), execute: item)
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + (immediate ? 0.06 : 0.28),
+      execute: item
+    )
   }
 
-  private func autoRenderAtViewportCenter() {
-    guard autoRenderSwitch.isOn, !isApplyingViewport, !isMapInteractionActive, !isRendering,
-      let anchor = currentViewportAnchor()
+  private func currentViewportRenderRequest() -> MapViewportRenderRequest? {
+    guard lastRenderedImage != nil, imageView.bounds.width > 0, imageView.bounds.height > 0,
+      scrollView.bounds.width > 0, scrollView.bounds.height > 0
+    else { return nil }
+
+    let rawZoom = max(scrollView.zoomScale, CGFloat.leastNormalMagnitude)
+    guard rawZoom.isFinite, rawZoom > 0 else { return nil }
+    let sideBlocks = Double(renderedSideChunks * 16)
+    let imageWidth = Double(imageView.bounds.width)
+    let imageHeight = Double(imageView.bounds.height)
+    guard imageWidth > 0, imageHeight > 0 else { return nil }
+
+    // Convert the entire visible rectangle, including any part currently in
+    // the virtual pan margin, back into world block coordinates. This is more
+    // reliable than deriving the dynamic radius from zoom alone and guarantees
+    // that a zoom-out requests enough chunks to fill the whole viewport.
+    let minPointX = Double(scrollView.contentOffset.x / rawZoom)
+    let maxPointX = Double((scrollView.contentOffset.x + scrollView.bounds.width) / rawZoom)
+    let minPointZ = Double(scrollView.contentOffset.y / rawZoom)
+    let maxPointZ = Double((scrollView.contentOffset.y + scrollView.bounds.height) / rawZoom)
+
+    let worldX0 = Double(renderedStartBlockX) + minPointX / imageWidth * sideBlocks
+    let worldX1 = Double(renderedStartBlockX) + maxPointX / imageWidth * sideBlocks
+    let worldZ0 = Double(renderedStartBlockZ) + minPointZ / imageHeight * sideBlocks
+    let worldZ1 = Double(renderedStartBlockZ) + maxPointZ / imageHeight * sideBlocks
+    guard worldX0.isFinite, worldX1.isFinite, worldZ0.isFinite, worldZ1.isFinite else {
+      return nil
+    }
+
+    let minimumBlockX = min(worldX0, worldX1)
+    let maximumBlockX = max(worldX0, worldX1)
+    let minimumBlockZ = min(worldZ0, worldZ1)
+    let maximumBlockZ = max(worldZ0, worldZ1)
+    let centerBlockX = (minimumBlockX + maximumBlockX) / 2
+    let centerBlockZ = (minimumBlockZ + maximumBlockZ) / 2
+    let centerX = chunkCoordinate(from: centerBlockX)
+    let centerZ = chunkCoordinate(from: centerBlockZ)
+
+    func chunk64(_ block: Double) -> Int64 {
+      let value = floor(block / 16.0)
+      if value <= Double(Int32.min) { return Int64(Int32.min) }
+      if value >= Double(Int32.max) { return Int64(Int32.max) }
+      return Int64(value)
+    }
+
+    // maxBlock is an exclusive viewport edge. nextDown avoids counting a new
+    // chunk when the right/bottom edge lands exactly on a chunk boundary.
+    let maxBlockXForChunk = maximumBlockX > minimumBlockX ? maximumBlockX.nextDown : maximumBlockX
+    let maxBlockZForChunk = maximumBlockZ > minimumBlockZ ? maximumBlockZ.nextDown : maximumBlockZ
+    let visibleMinimumChunkX = chunk64(minimumBlockX)
+    let visibleMaximumChunkX = chunk64(maxBlockXForChunk)
+    let visibleMinimumChunkZ = chunk64(minimumBlockZ)
+    let visibleMaximumChunkZ = chunk64(maxBlockZForChunk)
+    let border = Int64(dynamicPreloadBorderChunks)
+    let lowerLimit = Int64(Int32.min)
+    let upperLimit = Int64(Int32.max)
+    let requiredMinimumChunkX = max(lowerLimit, visibleMinimumChunkX - border)
+    let requiredMaximumChunkX = min(upperLimit, visibleMaximumChunkX + border)
+    let requiredMinimumChunkZ = max(lowerLimit, visibleMinimumChunkZ - border)
+    let requiredMaximumChunkZ = min(upperLimit, visibleMaximumChunkZ + border)
+
+    let centerX64 = Int64(centerX)
+    let centerZ64 = Int64(centerZ)
+    let leftNeedX = max(Int64(0), centerX64 - requiredMinimumChunkX)
+    let rightNeedX = max(Int64(0), requiredMaximumChunkX - centerX64)
+    let leftNeedZ = max(Int64(0), centerZ64 - requiredMinimumChunkZ)
+    let rightNeedZ = max(Int64(0), requiredMaximumChunkZ - centerZ64)
+    let sideCandidates: [Int64] = [
+      Int64(minimumDynamicSideChunks),
+      2 * leftNeedX + 1,
+      2 * rightNeedX,
+      2 * leftNeedZ + 1,
+      2 * rightNeedZ,
+    ]
+    var requiredSide64 = sideCandidates.max() ?? Int64(minimumDynamicSideChunks)
+    requiredSide64 = min(requiredSide64, Int64(maximumBedrockChunkSpan))
+
+    return MapViewportRenderRequest(
+      centerX: centerX,
+      centerZ: centerZ,
+      anchor: MapViewportAnchor(
+        blockX: centerBlockX,
+        blockZ: centerBlockZ,
+        zoomScale: effectiveZoomScale(forRawScale: rawZoom)
+      ),
+      sideChunks: Int(requiredSide64),
+      requiredMinimumChunkX: requiredMinimumChunkX,
+      requiredMaximumChunkX: requiredMaximumChunkX,
+      requiredMinimumChunkZ: requiredMinimumChunkZ,
+      requiredMaximumChunkZ: requiredMaximumChunkZ
+    )
+  }
+
+  private func renderedRegionContains(_ request: MapViewportRenderRequest) -> Bool {
+    let minimumX = Int64(lastCenterX) - Int64(renderedLeftChunks)
+    let maximumX = Int64(lastCenterX) + Int64(renderedRightChunks)
+    let minimumZ = Int64(lastCenterZ) - Int64(renderedLeftChunks)
+    let maximumZ = Int64(lastCenterZ) + Int64(renderedRightChunks)
+    return request.requiredMinimumChunkX >= minimumX
+      && request.requiredMaximumChunkX <= maximumX
+      && request.requiredMinimumChunkZ >= minimumZ
+      && request.requiredMaximumChunkZ <= maximumZ
+  }
+
+  private func autoRenderAtViewportCenter(zoomDrivenOnly: Bool = false) {
+    guard !isApplyingViewport, !isMapInteractionActive, !isRendering,
+      let request = currentViewportRenderRequest()
     else { return }
-    let center = chunkCenter(for: anchor)
-    let requiredSideChunks = dynamicRenderSideChunks(forZoomScale: anchor.zoomScale)
-    let centerChanged = center.0 != lastCenterX || center.1 != lastCenterZ
-    let sideChanged = requiredSideChunks != renderedSideChunks
-    guard centerChanged || sideChanged else { return }
-    updateCoordinateFields(centerX: center.0, centerZ: center.1, anchor: anchor)
-    let reason = centerChanged ? "移动续载" : "缩放续载"
-    render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: reason, showOverlay: false)
+
+    let containsViewport = renderedRegionContains(request)
+    let needsExpansion = request.sideChunks > renderedSideChunks
+    // When the user zooms back in after a very wide sampled render, shrink
+    // only after a 2× hysteresis threshold so high-detail chunks return
+    // without oscillating between adjacent sizes on every tiny pinch.
+    let needsDetailRefinement = request.sideChunks * 2 < renderedSideChunks
+    if zoomDrivenOnly {
+      guard needsExpansion || needsDetailRefinement else { return }
+    } else {
+      guard autoRenderSwitch.isOn,
+        !containsViewport || needsExpansion || needsDetailRefinement
+      else { return }
+    }
+
+    let targetSideChunks: Int
+    if needsExpansion || needsDetailRefinement {
+      targetSideChunks = request.sideChunks
+    } else {
+      // Pure panning keeps the current window size and only recenters when the
+      // visible area reaches the preload boundary. This removes the old
+      // one-chunk-at-a-time render chase that could amplify tiny Z drift.
+      targetSideChunks = renderedSideChunks
+    }
+
+    updateCoordinateFields(
+      centerX: request.centerX,
+      centerZ: request.centerZ,
+      anchor: request.anchor
+    )
+    let reason: String
+    if needsExpansion {
+      reason = "缩放扩展"
+    } else if needsDetailRefinement {
+      reason = "缩放细化"
+    } else {
+      reason = "移动续载"
+    }
+    render(
+      centerX: request.centerX,
+      centerZ: request.centerZ,
+      anchor: request.anchor,
+      reason: reason,
+      showOverlay: false,
+      sideChunksOverride: targetSideChunks
+    )
   }
 
   private func mapPosition(at point: CGPoint) -> (
@@ -4345,17 +4535,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func refreshForZoomDrivenRadiusIfNeeded() {
-    guard !isRendering, !isApplyingViewport, !isMapInteractionActive,
-      let anchor = currentViewportAnchor()
-    else { return }
-    let requiredSideChunks = dynamicRenderSideChunks(forZoomScale: anchor.zoomScale)
-    guard requiredSideChunks != renderedSideChunks else {
-      scheduleAutoRender(immediate: true)
-      return
-    }
-    let center = chunkCenter(for: anchor)
-    updateCoordinateFields(centerX: center.0, centerZ: center.1, anchor: anchor)
-    render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "缩放续载", showOverlay: false)
+    // Defer until UIKit fully releases the pinch/tracking state. The old
+    // immediate guard often saw isTracking == true in scrollViewDidEndZooming
+    // and silently discarded the only zoom-out expansion request.
+    scheduleAutoRender(immediate: true, zoomDriven: true)
   }
 
   private func updateZoomLimits() {
@@ -5194,6 +5377,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     saveMapState()
     showZoomHUD(autoHide: true)
     refreshForZoomDrivenRadiusIfNeeded()
+  }
+
+  func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    alignContentOffsetToDevicePixels()
+    updateObjectOverlay()
+    if let region = selectedRegion { updateSelectionOverlay(for: region) }
+    refreshForZoomDrivenRadiusIfNeeded()
+    scheduleAutoRender(immediate: true)
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
