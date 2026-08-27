@@ -106,6 +106,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
                 }
             )
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 

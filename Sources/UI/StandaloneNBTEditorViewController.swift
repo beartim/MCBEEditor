@@ -164,6 +164,7 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 

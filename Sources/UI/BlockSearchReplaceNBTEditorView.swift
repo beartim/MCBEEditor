@@ -174,6 +174,7 @@ final class BlockSearchReplaceNBTEditorView: UIView, UITableViewDataSource, UITa
             cell.indentationLevel = 1
             cell.accessoryType = .disclosureIndicator
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 

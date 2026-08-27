@@ -382,6 +382,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             cell.imageView?.contentMode = .center
             cell.selectionStyle = .default
             configureViewedAccessory(cell, key: "home-nbt-tool", at: indexPath)
+            cell.mcbe_enableCompactText()
             return cell
         }
 
@@ -402,6 +403,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             cell.imageView?.image = nil
             cell.selectionStyle = .default
             configureViewedAccessory(cell, key: "home-data-\(indexPath.row)", at: indexPath)
+            cell.mcbe_enableCompactText()
             return cell
         }
 
@@ -421,6 +423,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             ViewedListSupport.clearAccessory(cell)
             cell.accessoryType = .none
             cell.selectionStyle = .none
+            cell.mcbe_enableCompactText()
             return cell
         }
 
@@ -435,6 +438,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
         cell.imageView?.image = UIImage(systemName: "cube.transparent")
         cell.selectionStyle = .default
         configureViewedAccessory(cell, key: "world:\(world.id.uuidString)", at: indexPath)
+        cell.mcbe_enableCompactText()
         return cell
     }
 

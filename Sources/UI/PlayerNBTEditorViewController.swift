@@ -152,6 +152,7 @@ final class PlayerNBTEditorViewController: UITableViewController, UISearchResult
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 

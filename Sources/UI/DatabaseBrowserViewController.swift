@@ -107,6 +107,7 @@ final class DatabaseBrowserViewController: UITableViewController, UISearchResult
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

@@ -66,6 +66,7 @@ final class EntityNBTImportReviewViewController: UITableViewController {
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

@@ -244,6 +244,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

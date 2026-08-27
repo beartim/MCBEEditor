@@ -437,6 +437,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
         let name = record.area.name.isEmpty ? "未命名区域" : record.area.name
         cell.textLabel?.text = "\(name)\n\(record.area.detailText)"
         cell.accessoryType = isBatchMode ? (selectedIDs.contains(record.stableID) ? .checkmark : .none) : .disclosureIndicator
+        cell.mcbe_enableCompactText()
         return cell
     }
 

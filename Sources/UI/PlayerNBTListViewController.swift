@@ -102,6 +102,7 @@ final class PlayerNBTListViewController: UITableViewController, UISearchResultsU
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

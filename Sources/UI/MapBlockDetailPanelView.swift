@@ -387,6 +387,7 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
       isBatchSelecting
       ? (batchSelectedPaths.contains(node.path) ? .checkmark : .none)
       : (node.hasChildren ? .none : .disclosureIndicator)
+    cell.mcbe_enableCompactText()
     return cell
   }
 

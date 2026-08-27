@@ -225,6 +225,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
                 }
             )
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 

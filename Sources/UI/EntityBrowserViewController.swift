@@ -336,6 +336,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
     button.setTitle(title, for: .normal)
     button.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
     button.titleLabel?.numberOfLines = 1
+    button.mcbe_enableCompactTitle(minimumScaleFactor: 0.66)
     button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
     button.backgroundColor = .tertiarySystemBackground
     button.layer.cornerRadius = 8
@@ -694,6 +695,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         }
       }
     )
+    cell.mcbe_enableCompactText()
     return cell
   }
 

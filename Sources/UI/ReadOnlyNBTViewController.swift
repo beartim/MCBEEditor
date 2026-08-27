@@ -91,6 +91,7 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
           self.tableView.reloadData()
         }
       })
+    cell.mcbe_enableCompactText()
     return cell
   }
 

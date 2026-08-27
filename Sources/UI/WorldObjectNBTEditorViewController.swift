@@ -148,6 +148,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 

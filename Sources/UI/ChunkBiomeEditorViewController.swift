@@ -155,6 +155,7 @@ final class ChunkBiomeEditorViewController: UITableViewController {
                 + (summary.isEmpty ? "" : " · \(summary)")
             cell.accessoryType = .disclosureIndicator
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 
@@ -305,6 +306,7 @@ private final class BiomeLayerEditorViewController: UITableViewController, UISea
         cell.detailTextLabel?.text = "\(layer.coordinateText(for: index)) · \(identifier)"
         cell.imageView?.image = UIImage(systemName: "leaf")
         cell.accessoryType = .disclosureIndicator
+        cell.mcbe_enableCompactText()
         return cell
     }
 

@@ -96,6 +96,7 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 
@@ -244,6 +245,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
                 }
             )
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 

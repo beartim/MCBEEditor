@@ -713,6 +713,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private let initialMinimumZoomScale: CGFloat = 0.08
   private let initialMaximumZoomScale: CGFloat = 32
   private let zoomRangeGrowthFactor: CGFloat = 2
+  // Do not mutate UIScrollView's zoom limits continuously while a pinch is
+  // in progress. iPhone UIScrollView can shift contentOffset aggressively
+  // when minimumZoomScale changes under an active gesture. Instead widen the
+  // usable range once at gesture start; further gestures can widen it again.
+  private let userGestureZoomRangeFactor: CGFloat = 4096
   // Raster and per-block metadata are detail limits, not world-extent
   // limits. Large regions continue to include every requested chunk but are
   // composited at a lower pixel density; taps read the selected column from
@@ -1040,6 +1045,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderButton.layer.cornerRadius = 7
     renderButton.layer.masksToBounds = true
     renderButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .regular)
+    renderButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.72)
     renderButton.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
     renderButton.setContentHuggingPriority(.required, for: .horizontal)
     renderButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -1129,9 +1135,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     scrollView.delegate = self
     scrollView.minimumZoomScale = initialMinimumZoomScale
     scrollView.maximumZoomScale = initialMaximumZoomScale
-    scrollView.bouncesZoom = true
-    scrollView.alwaysBounceHorizontal = true
-    scrollView.alwaysBounceVertical = true
+    // Virtual content insets already provide room to pan beyond the current
+    // rendered image. Elastic bounce is therefore unnecessary and, on iPhone,
+    // can feed residual velocity into a freshly resized render canvas.
+    scrollView.bounces = false
+    scrollView.bouncesZoom = false
+    scrollView.alwaysBounceHorizontal = false
+    scrollView.alwaysBounceVertical = false
     scrollView.pinchGestureRecognizer?.isEnabled = true
     scrollView.decelerationRate = .fast
     scrollView.backgroundColor = .secondarySystemBackground
@@ -1282,6 +1292,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let label = UILabel()
     label.text = text
     label.font = UIFont.systemFont(ofSize: 13, weight: .regular)
+    label.mcbe_enableCompactSingleLineText(minimumScaleFactor: 0.70)
     label.setContentHuggingPriority(.required, for: .horizontal)
     label.setContentCompressionResistancePriority(.required, for: .horizontal)
     return label
@@ -2676,8 +2687,28 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
   }
 
+  private var isMapInteractionActive: Bool {
+    scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating || isZooming
+      || selectionMapPanOrigin != nil || selectionPinchOriginZoom != nil
+  }
+
+  private func cancelInFlightRenderForUserInteraction() {
+    panDebounceWorkItem?.cancel()
+    panDebounceWorkItem = nil
+    guard let token = activeRenderToken else { return }
+    token.cancel()
+    // Detach immediately so an old render can never apply its saved anchor
+    // after the user has started a new pan/pinch. This was the main source of
+    // the self-propelling map-center loop seen on iPhone.
+    activeRenderToken = nil
+    isRendering = false
+    shareButton.isEnabled = lastRenderedImage != nil
+  }
+
   private func scheduleAutoRender(immediate: Bool = false) {
-    guard autoRenderSwitch.isOn, !isApplyingViewport, !isZooming, lastRenderedImage != nil else {
+    guard autoRenderSwitch.isOn, !isApplyingViewport, !isMapInteractionActive,
+      !isRendering, lastRenderedImage != nil
+    else {
       return
     }
     panDebounceWorkItem?.cancel()
@@ -2687,7 +2718,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func autoRenderAtViewportCenter() {
-    guard autoRenderSwitch.isOn, !isApplyingViewport, !isZooming,
+    guard autoRenderSwitch.isOn, !isApplyingViewport, !isMapInteractionActive, !isRendering,
       let anchor = currentViewportAnchor()
     else { return }
     let center = chunkCenter(for: anchor)
@@ -2824,8 +2855,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     guard isSelectionMode, selectedRegion == nil else { return }
     switch recognizer.state {
     case .began:
+      cancelInFlightRenderForUserInteraction()
       selectionMapPanOrigin = scrollView.contentOffset
-      panDebounceWorkItem?.cancel()
     case .changed:
       guard let origin = selectionMapPanOrigin else { return }
       let translation = recognizer.translation(in: selectionOverlayView)
@@ -2848,6 +2879,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let location = recognizer.location(in: selectionOverlayView)
     switch recognizer.state {
     case .began:
+      cancelInFlightRenderForUserInteraction()
+      prepareZoomRangeForUserGesture()
       let zoom = max(scrollView.zoomScale, 0.0001)
       selectionPinchOriginZoom = zoom
       selectionPinchAnchorContent = CGPoint(
@@ -2862,7 +2895,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let anchor = selectionPinchAnchorContent
       else { return }
       let proposedScale = originZoom * recognizer.scale
-      expandZoomRangeIfNeeded(for: proposedScale)
       let target = min(scrollView.maximumZoomScale, max(scrollView.minimumZoomScale, proposedScale))
       isApplyingViewport = true
       scrollView.setZoomScale(target, animated: false)
@@ -4313,7 +4345,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func refreshForZoomDrivenRadiusIfNeeded() {
-    guard !isRendering, !isApplyingViewport, let anchor = currentViewportAnchor() else { return }
+    guard !isRendering, !isApplyingViewport, !isMapInteractionActive,
+      let anchor = currentViewportAnchor()
+    else { return }
     let requiredSideChunks = dynamicRenderSideChunks(forZoomScale: anchor.zoomScale)
     guard requiredSideChunks != renderedSideChunks else {
       scheduleAutoRender(immediate: true)
@@ -4349,6 +4383,20 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     scrollView.minimumZoomScale = minimum
     scrollView.maximumZoomScale = maximum
+  }
+
+  private func prepareZoomRangeForUserGesture() {
+    let current = max(scrollView.zoomScale, CGFloat.leastNormalMagnitude)
+    let lower = max(
+      CGFloat.leastNormalMagnitude, current / max(userGestureZoomRangeFactor, 2))
+    let upper: CGFloat
+    if current < CGFloat.greatestFiniteMagnitude / max(userGestureZoomRangeFactor, 2) {
+      upper = current * max(userGestureZoomRangeFactor, 2)
+    } else {
+      upper = CGFloat.greatestFiniteMagnitude
+    }
+    if lower < scrollView.minimumZoomScale { scrollView.minimumZoomScale = lower }
+    if upper > scrollView.maximumZoomScale { scrollView.maximumZoomScale = upper }
   }
 
   private func setFitZoom(animated: Bool) {
@@ -5085,11 +5133,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    cancelInFlightRenderForUserInteraction()
+  }
+
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     updateObjectOverlay()
     if let region = selectedRegion { updateSelectionOverlay(for: region) }
-    guard scrollView.isDragging || scrollView.isDecelerating else { return }
-    scheduleAutoRender()
+    // Never start a new database render while UIKit still owns gesture or
+    // deceleration velocity. Rendering resizes the canvas, and resizing a
+    // decelerating UIScrollView can amplify contentOffset into a runaway pan.
   }
 
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -5109,13 +5162,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+    cancelInFlightRenderForUserInteraction()
+    // Stop any residual pan velocity before the pinch starts and widen the
+    // zoom range once, rather than changing minimumZoomScale every frame.
+    scrollView.setContentOffset(scrollView.contentOffset, animated: false)
+    prepareZoomRangeForUserGesture()
     isZooming = true
-    panDebounceWorkItem?.cancel()
     showZoomHUD()
   }
 
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
-    expandZoomRangeIfNeeded(for: scrollView.zoomScale)
     updateObjectOverlay()
     if let region = selectedRegion { updateSelectionOverlay(for: region) }
     guard !isApplyingViewport else { return }

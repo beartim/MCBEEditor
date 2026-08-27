@@ -52,6 +52,7 @@ final class BiomeIDPickerViewController: UITableViewController, UISearchResultsU
         cell.imageView?.image = swatch(for: entry.id)
         cell.accessoryType = currentID == entry.id ? .checkmark : .none
         cell.selectionStyle = selectionEnabled ? .default : .none
+        cell.mcbe_enableCompactText()
         return cell
     }
 

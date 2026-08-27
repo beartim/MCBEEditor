@@ -75,6 +75,7 @@ final class WorldToolsViewController: UITableViewController {
             ViewedListSupport.clearAccessory(cell)
             cell.accessoryType = .none
             cell.selectionStyle = .none
+            cell.mcbe_enableCompactText()
             return cell
         }
 
@@ -130,6 +131,7 @@ final class WorldToolsViewController: UITableViewController {
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

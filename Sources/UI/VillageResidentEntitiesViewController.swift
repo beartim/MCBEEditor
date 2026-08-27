@@ -84,6 +84,7 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

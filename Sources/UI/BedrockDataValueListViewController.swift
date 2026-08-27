@@ -49,6 +49,7 @@ final class BedrockDataValueListViewController: UITableViewController, UISearchR
         cell.imageView?.image = nil
         cell.accessoryType = .none
         cell.selectionStyle = .none
+        cell.mcbe_enableCompactText()
         return cell
     }
 }

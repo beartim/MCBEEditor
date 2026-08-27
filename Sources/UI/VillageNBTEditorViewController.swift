@@ -213,6 +213,7 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
           })
       }
       cell.selectionStyle = batchSelectionCoordinator.isActive ? .none : .default
+      cell.mcbe_enableCompactText()
       return cell
     }
     let node = rows[indexPath.row]
@@ -249,6 +250,7 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 

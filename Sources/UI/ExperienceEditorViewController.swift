@@ -91,6 +91,7 @@ final class ExperienceEditorViewController: UITableViewController {
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

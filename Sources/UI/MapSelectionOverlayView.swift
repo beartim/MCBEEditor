@@ -102,6 +102,7 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
         let title = UILabel()
         title.text = "选择范围"
         title.font = .preferredFont(forTextStyle: .headline)
+        title.mcbe_enableCompactSingleLineText(minimumScaleFactor: 0.72)
 
         for field in [x0Field, z0Field, x1Field, z1Field] {
             field.borderStyle = .roundedRect
@@ -119,11 +120,13 @@ final class MapSelectionOverlayView: UIView, UITextFieldDelegate {
 
         alignChunkButton.setTitle("对齐区块边界", for: .normal)
         alignChunkButton.titleLabel?.font = .preferredFont(forTextStyle: .body)
+        alignChunkButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.66)
         alignChunkButton.addTarget(self, action: #selector(alignToChunkBounds), for: .touchUpInside)
         alignChunkButton.isEnabled = false
 
         actionButton.setTitle("操作…", for: .normal)
         actionButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        actionButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.66)
         actionButton.addTarget(self, action: #selector(showActions), for: .touchUpInside)
 
         let row0 = coordinateRow("起点", x0Field, z0Field)

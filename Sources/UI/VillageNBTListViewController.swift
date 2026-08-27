@@ -184,6 +184,7 @@ final class VillageNBTListViewController: UITableViewController, UISearchResults
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

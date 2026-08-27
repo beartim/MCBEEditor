@@ -74,6 +74,7 @@ final class BlockSearchResultsViewController: UITableViewController, UISearchRes
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

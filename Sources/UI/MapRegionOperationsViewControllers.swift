@@ -313,6 +313,7 @@ final class MapRegionHardcodedSpawnersViewController: UITableViewController {
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

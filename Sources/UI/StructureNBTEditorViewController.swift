@@ -154,6 +154,7 @@ final class StructureNBTEditorViewController: UITableViewController, UISearchRes
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 

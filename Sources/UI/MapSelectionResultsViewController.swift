@@ -94,6 +94,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

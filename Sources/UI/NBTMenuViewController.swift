@@ -132,6 +132,7 @@ final class NBTMenuViewController: UITableViewController, UISearchResultsUpdatin
                 }
             }
         )
+        cell.mcbe_enableCompactText()
         return cell
     }
 

@@ -115,6 +115,7 @@ final class HardcodedSpawnersViewController: UITableViewController {
           self.tableView.reloadData()
         }
       })
+    cell.mcbe_enableCompactText()
     return cell
   }
 

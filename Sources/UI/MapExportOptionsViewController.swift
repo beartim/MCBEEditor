@@ -72,6 +72,7 @@ final class MapExportOptionsViewController: UITableViewController {
             cell.textLabel?.text = values[indexPath.row].0
             cell.accessoryType = values[indexPath.row].1 ? .checkmark : .none
         }
+        cell.mcbe_enableCompactText()
         return cell
     }
 

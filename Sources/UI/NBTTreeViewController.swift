@@ -182,6 +182,7 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
           }
         })
     }
+    cell.mcbe_enableCompactText()
     return cell
   }
 
