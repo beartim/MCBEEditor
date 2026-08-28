@@ -1,11 +1,13 @@
 import UIKit
 
 enum MapImageExportScope: Int, CaseIterable {
+    case selectedRegion
     case currentRegion
     case loadedDimension
 
     var displayName: String {
         switch self {
+        case .selectedRegion: return "当前框选区域"
         case .currentRegion: return "当前地图区域"
         case .loadedDimension: return "当前维度全部已加载区域"
         }
@@ -23,11 +25,14 @@ struct MapImageExportLayers {
 final class MapExportOptionsViewController: UITableViewController {
     var onExport: ((MapImageExportScope, MapImageExportLayers) -> Void)?
 
-    private var scope: MapImageExportScope = .currentRegion
+    private var scope: MapImageExportScope
+    private let availableScopes: [MapImageExportScope]
     private var layers: MapImageExportLayers
 
-    init(layers: MapImageExportLayers) {
+    init(layers: MapImageExportLayers, hasSelectedRegion: Bool = false) {
         self.layers = layers
+        self.availableScopes = MapImageExportScope.allCases.filter { $0 != .selectedRegion || hasSelectedRegion }
+        self.scope = hasSelectedRegion ? .selectedRegion : .currentRegion
         super.init(style: .insetGrouped)
         title = "导出地图图片"
     }
@@ -43,7 +48,7 @@ final class MapExportOptionsViewController: UITableViewController {
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? MapImageExportScope.allCases.count : 5
+        section == 0 ? availableScopes.count : 5
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -52,13 +57,13 @@ final class MapExportOptionsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         guard section == 0 else { return nil }
-        return "“全部已加载区域”会按当前维度已有区块的外接范围生成图片；跨度较大时会自动降低输出比例以控制内存。"
+        return "框选模式下可直接导出当前精确框选范围；“全部已加载区域”会按当前维度已有区块的外接范围生成图片，跨度较大时会自动降低输出比例以控制内存。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "MapExportOption") ?? UITableViewCell(style: .default, reuseIdentifier: "MapExportOption")
         if indexPath.section == 0 {
-            let value = MapImageExportScope.allCases[indexPath.row]
+            let value = availableScopes[indexPath.row]
             cell.textLabel?.text = value.displayName
             cell.accessoryType = value == scope ? .checkmark : .none
         } else {
@@ -79,7 +84,7 @@ final class MapExportOptionsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         if indexPath.section == 0 {
-            scope = MapImageExportScope.allCases[indexPath.row]
+            scope = availableScopes[indexPath.row]
         } else {
             switch indexPath.row {
             case 0: layers.entities.toggle()

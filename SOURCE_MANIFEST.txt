@@ -7,6 +7,7 @@ CHANGES_GIVE_EXISTING_MAINHAND.md
 CHANGES_IPHONE_MAP_VIEWPORT_V2.md
 CHANGES_IPHONE_TEXT_MAP_STABILITY.md
 CHANGES_LEGACY_TERRAIN_SUBCHUNKS.md
+CHANGES_LEGACY_ZLIB_SELECTION_EXPORT.md
 CHANGES_MCBEDITOR_PLAYER_MAP_RENAME.md
 CHANGES_METADATA_VARIANT_SEARCH_FIX.md
 CHANGES_NEW_ACTOR_BIOME_ALIGN.md
@@ -57,12 +58,12 @@ Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-iphone-60x60-3x.png
 Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
 Resources/Info.plist
 Resources/LaunchScreen.storyboard
-SOURCE_MANIFEST.txt
 Scripts/bootstrap.sh
 Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
 Scripts/test_legacy_terrain_subchunks.sh
+Scripts/test_legacy_zlib_and_selection_export.sh
 Scripts/test_mcbeeditor_map_player_rename.sh
 Scripts/test_metadata_variant_search.sh
 Scripts/test_phone_map_viewport_v2.sh

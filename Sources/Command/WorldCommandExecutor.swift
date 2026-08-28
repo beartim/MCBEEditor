@@ -350,7 +350,7 @@ final class WorldCommandExecutor {
         let targets = try resolveTargets(target)
         let supportedDimensions: Set<Int32> = [0, 1, 2]
         let summaries = try BedrockChunkStore(session: session).listChunks().filter {
-            $0.subChunkCount > 0 && supportedDimensions.contains($0.position.dimension)
+            $0.hasTerrain && supportedDimensions.contains($0.position.dimension)
         }
         let grouped = Dictionary(grouping: summaries, by: { $0.position.dimension })
             .mapValues { $0.map(\.position) }
@@ -1731,7 +1731,7 @@ private final class CommandBlockStore {
         let summaries = try BedrockChunkStore(session: session).listChunks()
         self.availableChunks = Set(summaries.filter { summary in
             summary.position.dimension == dimension
-                && (summary.subChunkCount > 0 || summary.biomeRecordType != nil
+                && (summary.hasTerrain || summary.biomeRecordType != nil
                     || summary.hasBlockEntities || summary.hasLegacyEntities
                     || summary.recordCount > (summary.hasActorDigest ? 1 : 0))
         }.map(\.position))

@@ -4858,7 +4858,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         hardcodedSpawners: showHardcodedSpawners,
         villages: showVillages,
         spawnPoints: showSpawnPoints
-      )
+      ),
+      hasSelectedRegion: isSelectionMode && selectedRegion != nil
     )
     controller.onExport = { [weak self] scope, layers in
       self?.startMapImageExport(scope: scope, layers: layers)
@@ -4873,7 +4874,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       showError(MCBEEditorError.unsupported("请先渲染地图。"), title: "无法导出地图")
       return
     }
-    let overlay = showBusy(scope == .currentRegion ? "正在生成当前地图图片…" : "正在读取当前维度全部已加载区域…")
+    let busyText: String
+    switch scope {
+    case .selectedRegion: busyText = "正在生成当前框选区域图片…"
+    case .currentRegion: busyText = "正在生成当前地图图片…"
+    case .loadedDimension: busyText = "正在读取当前维度全部已加载区域…"
+    }
+    let overlay = showBusy(busyText)
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let dimensionName = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].displayName
     let mode = currentMode
@@ -4883,6 +4890,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let sideChunks = renderedSideChunks
     let leftChunks = renderedLeftChunks
     let scanRadius = renderedScanRadius
+    let selectedExportRegion = isSelectionMode ? selectedRegion : nil
     let selectedSpawns =
       layers.spawnPoints ? spawnCoordinates.filter { $0.dimension == dimension } : []
 
@@ -4910,14 +4918,44 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let image: UIImage
         let exportSuffix: String
         switch scope {
-        case .currentRegion:
+        case .selectedRegion, .currentRegion:
+          let exportCenterX: Int32
+          let exportCenterZ: Int32
+          let exportSideChunks: Int
+          let exportLeftChunks: Int
+          let exportScanRadius: Int
+          let cropRegion: BedrockMapRegion?
+
+          if scope == .selectedRegion {
+            guard let region = selectedExportRegion, region.dimension == dimension else {
+              throw MCBEEditorError.unsupported("当前没有可导出的框选区域。")
+            }
+            let widthChunks = Int(Int64(region.maximumChunkX) - Int64(region.minimumChunkX) + 1)
+            let depthChunks = Int(Int64(region.maximumChunkZ) - Int64(region.minimumChunkZ) + 1)
+            let side = max(1, max(widthChunks, depthChunks))
+            let left = (side - 1) / 2
+            exportSideChunks = side
+            exportLeftChunks = left
+            exportCenterX = Int32(clamping: Int64(region.minimumChunkX) + Int64(left))
+            exportCenterZ = Int32(clamping: Int64(region.minimumChunkZ) + Int64(left))
+            exportScanRadius = max(left, side - left - 1)
+            cropRegion = region
+          } else {
+            exportCenterX = centerX
+            exportCenterZ = centerZ
+            exportSideChunks = sideChunks
+            exportLeftChunks = leftChunks
+            exportScanRadius = scanRadius
+            cropRegion = nil
+          }
+
           var objects = [BedrockWorldObject]()
           if layers.entities || layers.blockEntities {
             let scan = try BedrockWorldObjectScanner(database: database).scanRegionAdaptive(
-              centerX: centerX,
-              centerZ: centerZ,
+              centerX: exportCenterX,
+              centerZ: exportCenterZ,
               dimension: dimension,
-              radius: scanRadius,
+              radius: exportScanRadius,
               includeEntities: layers.entities,
               includeBlockEntities: layers.blockEntities,
               maximumObjects: 100_000
@@ -4937,21 +4975,21 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             layers.hardcodedSpawners
             ? try self.scanHardcodedSpawners(
               database: database,
-              centerX: centerX,
-              centerZ: centerZ,
+              centerX: exportCenterX,
+              centerZ: exportCenterZ,
               dimension: dimension,
-              sideChunks: sideChunks,
-              leftChunks: leftChunks,
+              sideChunks: exportSideChunks,
+              leftChunks: exportLeftChunks,
               shouldCancel: { false }
             )
             : (hits: [MapHardcodedSpawnerHit](), diagnostics: [String]())
           let rendered = try self.renderRegion(
             renderer: renderer,
-            centerX: centerX,
-            centerZ: centerZ,
+            centerX: exportCenterX,
+            centerZ: exportCenterZ,
             dimension: dimension,
-            sideChunks: sideChunks,
-            leftChunks: leftChunks,
+            sideChunks: exportSideChunks,
+            leftChunks: exportLeftChunks,
             mode: mode,
             drawGrid: drawGrid,
             spawnCoordinates: selectedSpawns,
@@ -4965,9 +5003,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             additionalErrors: spawnerScan.diagnostics,
             shouldCancel: { false }
           )
-          let startBlockX = MapCoordinate.blockOrigin(ofChunk: centerX - Int32(leftChunks))
-          let startBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ - Int32(leftChunks))
-          image = self.composeExportImage(
+          let startBlockX = MapCoordinate.blockOrigin(
+            ofChunk: exportCenterX - Int32(exportLeftChunks))
+          let startBlockZ = MapCoordinate.blockOrigin(
+            ofChunk: exportCenterZ - Int32(exportLeftChunks))
+          let composed = self.composeExportImage(
             base: rendered.image,
             startBlockX: startBlockX,
             startBlockZ: startBlockZ,
@@ -4977,12 +5017,25 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             spawnHits: rendered.spawnHits,
             layers: layers
           )
-          exportSuffix = "current-\(centerX)-\(centerZ)"
+          if let region = cropRegion {
+            image = try self.cropMapExportImage(
+              composed,
+              startBlockX: startBlockX,
+              startBlockZ: startBlockZ,
+              sideBlocks: exportSideChunks * 16,
+              region: region
+            )
+            exportSuffix =
+              "selection-\(region.minimumX)-\(region.minimumZ)-\(region.maximumX)-\(region.maximumZ)"
+          } else {
+            image = composed
+            exportSuffix = "current-\(centerX)-\(centerZ)"
+          }
 
         case .loadedDimension:
           let summaries = try BedrockChunkStore(session: self.session).listChunks().filter {
             $0.position.dimension == dimension
-              && ($0.subChunkCount > 0 || $0.biomeRecordType != nil)
+              && ($0.hasTerrain || $0.biomeRecordType != nil)
           }
           guard !summaries.isEmpty else {
             throw MCBEEditorError.unsupported("当前维度没有可导出的已加载区块。")
@@ -5075,6 +5128,36 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           self.showError(error, title: "导出地图失败")
         }
       }
+    }
+  }
+
+  private func cropMapExportImage(
+    _ image: UIImage,
+    startBlockX: Int64,
+    startBlockZ: Int64,
+    sideBlocks: Int,
+    region: BedrockMapRegion
+  ) throws -> UIImage {
+    guard sideBlocks > 0, image.size.width > 0, image.size.height > 0 else {
+      throw MCBEEditorError.malformedData("地图导出裁剪尺寸无效。")
+    }
+    let scaleX = image.size.width / CGFloat(sideBlocks)
+    let scaleZ = image.size.height / CGFloat(sideBlocks)
+    let cropRect = CGRect(
+      x: CGFloat(region.minimumX - startBlockX) * scaleX,
+      y: CGFloat(region.minimumZ - startBlockZ) * scaleZ,
+      width: CGFloat(region.width) * scaleX,
+      height: CGFloat(region.depth) * scaleZ
+    ).intersection(CGRect(origin: .zero, size: image.size))
+    guard !cropRect.isNull, cropRect.width > 0, cropRect.height > 0 else {
+      throw MCBEEditorError.unsupported("框选区域不在本次渲染范围内。")
+    }
+
+    let format = UIGraphicsImageRendererFormat.default()
+    format.opaque = true
+    format.scale = image.scale
+    return UIGraphicsImageRenderer(size: cropRect.size, format: format).image { _ in
+      image.draw(at: CGPoint(x: -cropRect.minX, y: -cropRect.minY))
     }
   }
 

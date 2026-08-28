@@ -4,6 +4,7 @@ struct BedrockChunkSummary: Hashable {
     let position: ChunkPosition
     let recordCount: Int
     let subChunkCount: Int
+    let hasLegacyTerrain: Bool
     let minimumSubChunkY: Int8?
     let maximumSubChunkY: Int8?
     let hasBlockEntities: Bool
@@ -13,12 +14,17 @@ struct BedrockChunkSummary: Hashable {
     let hasHardcodedSpawners: Bool
 
     var coordinateText: String { "(\(position.x), \(position.z))" }
+    var hasTerrain: Bool { subChunkCount > 0 || hasLegacyTerrain }
 
     var detailText: String {
-        var parts = ["记录 \(recordCount)", "SubChunk \(subChunkCount)"]
-        if let minimumSubChunkY = minimumSubChunkY, let maximumSubChunkY = maximumSubChunkY {
-            parts.append("Y \(minimumSubChunkY)…\(maximumSubChunkY)")
+        var parts = ["记录 \(recordCount)"]
+        if subChunkCount > 0 {
+            parts.append("SubChunk \(subChunkCount)")
+            if let minimumSubChunkY = minimumSubChunkY, let maximumSubChunkY = maximumSubChunkY {
+                parts.append("Y \(minimumSubChunkY)…\(maximumSubChunkY)")
+            }
         }
+        if hasLegacyTerrain { parts.append("LegacyTerrain 1（8 虚拟切片）") }
         if let biomeRecordType = biomeRecordType { parts.append("生物群系 \(biomeRecordType.displayName)") }
         if hasHardcodedSpawners { parts.append("HardcodedSpawners") }
         if hasBlockEntities { parts.append("方块实体") }
@@ -72,6 +78,7 @@ final class BedrockChunkStore {
         struct Accumulator {
             var records = 0
             var subChunkYs = Set<Int8>()
+            var hasLegacyTerrain = false
             var hasBlockEntities = false
             var hasLegacyEntities = false
             var hasActorDigest = false
@@ -86,9 +93,7 @@ final class BedrockChunkStore {
                 var value = chunks[key.position] ?? Accumulator()
                 value.records += 1
                 if key.recordType == .subChunk, let y = key.subChunkIndex { value.subChunkYs.insert(y) }
-                if key.recordType == .legacyTerrain {
-                    for y in Int8(0)...Int8(7) { value.subChunkYs.insert(y) }
-                }
+                if key.recordType == .legacyTerrain { value.hasLegacyTerrain = true }
                 if key.recordType == .blockEntity { value.hasBlockEntities = true }
                 if key.recordType == .entity { value.hasLegacyEntities = true }
                 if [.data3D, .data2D, .data2DLegacy].contains(key.recordType) {
@@ -110,6 +115,7 @@ final class BedrockChunkStore {
                 position: position,
                 recordCount: accumulator.records,
                 subChunkCount: accumulator.subChunkYs.count,
+                hasLegacyTerrain: accumulator.hasLegacyTerrain,
                 minimumSubChunkY: accumulator.subChunkYs.min(),
                 maximumSubChunkY: accumulator.subChunkYs.max(),
                 hasBlockEntities: accumulator.hasBlockEntities,
@@ -128,6 +134,7 @@ final class BedrockChunkStore {
     func summary(at position: ChunkPosition) throws -> BedrockChunkSummary {
         let records = try rawChunkRecords(at: position, includeValues: false)
         var subChunkYs = Set<Int8>()
+        var hasLegacyTerrain = false
         var hasBlockEntities = false
         var hasLegacyEntities = false
         var biomeRecordType: ChunkRecordType?
@@ -136,9 +143,7 @@ final class BedrockChunkStore {
         for record in records {
             guard let parsed = BedrockDBKey.parse(record.key), parsed.position == position else { continue }
             if parsed.recordType == .subChunk, let y = parsed.subChunkIndex { subChunkYs.insert(y) }
-            if parsed.recordType == .legacyTerrain {
-                for y in Int8(0)...Int8(7) { subChunkYs.insert(y) }
-            }
+            if parsed.recordType == .legacyTerrain { hasLegacyTerrain = true }
             if parsed.recordType == .blockEntity { hasBlockEntities = true }
             if parsed.recordType == .entity { hasLegacyEntities = true }
             if [.data3D, .data2D, .data2DLegacy].contains(parsed.recordType) {
@@ -156,6 +161,7 @@ final class BedrockChunkStore {
             position: position,
             recordCount: records.count + digestCount,
             subChunkCount: subChunkYs.count,
+            hasLegacyTerrain: hasLegacyTerrain,
             minimumSubChunkY: subChunkYs.min(),
             maximumSubChunkY: subChunkYs.max(),
             hasBlockEntities: hasBlockEntities,

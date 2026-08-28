@@ -60,8 +60,13 @@ struct BTLevelDBState final {
         options.block_size = 163840;
         options.max_open_files = 128;
         options.info_log = &logger;
-        options.compressors[0] = &zlibRaw;
-        options.compressors[1] = &zlib;
+        // Always write the legacy-compatible zlib table compression (ID 2).
+        // Very old Pocket Edition clients such as 0.10.x can read zlib SSTables
+        // but predate the raw-deflate compression ID 4 used by modern Bedrock.
+        // Keep the raw compressor registered second so modern ID-4 tables remain
+        // fully readable; leveldb-mcpe writes with compressors[0].
+        options.compressors[0] = &zlib;
+        options.compressors[1] = &zlibRaw;
 
         readOptions.verify_checksums = true;
         readOptions.fill_cache = true;
