@@ -8,6 +8,10 @@ STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
 # Portrait iPhone controls must use a two-row header and short labels instead
 # of letting titles collapse into ellipses/zero-width labels.
 grep -q 'coordinates = UIStackView(arrangedSubviews: \[displayOptions, renderControls\])' "$MAP"
+grep -q 'displayOptions.distribution = compactPhone ? .equalCentering : .fill' "$MAP"
+grep -q 'renderControls.distribution = compactPhone ? .equalCentering : .fill' "$MAP"
+grep -q 'titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow' "$MAP"
+grep -q 'stack.setContentHuggingPriority(.required, for: .horizontal)' "$MAP"
 grep -q 'case "自动渲染": titleLabel.text = "自动"' "$MAP"
 grep -q 'case "区块网格": titleLabel.text = "网格"' "$MAP"
 grep -q 'case "选择区块": titleLabel.text = "区块"' "$MAP"

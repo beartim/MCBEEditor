@@ -1107,9 +1107,19 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = compactPhone ? 4 : 14
+    displayOptions.spacing = compactPhone ? 0 : 14
     displayOptions.alignment = .center
-    displayOptions.distribution = compactPhone ? .fillEqually : .fill
+    // On portrait iPhone keep the three compact label+switch pairs on one
+    // physical row.  `.fillEqually` stretched each pair to one third of the
+    // screen, leaving its label at the left edge and its switch at the right
+    // edge; visually the switch looked detached from its title.  Equal
+    // centering preserves every pair's intrinsic width and distributes the
+    // three complete controls across the row instead.
+    displayOptions.distribution = compactPhone ? .equalCentering : .fill
+    if compactPhone {
+      displayOptions.isLayoutMarginsRelativeArrangement = true
+      displayOptions.layoutMargins = UIEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
+    }
     displayOptions.setContentHuggingPriority(.required, for: .horizontal)
     displayOptions.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1121,7 +1131,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderControls.axis = .horizontal
     renderControls.spacing = compactPhone ? 5 : 7
     renderControls.alignment = .center
-    renderControls.distribution = .fill
+    // The second iPhone row is dedicated to render-center controls only:
+    // 中心 | X value | Z value | 渲染.  Keep the three logical groups on the
+    // same line and distribute them without allowing one label to consume the
+    // spare width.
+    renderControls.distribution = compactPhone ? .equalCentering : .fill
+    if compactPhone {
+      renderControls.isLayoutMarginsRelativeArrangement = true
+      renderControls.layoutMargins = UIEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
+    }
     renderControls.setContentHuggingPriority(.required, for: .horizontal)
     renderControls.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1377,8 +1395,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     titleLabel.textAlignment = .left
     titleLabel.adjustsFontSizeToFitWidth = true
     titleLabel.minimumScaleFactor = compactPhone ? 0.72 : 0.82
-    titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    titleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+    titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow, for: .horizontal)
+    titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let switchHolder = UIView()
     switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 34 : 39).isActive = true
@@ -1397,6 +1415,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     stack.alignment = .center
     stack.distribution = .fill
     stack.heightAnchor.constraint(equalToConstant: compactPhone ? 22 : 24).isActive = true
+    if compactPhone {
+      // Do not let UIStackView stretch an individual compact pair. The outer
+      // row is responsible for spacing the three complete controls.
+      stack.setContentHuggingPriority(.required, for: .horizontal)
+      stack.setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
     return stack
   }
 
