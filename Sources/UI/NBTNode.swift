@@ -477,7 +477,8 @@ extension NBTValue {
     case .long(let value): return String(value)
     case .float(let value): return String(value)
     case .double(let value): return String(value)
-    case .string(let value): return value
+    case .string(let value):
+      return NBTRawStringCodec.rawData(in: value) == nil ? value : nil
     case .byteArray(let value):
       return value.map { String(Int8(bitPattern: $0)) }.joined(separator: ", ")
     case .intArray(let values):

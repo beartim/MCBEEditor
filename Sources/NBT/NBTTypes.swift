@@ -6,6 +6,59 @@ enum NBTEncoding: Equatable {
     case littleEndianVarInt
 }
 
+
+
+/// Lossless bridge for Bedrock TAG_String payloads that are not valid UTF-8.
+///
+/// Recent Bedrock actor NBT can store an 8-byte binary actor-storage key in
+/// `internalComponents.EntityStorageKeyComponent.StorageKey` while still tagging
+/// the field as TAG_String. Treating every TAG_String as strict UTF-8 makes the
+/// entire entity fail to decode. We keep invalid byte sequences inside String
+/// using a private sentinel + hexadecimal payload so the existing NBT model does
+/// not need a second string case, and encode the exact original bytes again.
+/// Valid UTF-8 strings are never changed.
+enum NBTRawStringCodec {
+    private static let sentinel = "\u{F0000}\u{F0001}MCBE_RAW_NBT_STRING:"
+
+    static func decode(_ data: Data) -> String {
+        if let text = String(data: data, encoding: .utf8) { return text }
+        return sentinel + data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func encodedData(for value: String) -> Data? {
+        if let raw = rawData(in: value) { return raw }
+        return value.data(using: .utf8)
+    }
+
+    static func rawData(in value: String) -> Data? {
+        guard value.hasPrefix(sentinel) else { return nil }
+        let hex = String(value.dropFirst(sentinel.count))
+        guard hex.count % 2 == 0 else { return nil }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        let data = Data(bytes)
+        // The sentinel is reserved only for byte sequences that cannot be
+        // represented as UTF-8. This makes accidental collisions with an
+        // ordinary user string dramatically less likely.
+        guard String(data: data, encoding: .utf8) == nil else { return nil }
+        return data
+    }
+
+    static func displayText(for value: String) -> String {
+        guard let bytes = rawData(in: value) else { return value }
+        let hex = bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
+        return "RawString[\(bytes.count)] \(hex)"
+    }
+}
+
+
 enum NBTTagType: UInt8, CaseIterable {
     case end = 0
     case byte = 1
@@ -67,7 +120,7 @@ indirect enum NBTValue {
         case .float(let value): return String(value)
         case .double(let value): return String(value)
         case .byteArray(let value): return "ByteArray[\(value.count)]"
-        case .string(let value): return value
+        case .string(let value): return NBTRawStringCodec.displayText(for: value)
         case .list(_, let values): return "List[\(values.count)]"
         case .compound(let values): return "Compound{\(values.count)}"
         case .intArray(let values): return "IntArray[\(values.count)]"

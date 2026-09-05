@@ -2450,54 +2450,104 @@ struct BlockNBTEditorTest {
         precondition(preAnvilState?.legacyID == 5)
         precondition(preAnvilState?.legacyData == 2)
 
-        // v1.1.15: a modern block or any non-empty states upgrades the whole
-        // legacy chunk to Version/Data3D plus v9 SubChunks before editing.
+        // Current behavior: editing a numeric-ID block through the block NBT
+        // panel must stay numeric. `name` and `legacy_id` are a linked pair;
+        // modern-only names, mismatched IDs and modern states are rejected
+        // instead of silently upgrading the whole chunk to v9.
         let upperLegacy = BedrockSubChunk(
             version: 7, yIndex: 5, storages: legacyOnlyDecoded.storages, trailingData: Data()
         )
         let upperLegacyKey = BedrockDBKey.subChunk(x: 12, z: -2, dimension: 0, index: 5)
         try legacyOnlyDB.put(try upperLegacy.encodePersistent(), for: upperLegacyKey)
-        let statefulDocument = NBTDocument(rootName: "", root: .compound([
-            NBTNamedTag(name: "name", value: .string("minecraft:leaves")),
-            NBTNamedTag(name: "states", value: .compound([
-                NBTNamedTag(name: "old_leaf_type", value: .string("oak")),
-                NBTNamedTag(name: "persistent_bit", value: .byte(1))
-            ])),
-            NBTNamedTag(name: "version", value: .int(18_153_728))
-        ]))
         let legacyExistingBlock = BedrockBlockRecord(
             x: 192, y: 64, z: -32, dimension: 0,
             layers: [legacyOnlyState ?? BedrockBlockState(nbt: nil, legacyID: 5, legacyData: 2)],
             isGenerated: true
         )
+
+        let statefulDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "legacy_id", value: .int(18)),
+            NBTNamedTag(name: "legacy_data", value: .byte(0)),
+            NBTNamedTag(name: "name", value: .string("minecraft:leaves")),
+            NBTNamedTag(name: "states", value: .compound([
+                NBTNamedTag(name: "old_leaf_type", value: .string("oak")),
+                NBTNamedTag(name: "persistent_bit", value: .byte(1))
+            ]))
+        ]))
+        var rejectedModernStates = false
+        do {
+            _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
+                block: legacyExistingBlock, storageIndex: 0, document: statefulDocument
+            )
+        } catch {
+            rejectedModernStates = true
+        }
+        precondition(rejectedModernStates)
+
+        let unmappedDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "legacy_id", value: .int(5)),
+            NBTNamedTag(name: "legacy_data", value: .byte(2)),
+            NBTNamedTag(name: "name", value: .string("minecraft:netherite_block"))
+        ]))
+        var rejectedUnmappedName = false
+        do {
+            _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
+                block: legacyExistingBlock, storageIndex: 0, document: unmappedDocument
+            )
+        } catch {
+            rejectedUnmappedName = true
+        }
+        precondition(rejectedUnmappedName)
+
+        let mismatchedDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "legacy_id", value: .int(5)),
+            NBTNamedTag(name: "legacy_data", value: .byte(0)),
+            NBTNamedTag(name: "name", value: .string("minecraft:diamond_block"))
+        ]))
+        var rejectedMismatch = false
+        do {
+            _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
+                block: legacyExistingBlock, storageIndex: 0, document: mismatchedDocument
+            )
+        } catch {
+            rejectedMismatch = true
+        }
+        precondition(rejectedMismatch)
+
+        let linkedDiamondDocument = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "legacy_id", value: .int(57)),
+            NBTNamedTag(name: "legacy_data", value: .byte(0)),
+            NBTNamedTag(name: "name", value: .string("minecraft:diamond_block"))
+        ]))
         _ = try BedrockBlockNBTStore(session: legacyOnlySession).save(
-            block: legacyExistingBlock, storageIndex: 0, document: statefulDocument
+            block: legacyExistingBlock, storageIndex: 0, document: linkedDiamondDocument
         )
+
         let modernVersionKey = BedrockDBKey(
             position: legacyOnlyPosition, recordType: .version, subChunkIndex: nil
         ).encoded()
         let data3DKey = BedrockDBKey(
             position: legacyOnlyPosition, recordType: .data3D, subChunkIndex: nil
         ).encoded()
-        let savedModernVersion = try legacyOnlyDB.get(modernVersionKey)
-        let removedLegacyVersion = try legacyOnlyDB.get(legacyVersionKey)
-        let savedData3D = try legacyOnlyDB.get(data3DKey)
-        let removedData2D = try legacyOnlyDB.get(legacyTerrainKey)
-        precondition(savedModernVersion != nil)
-        precondition(removedLegacyVersion == nil)
-        precondition(savedData3D != nil)
-        precondition(removedData2D == nil)
-        guard let upgradedTargetRaw = try legacyOnlyDB.get(legacyOnlySubKey),
-              let upgradedUpperRaw = try legacyOnlyDB.get(upperLegacyKey) else {
-            preconditionFailure("legacy chunk upgrade did not persist all SubChunks")
+        let unexpectedModernVersion = try legacyOnlyDB.get(modernVersionKey)
+        let unexpectedData3D = try legacyOnlyDB.get(data3DKey)
+        let retainedLegacyVersion = try legacyOnlyDB.get(legacyVersionKey)
+        let retainedData2D = try legacyOnlyDB.get(legacyTerrainKey)
+        precondition(unexpectedModernVersion == nil)
+        precondition(unexpectedData3D == nil)
+        precondition(retainedLegacyVersion == Data([15]))
+        precondition(retainedData2D == legacyTerrain)
+        guard let linkedTargetRaw = try legacyOnlyDB.get(legacyOnlySubKey),
+              let linkedUpperRaw = try legacyOnlyDB.get(upperLegacyKey) else {
+            preconditionFailure("linked numeric block save lost legacy SubChunks")
         }
-        let upgradedTarget = try BedrockSubChunk.decode(upgradedTargetRaw, keyYIndex: 4)
-        let upgradedUpper = try BedrockSubChunk.decode(upgradedUpperRaw, keyYIndex: 5)
-        precondition(upgradedTarget.version == 9 && upgradedUpper.version == 9)
-        let upgradedState = upgradedTarget.storages[0].blockState(x: 0, y: 0, z: 0)
-        precondition(upgradedState?.name == "minecraft:leaves")
-        precondition(upgradedState?.stateProperties.count == 2)
-        print("Editable block NBT, recursive command NBT, legacy-to-modern chunk upgrade and bulk layer operations passed")
+        let linkedTarget = try BedrockSubChunk.decode(linkedTargetRaw, keyYIndex: 4)
+        let linkedUpper = try BedrockSubChunk.decode(linkedUpperRaw, keyYIndex: 5)
+        precondition(linkedTarget.version == 7 && linkedUpper.version == 7)
+        let linkedState = linkedTarget.storages[0].blockState(x: 0, y: 0, z: 0)
+        precondition(linkedState?.legacyID == 57)
+        precondition(linkedState?.legacyData == 0)
+        print("Editable block NBT, linked legacy ID validation and bulk layer operations passed")
     }
 }
 SWIFT
@@ -4232,5 +4282,5 @@ swiftc -j 4 \
 "$ROOT/Scripts/test_viewed_unsaved_sync.sh"
 
 "$ROOT/Scripts/test_legacy_zlib_and_selection_export.sh"
-
-"$ROOT/Scripts/test_actor_binary_storage_key.sh"
+"$ROOT/Scripts/test_modern_actor_binary_string.sh"
+"$ROOT/Scripts/test_iphone_layout_legacy_block_link.sh"

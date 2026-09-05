@@ -607,7 +607,7 @@ extension NBTValue {
         case .long(let value): return String(value)
         case .float(let value): return String(value)
         case .double(let value): return String(value)
-        case .string(let value): return value
+        case .string(let value): return NBTRawStringCodec.displayText(for: value)
         case .byteArray, .intArray, .longArray, .list, .compound: return nil
         }
     }

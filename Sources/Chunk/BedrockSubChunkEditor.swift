@@ -896,12 +896,13 @@ final class BedrockBlockNBTStore {
         var upgradedWholeChunk = false
         var preferLegacyTerrainIfMissing = false
 
-        let requestsModern = currentState.legacyID != nil && requiresModernBlockState(document.root)
-        let initiallyRequested: BedrockBlockState = requestsModern
-            ? try modernBlockState(from: document.root, paletteVersion: nil)
-            : (currentState.legacyID != nil
-                ? try legacyBlockState(from: document.root)
-                : BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil))
+        // Editing a block that currently lives in a numeric-ID SubChunk must
+        // stay numeric. The map NBT editor exposes `name` only as the linked
+        // textual counterpart of `legacy_id`; it is not an implicit chunk
+        // upgrade switch. A name without a legacy numeric mapping is rejected.
+        let initiallyRequested: BedrockBlockState = currentState.legacyID != nil
+            ? try legacyBlockState(from: document.root)
+            : BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
 
         if let storedRecord = storedRecord {
             let existing = storedRecord.subChunk
@@ -1085,25 +1086,6 @@ final class BedrockBlockNBTStore {
         )
     }
 
-    private func requiresModernBlockState(_ root: NBTValue) -> Bool {
-        guard case .compound(let tags) = root else { return true }
-        if let states = tags.first(where: { $0.name.caseInsensitiveCompare("states") == .orderedSame })?.value,
-           case .compound(let values) = states,
-           !values.isEmpty {
-            return true
-        }
-        let name = tags.first(where: {
-            ["name", "identifier"].contains($0.name.lowercased())
-        }).flatMap { tag -> String? in
-            guard case .string(let value) = tag.value else { return nil }
-            return value
-        }
-        if let name = name, BedrockLegacyBlockCatalog.block(forIdentifier: name) == nil {
-            return true
-        }
-        return false
-    }
-
     private func modernBlockState(from root: NBTValue, paletteVersion: Int32?) throws -> BedrockBlockState {
         guard case .compound(let tags) = root else {
             throw MCBEEditorError.malformedData("现代方块状态根必须是 Compound")
@@ -1188,29 +1170,51 @@ final class BedrockBlockNBTStore {
     }
 
     private func legacyBlockState(from root: NBTValue) throws -> BedrockBlockState {
-        guard case .compound = root else {
+        guard case .compound(let tags) = root else {
             throw MCBEEditorError.malformedData("旧版方块编辑根节点必须是 Compound")
         }
-        let numericID = firstNumericValue(
-            in: root,
-            names: ["legacy_id", "legacyID", "numeric_id", "numericID"]
-        ) ?? firstStringValue(
-            in: root,
-            names: ["name", "Name", "identifier", "Identifier"]
-        ).flatMap { BedrockLegacyBlockCatalog.block(forIdentifier: $0)?.id }.map(Int64.init)
-        guard let numericID = numericID, (0...255).contains(numericID) else {
-            throw MCBEEditorError.malformedData("legacy_id 必须是 0…255；也可以填写可对应的旧版字符串 ID")
+
+        guard let rawName = firstStringValue(
+            in: root, names: ["name", "Name", "identifier", "Identifier"]
+        ), !rawName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MCBEEditorError.malformedData("旧版数字 ID 方块必须保留 name 对照标签")
         }
+        let canonicalName =
+            BedrockLegacyBlockCatalog.blockIdentifier(forRawValue: rawName)
+            ?? rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let mappedBlock = BedrockLegacyBlockCatalog.block(forIdentifier: canonicalName) else {
+            throw MCBEEditorError.unsupported(
+                "方块 \(rawName) 没有旧版数字 ID 对照，不能写入旧版数字 ID SubChunk")
+        }
+
+        guard let numericID = firstNumericValue(
+            in: root, names: ["legacy_id", "legacyID", "numeric_id", "numericID"]
+        ), (0...255).contains(numericID) else {
+            throw MCBEEditorError.malformedData("legacy_id 必须存在且为 0…255")
+        }
+        guard numericID == Int64(mappedBlock.id) else {
+            throw MCBEEditorError.malformedData(
+                "name \(mappedBlock.identifier) 与 legacy_id \(numericID) 不匹配")
+        }
+
+        if let states = tags.first(where: {
+            $0.name.caseInsensitiveCompare("states") == .orderedSame
+        })?.value {
+            guard case .compound(let values) = states, values.isEmpty else {
+                throw MCBEEditorError.unsupported(
+                    "旧版数字 ID 方块不能保存现代 states；请选择有数字 ID 对照的方块")
+            }
+        }
+
         let dataValue = firstNumericValue(
-            in: root,
-            names: ["legacy_data", "legacyData", "data", "Data"]
+            in: root, names: ["legacy_data", "legacyData", "data", "Data"]
         ) ?? 0
         guard (0...15).contains(dataValue) else {
             throw MCBEEditorError.malformedData("legacy_data 必须是 0…15")
         }
         return BedrockBlockState(
             nbt: nil,
-            legacyID: UInt16(numericID),
+            legacyID: UInt16(mappedBlock.id),
             legacyData: UInt8(dataValue)
         )
     }

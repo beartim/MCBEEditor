@@ -1023,19 +1023,35 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func configureUI() {
+    let compactPhone = UIDevice.current.userInterfaceIdiom == .phone
+
     xField.text = "0"
     zField.text = "0"
     for field in [xField, zField] {
       field.borderStyle = .roundedRect
       field.keyboardType = .numbersAndPunctuation
       field.delegate = self
-      field.font = UIFont.systemFont(ofSize: 13, weight: .regular)
-      field.widthAnchor.constraint(equalToConstant: 50).isActive = true
+      field.font = UIFont.systemFont(ofSize: compactPhone ? 12 : 13, weight: .regular)
+      field.widthAnchor.constraint(equalToConstant: compactPhone ? 46 : 50).isActive = true
+      field.adjustsFontSizeToFitWidth = true
+      field.minimumFontSize = compactPhone ? 9 : 10
     }
 
     coordinateModeControl.selectedSegmentIndex = 0
     dimensionControl.selectedSegmentIndex = 0
     modeControl.selectedSegmentIndex = 0
+    if compactPhone {
+      // Six render modes must fit on one portrait-width iPhone row. Keep the
+      // meanings intact while using shorter titles for the two longest modes.
+      modeControl.setTitle("常加载", forSegmentAt: MapRenderMode.tickingAreas.rawValue)
+      modeControl.setTitle("史莱姆", forSegmentAt: MapRenderMode.slime.rawValue)
+      coordinateModeControl.setTitleTextAttributes(
+        [.font: UIFont.systemFont(ofSize: 12, weight: .medium)], for: .normal)
+      dimensionControl.setTitleTextAttributes(
+        [.font: UIFont.systemFont(ofSize: 12, weight: .medium)], for: .normal)
+      modeControl.setTitleTextAttributes(
+        [.font: UIFont.systemFont(ofSize: 10.5, weight: .medium)], for: .normal)
+    }
     autoRenderSwitch.isOn = true
     gridSwitch.isOn = true
     chunkSelectionSwitch.isOn = false
@@ -1055,27 +1071,32 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderButton.backgroundColor = .systemBlue
     renderButton.layer.cornerRadius = 7
     renderButton.layer.masksToBounds = true
-    renderButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .regular)
-    renderButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.72)
-    renderButton.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
+    renderButton.titleLabel?.font = UIFont.systemFont(ofSize: compactPhone ? 12 : 13, weight: .regular)
+    renderButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.68)
+    renderButton.contentEdgeInsets = UIEdgeInsets(
+      top: compactPhone ? 3 : 5,
+      left: compactPhone ? 8 : 10,
+      bottom: compactPhone ? 3 : 5,
+      right: compactPhone ? 8 : 10)
     renderButton.setContentHuggingPriority(.required, for: .horizontal)
     renderButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-    renderButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    renderButton.heightAnchor.constraint(equalToConstant: compactPhone ? 28 : 32).isActive = true
     renderButton.addTarget(self, action: #selector(renderFromFields), for: .touchUpInside)
 
     let centerCoordinateTitle = label("渲染中心坐标")
-    centerCoordinateTitle.font = UIFont.systemFont(ofSize: 13, weight: .regular)
+    if compactPhone { centerCoordinateTitle.text = "中心" }
+    centerCoordinateTitle.font = UIFont.systemFont(ofSize: compactPhone ? 11 : 13, weight: .regular)
     centerCoordinateTitle.numberOfLines = 1
     centerCoordinateTitle.adjustsFontSizeToFitWidth = true
-    centerCoordinateTitle.minimumScaleFactor = 0.75
-    centerCoordinateTitle.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+    centerCoordinateTitle.minimumScaleFactor = 0.70
+    centerCoordinateTitle.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let coordinateFields = UIStackView(arrangedSubviews: [
       label("X"), xField,
       label("Z"), zField,
     ])
     coordinateFields.axis = .horizontal
-    coordinateFields.spacing = 4
+    coordinateFields.spacing = compactPhone ? 3 : 4
     coordinateFields.alignment = .center
     coordinateFields.setContentHuggingPriority(.required, for: .horizontal)
     coordinateFields.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -1086,11 +1107,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = 14
+    displayOptions.spacing = compactPhone ? 4 : 14
     displayOptions.alignment = .center
-    displayOptions.distribution = .fill
+    displayOptions.distribution = compactPhone ? .fillEqually : .fill
     displayOptions.setContentHuggingPriority(.required, for: .horizontal)
-    displayOptions.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+    displayOptions.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let renderControls = UIStackView(arrangedSubviews: [
       centerCoordinateTitle,
@@ -1098,7 +1119,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       renderButton,
     ])
     renderControls.axis = .horizontal
-    renderControls.spacing = 7
+    renderControls.spacing = compactPhone ? 5 : 7
     renderControls.alignment = .center
     renderControls.distribution = .fill
     renderControls.setContentHuggingPriority(.required, for: .horizontal)
@@ -1108,30 +1129,46 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     flexibleSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
     flexibleSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-    let coordinates = UIStackView(arrangedSubviews: [
-      displayOptions, flexibleSpacer, renderControls,
-    ])
-    coordinates.axis = .horizontal
-    coordinates.spacing = 12
-    coordinates.alignment = .center
-    coordinates.distribution = .fill
+    let coordinates: UIStackView
+    if compactPhone {
+      // The old single row let the three switch titles collapse to zero width
+      // on portrait iPhones. Two shallow rows use essentially the same vertical
+      // budget while keeping every label and the X/Z editor visible.
+      coordinates = UIStackView(arrangedSubviews: [displayOptions, renderControls])
+      coordinates.axis = .vertical
+      coordinates.spacing = 2
+      coordinates.alignment = .fill
+      coordinates.distribution = .fillEqually
+      coordinates.heightAnchor.constraint(equalToConstant: 58).isActive = true
+    } else {
+      coordinates = UIStackView(arrangedSubviews: [displayOptions, flexibleSpacer, renderControls])
+      coordinates.axis = .horizontal
+      coordinates.spacing = 12
+      coordinates.alignment = .center
+      coordinates.distribution = .fill
+      coordinates.heightAnchor.constraint(equalToConstant: 44).isActive = true
+    }
     coordinates.isLayoutMarginsRelativeArrangement = true
     coordinates.layoutMargins = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
-    coordinates.heightAnchor.constraint(equalToConstant: 44).isActive = true
 
-    coordinateModeControl.heightAnchor.constraint(equalToConstant: 36).isActive = true
-    dimensionControl.heightAnchor.constraint(equalToConstant: 36).isActive = true
-    modeControl.heightAnchor.constraint(equalToConstant: 36).isActive = true
+    let segmentHeight: CGFloat = compactPhone ? 32 : 36
+    coordinateModeControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
+    dimensionControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
+    modeControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
 
     let controls = UIStackView(arrangedSubviews: [
       coordinates, coordinateModeControl, dimensionControl, modeControl,
     ])
     controls.axis = .vertical
-    controls.spacing = 6
+    controls.spacing = compactPhone ? 4 : 6
     controls.translatesAutoresizingMaskIntoConstraints = false
     controls.setContentHuggingPriority(.required, for: .vertical)
     controls.setContentCompressionResistancePriority(.required, for: .vertical)
-    controls.heightAnchor.constraint(equalToConstant: 44 + 36 * 3 + 6 * 3).isActive = true
+    let coordinatesHeight: CGFloat = compactPhone ? 58 : 44
+    let controlsSpacing: CGFloat = compactPhone ? 4 : 6
+    controls.heightAnchor.constraint(equalToConstant:
+      coordinatesHeight + segmentHeight * 3 + controlsSpacing * 3
+    ).isActive = true
 
     // Keep the map viewport height stable. On compact-width iPhones the old
     // unlimited status label changed from one line ("正在读取…") to many
@@ -1281,7 +1318,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let preferredPanelWidth =
       traitCollection.horizontalSizeClass == .regular
       ? min(300, max(240, view.bounds.width * 0.28))
-      : min(220, max(176, view.bounds.width * 0.42))
+      : min(250, max(200, view.bounds.width * 0.50))
     if !blockDetailPanel.isCollapsed,
       abs(detailPanelWidthConstraint.constant - preferredPanelWidth) > 0.5
     {
@@ -1298,7 +1335,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let expandedWidth =
       traitCollection.horizontalSizeClass == .regular
       ? min(300, max(240, view.bounds.width * 0.28))
-      : min(220, max(176, view.bounds.width * 0.42))
+      : min(250, max(200, view.bounds.width * 0.50))
     let targetWidth: CGFloat = collapsed ? 48 : expandedWidth
     detailPanelWidthConstraint.constant = targetWidth
     let changes = {
@@ -1324,20 +1361,30 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func compactSwitch(title: String, control: UISwitch) -> UIStackView {
+    let compactPhone = UIDevice.current.userInterfaceIdiom == .phone
     let titleLabel = UILabel()
-    titleLabel.text = title
-    titleLabel.font = UIFont.systemFont(ofSize: 13, weight: .regular)
+    if compactPhone {
+      switch title {
+      case "自动渲染": titleLabel.text = "自动"
+      case "区块网格": titleLabel.text = "网格"
+      case "选择区块": titleLabel.text = "区块"
+      default: titleLabel.text = title
+      }
+    } else {
+      titleLabel.text = title
+    }
+    titleLabel.font = UIFont.systemFont(ofSize: compactPhone ? 10.5 : 13, weight: .regular)
     titleLabel.textAlignment = .left
     titleLabel.adjustsFontSizeToFitWidth = true
-    titleLabel.minimumScaleFactor = 0.82
+    titleLabel.minimumScaleFactor = compactPhone ? 0.72 : 0.82
     titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    titleLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
 
     let switchHolder = UIView()
-    switchHolder.widthAnchor.constraint(equalToConstant: 39).isActive = true
-    switchHolder.heightAnchor.constraint(equalToConstant: 22).isActive = true
+    switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 34 : 39).isActive = true
+    switchHolder.heightAnchor.constraint(equalToConstant: compactPhone ? 20 : 22).isActive = true
     control.translatesAutoresizingMaskIntoConstraints = false
-    control.transform = CGAffineTransform(scaleX: 0.62, y: 0.62)
+    control.transform = CGAffineTransform(scaleX: compactPhone ? 0.56 : 0.62, y: compactPhone ? 0.56 : 0.62)
     switchHolder.addSubview(control)
     NSLayoutConstraint.activate([
       control.centerXAnchor.constraint(equalTo: switchHolder.centerXAnchor),
@@ -1349,7 +1396,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     stack.spacing = 3
     stack.alignment = .center
     stack.distribution = .fill
-    stack.heightAnchor.constraint(equalToConstant: 24).isActive = true
+    stack.heightAnchor.constraint(equalToConstant: compactPhone ? 22 : 24).isActive = true
     return stack
   }
 

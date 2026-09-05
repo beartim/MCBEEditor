@@ -26,19 +26,27 @@ enum ConsecutiveNBTCodec {
                 ))
             } catch {
                 if records.isEmpty {
-                    var fallbackCursor = BinaryCursor(data: data)
+                    let littleEndianError = error
                     do {
-                        let fallback = try BedrockNBTCodec.decodeDocument(
-                            cursor: &fallbackCursor, encoding: .littleEndianVarInt)
-                        let trailing = data[fallbackCursor.offset..<data.count]
-                        guard trailing.allSatisfy({ $0 == 0 }) else {
-                            throw MCBEEditorError.malformedData("VarInt NBT 后仍有未解析数据")
-                        }
+                        let fallback = try BedrockNBTCodec.decode(data, encoding: .littleEndianVarInt)
+                        // `decode` intentionally permits trailing bytes. For a fallback
+                        // codec that is dangerous: ordinary little-endian NBT beginning
+                        // with 0A 00 00 can otherwise be misread as an empty VarInt
+                        // Compound and silently turn a real actor into “未知实体”. Only
+                        // accept the fallback when it round-trips the entire payload.
+                        let reencoded = try BedrockNBTCodec.encode(fallback, encoding: .littleEndianVarInt)
+                        let trailing = data.dropFirst(min(reencoded.count, data.count))
+                        guard data.count >= reencoded.count,
+                            data.prefix(reencoded.count) == reencoded,
+                            trailing.allSatisfy({ $0 == 0 })
+                        else { throw littleEndianError }
                         return [ConsecutiveNBTRecord(
-                            document: fallback, rawData: data, encoding: .littleEndianVarInt)]
+                            document: fallback, rawData: data, encoding: .littleEndianVarInt
+                        )]
                     } catch {
                         throw MCBEEditorError.malformedData(
-                            "NBT 既不是有效 Little Endian，也不是完整 VarInt：\(error.localizedDescription)")
+                            "连续 NBT 在偏移 \(before) 解析失败：\(littleEndianError.localizedDescription)"
+                        )
                     }
                 }
                 throw MCBEEditorError.malformedData("连续 NBT 在偏移 \(before) 解析失败：\(error.localizedDescription)")

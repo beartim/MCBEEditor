@@ -25,9 +25,7 @@ enum BedrockNBTCodec {
         return writer.data
     }
 
-    private static let binaryStringTagNames: Set<String> = ["StorageKey"]
-
-    private static func readPayload(type: NBTTagType, cursor: inout BinaryCursor, encoding: NBTEncoding, depth: Int, maximumDepth: Int, tagName: String? = nil) throws -> NBTValue {
+    private static func readPayload(type: NBTTagType, cursor: inout BinaryCursor, encoding: NBTEncoding, depth: Int, maximumDepth: Int) throws -> NBTValue {
         guard depth <= maximumDepth else { throw MCBEEditorError.malformedData("NBT 嵌套超过 \(maximumDepth) 层") }
         switch type {
         case .end:
@@ -56,7 +54,7 @@ enum BedrockNBTCodec {
             let count = try readLength(cursor: &cursor, encoding: encoding)
             return .byteArray(try cursor.readData(count: count))
         case .string:
-            return .string(try readString(cursor: &cursor, encoding: encoding, binarySafe: tagName.map(binaryStringTagNames.contains) ?? false))
+            return .string(try readString(cursor: &cursor, encoding: encoding))
         case .list:
             let elementRaw = try cursor.readByte()
             guard let elementType = NBTTagType(rawValue: elementRaw) else {
@@ -81,7 +79,7 @@ enum BedrockNBTCodec {
                 }
                 if childType == .end { break }
                 let name = try readString(cursor: &cursor, encoding: encoding)
-                let value = try readPayload(type: childType, cursor: &cursor, encoding: encoding, depth: depth + 1, maximumDepth: maximumDepth, tagName: name)
+                let value = try readPayload(type: childType, cursor: &cursor, encoding: encoding, depth: depth + 1, maximumDepth: maximumDepth)
                 tags.append(NBTNamedTag(name: name, value: value))
             }
             return .compound(tags)
@@ -112,7 +110,7 @@ enum BedrockNBTCodec {
         }
     }
 
-    private static func writePayload(_ value: NBTValue, writer: inout BinaryWriter, encoding: NBTEncoding, tagName: String? = nil) throws {
+    private static func writePayload(_ value: NBTValue, writer: inout BinaryWriter, encoding: NBTEncoding) throws {
         switch value {
         case .byte(let number):
             writer.writeByte(UInt8(bitPattern: number))
@@ -138,7 +136,7 @@ enum BedrockNBTCodec {
             try writeLength(bytes.count, writer: &writer, encoding: encoding)
             writer.writeData(bytes)
         case .string(let text):
-            try writeString(text, writer: &writer, encoding: encoding, binarySafe: tagName.map(binaryStringTagNames.contains) ?? false)
+            try writeString(text, writer: &writer, encoding: encoding)
         case .list(let elementType, let values):
             guard values.allSatisfy({ $0.type == elementType }) else {
                 throw MCBEEditorError.malformedData("NBT List 中存在不同类型元素")
@@ -150,7 +148,7 @@ enum BedrockNBTCodec {
             for tag in tags {
                 writer.writeByte(tag.value.type.rawValue)
                 try writeString(tag.name, writer: &writer, encoding: encoding)
-                try writePayload(tag.value, writer: &writer, encoding: encoding, tagName: tag.name)
+                try writePayload(tag.value, writer: &writer, encoding: encoding)
             }
             writer.writeByte(NBTTagType.end.rawValue)
         case .intArray(let values):
@@ -198,7 +196,7 @@ enum BedrockNBTCodec {
         }
     }
 
-    private static func readString(cursor: inout BinaryCursor, encoding: NBTEncoding, binarySafe: Bool = false) throws -> String {
+    private static func readString(cursor: inout BinaryCursor, encoding: NBTEncoding) throws -> String {
         let length: Int
         switch encoding {
         case .bigEndian:
@@ -213,19 +211,12 @@ enum BedrockNBTCodec {
             length = Int(value)
         }
         let data = try cursor.readData(count: length)
-        if let text = String(data: data, encoding: .utf8) { return text }
-        if binarySafe, let text = String(data: data, encoding: .isoLatin1) { return text }
-        throw MCBEEditorError.malformedData("NBT 字符串不是 UTF-8")
+        return NBTRawStringCodec.decode(data)
     }
 
-    private static func writeString(_ value: String, writer: inout BinaryWriter, encoding: NBTEncoding, binarySafe: Bool = false) throws {
-        let data: Data
-        if binarySafe, let latin1 = value.data(using: .isoLatin1) {
-            data = latin1
-        } else if let utf8 = value.data(using: .utf8) {
-            data = utf8
-        } else {
-            throw MCBEEditorError.malformedData("字符串无法编码")
+    private static func writeString(_ value: String, writer: inout BinaryWriter, encoding: NBTEncoding) throws {
+        guard let data = NBTRawStringCodec.encodedData(for: value) else {
+            throw MCBEEditorError.malformedData("字符串无法编码，或原始字符串标记已损坏")
         }
         switch encoding {
         case .bigEndian:
