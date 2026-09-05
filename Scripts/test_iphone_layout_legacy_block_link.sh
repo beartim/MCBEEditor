@@ -5,16 +5,22 @@ MAP="$ROOT/Sources/UI/WorldMapViewController.swift"
 PANEL="$ROOT/Sources/UI/MapBlockDetailPanelView.swift"
 STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
 
-# Portrait iPhone controls must use a two-row header and short labels instead
-# of letting titles collapse into ellipses/zero-width labels.
+# Portrait iPhone controls use two compact centered rows, but keep the same
+# complete labels as iPad.  Intrinsic-width groups prevent the large empty
+# holes that equalCentering created in the previous layout.
 grep -q 'coordinates = UIStackView(arrangedSubviews: \[displayOptions, renderControls\])' "$MAP"
-grep -q 'displayOptions.distribution = compactPhone ? .equalCentering : .fill' "$MAP"
-grep -q 'renderControls.distribution = compactPhone ? .equalCentering : .fill' "$MAP"
+grep -q 'coordinates.alignment = .center' "$MAP"
+grep -q 'displayOptions.distribution = .fill' "$MAP"
+grep -q 'renderControls.distribution = .fill' "$MAP"
+grep -q 'displayOptions.spacing = compactPhone ? 14 : 14' "$MAP"
+grep -q 'centerCoordinateTitle = label("渲染中心坐标")' "$MAP"
+grep -q 'titleLabel.text = title' "$MAP"
 grep -q 'titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow' "$MAP"
 grep -q 'stack.setContentHuggingPriority(.required, for: .horizontal)' "$MAP"
-grep -q 'case "自动渲染": titleLabel.text = "自动"' "$MAP"
-grep -q 'case "区块网格": titleLabel.text = "网格"' "$MAP"
-grep -q 'case "选择区块": titleLabel.text = "区块"' "$MAP"
+! grep -q 'case "自动渲染": titleLabel.text = "自动"' "$MAP"
+! grep -q 'case "区块网格": titleLabel.text = "网格"' "$MAP"
+! grep -q 'case "选择区块": titleLabel.text = "区块"' "$MAP"
+! grep -q 'centerCoordinateTitle.text = "中心"' "$MAP"
 grep -q 'modeControl.setTitle("常加载"' "$MAP"
 grep -q 'modeControl.setTitle("史莱姆"' "$MAP"
 grep -q 'min(250, max(200, view.bounds.width \* 0.50))' "$MAP"

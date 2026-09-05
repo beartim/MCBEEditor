@@ -1032,7 +1032,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       field.keyboardType = .numbersAndPunctuation
       field.delegate = self
       field.font = UIFont.systemFont(ofSize: compactPhone ? 12 : 13, weight: .regular)
-      field.widthAnchor.constraint(equalToConstant: compactPhone ? 46 : 50).isActive = true
+      field.widthAnchor.constraint(equalToConstant: compactPhone ? 56 : 50).isActive = true
       field.adjustsFontSizeToFitWidth = true
       field.minimumFontSize = compactPhone ? 9 : 10
     }
@@ -1084,8 +1084,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderButton.addTarget(self, action: #selector(renderFromFields), for: .touchUpInside)
 
     let centerCoordinateTitle = label("渲染中心坐标")
-    if compactPhone { centerCoordinateTitle.text = "中心" }
-    centerCoordinateTitle.font = UIFont.systemFont(ofSize: compactPhone ? 11 : 13, weight: .regular)
+    // Keep the same descriptive title as iPad.  The phone header now centers
+    // a compact intrinsic-width row instead of spreading abbreviated labels
+    // across the whole screen, so the full wording fits without ellipsis.
+    centerCoordinateTitle.font = UIFont.systemFont(ofSize: compactPhone ? 11.5 : 13, weight: .regular)
     centerCoordinateTitle.numberOfLines = 1
     centerCoordinateTitle.adjustsFontSizeToFitWidth = true
     centerCoordinateTitle.minimumScaleFactor = 0.70
@@ -1107,19 +1109,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = compactPhone ? 0 : 14
+    displayOptions.spacing = compactPhone ? 14 : 14
     displayOptions.alignment = .center
-    // On portrait iPhone keep the three compact label+switch pairs on one
-    // physical row.  `.fillEqually` stretched each pair to one third of the
-    // screen, leaving its label at the left edge and its switch at the right
-    // edge; visually the switch looked detached from its title.  Equal
-    // centering preserves every pair's intrinsic width and distributes the
-    // three complete controls across the row instead.
-    displayOptions.distribution = compactPhone ? .equalCentering : .fill
-    if compactPhone {
-      displayOptions.isLayoutMarginsRelativeArrangement = true
-      displayOptions.layoutMargins = UIEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
-    }
+    // On portrait iPhone keep every title+switch pair at its intrinsic width
+    // and center the complete row.  Using equalCentering across the full
+    // screen created large empty gaps; the full iPad wording now fits while
+    // the three controls remain visually grouped.
+    displayOptions.distribution = .fill
     displayOptions.setContentHuggingPriority(.required, for: .horizontal)
     displayOptions.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1129,17 +1125,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       renderButton,
     ])
     renderControls.axis = .horizontal
-    renderControls.spacing = compactPhone ? 5 : 7
+    renderControls.spacing = compactPhone ? 6 : 7
     renderControls.alignment = .center
-    // The second iPhone row is dedicated to render-center controls only:
-    // 中心 | X value | Z value | 渲染.  Keep the three logical groups on the
-    // same line and distribute them without allowing one label to consume the
-    // spare width.
-    renderControls.distribution = compactPhone ? .equalCentering : .fill
-    if compactPhone {
-      renderControls.isLayoutMarginsRelativeArrangement = true
-      renderControls.layoutMargins = UIEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
-    }
+    // Keep "渲染中心坐标 / X / Z / 渲染" as one compact intrinsic-width
+    // group.  The surrounding vertical stack centers it on iPhone, avoiding
+    // the large inter-item holes produced by equalCentering.
+    renderControls.distribution = .fill
     renderControls.setContentHuggingPriority(.required, for: .horizontal)
     renderControls.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1155,7 +1146,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       coordinates = UIStackView(arrangedSubviews: [displayOptions, renderControls])
       coordinates.axis = .vertical
       coordinates.spacing = 2
-      coordinates.alignment = .fill
+      // Center both intrinsic-width rows.  This uses the free horizontal
+      // space as balanced outer margins rather than blank space between
+      // controls, and lets iPhone use the same full labels as iPad.
+      coordinates.alignment = .center
       coordinates.distribution = .fillEqually
       coordinates.heightAnchor.constraint(equalToConstant: 58).isActive = true
     } else {
@@ -1381,28 +1375,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private func compactSwitch(title: String, control: UISwitch) -> UIStackView {
     let compactPhone = UIDevice.current.userInterfaceIdiom == .phone
     let titleLabel = UILabel()
-    if compactPhone {
-      switch title {
-      case "自动渲染": titleLabel.text = "自动"
-      case "区块网格": titleLabel.text = "网格"
-      case "选择区块": titleLabel.text = "区块"
-      default: titleLabel.text = title
-      }
-    } else {
-      titleLabel.text = title
-    }
-    titleLabel.font = UIFont.systemFont(ofSize: compactPhone ? 10.5 : 13, weight: .regular)
+    // Use the same complete wording on iPhone and iPad.  The enclosing phone
+    // row is intrinsic-width and centered, so abbreviations are no longer
+    // necessary to prevent clipping.
+    titleLabel.text = title
+    titleLabel.font = UIFont.systemFont(ofSize: compactPhone ? 11.5 : 13, weight: .regular)
     titleLabel.textAlignment = .left
     titleLabel.adjustsFontSizeToFitWidth = true
-    titleLabel.minimumScaleFactor = compactPhone ? 0.72 : 0.82
+    titleLabel.minimumScaleFactor = compactPhone ? 0.88 : 0.82
     titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow, for: .horizontal)
     titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let switchHolder = UIView()
-    switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 34 : 39).isActive = true
+    switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 36 : 39).isActive = true
     switchHolder.heightAnchor.constraint(equalToConstant: compactPhone ? 20 : 22).isActive = true
     control.translatesAutoresizingMaskIntoConstraints = false
-    control.transform = CGAffineTransform(scaleX: compactPhone ? 0.56 : 0.62, y: compactPhone ? 0.56 : 0.62)
+    control.transform = CGAffineTransform(scaleX: compactPhone ? 0.59 : 0.62, y: compactPhone ? 0.59 : 0.62)
     switchHolder.addSubview(control)
     NSLayoutConstraint.activate([
       control.centerXAnchor.constraint(equalTo: switchHolder.centerXAnchor),
