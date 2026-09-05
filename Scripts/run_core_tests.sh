@@ -4232,3 +4232,5 @@ swiftc -j 4 \
 "$ROOT/Scripts/test_viewed_unsaved_sync.sh"
 
 "$ROOT/Scripts/test_legacy_zlib_and_selection_export.sh"
+
+"$ROOT/Scripts/test_actor_binary_storage_key.sh"

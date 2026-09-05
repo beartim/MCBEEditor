@@ -2,6 +2,7 @@
 
 ## 实体导入与实体命令浮点坐标
 
+- 修复 Minecraft 1.26.33 等新版本现代 Actor 中 `internalComponents/EntityStorageKeyComponent/StorageKey` 含任意二进制字节时被当作 UTF-8 String 解码失败的问题；二进制 StorageKey 现在可逐字节无损读写，且 VarInt NBT 回退必须完整消费输入，避免实体被误解析成空 NBT/“未知实体”。
 - 从实体 NBT／JSON 文件导入时不再补充通用默认实体标签，只覆盖/补入 `Pos` 与 `UniqueID`；导入对象不再要求 identifier。
 - `DimensionId` 缺失时在“导入全部”阶段选择主世界/下界/末地，选择结果只用于实体数据库存储位置，不会向 NBT 中写入 `DimensionId`。
 - `teleport` 与 `summon` 坐标支持浮点数。玩家 teleport 的 Y 参数若为整数或 `Auto`，实际 `Pos[1]` 增加 1.62；若 Y 以浮点形式输入则直接写入。`spread` 对玩家同样在 Auto 落脚高度上增加 1.62。

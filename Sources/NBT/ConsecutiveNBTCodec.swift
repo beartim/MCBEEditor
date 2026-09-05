@@ -26,8 +26,20 @@ enum ConsecutiveNBTCodec {
                 ))
             } catch {
                 if records.isEmpty {
-                    let fallback = try BedrockNBTCodec.decode(data, encoding: .littleEndianVarInt)
-                    return [ConsecutiveNBTRecord(document: fallback, rawData: data, encoding: .littleEndianVarInt)]
+                    var fallbackCursor = BinaryCursor(data: data)
+                    do {
+                        let fallback = try BedrockNBTCodec.decodeDocument(
+                            cursor: &fallbackCursor, encoding: .littleEndianVarInt)
+                        let trailing = data[fallbackCursor.offset..<data.count]
+                        guard trailing.allSatisfy({ $0 == 0 }) else {
+                            throw MCBEEditorError.malformedData("VarInt NBT 后仍有未解析数据")
+                        }
+                        return [ConsecutiveNBTRecord(
+                            document: fallback, rawData: data, encoding: .littleEndianVarInt)]
+                    } catch {
+                        throw MCBEEditorError.malformedData(
+                            "NBT 既不是有效 Little Endian，也不是完整 VarInt：\(error.localizedDescription)")
+                    }
                 }
                 throw MCBEEditorError.malformedData("连续 NBT 在偏移 \(before) 解析失败：\(error.localizedDescription)")
             }
