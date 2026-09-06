@@ -4204,6 +4204,13 @@ struct EffectCommandTest {
         if case .blockEntity = getBlock.outputLines[1].style {} else { preconditionFailure("getblock BlockEntity line must be purple style") }
         let getBlockWithoutEntity = try executor.execute(try WorldCommandParser.parse("getblock overworld 2 0 0"))
         precondition(getBlockWithoutEntity.outputLines[1].text == "BlockEntity=NULL")
+        let getBlockNotGenerated = try executor.execute(try WorldCommandParser.parse("getblock overworld 32 0 32"))
+        precondition(getBlockNotGenerated.outputLines[0].text == "Block=NULL")
+        precondition(getBlockNotGenerated.outputLines[1].text == "BlockEntity=NULL")
+        let storageQueryNotGenerated = try executor.execute(try WorldCommandParser.parse("storage query overworld 32 0 32"))
+        precondition(storageQueryNotGenerated.message == "Block not generated")
+        precondition(storageQueryNotGenerated.outputLines.count == 1)
+        if case .success = storageQueryNotGenerated.outputLines[0].style {} else { preconditionFailure("storage query for not-generated blocks must use success style") }
 
         _ = try executor.execute(try WorldCommandParser.parse("storage delete overworld 0 0 0 8"))
         multiSub = try BedrockSubChunk.decode(try session.db.get(sourceKey)!, keyYIndex: 0)

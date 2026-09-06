@@ -152,9 +152,14 @@ final class WorldCommandExecutor {
     ) throws -> WorldCommandExecutionResult {
         let store = try CommandBlockStore(session: session, dimension: dimension)
         let result = try store.getBlock(at: position)
-        let blockText = "Block=[" + result.storages.enumerated().map { index, state in
-            "Storage\(index)=[\(CommandNBTOutputFormatter.blockState(state))]"
-        }.joined(separator: ",") + "]"
+        let blockText: String
+        if let storages = result.storages {
+            blockText = "Block=[" + storages.enumerated().map { index, state in
+                "Storage\(index)=[\(CommandNBTOutputFormatter.blockState(state))]"
+            }.joined(separator: ",") + "]"
+        } else {
+            blockText = "Block=NULL"
+        }
         let blockEntityText: String
         if let document = result.blockEntity {
             blockEntityText = "BlockEntity=[\(CommandNBTOutputFormatter.root(document.root))]"
@@ -174,8 +179,12 @@ final class WorldCommandExecutor {
     private func executeStorage(_ operation: CommandStorageOperation) throws -> WorldCommandExecutionResult {
         switch operation {
         case .query(let dimension, let position):
-            let states = try CommandBlockStore(session: session, dimension: dimension).queryStorages(at: position)
-            let lines = states.enumerated().map { index, state in
+            let result = try CommandBlockStore(session: session, dimension: dimension).queryStorages(at: position)
+            if result.isNotGenerated {
+                let line = WorldCommandOutputLine(text: "Block not generated", style: .success)
+                return WorldCommandExecutionResult(message: line.text, changedWorld: false, outputLines: [line])
+            }
+            let lines = result.states.enumerated().map { index, state in
                 WorldCommandOutputLine(
                     text: "层\(index)=[\(CommandNBTOutputFormatter.blockState(state))]",
                     style: .block
@@ -183,6 +192,7 @@ final class WorldCommandExecutor {
             }
             let message = lines.isEmpty ? "storage query：该位置没有可用的 storage。" : lines.map(\.text).joined(separator: "\n")
             return WorldCommandExecutionResult(message: message, changedWorld: false, outputLines: lines)
+
 
         case .set(let dimension, let position, let layer, let block):
             let message = try CommandBlockStore(session: session, dimension: dimension)
@@ -1847,6 +1857,11 @@ private final class CommandBlockStore {
         case value(MutableCommandSubChunk)
     }
 
+    struct StorageQueryResult {
+        let states: [BedrockBlockState]
+        let isNotGenerated: Bool
+    }
+
     private let session: WorldSession
     private let dimension: Int32
     private let database: MojangLevelDB
@@ -1917,10 +1932,15 @@ private final class CommandBlockStore {
 
     // MARK: direct block/storage commands
 
-    func getBlock(at coordinate: CommandBlockCoordinate) throws -> (storages: [BedrockBlockState], blockEntity: NBTDocument?) {
+    func getBlock(at coordinate: CommandBlockCoordinate) throws -> (storages: [BedrockBlockState]?, blockEntity: NBTDocument?) {
         try validateHorizontal(coordinate.x, name: "X")
         try validateHorizontal(coordinate.z, name: "Z")
         let key = try subKey(for: coordinate)
+        let loadedEntities = try loadBlockEntities(for: Set([key.chunk]))
+        let entityKey = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
+        guard availableChunks.contains(key.chunk) else {
+            return (nil, loadedEntities.documents[entityKey])
+        }
         let index = localIndex(for: coordinate)
         let states: [BedrockBlockState]
         switch try load(key) {
@@ -1934,18 +1954,19 @@ private final class CommandBlockStore {
             }
             states = subChunk.allStates(linearIndex: index)
         }
-        let loadedEntities = try loadBlockEntities(for: Set([key.chunk]))
-        let entityKey = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
         return (states, loadedEntities.documents[entityKey])
     }
 
-    func queryStorages(at coordinate: CommandBlockCoordinate) throws -> [BedrockBlockState] {
+    func queryStorages(at coordinate: CommandBlockCoordinate) throws -> StorageQueryResult {
         let key = try subKey(for: coordinate)
+        guard availableChunks.contains(key.chunk) else {
+            return StorageQueryResult(states: [], isNotGenerated: true)
+        }
         guard case .value(let subChunk) = try load(key) else {
             throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
         }
         try requireV8OrNewerStructured(subChunk)
-        return subChunk.allStates(linearIndex: localIndex(for: coordinate))
+        return StorageQueryResult(states: subChunk.allStates(linearIndex: localIndex(for: coordinate)), isNotGenerated: false)
     }
 
     func setStorage(at coordinate: CommandBlockCoordinate, layer: Int, block: CommandBlockStateSpec) throws -> String {

@@ -147,6 +147,18 @@ private struct RenderedMapRegion {
   let visibleTickingChunkCount: Int
 }
 
+private enum MapUngeneratedChunkLiveDisplay {
+  case hidden
+  case texture
+
+  var exportMode: MapUngeneratedChunkDisplayMode {
+    switch self {
+    case .hidden: return .air
+    case .texture: return .texture
+    }
+  }
+}
+
 private final class MapObjectOverlayView: UIView {
   private let villageBoundsLayer = CAShapeLayer()
   private let villageCenterLayer = CAShapeLayer()
@@ -837,6 +849,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private var showHardcodedSpawners = false
   private var showVillages = false
   private var showSpawnPoints = true
+  private var showUngeneratedChunks = false
   private var isZooming = false
   private var zoomHUDWorkItem: DispatchWorkItem?
   private var isSelectionMode = false
@@ -1109,7 +1122,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = compactPhone ? 14 : 14
+    displayOptions.spacing = compactPhone ? 20 : 16
     displayOptions.alignment = .center
     // On portrait iPhone keep every title+switch pair at its intrinsic width
     // and center the complete row.  Using equalCentering across the full
@@ -1125,7 +1138,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       renderButton,
     ])
     renderControls.axis = .horizontal
-    renderControls.spacing = compactPhone ? 6 : 7
+    renderControls.spacing = compactPhone ? 10 : 9
     renderControls.alignment = .center
     // Keep "渲染中心坐标 / X / Z / 渲染" as one compact intrinsic-width
     // group.  The surrounding vertical stack centers it on iPhone, avoiding
@@ -1145,13 +1158,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       // budget while keeping every label and the X/Z editor visible.
       coordinates = UIStackView(arrangedSubviews: [displayOptions, renderControls])
       coordinates.axis = .vertical
-      coordinates.spacing = 2
+      coordinates.spacing = 6
       // Center both intrinsic-width rows.  This uses the free horizontal
       // space as balanced outer margins rather than blank space between
       // controls, and lets iPhone use the same full labels as iPad.
       coordinates.alignment = .center
       coordinates.distribution = .fillEqually
-      coordinates.heightAnchor.constraint(equalToConstant: 58).isActive = true
+      coordinates.heightAnchor.constraint(equalToConstant: 64).isActive = true
     } else {
       coordinates = UIStackView(arrangedSubviews: [displayOptions, flexibleSpacer, renderControls])
       coordinates.axis = .horizontal
@@ -1161,7 +1174,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       coordinates.heightAnchor.constraint(equalToConstant: 44).isActive = true
     }
     coordinates.isLayoutMarginsRelativeArrangement = true
-    coordinates.layoutMargins = UIEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+    coordinates.layoutMargins = UIEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
 
     let segmentHeight: CGFloat = compactPhone ? 32 : 36
     coordinateModeControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
@@ -1794,6 +1807,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           }
           uniqueObjects[object.stableID] = object
         }
+        let generatedChunkPositions = Set(try BedrockChunkStore(session: self.session).listChunks().filter { summary in
+          summary.position.dimension == dimension
+            && (summary.hasTerrain || summary.biomeRecordType != nil
+                || summary.hasBlockEntities || summary.hasLegacyEntities
+                || summary.recordCount > (summary.hasActorDigest ? 1 : 0))
+        }.map(\.position))
         let result = try self.renderRegion(
           renderer: renderer,
           centerX: centerX,
@@ -1803,6 +1822,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           leftChunks: leftChunks,
           mode: mode,
           drawGrid: drawGrid,
+          generatedChunkPositions: generatedChunkPositions,
+          ungeneratedDisplay: self.showUngeneratedChunks ? .texture : .air,
           spawnCoordinates: spawns,
           playerCoordinates: playerCoordinates,
           worldObjects: Array(uniqueObjects.values),
@@ -1972,6 +1993,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     leftChunks: Int,
     mode: MapRenderMode,
     drawGrid: Bool,
+    generatedChunkPositions: Set<ChunkPosition>,
+    ungeneratedDisplay: MapUngeneratedChunkDisplayMode,
     spawnCoordinates: [MapSpawnCoordinate],
     playerCoordinates: [MapPlayerCoordinate],
     worldObjects: [BedrockWorldObject],
@@ -2002,6 +2025,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       ? Array(repeating: Int16.min, count: sideBlocks * sideBlocks)
       : []
     var chunkImages = [UIImage?](repeating: nil, count: samplingPlan.sampleCount)
+    var ungeneratedTiles = [Bool](repeating: false, count: samplingPlan.sampleCount)
     var decoded = 0
     var errors = additionalErrors
     var cacheHits = 0
@@ -2116,6 +2140,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       decoded += chunk.decodedSubChunks
       errors.append(contentsOf: chunk.errors.map { "(\(chunkX),\(chunkZ)) \($0)" })
       chunkImages[imageIndex] = chunk.image
+      ungeneratedTiles[imageIndex] = !generatedChunkPositions.contains(
+        ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension))
       if keepsPerBlockMetadata {
         for localZ in 0..<16 {
           for localX in 0..<16 {
@@ -2210,7 +2236,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let rendererSide = min(logicalSide, maximumMapRasterSidePixels)
     let blockToRenderer = rendererSide / logicalSide
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = true
+    format.opaque = ungeneratedDisplay != .transparent
     if logicalSide <= maximumMapRasterSidePixels {
       format.scale = max(1, min(8, floor(maximumMapRasterSidePixels / logicalSide)))
     } else {
@@ -2224,24 +2250,35 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       cg.interpolationQuality = .none
       cg.setAllowsAntialiasing(false)
       cg.setShouldAntialias(false)
-      UIColor.systemGray5.setFill()
-      context.fill(CGRect(x: 0, y: 0, width: rendererSide, height: rendererSide))
+      if ungeneratedDisplay != .transparent {
+        UIColor.systemGray5.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: rendererSide, height: rendererSide))
+      }
 
       for (zIndex, zSample) in samplingPlan.zAxis.enumerated() {
         for (xIndex, xSample) in samplingPlan.xAxis.enumerated() {
-          guard let chunkImage = chunkImages[zIndex * samplingPlan.xAxis.count + xIndex] else {
-            continue
-          }
+          let index = zIndex * samplingPlan.xAxis.count + xIndex
           let logicalX = CGFloat(xSample.startOffset + leftChunks) * 16
           let logicalZ = CGFloat(zSample.startOffset + leftChunks) * 16
-          chunkImage.draw(
-            in: CGRect(
-              x: logicalX * blockToRenderer,
-              y: logicalZ * blockToRenderer,
-              width: CGFloat(xSample.span * 16) * blockToRenderer,
-              height: CGFloat(zSample.span * 16) * blockToRenderer
-            )
+          let rect = CGRect(
+            x: logicalX * blockToRenderer,
+            y: logicalZ * blockToRenderer,
+            width: CGFloat(xSample.span * 16) * blockToRenderer,
+            height: CGFloat(zSample.span * 16) * blockToRenderer
           )
+          guard let chunkImage = chunkImages[index] else { continue }
+          let isUngenerated = ungeneratedTiles[index]
+          switch ungeneratedDisplay {
+          case .transparent:
+            if !isUngenerated { chunkImage.draw(in: rect) }
+          case .air:
+            chunkImage.draw(in: rect)
+          case .texture:
+            chunkImage.draw(in: rect)
+            if isUngenerated {
+              self.drawUngeneratedChunkTexture(context: cg, in: rect)
+            }
+          }
         }
       }
 
@@ -4458,7 +4495,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let alert = UIAlertController(
       title: "地图对象图层",
       message:
-        "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点。玩家与出生点图层默认开启。",
+        "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；未生成区块纹理会以固定密度显示。玩家与出生点图层默认开启，未生成区块默认关闭。",
       preferredStyle: .actionSheet
     )
     let playerTitle = showPlayers ? "✓ 显示玩家" : "显示玩家"
@@ -4467,6 +4504,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let spawnTitle = showSpawnPoints ? "✓ 显示出生点" : "显示出生点"
     let spawnerTitle = showHardcodedSpawners ? "✓ 显示 HardcodedSpawners" : "显示 HardcodedSpawners"
     let villageTitle = showVillages ? "✓ 显示村庄" : "显示村庄"
+    let ungeneratedTitle = showUngeneratedChunks ? "✓ 显示未生成区块" : "显示未生成区块"
     alert.addAction(
       UIAlertAction(title: playerTitle, style: .default) { [weak self] _ in
         guard let self = self else { return }
@@ -4509,6 +4547,21 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.refreshObjectOverlays(reason: "村庄图层")
       })
     alert.addAction(
+      UIAlertAction(title: ungeneratedTitle, style: .default) { [weak self] _ in
+        guard let self = self else { return }
+        self.showUngeneratedChunks.toggle()
+        self.saveMapState()
+        let anchor = self.currentViewportAnchor()
+        let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
+        self.render(
+          centerX: center.0,
+          centerZ: center.1,
+          anchor: anchor,
+          reason: "未生成区块图层",
+          showOverlay: false
+        )
+      })
+    alert.addAction(
       UIAlertAction(title: "全部显示", style: .default) { [weak self] _ in
         guard let self = self else { return }
         self.showPlayers = true
@@ -4517,7 +4570,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showHardcodedSpawners = true
         self.showVillages = true
         self.showSpawnPoints = true
-        self.refreshObjectOverlays(reason: "对象图层")
+        self.showUngeneratedChunks = true
+        self.saveMapState()
+        let anchor = self.currentViewportAnchor()
+        let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
+        self.render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "对象图层", showOverlay: false)
       })
     alert.addAction(
       UIAlertAction(title: "全部隐藏", style: .destructive) { [weak self] _ in
@@ -4528,10 +4585,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showHardcodedSpawners = false
         self.showVillages = false
         self.showSpawnPoints = false
+        self.showUngeneratedChunks = false
         self.selectedSpawnerID = nil
         self.selectedVillageID = nil
         self.selectedVillageEntityIDs.removeAll()
-        self.refreshObjectOverlays(reason: "对象图层")
+        self.saveMapState()
+        let anchor = self.currentViewportAnchor()
+        let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
+        self.render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "对象图层", showOverlay: false)
       })
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
     alert.popoverPresentationController?.barButtonItem = overlayButton
@@ -4839,6 +4900,59 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     context.restoreGState()
   }
 
+
+  private func drawUngeneratedChunkAirBase(context: CGContext, in rect: CGRect) {
+    context.setFillColor(UIColor(red: 0.90, green: 0.90, blue: 0.90, alpha: 1).cgColor)
+    context.fill(rect)
+  }
+
+  private func drawUngeneratedChunkTexture(context: CGContext, in rect: CGRect) {
+    guard rect.width > 0, rect.height > 0 else { return }
+    context.saveGState()
+    context.clip(to: rect)
+    context.setFillColor(UIColor(white: 0.92, alpha: 0.62).cgColor)
+    context.fill(rect)
+
+    let primary = UIColor(white: 0.52, alpha: 0.48).cgColor
+    let accent = UIColor(red: 0.42, green: 0.56, blue: 0.70, alpha: 0.22).cgColor
+
+    context.setStrokeColor(primary)
+    context.setLineWidth(max(1, min(rect.width, rect.height) * 0.05))
+    let stripeSpacing: CGFloat = 8
+    var stripe = rect.minX - rect.height
+    while stripe <= rect.maxX {
+      context.move(to: CGPoint(x: stripe, y: rect.minY))
+      context.addLine(to: CGPoint(x: stripe + rect.height, y: rect.maxY))
+      stripe += stripeSpacing
+    }
+    context.strokePath()
+
+    context.setStrokeColor(accent)
+    context.setLineWidth(max(0.8, min(rect.width, rect.height) * 0.03))
+    let reverseSpacing: CGFloat = 16
+    stripe = rect.minX
+    while stripe <= rect.maxX + rect.height {
+      context.move(to: CGPoint(x: stripe, y: rect.minY))
+      context.addLine(to: CGPoint(x: stripe - rect.height, y: rect.maxY))
+      stripe += reverseSpacing
+    }
+    context.strokePath()
+
+    context.setFillColor(UIColor(white: 0.38, alpha: 0.28).cgColor)
+    let dotSpacing: CGFloat = 16
+    let dotSize: CGFloat = max(1.5, min(rect.width, rect.height) * 0.10)
+    var y = rect.minY + 3
+    while y < rect.maxY {
+      var x = rect.minX + 3
+      while x < rect.maxX {
+        context.fillEllipse(in: CGRect(x: x, y: y, width: dotSize, height: dotSize))
+        x += dotSpacing
+      }
+      y += dotSpacing
+    }
+    context.restoreGState()
+  }
+
   private func composeExportImage(
     base: UIImage,
     startBlockX: Int64,
@@ -4850,7 +4964,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     layers: MapImageExportLayers
   ) -> UIImage {
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = true
+    format.opaque = layers.ungeneratedDisplay != .transparent
     format.scale = base.scale
     return UIGraphicsImageRenderer(size: base.size, format: format).image { context in
       context.cgContext.interpolationQuality = .none
@@ -4916,7 +5030,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         blockEntities: showBlockEntities,
         hardcodedSpawners: showHardcodedSpawners,
         villages: showVillages,
-        spawnPoints: showSpawnPoints
+        spawnPoints: showSpawnPoints,
+        ungeneratedDisplay: .transparent
       ),
       hasSelectedRegion: isSelectionMode && selectedRegion != nil
     )
@@ -5042,6 +5157,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
               shouldCancel: { false }
             )
             : (hits: [MapHardcodedSpawnerHit](), diagnostics: [String]())
+          let generatedChunkPositions = Set(try BedrockChunkStore(session: self.session).listChunks().filter { summary in
+            summary.position.dimension == dimension
+              && (summary.hasTerrain || summary.biomeRecordType != nil
+                  || summary.hasBlockEntities || summary.hasLegacyEntities
+                  || summary.recordCount > (summary.hasActorDigest ? 1 : 0))
+          }.map(\.position))
           let rendered = try self.renderRegion(
             renderer: renderer,
             centerX: exportCenterX,
@@ -5051,6 +5172,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             leftChunks: exportLeftChunks,
             mode: mode,
             drawGrid: drawGrid,
+            generatedChunkPositions: generatedChunkPositions,
+            ungeneratedDisplay: layers.ungeneratedDisplay,
             spawnCoordinates: selectedSpawns,
             playerCoordinates: [],
             worldObjects: uniqueObjects,
@@ -5104,7 +5227,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             renderer: renderer,
             positions: positions,
             mode: mode,
-            drawGrid: drawGrid
+            drawGrid: drawGrid,
+            ungeneratedDisplay: layers.ungeneratedDisplay
           )
 
           var objects = [BedrockWorldObject]()
@@ -5213,7 +5337,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
 
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = true
+    format.opaque = false
     format.scale = image.scale
     return UIGraphicsImageRenderer(size: cropRect.size, format: format).image { _ in
       image.draw(at: CGPoint(x: -cropRect.minX, y: -cropRect.minY))
@@ -5224,7 +5348,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderer: ChunkSurfaceRenderer,
     positions: [ChunkPosition],
     mode: MapRenderMode,
-    drawGrid: Bool
+    drawGrid: Bool,
+    ungeneratedDisplay: MapUngeneratedChunkDisplayMode
   ) throws -> (
     image: UIImage, startBlockX: Int64, startBlockZ: Int64, widthBlocks: Int, heightBlocks: Int
   ) {
@@ -5247,7 +5372,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let longest = CGFloat(max(widthBlocks, heightBlocks))
     let outputScale = min(4.0, max(0.02, 6144.0 / max(longest, 1)))
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = true
+    format.opaque = ungeneratedDisplay != .transparent
     format.scale = outputScale
     let positionSet = Set(positions)
     var images = [(position: ChunkPosition, image: UIImage)]()
@@ -5266,8 +5391,33 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     ).image { context in
       context.cgContext.interpolationQuality = .none
       context.cgContext.setAllowsAntialiasing(false)
-      UIColor.systemGray5.setFill()
-      context.fill(CGRect(x: 0, y: 0, width: widthBlocks, height: heightBlocks))
+      if ungeneratedDisplay != .transparent {
+        UIColor.systemGray5.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: widthBlocks, height: heightBlocks))
+      }
+      if ungeneratedDisplay != .transparent {
+        for z in minimumZ...maximumZ {
+          for x in minimumX...maximumX {
+            let position = ChunkPosition(x: x, z: z, dimension: positions.first?.dimension ?? 0)
+            guard !positionSet.contains(position) else { continue }
+            let rect = CGRect(
+              x: Int(Int64(x) - Int64(minimumX)) * 16,
+              y: Int(Int64(z) - Int64(minimumZ)) * 16,
+              width: 16,
+              height: 16
+            )
+            switch ungeneratedDisplay {
+            case .transparent:
+              break
+            case .air:
+              drawUngeneratedChunkAirBase(context: context.cgContext, in: rect)
+            case .texture:
+              drawUngeneratedChunkAirBase(context: context.cgContext, in: rect)
+              drawUngeneratedChunkTexture(context: context.cgContext, in: rect)
+            }
+          }
+        }
+      }
       for item in images {
         let x = Int(Int64(item.position.x) - Int64(minimumX)) * 16
         let z = Int(Int64(item.position.z) - Int64(minimumZ)) * 16
@@ -5276,10 +5426,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       if drawGrid {
         context.cgContext.setStrokeColor(UIColor.label.withAlphaComponent(0.34).cgColor)
         context.cgContext.setLineWidth(max(0.18, 1.0 / max(outputScale, 0.02)))
-        for position in positionSet {
-          let x = Int(Int64(position.x) - Int64(minimumX)) * 16
-          let z = Int(Int64(position.z) - Int64(minimumZ)) * 16
-          context.cgContext.stroke(CGRect(x: x, y: z, width: 16, height: 16))
+        for z in minimumZ...maximumZ {
+          for x in minimumX...maximumX {
+            let rect = CGRect(
+              x: Int(Int64(x) - Int64(minimumX)) * 16,
+              y: Int(Int64(z) - Int64(minimumZ)) * 16,
+              width: 16,
+              height: 16
+            )
+            context.cgContext.stroke(rect)
+          }
         }
       }
     }
@@ -5415,6 +5571,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       if defaults.object(forKey: mapStatePrefix + "showSpawnPoints") != nil {
         showSpawnPoints = defaults.bool(forKey: mapStatePrefix + "showSpawnPoints")
       }
+      if defaults.object(forKey: mapStatePrefix + "showUngeneratedChunks") != nil {
+        showUngeneratedChunks = defaults.bool(forKey: mapStatePrefix + "showUngeneratedChunks")
+      }
     }
     for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
       defaults.removeObject(forKey: mapStatePrefix + key)
@@ -5436,6 +5595,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     defaults.set(showHardcodedSpawners, forKey: mapStatePrefix + "showHardcodedSpawners")
     defaults.set(showVillages, forKey: mapStatePrefix + "showVillages")
     defaults.set(showSpawnPoints, forKey: mapStatePrefix + "showSpawnPoints")
+    defaults.set(showUngeneratedChunks, forKey: mapStatePrefix + "showUngeneratedChunks")
     for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
       defaults.removeObject(forKey: mapStatePrefix + key)
     }
