@@ -1112,11 +1112,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     displayOptions.axis = .horizontal
     displayOptions.spacing = compactPhone ? 20 : 16
     displayOptions.alignment = .center
-    // On portrait iPhone keep every title+switch pair at its intrinsic width
-    // and center the complete row.  Using equalCentering across the full
-    // screen created large empty gaps; the full iPad wording now fits while
-    // the three controls remain visually grouped.
-    displayOptions.distribution = .fill
+    // On portrait iPhone the row now stretches to match the render-controls
+    // row width, using equalSpacing so the three switch groups breathe a bit
+    // more while both top rows keep the same visual length.
+    displayOptions.distribution = .equalSpacing
     displayOptions.setContentHuggingPriority(.required, for: .horizontal)
     displayOptions.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1128,10 +1127,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderControls.axis = .horizontal
     renderControls.spacing = compactPhone ? 10 : 9
     renderControls.alignment = .center
-    // Keep "渲染中心坐标 / X / Z / 渲染" as one compact intrinsic-width
-    // group.  The surrounding vertical stack centers it on iPhone, avoiding
-    // the large inter-item holes produced by equalCentering.
-    renderControls.distribution = .fill
+    // Match the phone switch row width and distribute the title / XZ editor
+    // / button with equalSpacing, so the second row remains readable and has
+    // the same visual length as the first row.
+    renderControls.distribution = .equalSpacing
     renderControls.setContentHuggingPriority(.required, for: .horizontal)
     renderControls.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -1146,10 +1145,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       // budget while keeping every label and the X/Z editor visible.
       coordinates = UIStackView(arrangedSubviews: [displayOptions, renderControls])
       coordinates.axis = .vertical
-      coordinates.spacing = 6
-      // Center both intrinsic-width rows.  This uses the free horizontal
-      // space as balanced outer margins rather than blank space between
-      // controls, and lets iPhone use the same full labels as iPad.
+      coordinates.spacing = 8
+      // Keep the two phone rows visually aligned and equally long.  The row
+      // stacks share a width, then use equalSpacing internally so controls are
+      // slightly more spread out without reverting to overly sparse layout.
+      displayOptions.widthAnchor.constraint(equalTo: renderControls.widthAnchor).isActive = true
       coordinates.alignment = .center
       coordinates.distribution = .fillEqually
       coordinates.heightAnchor.constraint(equalToConstant: 64).isActive = true
@@ -4898,48 +4898,29 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     guard rect.width > 0, rect.height > 0 else { return }
     context.saveGState()
     context.clip(to: rect)
-    context.setFillColor(UIColor(white: 0.92, alpha: 0.62).cgColor)
-    context.fill(rect)
+    context.setShouldAntialias(true)
+    context.setAllowsAntialiasing(true)
+    context.setLineCap(.round)
+    context.setStrokeColor(UIColor(white: 0.58, alpha: 0.72).cgColor)
+    context.setLineWidth(max(1.0, min(rect.width, rect.height) * 0.055))
 
-    let primary = UIColor(white: 0.52, alpha: 0.48).cgColor
-    let accent = UIColor(red: 0.42, green: 0.56, blue: 0.70, alpha: 0.22).cgColor
-
-    context.setStrokeColor(primary)
-    context.setLineWidth(max(1, min(rect.width, rect.height) * 0.05))
-    let stripeSpacing: CGFloat = 8
-    var stripe = rect.minX - rect.height
-    while stripe <= rect.maxX {
-      context.move(to: CGPoint(x: stripe, y: rect.minY))
-      context.addLine(to: CGPoint(x: stripe + rect.height, y: rect.maxY))
-      stripe += stripeSpacing
+    let inset = max(1.5, min(rect.width, rect.height) * 0.12)
+    let diagonal = rect.height - inset * 2
+    let startXs: [CGFloat] = [
+      rect.minX - rect.width * 0.18,
+      rect.minX + rect.width * 0.16,
+      rect.minX + rect.width * 0.50,
+    ]
+    for startX in startXs {
+      let startPoint = CGPoint(x: startX, y: rect.minY + inset)
+      let endPoint = CGPoint(x: startX + diagonal, y: rect.maxY - inset)
+      context.move(to: startPoint)
+      context.addLine(to: endPoint)
     }
     context.strokePath()
-
-    context.setStrokeColor(accent)
-    context.setLineWidth(max(0.8, min(rect.width, rect.height) * 0.03))
-    let reverseSpacing: CGFloat = 16
-    stripe = rect.minX
-    while stripe <= rect.maxX + rect.height {
-      context.move(to: CGPoint(x: stripe, y: rect.minY))
-      context.addLine(to: CGPoint(x: stripe - rect.height, y: rect.maxY))
-      stripe += reverseSpacing
-    }
-    context.strokePath()
-
-    context.setFillColor(UIColor(white: 0.38, alpha: 0.28).cgColor)
-    let dotSpacing: CGFloat = 16
-    let dotSize: CGFloat = max(1.5, min(rect.width, rect.height) * 0.10)
-    var y = rect.minY + 3
-    while y < rect.maxY {
-      var x = rect.minX + 3
-      while x < rect.maxX {
-        context.fillEllipse(in: CGRect(x: x, y: y, width: dotSize, height: dotSize))
-        x += dotSpacing
-      }
-      y += dotSpacing
-    }
     context.restoreGState()
   }
+
 
   private func composeExportImage(
     base: UIImage,
