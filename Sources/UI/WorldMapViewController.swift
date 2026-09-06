@@ -147,18 +147,6 @@ private struct RenderedMapRegion {
   let visibleTickingChunkCount: Int
 }
 
-private enum MapUngeneratedChunkLiveDisplay {
-  case hidden
-  case texture
-
-  var exportMode: MapUngeneratedChunkDisplayMode {
-    switch self {
-    case .hidden: return .air
-    case .texture: return .texture
-    }
-  }
-}
-
 private final class MapObjectOverlayView: UIView {
   private let villageBoundsLayer = CAShapeLayer()
   private let villageCenterLayer = CAShapeLayer()

@@ -7,12 +7,14 @@ STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
 
 # Portrait iPhone controls use two compact centered rows, but keep the same
 # complete labels as iPad.  Intrinsic-width groups prevent the large empty
-# holes that equalCentering created in the previous layout.
+# holes that equalCentering created in the previous layout; the current phone
+# layout intentionally uses slightly wider group/row spacing for readability.
 grep -q 'coordinates = UIStackView(arrangedSubviews: \[displayOptions, renderControls\])' "$MAP"
 grep -q 'coordinates.alignment = .center' "$MAP"
 grep -q 'displayOptions.distribution = .fill' "$MAP"
 grep -q 'renderControls.distribution = .fill' "$MAP"
-grep -q 'displayOptions.spacing = compactPhone ? 14 : 14' "$MAP"
+grep -q 'coordinates.spacing = 6' "$MAP"
+grep -q 'displayOptions.spacing = compactPhone ? 20 : 16' "$MAP"
 grep -q 'centerCoordinateTitle = label("渲染中心坐标")' "$MAP"
 grep -q 'titleLabel.text = title' "$MAP"
 grep -q 'titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow' "$MAP"
