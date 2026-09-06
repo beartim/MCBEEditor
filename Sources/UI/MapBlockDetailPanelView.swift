@@ -490,8 +490,9 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
     if let dataTag = tags.first(where: {
       $0.name.caseInsensitiveCompare("legacy_data") == .orderedSame
     }) {
-      guard let data = numericValue(dataTag.value), (0...15).contains(data) else {
-        return "legacy_data 必须为 0…15"
+      let maximumLegacyData: Int64 = selectedLayerIndex == 1 ? 255 : 15
+      guard let data = numericValue(dataTag.value), (0...maximumLegacyData).contains(data) else {
+        return selectedLayerIndex == 1 ? "legacy_data 必须为 0…255" : "legacy_data 必须为 0…15"
       }
     }
     return nil

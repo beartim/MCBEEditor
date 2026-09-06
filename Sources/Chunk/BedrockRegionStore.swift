@@ -307,7 +307,10 @@ extension BedrockChunkStore {
             }
         }
 
-        let targetProfile = try BedrockEmptyChunk.profile(database: database, dimension: targetDimension, preferLegacy: false)
+        let targetProfile = try BedrockEmptyChunk.profile(
+            database: database, dimension: targetDimension, preferLegacy: false,
+            preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database)
+        )
         var editedByChunk = [ChunkPosition: [Int8: BedrockSubChunk]]()
         var writtenSubChunks = 0
         for (target, layerEdits) in edits {

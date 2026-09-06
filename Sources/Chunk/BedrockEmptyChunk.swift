@@ -50,11 +50,12 @@ enum BedrockEmptyChunk {
     static func profile(
         database: MojangLevelDB,
         dimension: Int32,
-        preferLegacy: Bool = false
+        preferLegacy: Bool = false,
+        preferredPaletteVersion: Int32? = nil
     ) throws -> BedrockEmptyChunkProfile {
         var legacyVersion: Data?
         var modernVersion: Data?
-        var paletteVersion: Int32?
+        var paletteVersions = [Int32]()
         var data3D: Data?
         var data2D: Data?
         var data2DLegacy: Data?
@@ -78,15 +79,19 @@ enum BedrockEmptyChunk {
             if key.recordType == .subChunk,
                let value = entry.value,
                let decoded = try? BedrockSubChunk.decode(value, keyYIndex: key.subChunkIndex) {
-                subChunkVersionCounts[decoded.version, default: 0] += 1
-                if paletteVersion == nil {
-                    paletteVersion = decoded.storages.flatMap(\.palette).compactMap(\.paletteVersion).first
+                if !decoded.isRawPreservedUnknownVersion {
+                    subChunkVersionCounts[decoded.version, default: 0] += 1
                 }
+                paletteVersions.append(contentsOf: decoded.storages
+                    .filter { $0.persistentKind == .normal }
+                    .flatMap(\.palette)
+                    .compactMap(\.paletteVersion))
             }
-            if paletteVersion != nil && modernVersion != nil && legacyVersion != nil
-                && data3D != nil && (data2D != nil || data2DLegacy != nil) { break }
         }
-        let blockVersion = paletteVersion ?? currentBlockPaletteVersion
+        // Same-dimension persisted palettes take precedence; an optional
+        // world-wide persisted palette sample is the next fallback. The
+        // constant is only a final safety net for truly empty worlds.
+        let blockVersion = paletteVersions.max() ?? preferredPaletteVersion ?? currentBlockPaletteVersion
         let observedSubChunkVersion = subChunkVersionCounts.max { lhs, rhs in
             if lhs.value != rhs.value { return lhs.value < rhs.value }
             return lhs.key < rhs.key
@@ -159,6 +164,28 @@ enum BedrockEmptyChunk {
         )
     }
 
+    /// Highest block-state version actually persisted in any known v1/v8/v9
+    /// SubChunk in this world. This is safer than packing the product version
+    /// from level.dat: newer Bedrock releases do not guarantee that the two
+    /// version number spaces are identical. Unknown future SubChunks and
+    /// BPB=127 sentinels intentionally do not contribute synthetic versions.
+    static func persistedBlockPaletteVersion(database: MojangLevelDB) throws -> Int32? {
+        var best: Int32?
+        let entries = try database.entries(includeValues: true, limit: 0)
+        for entry in entries {
+            guard let parsed = BedrockDBKey.parse(entry.key), parsed.recordType == .subChunk,
+                  let raw = entry.value,
+                  let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex),
+                  !decoded.isRawPreservedUnknownVersion else { continue }
+            for storage in decoded.storages where storage.persistentKind == .normal {
+                for version in storage.palette.compactMap(\.paletteVersion) {
+                    if best == nil || version > best! { best = version }
+                }
+            }
+        }
+        return best
+    }
+
     static func preferredSubChunkVersion(
         database: MojangLevelDB,
         at position: ChunkPosition,
@@ -171,13 +198,34 @@ enum BedrockEmptyChunk {
             if parsed.recordType == .legacyTerrain { return 0 }
             guard parsed.recordType == .subChunk,
                   let raw = entry.value,
-                  let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex) else { continue }
+                  let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex),
+                  !decoded.isRawPreservedUnknownVersion else { continue }
             counts[decoded.version, default: 0] += 1
         }
         return counts.max { lhs, rhs in
             if lhs.value != rhs.value { return lhs.value < rhs.value }
             return lhs.key < rhs.key
         }?.key ?? fallback
+    }
+
+    static func preferredBlockPaletteVersion(
+        database: MojangLevelDB,
+        at position: ChunkPosition,
+        fallback: Int32
+    ) throws -> Int32 {
+        var versions = [Int32]()
+        let entries = try database.entries(includeValues: true, limit: 0)
+        for entry in entries {
+            guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position,
+                  parsed.recordType == .subChunk, let raw = entry.value,
+                  let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex),
+                  !decoded.isRawPreservedUnknownVersion else { continue }
+            versions.append(contentsOf: decoded.storages
+                .filter { $0.persistentKind == .normal }
+                .flatMap(\.palette)
+                .compactMap(\.paletteVersion))
+        }
+        return versions.max() ?? fallback
     }
 
     static func hasChunkMetadata(database: MojangLevelDB, at position: ChunkPosition) throws -> Bool {

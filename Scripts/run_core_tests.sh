@@ -404,6 +404,7 @@ swiftc \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
   "$ROOT/Sources/NBT/NBTClipboardCodec.swift" \
@@ -2556,11 +2557,13 @@ swiftc \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyBlockExtraData.swift" \
   "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
@@ -2571,6 +2574,7 @@ swiftc \
 "$TMP/block-nbt-editor-tests"
 
 "$ROOT/Scripts/test_legacy_terrain_subchunks.sh"
+"$ROOT/Scripts/test_subchunk_v0_v9_compat.sh"
 
 # v0.10.1: compact empty map layout, fixed layer 0/1 editing and no custom markers.
 grep -q 'controls.setContentHuggingPriority(.required, for: .vertical)' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
@@ -2960,10 +2964,15 @@ final class MojangLevelDB {
     func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] { [] }
 }
 struct EmptyChunkPaletteState { let paletteVersion: Int32? }
-struct SubChunkStorage { let palette: [EmptyChunkPaletteState] }
+enum SubChunkStoragePersistentKind { case normal }
+struct SubChunkStorage {
+    let palette: [EmptyChunkPaletteState]
+    var persistentKind: SubChunkStoragePersistentKind { .normal }
+}
 struct BedrockSubChunk {
     let version: UInt8
     let storages: [SubChunkStorage]
+    var isRawPreservedUnknownVersion: Bool { false }
     static func decode(_ data: Data, keyYIndex: Int8? = nil) throws -> BedrockSubChunk {
         BedrockSubChunk(version: data.first ?? 9, storages: [])
     }
@@ -4244,6 +4253,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
@@ -4252,6 +4262,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyBlockExtraData.swift" \
   "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$ROOT/Sources/Chunk/HardcodedSpawners.swift" \

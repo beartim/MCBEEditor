@@ -1770,7 +1770,8 @@ private final class CommandBlockStore {
         let profile = try BedrockEmptyChunk.profile(
             database: database,
             dimension: dimension,
-            preferLegacy: preferLegacy
+            preferLegacy: preferLegacy,
+            preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database)
         )
         emptyChunkProfiles[preferLegacy] = profile
         if globalPaletteVersion == nil { globalPaletteVersion = profile.blockPaletteVersion }
@@ -2416,7 +2417,9 @@ private final class CommandBlockStore {
         case .value(let value): legacyTarget = value.isLegacy
         case .missing: legacyTarget = try isLegacyTarget(key)
         }
-        let requiresUpgrade = legacyTarget && (state.nbt != nil || (layer == 1 && !state.isAir))
+        // v0/v2...v7 layer 1 is persisted in LegacyBlockExtraData (0x34),
+        // so a numeric extra block no longer forces a v9 chunk upgrade.
+        let requiresUpgrade = legacyTarget && state.nbt != nil
         if requiresUpgrade { try upgradeChunkToModern(key.chunk) }
 
         var mutable: MutableCommandSubChunk
@@ -2458,7 +2461,7 @@ private final class CommandBlockStore {
 
     private func upgradeChunkToModern(_ chunk: ChunkPosition) throws {
         guard modernizedChunks.insert(chunk).inserted else { return }
-        let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: chunk)
+        let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: chunk, preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database))
         for put in plan.metadataPuts { pendingMetadataPuts[put.key] = put.value }
         pendingMetadataDeletes.formUnion(plan.metadataDeletes)
         for put in plan.subChunkPuts {
@@ -2492,8 +2495,7 @@ private final class CommandBlockStore {
 
     private func modernState(from state: BedrockBlockState, version: Int32?) -> BedrockBlockState {
         if state.nbt != nil { return state }
-        let identifier = BedrockLegacyBlockCatalog.identifier(forNumericID: state.legacyID ?? 0) ?? state.name
-        return CommandBlockStateSpec(name: identifier, states: []).modernState(version: version)
+        return BedrockLegacyBlockStateConverter.stateForNumeric(state)
     }
 
     private func isLegacyTarget(_ key: SubKey) throws -> Bool {
@@ -2561,16 +2563,26 @@ private final class CommandBlockStore {
         let targetLegacy = try isLegacyTarget(targetKey)
         if targetLegacy {
             if state.nbt == nil { return state }
-            if layer == 1, state.isAir {
+            if state.isAir {
                 return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
             }
-            if layer == 0,
-               state.stateProperties.isEmpty,
-               let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) {
-                return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
+            if let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) {
+                if let val = BedrockLegacyBlockStateConverter.paletteValue(in: state) {
+                    if layer == 0, val > 15 {
+                        // Main numeric SubChunk metadata is a 4-bit nibble; do
+                        // not silently truncate an old `val`. A value that does
+                        // not fit requires modernisation. 0x34 layer 1 stores a
+                        // full UInt8 and can preserve it exactly.
+                        return normalizedModernState(state, version: try paletteVersion(for: targetKey))
+                    }
+                    return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: val)
+                }
+                if state.stateProperties.isEmpty {
+                    return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
+                }
             }
-            // A block without a legacy numeric ID, any non-empty states, or a
-            // non-air layer 1 forces the destination chunk to modern storage.
+            // A block without a legacy numeric representation or with modern
+            // structured states still requires a modern chunk upgrade.
             return normalizedModernState(state, version: try paletteVersion(for: targetKey))
         }
         return state.nbt != nil
@@ -2882,11 +2894,7 @@ private struct MutableCommandSubChunk {
     mutating func setState(_ state: BedrockBlockState, layer: Int, linearIndex: Int) throws -> Bool {
         guard layer == 0 || layer == 1 else { throw MCBEEditorError.malformedData("只支持层 0 和层 1") }
         if isLegacy {
-            guard layer == 0 || state.isAir else {
-                throw MCBEEditorError.unsupported("旧版数字 ID SubChunk 不支持非空气层 1")
-            }
-            if layer == 1 { return false }
-            guard state.nbt == nil else {
+            guard state.nbt == nil, state.legacyID != nil else {
                 throw MCBEEditorError.unsupported("不能把现代方块状态写入旧版数字 ID SubChunk")
             }
         } else if state.nbt == nil {
@@ -2894,11 +2902,14 @@ private struct MutableCommandSubChunk {
         }
         if layer == 1, storages.count <= 1, state.isAir { return false }
         while storages.count <= layer {
-            let storage = SubChunkStorage(bitsPerBlock: 0, palette: [fallbackAir], indices: Array(repeating: 0, count: 4096))
+            let air = isLegacy
+                ? BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+                : fallbackAir
+            let storage = SubChunkStorage(bitsPerBlock: 0, palette: [air], indices: Array(repeating: 0, count: 4096))
             storages.append(try MutableCommandStorage(storage))
         }
         let changed = try storages[layer].set(state, at: linearIndex)
-        if changed, layer == 1, storages.count > 1, storages[1].isEntirelyAir {
+        if changed, layer == 1, storages.count == 2, storages[1].isEntirelyAir {
             storages.removeLast()
         }
         return changed

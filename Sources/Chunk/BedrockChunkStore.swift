@@ -235,7 +235,8 @@ final class BedrockChunkStore {
         let parsedTypes = Set(chunkRecords.compactMap { BedrockDBKey.parse($0.key)?.recordType })
         let preferLegacy = parsedTypes.contains(.legacyVersion) && !parsedTypes.contains(.version)
         let profile = try BedrockEmptyChunk.profile(
-            database: database, dimension: position.dimension, preferLegacy: preferLegacy
+            database: database, dimension: position.dimension, preferLegacy: preferLegacy,
+            preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database)
         )
         let metadata = BedrockEmptyChunk.metadataRecords(at: position, profile: profile)
 

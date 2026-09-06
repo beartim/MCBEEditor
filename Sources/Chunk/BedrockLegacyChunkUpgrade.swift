@@ -12,13 +12,20 @@ struct BedrockLegacyChunkUpgradePlan {
 /// upgraded together, while the old 2D biome map is expanded vertically into
 /// Data3D so Minecraft can load the resulting v9 records.
 enum BedrockLegacyChunkUpgrade {
-    static func plan(database: MojangLevelDB, position: ChunkPosition) throws -> BedrockLegacyChunkUpgradePlan {
+    static func plan(
+        database: MojangLevelDB,
+        position: ChunkPosition,
+        preferredPaletteVersion: Int32? = nil
+    ) throws -> BedrockLegacyChunkUpgradePlan {
         let dimensionProfile = try BedrockEmptyChunk.profile(
             database: database,
             dimension: position.dimension,
-            preferLegacy: false
+            preferLegacy: false,
+            preferredPaletteVersion: preferredPaletteVersion
         )
-        let paletteVersion = dimensionProfile.blockPaletteVersion
+        let paletteVersion = try BedrockEmptyChunk.preferredBlockPaletteVersion(
+            database: database, at: position, fallback: dimensionProfile.blockPaletteVersion
+        )
         let terrainData = try modernTerrainData(
             database: database,
             position: position,
@@ -69,19 +76,59 @@ enum BedrockLegacyChunkUpgrade {
             metadataDeletes.append(legacyTerrainKey)
         }
 
+        // v0/v2...v7 store their second block layer in one chunk-wide
+        // LegacyBlockExtraData (0x34) value. Merge that virtual layer before
+        // conversion so a v9 upgrade cannot drop snow/water/overlap blocks.
+        let extraKey = BedrockDBKey(
+            position: position, recordType: .legacyBlockExtraData, subChunkIndex: nil
+        ).encoded()
+        let extraRaw = try database.get(extraKey)
+        let extraData = try extraRaw.map(BedrockLegacyBlockExtraData.decode)
+        var numericByY = [Int8: BedrockSubChunk]()
         for rawY in Int(Int8.min)...Int(Int8.max) {
             guard let y = Int8(exactly: rawY), !convertedY.contains(y) else { continue }
             let key = BedrockDBKey.subChunk(
-                x: position.x,
-                z: position.z,
-                dimension: position.dimension,
-                index: y
+                x: position.x, z: position.z, dimension: position.dimension, index: y
             )
             guard let raw = try database.get(key) else { continue }
             let decoded = try BedrockSubChunk.decode(raw, keyYIndex: y)
             guard decoded.isLegacyNumeric else { continue }
+            numericByY[y] = decoded
+        }
+
+        // Preserve extra-only slices too (for example an omitted all-air
+        // primary 0x2F plus non-air entries in 0x34).
+        if let extraData {
+            let fallbackVersion = numericByY.values.first?.version ?? 0
+            for y in extraData.subChunkYIndices where numericByY[y] == nil && !convertedY.contains(y) {
+                guard (0...15).contains(Int(y)) else { continue }
+                numericByY[y] = try BedrockSubChunk.emptyLegacy(version: fallbackVersion, yIndex: y)
+            }
+        }
+
+        var upgradedNumeric = false
+        for y in numericByY.keys.sorted() {
+            guard var decoded = numericByY[y] else { continue }
+            if let layer1 = extraData?.storage(subChunkY: y) {
+                var storages = decoded.storages
+                let air = BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+                while storages.isEmpty { storages.append(.airFilled(with: air)) }
+                if storages.count == 1 { storages.append(layer1) } else { storages[1] = layer1 }
+                decoded = BedrockSubChunk(
+                    version: decoded.version, yIndex: decoded.yIndex,
+                    storages: storages, trailingData: decoded.trailingData
+                )
+            }
             let upgraded = try decoded.upgradedToModern(paletteVersion: paletteVersion)
+            let key = BedrockDBKey.subChunk(
+                x: position.x, z: position.z, dimension: position.dimension, index: y
+            )
             subChunkPuts.append((key: key, value: try upgraded.encodePersistent()))
+            convertedY.insert(y)
+            upgradedNumeric = true
+        }
+        if upgradedNumeric, extraRaw != nil {
+            metadataDeletes.append(extraKey)
         }
 
         return BedrockLegacyChunkUpgradePlan(
@@ -181,13 +228,9 @@ extension BedrockBiomeDocument {
 }
 
 extension BedrockSubChunk {
-    var isLegacyNumeric: Bool {
-        [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
-    }
-
     func upgradedToModern(paletteVersion: Int32?) throws -> BedrockSubChunk {
         guard isLegacyNumeric else { return self }
-        let version = paletteVersion ?? BedrockBlockState.defaultPaletteVersion
+        _ = paletteVersion ?? BedrockBlockState.defaultPaletteVersion
         let sourceStorages = storages.isEmpty
             ? [SubChunkStorage(bitsPerBlock: 0, palette: [BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)], indices: Array(repeating: 0, count: 4096))]
             : storages
@@ -198,12 +241,11 @@ extension BedrockSubChunk {
             var lookup = [Data: UInt16]()
             var remap = [UInt16: UInt16]()
             for (oldIndex, state) in storage.palette.enumerated() {
-                let identifier = BedrockLegacyBlockCatalog.identifier(forNumericID: state.legacyID ?? 0) ?? state.name
-                let modern = BedrockBlockState(nbt: .compound([
-                    NBTNamedTag(name: "name", value: .string(identifier)),
-                    NBTNamedTag(name: "states", value: .compound([])),
-                    NBTNamedTag(name: "version", value: .int(version))
-                ]), legacyID: nil, legacyData: nil)
+                // Never discard legacyData. Known ID/meta combinations are
+                // converted to structured states; unknown metadata remains as
+                // a versioned historical `val` entry so Bedrock can upgrade it
+                // instead of MCBEEditor inventing states: {}.
+                let modern = BedrockLegacyBlockStateConverter.stateForNumeric(state)
                 let encoded = try BedrockNBTCodec.encode(
                     NBTDocument(rootName: "", root: modern.nbt ?? .compound([])),
                     encoding: .littleEndian

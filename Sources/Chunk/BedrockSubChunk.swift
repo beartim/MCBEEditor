@@ -70,10 +70,31 @@ extension BedrockSubChunk {
     }
 }
 
+enum SubChunkStoragePersistentKind: Equatable {
+    case normal
+    /// Compatibility form emitted by some third-party/current parsers for an
+    /// empty persistent storage. The on-disk form is a single header byte
+    /// whose bits-per-block field is 127 and carries no words/palette.
+    case emptySentinel127
+}
+
 struct SubChunkStorage {
     let bitsPerBlock: Int
     let palette: [BedrockBlockState]
     let indices: [UInt16]
+    let persistentKind: SubChunkStoragePersistentKind
+
+    init(
+        bitsPerBlock: Int,
+        palette: [BedrockBlockState],
+        indices: [UInt16],
+        persistentKind: SubChunkStoragePersistentKind = .normal
+    ) {
+        self.bitsPerBlock = bitsPerBlock
+        self.palette = palette
+        self.indices = indices
+        self.persistentKind = persistentKind
+    }
 
     func blockState(x: Int, y: Int, z: Int) -> BedrockBlockState? {
         guard (0..<16).contains(x), (0..<16).contains(y), (0..<16).contains(z) else { return nil }
@@ -85,11 +106,48 @@ struct SubChunkStorage {
     }
 }
 
+
+extension BedrockSubChunk {
+    var isLegacyNumeric: Bool {
+        [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
+    }
+}
+
+extension SubChunkStorage {
+    static func airFilled(with airState: BedrockBlockState) -> SubChunkStorage {
+        SubChunkStorage(
+            bitsPerBlock: 0,
+            palette: [airState],
+            indices: Array(repeating: UInt16(0), count: 4096)
+        )
+    }
+}
+
 struct BedrockSubChunk {
     let version: UInt8
     let yIndex: Int8?
     let storages: [SubChunkStorage]
     let trailingData: Data
+    /// Unknown future SubChunk versions are retained byte-for-byte instead of
+    /// making the whole chunk unreadable. Structured editing is intentionally
+    /// disabled for such records, but copy/export can preserve them safely.
+    let rawPersistentData: Data?
+
+    init(
+        version: UInt8,
+        yIndex: Int8?,
+        storages: [SubChunkStorage],
+        trailingData: Data,
+        rawPersistentData: Data? = nil
+    ) {
+        self.version = version
+        self.yIndex = yIndex
+        self.storages = storages
+        self.trailingData = trailingData
+        self.rawPersistentData = rawPersistentData
+    }
+
+    var isRawPreservedUnknownVersion: Bool { rawPersistentData != nil }
 
     static func decode(_ data: Data, keyYIndex: Int8? = nil) throws -> BedrockSubChunk {
         var cursor = BinaryCursor(data: data)
@@ -100,21 +158,33 @@ struct BedrockSubChunk {
             return BedrockSubChunk(version: version, yIndex: keyYIndex, storages: [storage], trailingData: try cursor.readData(count: cursor.remaining))
         case 8:
             let count = Int(try cursor.readByte())
-            guard count <= 16 else { throw MCBEEditorError.malformedData("SubChunk v8 storage 数量无效：\(count)") }
+            // storageCount is a UInt8 on disk. Do not impose an artificial
+            // <=16 decoder limit; editing still intentionally exposes only
+            // layers 0 and 1 via BedrockBlockRecord.editableLayerCount.
             var storages = [SubChunkStorage]()
             for _ in 0..<count { storages.append(try decodePalettedStorage(cursor: &cursor)) }
             return BedrockSubChunk(version: version, yIndex: keyYIndex, storages: storages, trailingData: try cursor.readData(count: cursor.remaining))
         case 9:
             let count = Int(try cursor.readByte())
             let y = Int8(bitPattern: try cursor.readByte())
-            guard count <= 16 else { throw MCBEEditorError.malformedData("SubChunk v9 storage 数量无效：\(count)") }
+            // Same as v8: the format stores a full UInt8 count. Preserve all
+            // storages even though only the first two are editable in the UI.
             var storages = [SubChunkStorage]()
             for _ in 0..<count { storages.append(try decodePalettedStorage(cursor: &cursor)) }
             return BedrockSubChunk(version: version, yIndex: y, storages: storages, trailingData: try cursor.readData(count: cursor.remaining))
         case 0, 2...7:
             return try decodeLegacy(data, version: version, keyYIndex: keyYIndex)
         default:
-            throw MCBEEditorError.unsupported("SubChunk 版本 \(version)")
+            // Forward-compatible raw retention: callers can still enumerate,
+            // copy and export a chunk containing a future SubChunk version.
+            // Structured block editing methods reject unknown versions.
+            return BedrockSubChunk(
+                version: version,
+                yIndex: keyYIndex,
+                storages: [],
+                trailingData: Data(),
+                rawPersistentData: data
+            )
         }
     }
 
@@ -125,6 +195,23 @@ struct BedrockSubChunk {
         guard !isRuntimePalette else {
             throw MCBEEditorError.unsupported("网络运行时调色板不能从世界数据库独立解析")
         }
+        // 127 is a compatibility empty-storage sentinel observed in modern
+        // third-party Bedrock parsers. It contains no words and no palette.
+        // Treat it as air for reading, and preserve the exact sentinel when
+        // the storage is not edited. Runtime/network palettes remain invalid
+        // for LevelDB persistence.
+        if bitsPerBlock == 127 {
+            guard !isRuntimePalette else {
+                throw MCBEEditorError.unsupported("网络运行时调色板不能从世界数据库独立解析")
+            }
+            return SubChunkStorage(
+                bitsPerBlock: 127,
+                palette: [.editableAir(version: nil)],
+                indices: Array(repeating: UInt16(0), count: 4096),
+                persistentKind: .emptySentinel127
+            )
+        }
+
         let allowed = [0, 1, 2, 3, 4, 5, 6, 8, 16]
         guard allowed.contains(bitsPerBlock) else {
             throw MCBEEditorError.malformedData("每方块位数无效：\(bitsPerBlock)")
@@ -219,6 +306,9 @@ struct BedrockSubChunk {
 
 extension BedrockBlockState {
     var stateProperties: [(String, String)] {
+        if let legacy = BedrockLegacyBlockStateConverter.visibleProperties(for: self) {
+            return legacy
+        }
         guard let nbt = nbt,
               case .compound(let tags)? = nbt.compoundValue(named: "states") else {
             return []
@@ -253,6 +343,9 @@ extension BedrockBlockState {
 
 extension BedrockSubChunk {
     func encodePersistent() throws -> Data {
+        if let rawPersistentData {
+            return rawPersistentData
+        }
         if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
             return try encodeLegacyPersistent()
         }
@@ -320,6 +413,13 @@ extension BedrockSubChunk {
     }
 
     private static func encode(storage: SubChunkStorage, writer: inout BinaryWriter) throws {
+        if storage.persistentKind == .emptySentinel127 {
+            guard storage.indices.count == 4096, storage.indices.allSatisfy({ $0 == 0 }) else {
+                throw MCBEEditorError.malformedData("BPB=127 空 storage 被修改后必须先转换为普通 storage")
+            }
+            writer.writeByte(UInt8(127 << 1))
+            return
+        }
         let bits = storage.bitsPerBlock
         let allowed = [0, 1, 2, 3, 4, 5, 6, 8, 16]
         guard allowed.contains(bits) else {

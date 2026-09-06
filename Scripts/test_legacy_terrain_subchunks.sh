@@ -174,11 +174,13 @@ swiftc -j 4 \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyBlockExtraData.swift" \
   "$TMP/LegacyTerrainTestStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
