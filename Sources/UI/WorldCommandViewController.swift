@@ -284,6 +284,8 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         case .success, .entity: return .systemGreen
         case .localPlayer: return .systemYellow
         case .onlinePlayer: return .systemBlue
+        case .block: return .systemBlue
+        case .blockEntity: return .systemPurple
         }
     }
 

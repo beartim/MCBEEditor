@@ -437,17 +437,33 @@ final class MCBEEditorTests: XCTestCase {
 
     func testWorldCommandStrictParsing() throws {
         let line = "fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\""
-        guard case .fill(let dimension, let region, let layer0, let layer1) = try WorldCommandParser.parse(line) else {
+        guard case .fill(let dimension, let region, let storages) = try WorldCommandParser.parse(line) else {
             return XCTFail("fill was not parsed")
         }
         XCTAssertEqual(dimension, 2)
         XCTAssertEqual(region.minimum.x, 0)
         XCTAssertEqual(region.maximum.y, 200)
         XCTAssertEqual(region.maximum.z, 16)
-        XCTAssertEqual(layer0.name, "minecraft:leaves")
-        XCTAssertEqual(layer0.states.count, 3)
-        XCTAssertEqual(layer1.name, "minecraft:chest")
-        XCTAssertEqual(layer1.states.count, 1)
+        XCTAssertEqual(storages.count, 2)
+        XCTAssertEqual(storages[0].name, "minecraft:leaves")
+        XCTAssertEqual(storages[0].states.count, 3)
+        XCTAssertEqual(storages[1].name, "minecraft:chest")
+        XCTAssertEqual(storages[1].states.count, 1)
+        XCTAssertNoThrow(try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("setblock overworld 0 64 0 minecraft:stone NULL"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("getblock overworld 0 64 0"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("storage query overworld 0 64 0"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("storage set overworld 0 64 0 8 minecraft:water NULL"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("storage add overworld 0 64 0 8 minecraft:water NULL"))
+        let maxStoragePairs = Array(repeating: "minecraft:air NULL", count: 255).joined(separator: " ")
+        XCTAssertNoThrow(try WorldCommandParser.parse("setblock overworld 0 64 0 \(maxStoragePairs)"))
+        let tooManyStoragePairs = Array(repeating: "minecraft:air NULL", count: 256).joined(separator: " ")
+        XCTAssertThrowsError(try WorldCommandParser.parse("setblock overworld 0 64 0 \(tooManyStoragePairs)"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("storage set overworld 0 64 0 254 minecraft:water NULL"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("storage set overworld 0 64 0 255 minecraft:water NULL"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("storage clear overworld 0 64 0 255"))
+        XCTAssertThrowsError(try WorldCommandParser.parse("storage clear overworld 0 64 0 256"))
+        XCTAssertNoThrow(try WorldCommandParser.parse("effect give @a strength -1 -1"))
         XCTAssertNoThrow(try WorldCommandParser.parse("clone overworld 0 0 0 1 1 1 nether 10 20 30"))
         XCTAssertThrowsError(try WorldCommandParser.parse("clone 主世界 0 0 0 1 1 1 nether 10 20 30"))
         let source = CommandBlockBox(

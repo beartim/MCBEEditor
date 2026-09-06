@@ -1,5 +1,15 @@
 # MCBEEditor iOS 13 rewrite
 
+## 1.0.0 命令层全 storage、getblock 与 storage 命令
+
+- 命令层对 v8 或更新的已知结构化 SubChunk 支持全部物理 storage；地图、方块 NBT、区域编辑等其他栏目仍只编辑 layer0/layer1。
+- `clone` 会复制源位置的全部 storage，并清空目标位置多出来的 storage 内容；重叠复制仍使用命令开始时的源快照。
+- `setblock` / `fill` 至少只需提供 storage0，layer1 不再必填；后续按“方块名 + states”成对追加，最多 255 个 storage。未提供的高层保持原值。
+- 新增 `getblock 维度 x y z`：蓝色 `Block` 行显示该位置全部 storage，紫色 `BlockEntity` 行显示完整方块实体 NBT；没有方块实体时显示 `BlockEntity=NULL`。
+- 新增 `storage query/set/delete/clear` 四个子命令。`set` 的 storage 索引为 0～254；`clear N` 保留 storage0…storageN，参数接受 UInt8 0～255。不存在 `storage add` 别名。
+- `effect give` 的 Duration 支持完整 Int32 负数；Amplifier 接受 -128～255，并按 Bedrock Byte 原始位模式保存。
+- 软件版本仍固定为 **1.0.0（100）**。
+
 ## 实体导入与实体命令浮点坐标
 
 - 从实体 NBT／JSON 文件导入时不再补充通用默认实体标签，只覆盖/补入 `Pos` 与 `UniqueID`；导入对象不再要求 identifier。

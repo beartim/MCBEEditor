@@ -5,6 +5,8 @@ enum WorldCommandOutputStyle {
     case localPlayer
     case onlinePlayer
     case entity
+    case block
+    case blockEntity
 }
 
 struct WorldCommandOutputLine {
@@ -94,18 +96,22 @@ final class WorldCommandExecutor {
                 destination: destination
             )
             return WorldCommandExecutionResult(message: result, changedWorld: true)
-        case .fill(let targetDimension, let region, let layer0, let layer1):
+        case .fill(let targetDimension, let region, let storages):
             let result = try CommandBlockStore(session: session, dimension: targetDimension)
-                .fill(region: region, layer0: layer0, layer1: layer1)
+                .fill(region: region, storages: storages)
             return WorldCommandExecutionResult(message: result, changedWorld: true)
-        case .setBlock(let targetDimension, let position, let layer0, let layer1):
+        case .setBlock(let targetDimension, let position, let storages):
             let region = CommandBlockBox(position, position)
             let result = try CommandBlockStore(session: session, dimension: targetDimension)
-                .fill(region: region, layer0: layer0, layer1: layer1)
+                .fill(region: region, storages: storages)
             return WorldCommandExecutionResult(
                 message: result.replacingOccurrences(of: "fill 完成", with: "setblock 完成"),
                 changedWorld: true
             )
+        case .getBlock(let targetDimension, let position):
+            return try executeGetBlock(dimension: targetDimension, position: position)
+        case .storage(let operation):
+            return try executeStorage(operation)
         case .setWorldSpawn(let position):
             return WorldCommandExecutionResult(message: try setWorldSpawn(position), changedWorld: true)
         case .spawnPoint(let target, let dimension, let position):
@@ -135,6 +141,63 @@ final class WorldCommandExecutor {
         case .tickingArea(let operation):
             let result = try executeTickingArea(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
+        }
+    }
+
+    // MARK: block/storage query and direct storage editing
+
+    private func executeGetBlock(
+        dimension: Int32,
+        position: CommandBlockCoordinate
+    ) throws -> WorldCommandExecutionResult {
+        let store = try CommandBlockStore(session: session, dimension: dimension)
+        let result = try store.getBlock(at: position)
+        let blockText = "Block=[" + result.storages.enumerated().map { index, state in
+            "Storage\(index)=[\(CommandNBTOutputFormatter.blockState(state))]"
+        }.joined(separator: ",") + "]"
+        let blockEntityText: String
+        if let document = result.blockEntity {
+            blockEntityText = "BlockEntity=[\(CommandNBTOutputFormatter.root(document.root))]"
+        } else {
+            blockEntityText = "BlockEntity=NULL"
+        }
+        return WorldCommandExecutionResult(
+            message: blockText + "\n" + blockEntityText,
+            changedWorld: false,
+            outputLines: [
+                WorldCommandOutputLine(text: blockText, style: .block),
+                WorldCommandOutputLine(text: blockEntityText, style: .blockEntity)
+            ]
+        )
+    }
+
+    private func executeStorage(_ operation: CommandStorageOperation) throws -> WorldCommandExecutionResult {
+        switch operation {
+        case .query(let dimension, let position):
+            let states = try CommandBlockStore(session: session, dimension: dimension).queryStorages(at: position)
+            let lines = states.enumerated().map { index, state in
+                WorldCommandOutputLine(
+                    text: "层\(index)=[\(CommandNBTOutputFormatter.blockState(state))]",
+                    style: .block
+                )
+            }
+            let message = lines.isEmpty ? "storage query：该位置没有可用的 storage。" : lines.map(\.text).joined(separator: "\n")
+            return WorldCommandExecutionResult(message: message, changedWorld: false, outputLines: lines)
+
+        case .set(let dimension, let position, let layer, let block):
+            let message = try CommandBlockStore(session: session, dimension: dimension)
+                .setStorage(at: position, layer: layer, block: block)
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
+
+        case .delete(let dimension, let position, let layer):
+            let message = try CommandBlockStore(session: session, dimension: dimension)
+                .deleteStorage(at: position, layer: layer)
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
+
+        case .clear(let dimension, let position, let keepThroughLayer):
+            let message = try CommandBlockStore(session: session, dimension: dimension)
+                .clearStorages(at: position, keepThroughLayer: keepThroughLayer)
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
         }
     }
 
@@ -1693,6 +1756,80 @@ final class WorldCommandExecutor {
     }
 }
 
+private enum CommandNBTOutputFormatter {
+    static func blockState(_ state: BedrockBlockState) -> String {
+        if case .compound(let tags)? = state.nbt {
+            return namedTags(tags)
+        }
+        let name = state.name
+        let legacyID = state.legacyID ?? 0
+        let legacyData = state.legacyData ?? 0
+        return namedTags([
+            NBTNamedTag(name: "name", value: .string(name)),
+            NBTNamedTag(name: "legacy_id", value: .short(Int16(bitPattern: legacyID))),
+            NBTNamedTag(name: "legacy_data", value: .byte(Int8(bitPattern: legacyData)))
+        ])
+    }
+
+    static func root(_ value: NBTValue) -> String {
+        if case .compound(let tags) = value { return namedTags(tags) }
+        return valueText(value)
+    }
+
+    private static func namedTags(_ tags: [NBTNamedTag]) -> String {
+        tags.map(namedTag).joined(separator: ",")
+    }
+
+    private static func namedTag(_ tag: NBTNamedTag) -> String {
+        let name = escape(tag.name)
+        switch tag.value {
+        case .compound(let tags):
+            return "'Compound'\"\(name)\"=\"{\(namedTags(tags))}\""
+        case .list(let elementType, let values):
+            return "'List''\(elementType.displayName)'\"\(name)\"=\"\(listPayload(values, elementType: elementType))\""
+        case .string(let value):
+            return "'String'\"\(name)\"=\"\(escape(NBTRawStringCodec.displayText(for: value)))\""
+        default:
+            return "'\(tag.value.type.displayName)'\"\(name)\"=\"\(valueText(tag.value))\""
+        }
+    }
+
+    private static func valueText(_ value: NBTValue) -> String {
+        switch value {
+        case .byte(let value): return String(value)
+        case .short(let value): return String(value)
+        case .int(let value): return String(value)
+        case .long(let value): return String(value)
+        case .float(let value): return String(value)
+        case .double(let value): return String(value)
+        case .byteArray(let data):
+            return "[" + data.map { String(Int8(bitPattern: $0)) }.joined(separator: ",") + "]"
+        case .string(let value): return NBTRawStringCodec.displayText(for: value)
+        case .list(let elementType, let values): return listPayload(values, elementType: elementType)
+        case .compound(let tags): return "{" + namedTags(tags) + "}"
+        case .intArray(let values): return "[" + values.map(String.init).joined(separator: ",") + "]"
+        case .longArray(let values): return "[" + values.map(String.init).joined(separator: ",") + "]"
+        }
+    }
+
+    private static func listPayload(_ values: [NBTValue], elementType: NBTTagType) -> String {
+        guard !values.isEmpty else { return "" }
+        return values.map { value in
+            switch value {
+            case .compound(let tags): return "{" + namedTags(tags) + "}"
+            default: return valueText(value)
+            }
+        }.joined(separator: ",")
+    }
+
+    private static func escape(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+    }
+}
+
 private final class CommandBlockStore {
     private struct SubKey: Hashable {
         let chunk: ChunkPosition
@@ -1776,6 +1913,99 @@ private final class CommandBlockStore {
         emptyChunkProfiles[preferLegacy] = profile
         if globalPaletteVersion == nil { globalPaletteVersion = profile.blockPaletteVersion }
         return profile
+    }
+
+    // MARK: direct block/storage commands
+
+    func getBlock(at coordinate: CommandBlockCoordinate) throws -> (storages: [BedrockBlockState], blockEntity: NBTDocument?) {
+        try validateHorizontal(coordinate.x, name: "X")
+        try validateHorizontal(coordinate.z, name: "Z")
+        let key = try subKey(for: coordinate)
+        let index = localIndex(for: coordinate)
+        let states: [BedrockBlockState]
+        switch try load(key) {
+        case .missing:
+            states = [try isLegacyTarget(key)
+                ? BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+                : .editableAir(version: try paletteVersion(for: key))]
+        case .value(let subChunk):
+            guard subChunk.supportsStructuredStorageCommands else {
+                throw MCBEEditorError.unsupported("SubChunk v\(subChunk.version) 为未知/不可结构化版本，getblock 无法解析其中方块")
+            }
+            states = subChunk.allStates(linearIndex: index)
+        }
+        let loadedEntities = try loadBlockEntities(for: Set([key.chunk]))
+        let entityKey = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
+        return (states, loadedEntities.documents[entityKey])
+    }
+
+    func queryStorages(at coordinate: CommandBlockCoordinate) throws -> [BedrockBlockState] {
+        let key = try subKey(for: coordinate)
+        guard case .value(let subChunk) = try load(key) else {
+            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+        }
+        try requireV8OrNewerStructured(subChunk)
+        return subChunk.allStates(linearIndex: localIndex(for: coordinate))
+    }
+
+    func setStorage(at coordinate: CommandBlockCoordinate, layer: Int, block: CommandBlockStateSpec) throws -> String {
+        guard (0..<Int(UInt8.max)).contains(layer) else {
+            throw MCBEEditorError.malformedData("storage set 层数必须为 0…254")
+        }
+        let key = try subKey(for: coordinate)
+        _ = try ensureGenerated([key.chunk])
+        switch try load(key) {
+        case .value(let subChunk):
+            try requireV8OrNewerStructured(subChunk)
+        case .missing:
+            let preferred = try preferredSubChunkVersion(for: key)
+            guard preferred == 8 || preferred == 9 else {
+                throw MCBEEditorError.unsupported("storage set 只支持 v8 或更新的已知结构化 SubChunk；当前新建格式为 v\(preferred)")
+            }
+        }
+        let state = block.modernState(version: try paletteVersion(for: key))
+        let changed = try setState(state, layer: layer, at: coordinate, createWhenAir: true, trimTrailingAir: false)
+        let written = try commit()
+        return "storage set 完成：\(WorldCommandParser.dimensionName(for: dimension)) \(coordinate.x) \(coordinate.y) \(coordinate.z)，storage\(layer)=\(block.name)；变化=\(changed ? 1 : 0)，写入 \(written) 个 SubChunk。"
+    }
+
+    func deleteStorage(at coordinate: CommandBlockCoordinate, layer: Int) throws -> String {
+        let key = try subKey(for: coordinate)
+        guard case .value(var subChunk) = try load(key) else {
+            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+        }
+        try requireV8OrNewerStructured(subChunk)
+        guard subChunk.storages.indices.contains(layer) else {
+            throw MCBEEditorError.unsupported("storage\(layer) 不存在；当前共有 \(subChunk.storages.count) 层")
+        }
+        let before = subChunk.storages.count
+        try subChunk.deleteStorage(at: layer)
+        cache[key] = .value(subChunk)
+        changedKeys.insert(key)
+        let written = try commit()
+        return "storage delete 完成：删除 storage\(layer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。"
+    }
+
+    func clearStorages(at coordinate: CommandBlockCoordinate, keepThroughLayer: UInt8) throws -> String {
+        let key = try subKey(for: coordinate)
+        guard case .value(var subChunk) = try load(key) else {
+            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+        }
+        try requireV8OrNewerStructured(subChunk)
+        let before = subChunk.storages.count
+        let changed = subChunk.clearStorages(keepingThrough: Int(keepThroughLayer))
+        if changed {
+            cache[key] = .value(subChunk)
+            changedKeys.insert(key)
+        }
+        let written = changed ? try commit() : 0
+        return "storage clear 完成：保留 storage0…storage\(keepThroughLayer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。"
+    }
+
+    private func requireV8OrNewerStructured(_ subChunk: MutableCommandSubChunk) throws {
+        guard subChunk.version >= 8, subChunk.supportsStructuredStorageCommands else {
+            throw MCBEEditorError.unsupported("storage 命令只支持 v8 或更新的已知结构化 SubChunk；当前为 v\(subChunk.version)")
+        }
     }
 
     // MARK: structure save / load
@@ -2081,7 +2311,10 @@ private final class CommandBlockStore {
         return value
     }
 
-    func fill(region: CommandBlockBox, layer0: CommandBlockStateSpec, layer1: CommandBlockStateSpec) throws -> String {
+    func fill(region: CommandBlockBox, storages storageSpecs: [CommandBlockStateSpec]) throws -> String {
+        guard !storageSpecs.isEmpty, storageSpecs.count <= Int(UInt8.max) else {
+            throw MCBEEditorError.malformedData("fill/setblock 必须提供 1…255 个 storage")
+        }
         try validateVolume(region)
         let requestedChunks = chunks(in: region)
         let generatedCount = try ensureGenerated(requestedChunks)
@@ -2101,13 +2334,16 @@ private final class CommandBlockStore {
                     let formatLegacy = try isLegacyTarget(key)
                     let version = try paletteVersion(for: key)
                     let keepLegacy = formatLegacy
-                        && layer0.canRemainLegacy(layer: 0)
-                        && layer1.canRemainLegacy(layer: 1)
-                    let state0 = try keepLegacy ? layer0.legacyState() : layer0.modernState(version: version)
-                    let state1 = try keepLegacy ? layer1.legacyState() : layer1.modernState(version: version)
-                    let changed0 = try setState(state0, layer: 0, at: coordinate, createWhenAir: false)
-                    let changed1 = try setState(state1, layer: 1, at: coordinate, createWhenAir: false)
-                    if changed0 || changed1 { changedBlocks += 1 }
+                        && storageSpecs.count <= 2
+                        && storageSpecs.enumerated().allSatisfy { $0.element.canRemainLegacy(layer: $0.offset) }
+                    var changedAtPosition = false
+                    for (layer, spec) in storageSpecs.enumerated() {
+                        let state = try keepLegacy ? spec.legacyState() : spec.modernState(version: version)
+                        if try setState(state, layer: layer, at: coordinate, createWhenAir: false) {
+                            changedAtPosition = true
+                        }
+                    }
+                    if changedAtPosition { changedBlocks += 1 }
                     if y == Int32.max { break }
                     y += 1
                 }
@@ -2123,7 +2359,7 @@ private final class CommandBlockStore {
         guard written > 0 || entityResult.changedCount > 0 || generatedCount > 0 else {
             throw MCBEEditorError.unsupported("区域内没有产生任何方块变化")
         }
-        return "fill 完成：修改 \(changedBlocks) 个方块位置，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体；处理 \(touchedChunks.count) 个区块，其中先生成 \(generatedCount) 个空气区块。"
+        return "fill 完成：修改 \(changedBlocks) 个方块位置，命令包含 \(storageSpecs.count) 个 storage，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体；处理 \(touchedChunks.count) 个区块，其中先生成 \(generatedCount) 个空气区块。"
     }
 
     static func clone(
@@ -2181,6 +2417,7 @@ private final class CommandBlockStore {
         // required not only for overlapping X/Z ranges, but also when Y3 differs
         // from Y1 and source/target share the same CommandBlockStore cache.
         let sourceSnapshot = try sourceStore.snapshotSubChunks(in: source)
+        let targetSnapshot = try snapshotSubChunks(in: targetRegion)
 
         // Equivalent to memmove: when source and target overlap, traverse each
         // shifted axis from the far side toward the near side. Future source reads
@@ -2212,14 +2449,22 @@ private final class CommandBlockStore {
                     )
                     let targetChunk = chunkPosition(x: targetCoordinate.x, z: targetCoordinate.z)
                     touchedDestinationChunks.insert(targetChunk)
-                    let source0 = try sourceStore.state(layer: 0, at: sourceCoordinate, snapshot: sourceSnapshot)
-                    let source1 = try sourceStore.state(layer: 1, at: sourceCoordinate, snapshot: sourceSnapshot)
+                    let sourceLayerCount = try sourceStore.storageCount(at: sourceCoordinate, snapshot: sourceSnapshot)
+                    let targetLayerCount = try storageCount(at: targetCoordinate, snapshot: targetSnapshot)
+                    let copiedLayerCount = max(sourceLayerCount, targetLayerCount)
+                    guard copiedLayerCount <= Int(UInt8.max) else {
+                        throw MCBEEditorError.malformedData("clone 遇到超过 255 个 storage 的 SubChunk")
+                    }
                     let targetKey = try subKey(for: targetCoordinate)
-                    let target0 = try adaptedState(source0, layer: 0, for: targetKey)
-                    let target1 = try adaptedState(source1, layer: 1, for: targetKey)
-                    let changed0 = try setState(target0, layer: 0, at: targetCoordinate, createWhenAir: false)
-                    let changed1 = try setState(target1, layer: 1, at: targetCoordinate, createWhenAir: false)
-                    if changed0 || changed1 { changedBlocks += 1 }
+                    var changedAtPosition = false
+                    for layer in 0..<copiedLayerCount {
+                        let sourceState = try sourceStore.state(layer: layer, at: sourceCoordinate, snapshot: sourceSnapshot)
+                        let targetState = try adaptedState(sourceState, layer: layer, for: targetKey)
+                        if try setState(targetState, layer: layer, at: targetCoordinate, createWhenAir: false) {
+                            changedAtPosition = true
+                        }
+                    }
+                    if changedAtPosition { changedBlocks += 1 }
 
                     let sourceEntityKey = BlockEntityCoordinate(x: x, y: y, z: z)
                     let targetEntityKey = BlockEntityCoordinate(
@@ -2386,6 +2631,22 @@ private final class CommandBlockStore {
         return snapshot
     }
 
+    private func storageCount(
+        at coordinate: CommandBlockCoordinate,
+        snapshot: [SubKey: CachedSubChunk]
+    ) throws -> Int {
+        let key = try subKey(for: coordinate)
+        switch snapshot[key] ?? .missing {
+        case .missing:
+            return 1
+        case .value(let subChunk):
+            guard subChunk.supportsStructuredStorageCommands else {
+                throw MCBEEditorError.unsupported("clone 无法结构化复制未知 SubChunk v\(subChunk.version)")
+            }
+            return max(1, subChunk.storages.count)
+        }
+    }
+
     private func state(
         layer: Int,
         at coordinate: CommandBlockCoordinate,
@@ -2407,7 +2668,8 @@ private final class CommandBlockStore {
         _ state: BedrockBlockState,
         layer: Int,
         at coordinate: CommandBlockCoordinate,
-        createWhenAir: Bool
+        createWhenAir: Bool,
+        trimTrailingAir: Bool = true
     ) throws -> Bool {
         let key = try subKey(for: coordinate)
         let index = localIndex(for: coordinate)
@@ -2451,7 +2713,7 @@ private final class CommandBlockStore {
         if !mutable.isLegacy, writable.nbt == nil {
             writable = modernState(from: writable, version: try paletteVersion(for: key))
         }
-        let changed = try mutable.setState(writable, layer: layer, linearIndex: index)
+        let changed = try mutable.setState(writable, layer: layer, linearIndex: index, trimTrailingAir: trimTrailingAir)
         if changed {
             cache[key] = .value(mutable)
             changedKeys.insert(key)
@@ -2562,6 +2824,14 @@ private final class CommandBlockStore {
     ) throws -> BedrockBlockState {
         let targetLegacy = try isLegacyTarget(targetKey)
         if targetLegacy {
+            // Numeric v0/v2...v7 only have layer0 plus 0x34 layer1. Any
+            // storage2+ copied by clone must first modernise the destination
+            // chunk, even when the value at this coordinate is air.
+            if layer > 1 {
+                return state.nbt != nil
+                    ? normalizedModernState(state, version: try paletteVersion(for: targetKey))
+                    : modernState(from: state, version: try paletteVersion(for: targetKey))
+            }
             if state.nbt == nil { return state }
             if state.isAir {
                 return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
@@ -2880,6 +3150,12 @@ private struct MutableCommandSubChunk {
 
     var isLegacy: Bool { [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) }
     var paletteVersion: Int32? { storages.flatMap(\.palette).compactMap(\.paletteVersion).first }
+    var supportsStructuredStorageCommands: Bool { [UInt8(0), 1, 2, 3, 4, 5, 6, 7, 8, 9].contains(version) }
+
+    func allStates(linearIndex: Int) -> [BedrockBlockState] {
+        if storages.isEmpty { return [fallbackAir] }
+        return storages.map { $0.state(at: linearIndex) ?? fallbackAir }
+    }
 
     func upgradedToModern(version: Int32?) throws -> MutableCommandSubChunk {
         let upgraded = try persistentSubChunk().upgradedToModern(paletteVersion: version)
@@ -2891,17 +3167,33 @@ private struct MutableCommandSubChunk {
         return state
     }
 
-    mutating func setState(_ state: BedrockBlockState, layer: Int, linearIndex: Int) throws -> Bool {
-        guard layer == 0 || layer == 1 else { throw MCBEEditorError.malformedData("只支持层 0 和层 1") }
+    mutating func setState(
+        _ state: BedrockBlockState,
+        layer: Int,
+        linearIndex: Int,
+        trimTrailingAir: Bool = true
+    ) throws -> Bool {
+        guard (0..<Int(UInt8.max)).contains(layer) else {
+            throw MCBEEditorError.malformedData("storage 层数必须为 0…254；持久化格式最多 255 层")
+        }
+        guard supportsStructuredStorageCommands else {
+            throw MCBEEditorError.unsupported("SubChunk v\(version) 不能进行结构化 storage 编辑")
+        }
         if isLegacy {
+            guard layer <= 1 else {
+                throw MCBEEditorError.unsupported("旧版数字 ID SubChunk 只支持 layer0 和 0x34 layer1")
+            }
             guard state.nbt == nil, state.legacyID != nil else {
                 throw MCBEEditorError.unsupported("不能把现代方块状态写入旧版数字 ID SubChunk")
             }
         } else if state.nbt == nil {
             throw MCBEEditorError.unsupported("不能把旧版数字 ID 方块写入现代 SubChunk")
         }
-        if layer == 1, storages.count <= 1, state.isAir { return false }
+        if layer > 0, storages.count <= layer, state.isAir { return false }
         while storages.count <= layer {
+            guard storages.count < Int(UInt8.max) else {
+                throw MCBEEditorError.unsupported("SubChunk 已达到 255 个 storage 的持久化上限")
+            }
             let air = isLegacy
                 ? BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
                 : fallbackAir
@@ -2909,10 +3201,34 @@ private struct MutableCommandSubChunk {
             storages.append(try MutableCommandStorage(storage))
         }
         let changed = try storages[layer].set(state, at: linearIndex)
-        if changed, layer == 1, storages.count == 2, storages[1].isEntirelyAir {
-            storages.removeLast()
+        if changed, trimTrailingAir, layer == storages.count - 1 {
+            while storages.count > 1, storages.last?.isEntirelyAir == true {
+                storages.removeLast()
+            }
         }
         return changed
+    }
+
+    mutating func deleteStorage(at layer: Int) throws {
+        guard storages.indices.contains(layer) else {
+            throw MCBEEditorError.unsupported("storage\(layer) 不存在")
+        }
+        storages.remove(at: layer)
+        if storages.isEmpty {
+            let storage = SubChunkStorage(bitsPerBlock: 0, palette: [fallbackAir], indices: Array(repeating: 0, count: 4096))
+            storages.append(try MutableCommandStorage(storage))
+        }
+        while storages.count > 1, storages.last?.isEntirelyAir == true {
+            storages.removeLast()
+        }
+    }
+
+    mutating func clearStorages(keepingThrough layer: Int) -> Bool {
+        guard !storages.isEmpty else { return false }
+        let keepCount = min(storages.count, layer >= Int(UInt8.max) ? storages.count : layer + 1)
+        guard storages.count > keepCount else { return false }
+        storages.removeSubrange(keepCount..<storages.count)
+        return true
     }
 
     func persistentSubChunk() throws -> BedrockSubChunk {

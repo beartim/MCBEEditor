@@ -101,8 +101,7 @@ struct CommandBlockStateSpec {
     }
 
     func canRemainLegacy(layer: Int) -> Bool {
-        guard states.isEmpty else { return false }
-        if layer == 1 { return isAir }
+        guard states.isEmpty, layer == 0 || layer == 1 else { return false }
         return BedrockLegacyBlockCatalog.block(forIdentifier: name) != nil
     }
 
@@ -243,15 +242,15 @@ enum ParsedWorldCommand {
     case fill(
         targetDimension: Int32,
         region: CommandBlockBox,
-        layer0: CommandBlockStateSpec,
-        layer1: CommandBlockStateSpec
+        storages: [CommandBlockStateSpec]
     )
     case setBlock(
         targetDimension: Int32,
         position: CommandBlockCoordinate,
-        layer0: CommandBlockStateSpec,
-        layer1: CommandBlockStateSpec
+        storages: [CommandBlockStateSpec]
     )
+    case getBlock(targetDimension: Int32, position: CommandBlockCoordinate)
+    case storage(operation: CommandStorageOperation)
     case setWorldSpawn(position: CommandBlockCoordinate)
     case spawnPoint(target: CommandTarget, dimension: Int32, position: CommandBlockCoordinate)
     case teleport(target: CommandTarget, dimension: Int32, x: Double, y: CommandTeleportY, z: Double)
@@ -262,6 +261,14 @@ enum ParsedWorldCommand {
     case experience(operation: CommandExperienceOperation)
     case structure(operation: CommandStructureOperation)
     case tickingArea(operation: CommandTickingAreaOperation)
+}
+
+
+enum CommandStorageOperation {
+    case query(dimension: Int32, position: CommandBlockCoordinate)
+    case set(dimension: Int32, position: CommandBlockCoordinate, layer: Int, block: CommandBlockStateSpec)
+    case delete(dimension: Int32, position: CommandBlockCoordinate, layer: Int)
+    case clear(dimension: Int32, position: CommandBlockCoordinate, keepThroughLayer: UInt8)
 }
 
 enum CommandStructureOperation {
@@ -431,8 +438,8 @@ enum CommandEffectNBT {
 
 enum WorldCommandParser {
     static let commandNames = [
-        "help", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "give", "kill", "kick",
-        "setblock", "setworldspawn", "spawnpoint", "spread", "structure", "summon", "teleport",
+        "help", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "getblock", "give", "kill", "kick",
+        "setblock", "setworldspawn", "spawnpoint", "spread", "storage", "structure", "summon", "teleport",
         "tickingarea", "time", "weather"
     ]
 
@@ -441,14 +448,16 @@ enum WorldCommandParser {
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。\n示例：clear @e",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。\n示例：clearspawnpoint @a",
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
-        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；涉及未加载区块时会先写入空气区块与生成完成状态，再执行复制。重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
-        "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间写入 Duration、DurationEasy、DurationNormal、DurationHard，效果等级为零基数（输入 50 表示 51 级）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect clear @e ALL",
+        "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；v8 或更新的已知结构化 SubChunk 会逐方块复制所有实际存在的 storage，并把目标多余 storage 在复制位置清为空气；旧数字格式仍按 layer0 + LegacyBlockExtraData layer1 处理。涉及未加载区块时会先写入空气区块与生成完成状态；重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间接受完整 Int32（包括负数）；效果等级接受 -128～255，仍按 Bedrock Byte 原始值写入（例如 -1 与 255 都写为 0xFF）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect give @a strength -1 -1\n示例：effect clear @e ALL",
         "experience": "experience add 目标 整数\nexperience addlevel 目标 整数\nexperience level 目标 0到24791整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。add 按总经验增减并自动换算等级和经验条；addlevel 增减经验等级并保留当前经验条百分比；level 直接设定经验等级并把经验条进度设为 0，等级范围均为 0～24791；percent 修改当前经验条百分比；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience add @a 100\n示例：experience addlevel -4294967270 -3\n示例：experience level @s 30\n示例：experience percent @s 0.5\n示例：experience query @a\n示例：experience set @s 2500",
-        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states 层1方块名 层1states\n维度必须为 overworld、nether 或 the_end。states 可输入 NULL，或输入任意 NBT 标签类型；支持数组、List、Compound 与多重嵌套。旧版数字 ID SubChunk 遇到无数字 ID、非空气层 1 或非空 states 时会自动升级为新版 SubChunk。\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"",
+        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states [层1方块名 层1states ...]\n维度必须为 overworld、nether 或 the_end。至少提供 storage0，layer1 及之后都可省略；后续参数必须按 方块名+states 成对出现，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 仅能原地表示 layer0/1 的数字 ID；使用更多 storage 或现代 states 时自动升级为现代 SubChunk。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL",
         "give": "give 目标 Slot 物品 数目 物品标签\nSlot 只能是 Auto 或 0～35 的整数。目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家：Auto 沿用第一个空 Inventory 槽位、满时最后一格的逻辑，整数 Slot 写入对应 Inventory 槽位。非玩家实体必须已经存在可写入的 Mainhand 标签，否则直接跳过；命令任何时候都不会创建 Mainhand。实体 Auto 写入已有 Mainhand；整数 Slot 在有 ChestItems 时写入对应槽位，超过槽位数时写入最后槽位并同步写入已有 Mainhand；没有 ChestItems 时只写入已有 Mainhand。\n示例：give @s Auto minecraft:stone 64 NULL\n示例：give @a 5 minecraft:diamond 3 NULL\n示例：give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。\n示例：kick @a\n示例：kick -4294967270",
-        "setblock": "setblock 目标维度 x y z 层0方块名 层0states 层1方块名 层1states\nfill 的单方块版本。维度必须为 overworld、nether 或 the_end；states 格式与 fill 完全相同。\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:air NULL",
+        "setblock": "setblock 目标维度 x y z 层0方块名 层0states [层1方块名 层1states ...]\nfill 的单方块版本。至少提供 storage0，layer1 及之后均可省略；最多 255 个 storage。省略的 storage 保持原样。\n示例：setblock overworld 0 64 0 minecraft:stone NULL\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL",
+        "getblock": "getblock 维度 x y z\n返回指定方块位置所有存在的 storage 方块状态以及该坐标的方块实体 NBT。Block 行使用蓝色，BlockEntity 行使用紫色；没有方块实体时显示 BlockEntity=NULL。\n示例：getblock overworld -24 64 0",
+        "storage": "storage query 维度 x y z\nstorage set 维度 x y z 层数 方块名 states\nstorage delete 维度 x y z 层数\nstorage clear 维度 x y z 保留到的层数\n直接操作指定坐标所在 v8 或更新的已知结构化 SubChunk 的物理 storage。query 逐行用蓝色显示所有 storage 在该坐标的方块状态；set 可设置 layer 0～254，并按需要创建中间空气 storage，最多 255 层；delete 删除整个指定 storage（该 SubChunk 内 4096 个位置都会受影响）并在安全时裁掉后续全空气 storage；clear 参数为 UInt8，0 仅保留 storage0，1 保留 storage0/1，其余类推，255 表示不主动裁剪。\n示例：storage query overworld 0 64 0\n示例：storage set overworld 0 64 0 8 minecraft:water NULL\n示例：storage delete overworld 0 64 0 8\n示例：storage clear overworld 0 64 0 1",
         "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
         "spread": "spread 目标\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier。每个匹配对象会独立随机选择一个有已加载区块的维度、一个已加载区块及其中一列非全空气的 X/Z，再按 teleport Auto 逻辑传送。输出格式为 identifier UniqueID 维度 X Y Z，并优先显示玩家。\n示例：spread @e\n示例：spread minecraft:cow",
@@ -603,37 +612,90 @@ enum WorldCommandParser {
                 destination: destination
             )
         case "fill":
-            guard arguments.count == 11 else { throw usageError(command) }
+            guard arguments.count >= 9, (arguments.count - 7) % 2 == 0 else { throw usageError(command) }
+            let storageCount = (arguments.count - 7) / 2
+            guard storageCount <= Int(UInt8.max) else {
+                throw MCBEEditorError.malformedData("fill 最多接受 255 个 storage")
+            }
             let targetDimension = try parseDimension(arguments[0])
             let coordinates = try parseCoordinates(Array(arguments[1...6]))
-            let layer0 = try CommandBlockStateSpec(
-                name: parseBlockName(arguments[7]),
-                states: parseStates(arguments[8])
-            )
-            let layer1 = try CommandBlockStateSpec(
-                name: parseBlockName(arguments[9]),
-                states: parseStates(arguments[10])
-            )
+            var storages = [CommandBlockStateSpec]()
+            storages.reserveCapacity(storageCount)
+            for layer in 0..<storageCount {
+                let offset = 7 + layer * 2
+                storages.append(CommandBlockStateSpec(
+                    name: try parseBlockName(arguments[offset]),
+                    states: try parseStates(arguments[offset + 1])
+                ))
+            }
             return .fill(
                 targetDimension: targetDimension,
                 region: CommandBlockBox(coordinates[0], coordinates[1]),
-                layer0: layer0,
-                layer1: layer1
+                storages: storages
             )
         case "setblock":
-            guard arguments.count == 8 else { throw usageError(command) }
+            guard arguments.count >= 6, (arguments.count - 4) % 2 == 0 else { throw usageError(command) }
+            let storageCount = (arguments.count - 4) / 2
+            guard storageCount <= Int(UInt8.max) else {
+                throw MCBEEditorError.malformedData("setblock 最多接受 255 个 storage")
+            }
+            var storages = [CommandBlockStateSpec]()
+            storages.reserveCapacity(storageCount)
+            for layer in 0..<storageCount {
+                let offset = 4 + layer * 2
+                storages.append(CommandBlockStateSpec(
+                    name: try parseBlockName(arguments[offset]),
+                    states: try parseStates(arguments[offset + 1])
+                ))
+            }
             return .setBlock(
                 targetDimension: try parseDimension(arguments[0]),
                 position: try parseCoordinates(Array(arguments[1...3]))[0],
-                layer0: CommandBlockStateSpec(
-                    name: try parseBlockName(arguments[4]),
-                    states: try parseStates(arguments[5])
-                ),
-                layer1: CommandBlockStateSpec(
-                    name: try parseBlockName(arguments[6]),
-                    states: try parseStates(arguments[7])
-                )
+                storages: storages
             )
+        case "getblock":
+            guard arguments.count == 4 else { throw usageError(command) }
+            return .getBlock(
+                targetDimension: try parseDimension(arguments[0]),
+                position: try parseCoordinates(Array(arguments[1...3]))[0]
+            )
+        case "storage":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "query":
+                guard arguments.count == 5 else { throw usageError(command) }
+                return .storage(operation: .query(
+                    dimension: try parseDimension(arguments[1]),
+                    position: try parseCoordinates(Array(arguments[2...4]))[0]
+                ))
+            case "set":
+                guard arguments.count == 8 else { throw usageError(command) }
+                return .storage(operation: .set(
+                    dimension: try parseDimension(arguments[1]),
+                    position: try parseCoordinates(Array(arguments[2...4]))[0],
+                    layer: try parseStorageLayer(arguments[5]),
+                    block: CommandBlockStateSpec(
+                        name: try parseBlockName(arguments[6]),
+                        states: try parseStates(arguments[7])
+                    )
+                ))
+            case "delete":
+                guard arguments.count == 6 else { throw usageError(command) }
+                return .storage(operation: .delete(
+                    dimension: try parseDimension(arguments[1]),
+                    position: try parseCoordinates(Array(arguments[2...4]))[0],
+                    layer: try parseStorageLayer(arguments[5])
+                ))
+            case "clear":
+                guard arguments.count == 6, let keepThrough = UInt8(arguments[5]) else { throw usageError(command) }
+                return .storage(operation: .clear(
+                    dimension: try parseDimension(arguments[1]),
+                    position: try parseCoordinates(Array(arguments[2...4]))[0],
+                    keepThroughLayer: keepThrough
+                ))
+            default:
+                throw usageError(command)
+            }
         case "setworldspawn":
             guard arguments.count == 3 else { throw usageError(command) }
             return .setWorldSpawn(position: try parseCoordinates(arguments)[0])
@@ -992,17 +1054,25 @@ enum WorldCommandParser {
     }
 
     private static func parseEffectDuration(_ text: String) throws -> Int32 {
-        guard let value = Int32(text), value >= 0 else {
-            throw MCBEEditorError.malformedData("状态效果持续时间必须是 0…2147483647 的整数")
+        guard let value = Int32(text) else {
+            throw MCBEEditorError.malformedData("状态效果持续时间必须是 Int32 整数（-2147483648…2147483647）")
         }
         return value
     }
 
     private static func parseEffectAmplifier(_ text: String) throws -> UInt8 {
-        guard let value = UInt8(text) else {
-            throw MCBEEditorError.malformedData("状态效果等级必须是 0…255 的整数；输入值为零基数")
+        guard let value = Int16(text), value >= -128, value <= 255 else {
+            throw MCBEEditorError.malformedData("状态效果等级必须是 -128…255 的整数；按 Bedrock Byte 原始值写入")
         }
-        return value
+        if value < 0 { return UInt8(bitPattern: Int8(value)) }
+        return UInt8(value)
+    }
+
+    private static func parseStorageLayer(_ text: String) throws -> Int {
+        guard let value = UInt8(text), value < UInt8.max else {
+            throw MCBEEditorError.malformedData("storage 层数必须是 0…254；最多只能持久化 255 个 storage")
+        }
+        return Int(value)
     }
 
     private static func parseGiveSlot(_ text: String) throws -> CommandGiveSlot {
