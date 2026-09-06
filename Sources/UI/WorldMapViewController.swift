@@ -1110,7 +1110,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = compactPhone ? 20 : 16
+    displayOptions.spacing = compactPhone ? 24 : 16
     displayOptions.alignment = .center
     // On portrait iPhone the row now stretches to match the render-controls
     // row width, using equalSpacing so the three switch groups breathe a bit
@@ -1125,7 +1125,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       renderButton,
     ])
     renderControls.axis = .horizontal
-    renderControls.spacing = compactPhone ? 10 : 9
+    renderControls.spacing = compactPhone ? 12 : 9
     renderControls.alignment = .center
     // Match the phone switch row width and distribute the title / XZ editor
     // / button with equalSpacing, so the second row remains readable and has
@@ -1145,7 +1145,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       // budget while keeping every label and the X/Z editor visible.
       coordinates = UIStackView(arrangedSubviews: [displayOptions, renderControls])
       coordinates.axis = .vertical
-      coordinates.spacing = 8
+      coordinates.spacing = 10
       // Keep the two phone rows visually aligned and equally long.  The row
       // stacks share a width, then use equalSpacing internally so controls are
       // slightly more spread out without reverting to overly sparse layout.
@@ -2224,7 +2224,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let rendererSide = min(logicalSide, maximumMapRasterSidePixels)
     let blockToRenderer = rendererSide / logicalSide
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = ungeneratedDisplay != .transparent
+    format.opaque = ungeneratedDisplay == .air
     if logicalSide <= maximumMapRasterSidePixels {
       format.scale = max(1, min(8, floor(maximumMapRasterSidePixels / logicalSide)))
     } else {
@@ -2238,7 +2238,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       cg.interpolationQuality = .none
       cg.setAllowsAntialiasing(false)
       cg.setShouldAntialias(false)
-      if ungeneratedDisplay != .transparent {
+      if ungeneratedDisplay == .air {
         UIColor.systemGray5.setFill()
         context.fill(CGRect(x: 0, y: 0, width: rendererSide, height: rendererSide))
       }
@@ -2256,16 +2256,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           )
           guard let chunkImage = chunkImages[index] else { continue }
           let isUngenerated = ungeneratedTiles[index]
-          switch ungeneratedDisplay {
-          case .transparent:
-            if !isUngenerated { chunkImage.draw(in: rect) }
-          case .air:
+          if isUngenerated {
+            drawUngeneratedChunkPlaceholder(context: cg, in: rect, displayMode: ungeneratedDisplay)
+          } else {
             chunkImage.draw(in: rect)
-          case .texture:
-            chunkImage.draw(in: rect)
-            if isUngenerated {
-              self.drawUngeneratedChunkTexture(context: cg, in: rect)
-            }
           }
         }
       }
@@ -4894,28 +4888,43 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     context.fill(rect)
   }
 
+  private func drawUngeneratedChunkPlaceholder(
+    context: CGContext,
+    in rect: CGRect,
+    displayMode: MapUngeneratedChunkDisplayMode
+  ) {
+    switch displayMode {
+    case .transparent:
+      break
+    case .air:
+      drawUngeneratedChunkAirBase(context: context, in: rect)
+    case .texture:
+      drawUngeneratedChunkTexture(context: context, in: rect)
+    }
+  }
+
   private func drawUngeneratedChunkTexture(context: CGContext, in rect: CGRect) {
     guard rect.width > 0, rect.height > 0 else { return }
     context.saveGState()
     context.clip(to: rect)
     context.setShouldAntialias(true)
     context.setAllowsAntialiasing(true)
-    context.setLineCap(.round)
-    context.setStrokeColor(UIColor(white: 0.58, alpha: 0.72).cgColor)
-    context.setLineWidth(max(1.0, min(rect.width, rect.height) * 0.055))
+    context.setLineCap(.square)
+    context.setStrokeColor(UIColor(white: 0.70, alpha: 1.0).cgColor)
 
-    let inset = max(1.5, min(rect.width, rect.height) * 0.12)
-    let diagonal = rect.height - inset * 2
-    let startXs: [CGFloat] = [
-      rect.minX - rect.width * 0.18,
-      rect.minX + rect.width * 0.16,
+    let side = min(rect.width, rect.height)
+    let width = max(1.25, (side * 0.06).rounded(.toNearestOrAwayFromZero))
+    context.setLineWidth(width)
+
+    let extensionLength = max(rect.width, rect.height)
+    let topStarts: [CGFloat] = [
+      rect.minX - rect.width * 0.22,
+      rect.minX + rect.width * 0.14,
       rect.minX + rect.width * 0.50,
     ]
-    for startX in startXs {
-      let startPoint = CGPoint(x: startX, y: rect.minY + inset)
-      let endPoint = CGPoint(x: startX + diagonal, y: rect.maxY - inset)
-      context.move(to: startPoint)
-      context.addLine(to: endPoint)
+    for startX in topStarts {
+      context.move(to: CGPoint(x: startX, y: rect.minY))
+      context.addLine(to: CGPoint(x: startX + rect.height + extensionLength, y: rect.maxY + extensionLength))
     }
     context.strokePath()
     context.restoreGState()
@@ -4933,7 +4942,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     layers: MapImageExportLayers
   ) -> UIImage {
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = layers.ungeneratedDisplay != .transparent
+    format.opaque = layers.ungeneratedDisplay == .air
     format.scale = base.scale
     return UIGraphicsImageRenderer(size: base.size, format: format).image { context in
       context.cgContext.interpolationQuality = .none
@@ -5341,7 +5350,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let longest = CGFloat(max(widthBlocks, heightBlocks))
     let outputScale = min(4.0, max(0.02, 6144.0 / max(longest, 1)))
     let format = UIGraphicsImageRendererFormat.default()
-    format.opaque = ungeneratedDisplay != .transparent
+    format.opaque = ungeneratedDisplay == .air
     format.scale = outputScale
     let positionSet = Set(positions)
     var images = [(position: ChunkPosition, image: UIImage)]()
@@ -5360,7 +5369,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     ).image { context in
       context.cgContext.interpolationQuality = .none
       context.cgContext.setAllowsAntialiasing(false)
-      if ungeneratedDisplay != .transparent {
+      if ungeneratedDisplay == .air {
         UIColor.systemGray5.setFill()
         context.fill(CGRect(x: 0, y: 0, width: widthBlocks, height: heightBlocks))
       }
@@ -5375,15 +5384,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
               width: 16,
               height: 16
             )
-            switch ungeneratedDisplay {
-            case .transparent:
-              break
-            case .air:
-              drawUngeneratedChunkAirBase(context: context.cgContext, in: rect)
-            case .texture:
-              drawUngeneratedChunkAirBase(context: context.cgContext, in: rect)
-              drawUngeneratedChunkTexture(context: context.cgContext, in: rect)
-            }
+            drawUngeneratedChunkPlaceholder(context: context.cgContext, in: rect, displayMode: ungeneratedDisplay)
           }
         }
       }
