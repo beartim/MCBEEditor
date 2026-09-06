@@ -4284,3 +4284,5 @@ swiftc -j 4 \
 "$ROOT/Scripts/test_legacy_zlib_and_selection_export.sh"
 "$ROOT/Scripts/test_modern_actor_binary_string.sh"
 "$ROOT/Scripts/test_iphone_layout_legacy_block_link.sh"
+
+"$ROOT/Scripts/test_metadata_crud_batch.sh"

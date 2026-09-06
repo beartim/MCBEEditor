@@ -17,6 +17,7 @@ CHANGES_MODERN_ACTOR_BINARY_STRING.md
 CHANGES_NEW_ACTOR_BIOME_ALIGN.md
 CHANGES_VIEWED_NBT_SEARCH_FIX.md
 CHANGES_VIEWED_UNSAVED_SYNC.md
+CHANGES_WORLD_METADATA_CRUD_BATCH.md
 CHANGES_v1.1.0.md
 CHANGES_v1.1.1.md
 CHANGES_v1.1.10.md
@@ -70,6 +71,7 @@ Scripts/test_iphone_layout_legacy_block_link.sh
 Scripts/test_legacy_terrain_subchunks.sh
 Scripts/test_legacy_zlib_and_selection_export.sh
 Scripts/test_mcbeeditor_map_player_rename.sh
+Scripts/test_metadata_crud_batch.sh
 Scripts/test_metadata_variant_search.sh
 Scripts/test_modern_actor_binary_string.sh
 Scripts/test_phone_map_viewport_v2.sh
