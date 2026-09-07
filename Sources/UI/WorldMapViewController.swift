@@ -4906,10 +4906,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private func drawUngeneratedChunkTexture(context: CGContext, in rect: CGRect) {
     guard rect.width > 0, rect.height > 0 else { return }
 
-    let alignedRect = rect.integral
+    // Use shared rounded chunk boundaries instead of CGRect.integral so adjacent
+    // chunks snap to the same edge coordinates and the stripe endpoints line up.
+    let minX = rect.minX.rounded(.toNearestOrAwayFromZero)
+    let maxX = rect.maxX.rounded(.toNearestOrAwayFromZero)
+    let minY = rect.minY.rounded(.toNearestOrAwayFromZero)
+    let maxY = rect.maxY.rounded(.toNearestOrAwayFromZero)
+    let alignedRect = CGRect(x: minX, y: minY, width: max(1, maxX - minX), height: max(1, maxY - minY))
     let side = min(alignedRect.width, alignedRect.height)
     let lineWidth = max(1.0, (side * 0.05).rounded(.toNearestOrAwayFromZero))
-    let bleed = lineWidth
+    let bleed = max(1.0, lineWidth * 0.75)
+    let midX = (minX + maxX) * 0.5
+    let midY = (minY + maxY) * 0.5
 
     context.saveGState()
     context.clip(to: alignedRect)
@@ -4919,13 +4927,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     context.setLineJoin(.miter)
     context.setStrokeColor(UIColor(white: 0.66, alpha: 1.0).cgColor)
     context.setLineWidth(lineWidth)
-
-    let minX = alignedRect.minX
-    let maxX = alignedRect.maxX
-    let minY = alignedRect.minY
-    let maxY = alignedRect.maxY
-    let midX = alignedRect.midX
-    let midY = alignedRect.midY
 
     context.beginPath()
     // Main line: top-left corner to bottom-right corner.
