@@ -2454,14 +2454,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         diagnostics.append(contentsOf: spawnerScan.diagnostics)
 
         if token.isCancelled { throw MapRenderCancelled() }
-        let generatedChunkPositions = Set(
-          try BedrockChunkStore(session: self.session).listChunks().filter { summary in
-            summary.position.dimension == dimension
-              && (summary.hasTerrain || summary.biomeRecordType != nil
-                  || summary.hasBlockEntities || summary.hasLegacyEntities
-                  || summary.recordCount > (summary.hasActorDigest ? 1 : 0))
-          }.map(\.position)
-        )
         let result = try renderer.renderCrossSection(
           axis: axis,
           fixedX: fixedX,
@@ -2472,7 +2464,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           mode: mode,
           drawSubChunkGrid: drawGrid,
           projectionDepth: 128,
-          generatedChunkPositions: generatedChunkPositions,
           pixelsPerBlock: 4,
           showUngeneratedSubChunks: includeUngeneratedSubChunks,
           tickingAreas: tickingAreas,
@@ -6385,8 +6376,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             && ($0.hasTerrain || $0.biomeRecordType != nil || $0.hasBlockEntities
                 || $0.hasLegacyEntities || $0.recordCount > ($0.hasActorDigest ? 1 : 0))
         }
-        let generatedChunkPositions = Set(allSummaries.map(\.position))
-
         let horizontalRange: ClosedRange<Int64>
         let verticalRange: ClosedRange<Int64>
         let exportSuffix: String
@@ -6465,7 +6454,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           mode: mode,
           drawSubChunkGrid: drawGrid,
           projectionDepth: 128,
-          generatedChunkPositions: generatedChunkPositions,
           pixelsPerBlock: 4,
           maximumRasterSide: 4096,
           showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,

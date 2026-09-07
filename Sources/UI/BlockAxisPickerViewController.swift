@@ -14,13 +14,17 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
   ) {
     self.result = result
     self.onSelect = onSelect
-    if let initialCoordinate = initialCoordinate,
+    // `blockAxisLine` is ordered from the largest X/Z coordinate downward.
+    // Prefer the largest-coordinate non-air block so a tap immediately lands
+    // on the foremost visible projected block. Fall back to the tapped plane
+    // coordinate only when the entire selectable axis line is air/missing.
+    if let index = result.blocks.firstIndex(where: { !$0.primaryState.isAir }) {
+      selectedRow = index
+    } else if let initialCoordinate = initialCoordinate,
       let index = result.blocks.firstIndex(where: {
         result.axis == .x ? $0.x == initialCoordinate : $0.z == initialCoordinate
       })
     {
-      selectedRow = index
-    } else if let index = result.blocks.firstIndex(where: { !$0.primaryState.isAir }) {
       selectedRow = index
     }
     super.init(nibName: nil, bundle: nil)

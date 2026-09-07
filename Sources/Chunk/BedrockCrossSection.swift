@@ -46,7 +46,6 @@ extension ChunkSurfaceRenderer {
     mode: MapRenderMode,
     drawSubChunkGrid: Bool,
     projectionDepth: Int = 128,
-    generatedChunkPositions: Set<ChunkPosition> = [],
     pixelsPerBlock: Int = 1,
     maximumRasterSide: Int = 2048,
     showUngeneratedSubChunks: Bool = false,
@@ -206,13 +205,13 @@ extension ChunkSurfaceRenderer {
       let primary = states.first(where: { !$0.isAir }) ?? states.first
       let biomeID = cached.biomeDocument?.biomeID(localX: localX, y: Int(y), localZ: localZ)
         ?? cached.legacyTerrain?.biomeID(localX: localX, localZ: localZ)
-      // Bedrock normally omits all-air SubChunks. If the containing chunk is
-      // otherwise known to be generated, an absent SubChunk is ordinary air,
-      // not an ungenerated section placeholder.
-      let generatedOrStored = subChunk != nil || generatedChunkPositions.contains(position)
+      // Missing SubChunk records are intentionally preserved as "not generated".
+      // Some worlds contain large vertical gaps whose parent chunk exists but the
+      // individual SubChunk was never generated, so chunk-level generation state
+      // must not be used as an air fallback here.
       return Sample(
         blockName: primary?.name ?? "minecraft:air",
-        hasSubChunk: generatedOrStored,
+        hasSubChunk: subChunk != nil,
         biomeID: biomeID,
         chunkX: chunkX,
         chunkZ: chunkZ
@@ -233,37 +232,87 @@ extension ChunkSurfaceRenderer {
         return sampleAt(worldX: planeX, worldZ: planeZ, y: y)
       }
 
+      // Traverse coordinates from the largest X/Z toward the negative axis.
+      // This makes the projected pixel explicitly prefer the largest-coordinate
+      // non-air block in the 128-block slab instead of depending on incidental
+      // loop/fallback order.
+      let maximumProjectionCoordinate = axis == .x ? fixedX : fixedZ
+      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(rayDepth - 1)
       var fallback: Sample?
-      var generatedFallback: Sample?
-      for depth in 0..<rayDepth {
-        let worldX = axis == .x ? fixedX - Int64(depth) : horizontal
-        let worldZ = axis == .z ? fixedZ - Int64(depth) : horizontal
+      for coordinate in stride(
+        from: maximumProjectionCoordinate,
+        through: minimumProjectionCoordinate,
+        by: -1
+      ) {
+        let worldX = axis == .x ? coordinate : horizontal
+        let worldZ = axis == .z ? coordinate : horizontal
         let value = sampleAt(worldX: worldX, worldZ: worldZ, y: y)
         if fallback == nil { fallback = value }
-        if value.hasSubChunk, generatedFallback == nil { generatedFallback = value }
 
         if mode == .xray {
           if isOreProjectionTarget(value.blockName) { return value }
         } else if !isAir(value.blockName) {
-          // Closest visible non-air block wins, which is the normal opaque
-          // orthographic projection result for surface/height rendering.
           return value
         }
       }
-
-      if let generatedFallback = generatedFallback {
-        // At least one generated SubChunk exists along this 128-block ray. If
-        // it contains only air, render air rather than marking the pixel as an
-        // ungenerated SubChunk. This also avoids filling empty sky with hatch.
-        return Sample(
-          blockName: "minecraft:air",
-          hasSubChunk: true,
-          biomeID: generatedFallback.biomeID,
-          chunkX: generatedFallback.chunkX,
-          chunkZ: generatedFallback.chunkZ
-        )
-      }
       return fallback ?? sampleAt(worldX: planeX, worldZ: planeZ, y: y)
+    }
+
+    func planeHasSubChunk(horizontal: Int64, y: Int64) -> Bool {
+      let worldX = axis == .x ? fixedX : horizontal
+      let worldZ = axis == .z ? fixedZ : horizontal
+      let chunkX = MapCoordinate.chunk(fromBlock: worldX)
+      let chunkZ = MapCoordinate.chunk(fromBlock: worldZ)
+      let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension)
+      let subY64 = floorDiv16(y)
+      guard subY64 >= Int64(Int8.min), subY64 <= Int64(Int8.max) else { return false }
+      return loadChunk(position).subChunks[Int8(subY64)] != nil
+    }
+
+    let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
+
+    func rasterEdge(_ blockOffset: Int64) -> CGFloat {
+      CGFloat(Double(blockOffset) / Double(sampleStride)
+        * Double(rasterPixelsPerSample))
+    }
+
+    /// Missing-section texture is built from exact world SubChunk cells rather
+    /// than sampled pixels. Its rectangle edges therefore use the exact same
+    /// world-to-raster transform as the 16-block grid and cannot drift away
+    /// from the grid when the viewport origin or sample stride changes.
+    func ungeneratedPlaneSubChunkRects() -> [CGRect] {
+      guard showUngeneratedSubChunks || transparentUngeneratedSubChunks else { return [] }
+      var rects = [CGRect]()
+      let horizontalEndExclusive = maximumHorizontal + 1
+      let verticalEndExclusive = maximumY + 1
+
+      var horizontalCellStart = floorDiv16(minimumHorizontal) * 16
+      while horizontalCellStart < horizontalEndExclusive {
+        let clippedHorizontalStart = max(horizontalCellStart, minimumHorizontal)
+        let clippedHorizontalEnd = min(horizontalCellStart + 16, horizontalEndExclusive)
+        if clippedHorizontalEnd > clippedHorizontalStart {
+          var verticalCellStart = floorDiv16(minimumY) * 16
+          while verticalCellStart < verticalEndExclusive {
+            let clippedYStart = max(verticalCellStart, minimumY)
+            let clippedYEnd = min(verticalCellStart + 16, verticalEndExclusive)
+            if clippedYEnd > clippedYStart,
+              !planeHasSubChunk(horizontal: clippedHorizontalStart, y: clippedYStart)
+            {
+              let x0 = rasterEdge(clippedHorizontalStart - minimumHorizontal)
+              let x1 = rasterEdge(clippedHorizontalEnd - minimumHorizontal)
+              let y0 = rasterEdge(verticalEndExclusive - clippedYEnd)
+              let y1 = rasterEdge(verticalEndExclusive - clippedYStart)
+              rects.append(CGRect(
+                x: min(x0, x1), y: min(y0, y1),
+                width: abs(x1 - x0), height: abs(y1 - y0)
+              ))
+            }
+            verticalCellStart += 16
+          }
+        }
+        horizontalCellStart += 16
+      }
+      return rects
     }
 
     func color(for value: Sample, y: Int64) -> UIColor {
@@ -286,6 +335,8 @@ extension ChunkSurfaceRenderer {
       }
     }
 
+    let exactUngeneratedRects = ungeneratedPlaneSubChunkRects()
+
     let format = UIGraphicsImageRendererFormat.default()
     format.scale = 1
     format.opaque = !transparentUngeneratedSubChunks
@@ -299,7 +350,6 @@ extension ChunkSurfaceRenderer {
       UIColor.systemGray5.setFill()
       context.fill(CGRect(x: 0, y: 0, width: CGFloat(rasterWidth), height: CGFloat(rasterHeight)))
 
-      var ungeneratedTextureRects = [CGRect]()
       for row in 0..<rasterRows {
         if shouldCancel() { return }
         let y = maximumY - Int64(min(verticalBlockCount - 1, row * sampleStride))
@@ -313,37 +363,84 @@ extension ChunkSurfaceRenderer {
             width: CGFloat(rasterPixelsPerSample),
             height: CGFloat(rasterPixelsPerSample)
           )
-          if transparentUngeneratedSubChunks, !value.hasSubChunk {
-            cg.clear(rect)
-            continue
-          }
-          if showUngeneratedSubChunks, !value.hasSubChunk {
-            // Match the Y-map placeholder: a light neutral base with soft,
-            // anti-aliased gray diagonals. Collect sample cells first so the
-            // hatching stays continuous across a whole missing SubChunk.
-            UIColor(red: 0.90, green: 0.90, blue: 0.90, alpha: 1).setFill()
-            context.fill(rect)
-            ungeneratedTextureRects.append(rect)
-            continue
-          }
           color(for: value, y: y).setFill()
           context.fill(rect)
         }
       }
 
+      if transparentUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
+        for rect in exactUngeneratedRects where !rect.isEmpty { cg.clear(rect) }
+      }
+
+      if showUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
+        for rect in exactUngeneratedRects where !rect.isEmpty {
+          UIColor(red: 0.90, green: 0.90, blue: 0.90, alpha: 1).setFill()
+          context.fill(rect)
+        }
+
+        let validRects = exactUngeneratedRects.filter { !$0.isEmpty }
+        if !validRects.isEmpty {
+          let minX = validRects.map(\.minX).min() ?? 0
+          let minY = validRects.map(\.minY).min() ?? 0
+          let maxX = validRects.map(\.maxX).max() ?? 0
+          let maxY = validRects.map(\.maxY).max() ?? 0
+          let textureBounds = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+          if !textureBounds.isEmpty {
+            let renderedSubChunkSide = 16.0 * worldToRaster
+            let spacing = max(2.0, renderedSubChunkSide * 0.5)
+            let lineWidth = max(
+              1.0,
+              (renderedSubChunkSide * 0.075).rounded(.toNearestOrAwayFromZero)
+            )
+            let margin = textureBounds.width + textureBounds.height + lineWidth * 4
+            let minimumIntercept = textureBounds.minY - textureBounds.maxX - margin
+            let maximumIntercept = textureBounds.maxY - textureBounds.minX + margin
+
+            cg.saveGState()
+            let clip = CGMutablePath()
+            for rect in validRects { clip.addRect(rect) }
+            cg.addPath(clip)
+            cg.clip()
+            cg.setShouldAntialias(true)
+            cg.setAllowsAntialiasing(true)
+            cg.setLineCap(.square)
+            cg.setLineJoin(.miter)
+            cg.setStrokeColor(UIColor(white: 0.66, alpha: 1).cgColor)
+            cg.setLineWidth(lineWidth)
+
+            // Anchor hatch phase in world coordinates. The same SubChunk keeps
+            // the same diagonal phase while panning/zooming, so hatch boundaries
+            // stay registered with the 16-block grid instead of sliding over it.
+            let worldAnchorIntercept = CGFloat(
+              Double(maximumY) + 1.0 + Double(minimumHorizontal)
+            ) * worldToRaster
+            var intercept = worldAnchorIntercept
+              + floor((minimumIntercept - worldAnchorIntercept) / spacing) * spacing
+            cg.beginPath()
+            while intercept <= maximumIntercept {
+              cg.move(to: CGPoint(
+                x: textureBounds.minX - margin,
+                y: textureBounds.minX - margin + intercept
+              ))
+              cg.addLine(to: CGPoint(
+                x: textureBounds.maxX + margin,
+                y: textureBounds.maxX + margin + intercept
+              ))
+              intercept += spacing
+            }
+            cg.strokePath()
+            cg.restoreGState()
+          }
+        }
+      }
+
       if drawSubChunkGrid {
-        // Match the Y-map grid exactly: same label color/opacity, same
-        // per-block scale-derived line width, and crisp non-antialiased edges.
-        let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
+        // Match the Y-map grid exactly, and draw it after missing-section hatch
+        // so the 16-block boundaries remain visible on top of the texture.
         cg.setShouldAntialias(false)
         cg.setAllowsAntialiasing(false)
         cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
         cg.setLineWidth(max(0.15, worldToRaster * 0.15))
-
-        func rasterEdge(_ blockOffset: Int64) -> CGFloat {
-          CGFloat(Double(blockOffset) / Double(sampleStride)
-            * Double(rasterPixelsPerSample))
-        }
 
         let horizontalEndExclusive = maximumHorizontal + 1
         var boundary = floorDiv16(minimumHorizontal) * 16
@@ -368,65 +465,6 @@ extension ChunkSurfaceRenderer {
           yBoundary += 16
         }
         cg.strokePath()
-      }
-
-      if showUngeneratedSubChunks, !ungeneratedTextureRects.isEmpty {
-        let minX = ungeneratedTextureRects.map(\.minX).min() ?? 0
-        let minY = ungeneratedTextureRects.map(\.minY).min() ?? 0
-        let maxX = ungeneratedTextureRects.map(\.maxX).max() ?? 0
-        let maxY = ungeneratedTextureRects.map(\.maxY).max() ?? 0
-        let textureBounds = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-        if !textureBounds.isEmpty {
-          let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
-          let renderedSubChunkSide = 16.0 * worldToRaster
-          // Keep the placeholder visually identical to the Y-map texture.
-          let spacing = max(2.0, renderedSubChunkSide * 0.5)
-          let lineWidth = max(
-            1.0,
-            (renderedSubChunkSide * 0.075).rounded(.toNearestOrAwayFromZero)
-          )
-          let margin = textureBounds.width + textureBounds.height + lineWidth * 4
-          let minimumIntercept = textureBounds.minY - textureBounds.maxX - margin
-          let maximumIntercept = textureBounds.maxY - textureBounds.minX + margin
-
-          cg.saveGState()
-          let clip = CGMutablePath()
-          for rect in ungeneratedTextureRects {
-            let alignedMinX = rect.minX.rounded(.toNearestOrAwayFromZero)
-            let alignedMaxX = rect.maxX.rounded(.toNearestOrAwayFromZero)
-            let alignedMinY = rect.minY.rounded(.toNearestOrAwayFromZero)
-            let alignedMaxY = rect.maxY.rounded(.toNearestOrAwayFromZero)
-            clip.addRect(CGRect(
-              x: alignedMinX,
-              y: alignedMinY,
-              width: max(1, alignedMaxX - alignedMinX),
-              height: max(1, alignedMaxY - alignedMinY)
-            ))
-          }
-          cg.addPath(clip)
-          cg.clip()
-          cg.setShouldAntialias(true)
-          cg.setAllowsAntialiasing(true)
-          cg.setLineCap(.square)
-          cg.setLineJoin(.miter)
-          cg.setStrokeColor(UIColor(white: 0.66, alpha: 1).cgColor)
-          cg.setLineWidth(lineWidth)
-          var intercept = floor(minimumIntercept / spacing) * spacing
-          cg.beginPath()
-          while intercept <= maximumIntercept {
-            cg.move(to: CGPoint(
-              x: textureBounds.minX - margin,
-              y: textureBounds.minX - margin + intercept
-            ))
-            cg.addLine(to: CGPoint(
-              x: textureBounds.maxX + margin,
-              y: textureBounds.maxX + margin + intercept
-            ))
-            intercept += spacing
-          }
-          cg.strokePath()
-          cg.restoreGState()
-        }
       }
     }
     if shouldCancel() { throw MapRenderCancelledBridge.cancelled }
