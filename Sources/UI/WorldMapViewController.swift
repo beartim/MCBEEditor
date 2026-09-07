@@ -2277,6 +2277,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
         cg.strokePath()
       }
+      if ungeneratedDisplay == .texture, !ungeneratedTextureRects.isEmpty {
+        for rect in ungeneratedTextureRects {
+          drawUngeneratedChunkTexture(context: cg, in: rect)
+        }
+      }
     }
     return RenderedMapRegion(
       image: image,
@@ -5385,6 +5390,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         UIColor.systemGray5.setFill()
         context.fill(CGRect(x: 0, y: 0, width: widthBlocks, height: heightBlocks))
       }
+      var ungeneratedTextureRects = [CGRect]()
       if ungeneratedDisplay != .transparent {
         for z in minimumZ...maximumZ {
           for x in minimumX...maximumX {
@@ -5396,7 +5402,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
               width: 16,
               height: 16
             )
-            drawUngeneratedChunkPlaceholder(context: context.cgContext, in: rect, displayMode: ungeneratedDisplay)
+            if ungeneratedDisplay == .texture {
+              ungeneratedTextureRects.append(rect)
+            } else {
+              drawUngeneratedChunkPlaceholder(context: context.cgContext, in: rect, displayMode: ungeneratedDisplay)
+            }
           }
         }
       }
@@ -5418,6 +5428,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             )
             context.cgContext.stroke(rect)
           }
+        }
+      }
+      if ungeneratedDisplay == .texture, !ungeneratedTextureRects.isEmpty {
+        for rect in ungeneratedTextureRects {
+          drawUngeneratedChunkTexture(context: context.cgContext, in: rect)
         }
       }
     }
