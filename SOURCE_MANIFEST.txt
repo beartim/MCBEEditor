@@ -228,3 +228,4 @@ Tests/MCBEEditorTests.swift
 Vendor/README.md
 project.yml
 SOURCE_MANIFEST.txt
+CHANGES_FILLBIOME_XZ_PICKER_CI_FIX.md

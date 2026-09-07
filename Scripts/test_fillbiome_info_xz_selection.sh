@@ -15,10 +15,12 @@ require_fixed() {
   grep -Fq -- "$text" "$file" || fail "$label ($file)"
 }
 
-require_fixed "$MAP" 'let maximumCoordinate = centerCoordinate' 'X/Z picker must not select beyond the current rendered plane'
-if grep -Fq -- 'let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange' "$MAP"; then
-  fail 'X/Z picker still extends into the positive/unprojected axis'
-fi
+require_fixed "$MAP" 'let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange' 'X/Z picker manual range must extend 128 blocks below the rendered plane'
+require_fixed "$MAP" 'let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange' 'X/Z picker manual range must extend 128 blocks above the rendered plane'
+require_fixed "$MAP" 'automaticSelectionMaximumCoordinate: centerCoordinate' 'X/Z picker auto-selection must be capped at the current rendered plane'
+PICKER="$ROOT/Sources/UI/BlockAxisPickerViewController.swift"
+require_fixed "$PICKER" 'automaticSelectionMaximumCoordinate: Int64? = nil' 'X/Z picker must accept an automatic-selection upper bound'
+require_fixed "$PICKER" 'coordinate <= automaticUpperBound && !block.primaryState.isAir' 'X/Z auto-selection must choose the largest non-air coordinate not exceeding the rendered plane'
 
 require_fixed "$COMMAND" '"fillbiome"' 'fillbiome must be registered'
 require_fixed "$COMMAND" 'case fillBiome(targetDimension: Int32, region: CommandBlockBox, biome: CommandBiomeID)' 'fillbiome parsed command case is missing'

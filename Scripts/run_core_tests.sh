@@ -3097,9 +3097,16 @@ grep -q 'BiomeIDPickerViewController' "$ROOT/Sources/UI/ChunkBiomeEditorViewCont
   echo 'error: searchable biome ID/name picker is missing' >&2
   exit 1
 }
-CATALOG_ENTRY_COUNT="$(grep -c 'entry(' "$ROOT/Sources/Chunk/BedrockBiomeCatalog.swift")"
-if (( CATALOG_ENTRY_COUNT < 60 )); then
-  echo "error: biome ID/name catalogue is unexpectedly small: $CATALOG_ENTRY_COUNT" >&2
+# BedrockBiomeCatalog is now a presentation/color adapter over the shared
+# BedrockDataValueCatalog.biomes table. Count the real shared table rather
+# than legacy `entry(...)` literals that no longer live in the adapter file.
+CATALOG_ENTRY_COUNT="$(awk '
+  /static let biomes: \[BedrockDataValueEntry\] = \[/ { in_biomes = 1; next }
+  in_biomes && /^    \]/ { print count + 0; exit }
+  in_biomes && /value\(/ { count++ }
+' "$ROOT/Sources/Support/BedrockDataValueCatalog.swift")"
+if [[ -z "$CATALOG_ENTRY_COUNT" ]] || (( CATALOG_ENTRY_COUNT < 60 )); then
+  echo "error: biome ID/name catalogue is unexpectedly small: ${CATALOG_ENTRY_COUNT:-0}" >&2
   exit 1
 fi
 echo 'Biome map, HardcodedSpawners overlay and ID/name lookup passed'

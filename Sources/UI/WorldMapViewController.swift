@@ -3933,12 +3933,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let axis = currentSliceAxis
     guard axis == .x || axis == .z else { return }
     let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
-    // X/Z projection only looks toward the negative axis. Keep the picker on
-    // that same visible depth: the largest selectable coordinate is exactly
-    // the current rendered X/Z plane and can never extend into +X/+Z space
-    // that is not part of the projection.
+    // Keep the full ±128 axis line available for manual selection. The visible
+    // projection itself only looks toward the negative axis, so the picker
+    // receives `centerCoordinate` separately as the automatic-selection upper
+    // bound: rows above the rendered plane remain manually selectable but are
+    // never chosen automatically.
     let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange
-    let maximumCoordinate = centerCoordinate
+    let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
     renderQueue.async { [weak self] in
@@ -3958,7 +3959,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           let initial = axis == .x ? position.x : position.z
           let picker = BlockAxisPickerViewController(
             result: result,
-            initialCoordinate: initial
+            initialCoordinate: initial,
+            automaticSelectionMaximumCoordinate: centerCoordinate
           ) { [weak self] block in
             self?.selectBlock(block)
           }

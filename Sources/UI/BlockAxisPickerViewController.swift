@@ -10,15 +10,21 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
   init(
     result: BedrockBlockAxisLineResult,
     initialCoordinate: Int64?,
+    automaticSelectionMaximumCoordinate: Int64? = nil,
     onSelect: @escaping (BedrockBlockRecord) -> Void
   ) {
     self.result = result
     self.onSelect = onSelect
-    // `blockAxisLine` is ordered from the largest X/Z coordinate downward.
-    // Prefer the largest-coordinate non-air block so a tap immediately lands
-    // on the foremost visible projected block. Fall back to the tapped plane
-    // coordinate only when the entire selectable axis line is air/missing.
-    if let index = result.blocks.firstIndex(where: { !$0.primaryState.isAir }) {
+    // `blockAxisLine` is ordered from the largest X/Z coordinate downward and
+    // intentionally keeps the full ±128 manual-selection range. Automatic
+    // selection, however, must represent the negative-axis projection: ignore
+    // any row whose X/Z is above the current rendered plane, then choose the
+    // largest remaining non-air coordinate.
+    let automaticUpperBound = automaticSelectionMaximumCoordinate ?? Int64.max
+    if let index = result.blocks.firstIndex(where: { block in
+      let coordinate = result.axis == .x ? block.x : block.z
+      return coordinate <= automaticUpperBound && !block.primaryState.isAir
+    }) {
       selectedRow = index
     } else if let initialCoordinate = initialCoordinate,
       let index = result.blocks.firstIndex(where: {
