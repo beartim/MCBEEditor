@@ -56,9 +56,11 @@ require_contains "$PROJECT" '- sdk: Photos.framework' 'Photos.framework dependen
 
 require_contains "$TABS" 'entities.tabBarItem = UITabBarItem(title: "实体"' 'entity bottom-tab title must be static'
 require_contains "$TABS" 'chunks.tabBarItem = UITabBarItem(title: "区块"' 'chunk bottom-tab title must be static'
-require_contains "$ENTITY" 'title = "\(kind.displayName)（\(shownObjects.count)）"' 'entity page navigation title must retain its count'
-require_contains "$CHUNK" 'self.title = "区块（\(values.count)）"' 'chunk page navigation title must retain its count'
+require_contains "$ENTITY" 'navigationItem.title = "\(kind.displayName)（\(shownObjects.count)）"' 'entity page navigation title must retain its count without mutating the bottom tab title'
+require_contains "$CHUNK" 'self.navigationItem.title = "区块（\(values.count)）"' 'chunk page navigation title must retain its count without mutating the bottom tab title'
 require_absent "$CHUNK" 'self.title = "区块列表（' 'obsolete chunk-list title must not return'
+require_absent "$ENTITY" '    title = "\(kind.displayName)（\(shownObjects.count)）"' 'entity count must not be written through UIViewController.title'
+require_absent "$CHUNK" '                    self.title = "区块（\(values.count)）"' 'chunk count must not be written through UIViewController.title'
 
 require_contains "$COMMAND" 'image: UIImage(systemName: "keyboard")' 'keyboard icon button is missing'
 require_contains "$COMMAND" 'navigationItem.rightBarButtonItems = [clearButton, keyboardButton]' 'keyboard button must remain left of Clear'

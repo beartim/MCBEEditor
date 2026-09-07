@@ -651,7 +651,7 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
         || object.source.rawValue.lowercased().contains(query)
         || object.uniqueID.map { String($0).contains(query) } == true
     }
-    title = "\(kind.displayName)（\(shownObjects.count)）"
+    navigationItem.title = "\(kind.displayName)（\(shownObjects.count)）"
     tableView.reloadData()
     statusLabel.text =
       scanSummary.isEmpty
