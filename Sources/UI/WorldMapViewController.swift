@@ -4905,27 +4905,37 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   private func drawUngeneratedChunkTexture(context: CGContext, in rect: CGRect) {
     guard rect.width > 0, rect.height > 0 else { return }
+
+    let alignedRect = rect.integral
+    let side = min(alignedRect.width, alignedRect.height)
+    let lineWidth = max(1.0, (side * 0.05).rounded(.toNearestOrAwayFromZero))
+    let inset = lineWidth * 0.5
+
     context.saveGState()
-    context.clip(to: rect)
+    context.clip(to: alignedRect)
     context.setShouldAntialias(true)
     context.setAllowsAntialiasing(true)
-    context.setLineCap(.square)
-    context.setStrokeColor(UIColor(white: 0.70, alpha: 1.0).cgColor)
+    context.setLineCap(.butt)
+    context.setLineJoin(.miter)
+    context.setStrokeColor(UIColor(white: 0.66, alpha: 1.0).cgColor)
+    context.setLineWidth(lineWidth)
 
-    let side = min(rect.width, rect.height)
-    let width = max(1.25, (side * 0.06).rounded(.toNearestOrAwayFromZero))
-    context.setLineWidth(width)
+    let minX = alignedRect.minX + inset
+    let maxX = alignedRect.maxX - inset
+    let minY = alignedRect.minY + inset
+    let maxY = alignedRect.maxY - inset
+    let midX = alignedRect.midX
+    let midY = alignedRect.midY
 
-    let extensionLength = max(rect.width, rect.height)
-    let topStarts: [CGFloat] = [
-      rect.minX - rect.width * 0.22,
-      rect.minX + rect.width * 0.14,
-      rect.minX + rect.width * 0.50,
-    ]
-    for startX in topStarts {
-      context.move(to: CGPoint(x: startX, y: rect.minY))
-      context.addLine(to: CGPoint(x: startX + rect.height + extensionLength, y: rect.maxY + extensionLength))
-    }
+    context.beginPath()
+    context.move(to: CGPoint(x: minX, y: minY))
+    context.addLine(to: CGPoint(x: maxX, y: maxY))
+
+    context.move(to: CGPoint(x: midX, y: minY))
+    context.addLine(to: CGPoint(x: maxX, y: midY))
+
+    context.move(to: CGPoint(x: minX, y: midY))
+    context.addLine(to: CGPoint(x: midX, y: maxY))
     context.strokePath()
     context.restoreGState()
   }
