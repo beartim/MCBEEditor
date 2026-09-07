@@ -4410,4 +4410,5 @@ swiftc -j 4 \
 
 "$ROOT/Scripts/test_metadata_crud_batch.sh"
 
-"$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"
+echo "Running photo export / tab title / keyboard regression checks..."
+bash "$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"
