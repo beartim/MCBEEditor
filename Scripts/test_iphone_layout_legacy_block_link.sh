@@ -8,16 +8,19 @@ STORE="$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift"
 # Portrait iPhone controls use two compact centered rows, but keep the same
 # complete labels as iPad.  Intrinsic-width groups prevent the large empty
 # holes that equalCentering created in the previous layout; the current phone
-# layout intentionally uses slightly wider group/row spacing for readability.
+# layout keeps compact spacing because the render row now contains X/Y/Z
+# fields plus the render button and the dedicated X/Y/Z axis selector below.
 grep -q 'coordinates = UIStackView(arrangedSubviews: \[displayOptions, renderControls\])' "$MAP"
 grep -q 'coordinates.alignment = .center' "$MAP"
 grep -q 'displayOptions.distribution = .equalSpacing' "$MAP"
 grep -q 'renderControls.distribution = .equalSpacing' "$MAP"
 grep -q 'coordinates.spacing = 10' "$MAP"
-grep -q 'displayOptions.spacing = compactPhone ? 24 : 16' "$MAP"
-grep -q 'renderControls.spacing = compactPhone ? 12 : 9' "$MAP"
+grep -q 'displayOptions.spacing = compactPhone ? 8 : 16' "$MAP"
+grep -q 'renderControls.spacing = compactPhone ? 5 : 9' "$MAP"
 grep -q 'displayOptions.widthAnchor.constraint(equalTo: renderControls.widthAnchor).isActive = true' "$MAP"
 grep -q 'centerCoordinateTitle = label("渲染中心坐标")' "$MAP"
+grep -q 'label("Y"), yField' "$MAP"
+grep -q 'sliceAxisControl.heightAnchor.constraint(equalToConstant: segmentHeight)' "$MAP"
 grep -q 'titleLabel.text = title' "$MAP"
 grep -q 'titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow' "$MAP"
 grep -q 'stack.setContentHuggingPriority(.required, for: .horizontal)' "$MAP"

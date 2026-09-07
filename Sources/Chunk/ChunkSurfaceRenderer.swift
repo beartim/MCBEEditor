@@ -209,6 +209,29 @@ final class ChunkSurfaceRenderer {
         }
     }
 
+    func crossSectionColor(for blockName: String, y: Int32, mode: MapRenderMode) -> UIColor {
+        let lowered = blockName.lowercased()
+        let isAir = lowered == "minecraft:air" || lowered.hasSuffix(":cave_air") || lowered.hasSuffix(":void_air")
+        if isAir, mode != .xray { return .systemGray5 }
+        switch mode {
+        case .surface:
+            return surfaceColor(for: blockName)
+        case .height:
+            if blockName.lowercased().contains("water") {
+                let value = normalizedHeight(Int16(clamping: y))
+                return UIColor(red: 0.08 + value * 0.12, green: 0.25 + value * 0.25, blue: 0.55 + value * 0.35, alpha: 1)
+            }
+            return UIColor(white: 0.12 + normalizedHeight(Int16(clamping: y)) * 0.82, alpha: 1)
+        case .xray:
+            return oreColor(for: blockName)
+        case .biome, .tickingAreas, .slime:
+            // Biome/ticking/slime are column/chunk concepts. In a vertical
+            // slice retain readable block material colors instead of inventing
+            // a misleading per-block biome/chunk value.
+            return surfaceColor(for: blockName)
+        }
+    }
+
     private func color(for blockName: String, height: Int16, biomeID: UInt32, mode: MapRenderMode) -> UIColor {
         switch mode {
         case .surface:

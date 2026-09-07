@@ -714,13 +714,17 @@ grep -qF 'UIImage(systemName: "info.circle")' "$ROOT/Sources/UI/WorldToolsViewCo
   echo "error: the information tab icon is missing" >&2
   exit 1
 }
+grep -qF 'NBTTagIcon.image(for: node.value.type)' "$ROOT/Sources/UI/NBTTreeCell.swift" || {
+  echo "error: shared NBT tree cell no longer renders NBT type badges" >&2
+  exit 1
+}
 for source in \
   "$ROOT/Sources/UI/NBTTreeViewController.swift" \
   "$ROOT/Sources/UI/PlayerNBTEditorViewController.swift" \
   "$ROOT/Sources/UI/ReadOnlyNBTViewController.swift" \
   "$ROOT/Sources/UI/WorldObjectNBTEditorViewController.swift"; do
-  grep -qF 'NBTTagIcon' "$source" || {
-    echo "error: NBT type badges are not connected: ${source#$ROOT/}" >&2
+  grep -qF 'NBTTreeCell' "$source" || {
+    echo "error: NBT tree controller is not connected to the shared type-badge cell: ${source#$ROOT/}" >&2
     exit 1
   }
 done
@@ -4412,3 +4416,6 @@ swiftc -j 4 \
 
 echo "Running photo export / tab title / keyboard regression checks..."
 bash "$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"
+
+echo "Running NBT tree / X-Y-Z cross-section regression checks..."
+bash "$ROOT/Scripts/test_nbt_tree_cross_section.sh"

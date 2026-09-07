@@ -166,6 +166,7 @@ private final class MapObjectOverlayView: UIView {
   private let selectedObjectLayer = CAShapeLayer()
   private let selectedBlockLayer = CAShapeLayer()
   private let selectedChunkLayer = CAShapeLayer()
+  private let buildHeightLimitLayer = CAShapeLayer()
   private var selectedObjectID: String?
 
   private var allLayers: [CAShapeLayer] {
@@ -175,7 +176,7 @@ private final class MapObjectOverlayView: UIView {
       worldSpawnLayer, worldSpawnGlyphLayer, playerSpawnLayer, playerSpawnGlyphLayer,
       selectedVillageLayer,
       selectedSpawnerLayer, selectedObjectLayer, selectedBlockLayer,
-      selectedChunkLayer,
+      selectedChunkLayer, buildHeightLimitLayer,
     ]
   }
 
@@ -263,6 +264,14 @@ private final class MapObjectOverlayView: UIView {
     selectedChunkLayer.contentsScale = UIScreen.main.scale
     layer.addSublayer(selectedChunkLayer)
 
+    buildHeightLimitLayer.fillColor = UIColor.clear.cgColor
+    buildHeightLimitLayer.strokeColor = UIColor.systemRed.cgColor
+    buildHeightLimitLayer.lineWidth = 2.0
+    buildHeightLimitLayer.lineDashPattern = [8, 5]
+    buildHeightLimitLayer.lineCap = .round
+    buildHeightLimitLayer.contentsScale = UIScreen.main.scale
+    layer.addSublayer(buildHeightLimitLayer)
+
     villageBoundsLayer.zPosition = 10
     entityLayer.zPosition = 30
     blockEntityLayer.zPosition = 31
@@ -281,6 +290,7 @@ private final class MapObjectOverlayView: UIView {
     selectedObjectLayer.zPosition = 102
     selectedBlockLayer.zPosition = 103
     selectedChunkLayer.zPosition = 104
+    buildHeightLimitLayer.zPosition = 110
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -323,6 +333,45 @@ private final class MapObjectOverlayView: UIView {
     selectedChunkLayer.removeAnimation(forKey: "selected-chunk-blink")
   }
 
+  func updateBuildHeightLimits(
+    minimumRenderedY: Int64,
+    maximumRenderedY: Int64,
+    dimension: Int32,
+    imageView: UIView,
+    visible: Bool
+  ) {
+    clear()
+    guard visible, maximumRenderedY >= minimumRenderedY,
+      imageView.bounds.width > 0, imageView.bounds.height > 0
+    else { return }
+
+    let limits: (minimum: Int64, maximumExclusive: Int64)
+    switch BedrockDimension(rawValue: dimension) {
+    case .nether?:
+      limits = (0, 128)
+    case .end?:
+      limits = (0, 256)
+    default:
+      limits = (-64, 320)
+    }
+
+    let span = CGFloat(maximumRenderedY - minimumRenderedY + 1)
+    guard span > 0 else { return }
+    let path = UIBezierPath()
+    func appendLimit(_ worldY: Int64) {
+      let fromTop = CGFloat(maximumRenderedY - worldY + 1) / span
+      let imageY = fromTop * imageView.bounds.height
+      let left = imageView.convert(CGPoint(x: 0, y: imageY), to: self)
+      let right = imageView.convert(CGPoint(x: imageView.bounds.width, y: imageY), to: self)
+      guard max(left.y, right.y) >= bounds.minY - 2, min(left.y, right.y) <= bounds.maxY + 2 else { return }
+      path.move(to: left)
+      path.addLine(to: right)
+    }
+    appendLimit(limits.minimum)
+    appendLimit(limits.maximumExclusive)
+    buildHeightLimitLayer.path = path.cgPath
+  }
+
   func setSelectedObjectID(_ stableID: String?) {
     selectedObjectID = stableID
     if stableID == nil {
@@ -354,6 +403,9 @@ private final class MapObjectOverlayView: UIView {
       clear()
       return
     }
+    // The red building-height lines are a cross-section-only overlay. Clear
+    // them explicitly when returning to the normal Y-axis top-down map.
+    buildHeightLimitLayer.path = nil
 
     let entityPath = UIBezierPath()
     let blockEntityPath = UIBezierPath()
@@ -744,7 +796,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     Int(Int64(Int32.max) - Int64(Int32.min) + 1)
   private var canvasPointsPerBlock: CGFloat = 32
   private let xField = UITextField()
+  private let yField = UITextField()
   private let zField = UITextField()
+  private let sliceAxisControl = UISegmentedControl(items: MapSliceAxis.allCases.map(\.displayName))
   private let coordinateModeControl = UISegmentedControl(items: ["区块坐标", "方块坐标"])
   private let dimensionControl = UISegmentedControl(
     items: BedrockDimension.allCases.map(\.displayName))
@@ -754,6 +808,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private let chunkSelectionSwitch = UISwitch()
   private let statusLabel = UILabel()
   private let zoomLabel = UILabel()
+  private weak var gridOptionTitleLabel: UILabel?
 
   private lazy var shareButton = UIBarButtonItem(
     barButtonSystemItem: .action,
@@ -824,6 +879,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private var renderedStartBlockX: Int64 { renderedStartChunkX64 * 16 }
   private var renderedStartBlockZ: Int64 { renderedStartChunkZ64 * 16 }
   private var currentMode: MapRenderMode = .surface
+  private var currentSliceAxis: MapSliceAxis {
+    MapSliceAxis(rawValue: sliceAxisControl.selectedSegmentIndex) ?? .y
+  }
   private var renderGeneration = 0
   private var isApplyingViewport = false
   private var isRendering = false
@@ -838,6 +896,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private var showVillages = false
   private var showSpawnPoints = true
   private var showUngeneratedChunks = false
+  private var showBuildHeightLimits = true
+  private var sliceCenterY: Int32 = 63
+  private var sliceCenterBlockX: Int64 = 0
+  private var sliceCenterBlockZ: Int64 = 0
+  private var renderedCrossHorizontalStart: Int64 = 0
+  private var renderedCrossMinimumY: Int64 = -64
+  private var renderedCrossMaximumY: Int64 = 319
   private var isZooming = false
   private var zoomHUDWorkItem: DispatchWorkItem?
   private var isSelectionMode = false
@@ -1027,25 +1092,30 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let compactPhone = UIDevice.current.userInterfaceIdiom == .phone
 
     xField.text = "0"
+    yField.text = "63"
     zField.text = "0"
-    for field in [xField, zField] {
+    for field in [xField, yField, zField] {
       field.borderStyle = .roundedRect
       field.keyboardType = .numbersAndPunctuation
       field.delegate = self
       field.font = UIFont.systemFont(ofSize: compactPhone ? 12 : 13, weight: .regular)
-      field.widthAnchor.constraint(equalToConstant: compactPhone ? 56 : 50).isActive = true
+      field.widthAnchor.constraint(equalToConstant: compactPhone ? 38 : 50).isActive = true
       field.adjustsFontSizeToFitWidth = true
       field.minimumFontSize = compactPhone ? 9 : 10
     }
 
+    sliceAxisControl.selectedSegmentIndex = MapSliceAxis.y.rawValue
     coordinateModeControl.selectedSegmentIndex = 0
     dimensionControl.selectedSegmentIndex = 0
     modeControl.selectedSegmentIndex = 0
+    yField.isEnabled = false
     if compactPhone {
       // Six render modes must fit on one portrait-width iPhone row. Keep the
       // meanings intact while using shorter titles for the two longest modes.
       modeControl.setTitle("常加载", forSegmentAt: MapRenderMode.tickingAreas.rawValue)
       modeControl.setTitle("史莱姆", forSegmentAt: MapRenderMode.slime.rawValue)
+      sliceAxisControl.setTitleTextAttributes(
+        [.font: UIFont.systemFont(ofSize: 12, weight: .semibold)], for: .normal)
       coordinateModeControl.setTitleTextAttributes(
         [.font: UIFont.systemFont(ofSize: 12, weight: .medium)], for: .normal)
       dimensionControl.setTitleTextAttributes(
@@ -1057,6 +1127,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     gridSwitch.isOn = true
     chunkSelectionSwitch.isOn = false
 
+    sliceAxisControl.addTarget(self, action: #selector(sliceAxisChanged), for: .valueChanged)
     modeControl.addTarget(self, action: #selector(regionOptionChanged), for: .valueChanged)
     gridSwitch.addTarget(self, action: #selector(regionOptionChanged), for: .valueChanged)
     coordinateModeControl.addTarget(
@@ -1076,9 +1147,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     renderButton.mcbe_enableCompactTitle(minimumScaleFactor: 0.68)
     renderButton.contentEdgeInsets = UIEdgeInsets(
       top: compactPhone ? 3 : 5,
-      left: compactPhone ? 8 : 10,
+      left: compactPhone ? 5 : 10,
       bottom: compactPhone ? 3 : 5,
-      right: compactPhone ? 8 : 10)
+      right: compactPhone ? 5 : 10)
     renderButton.setContentHuggingPriority(.required, for: .horizontal)
     renderButton.setContentCompressionResistancePriority(.required, for: .horizontal)
     renderButton.heightAnchor.constraint(equalToConstant: compactPhone ? 28 : 32).isActive = true
@@ -1088,18 +1159,19 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     // Keep the same descriptive title as iPad.  The phone header now centers
     // a compact intrinsic-width row instead of spreading abbreviated labels
     // across the whole screen, so the full wording fits without ellipsis.
-    centerCoordinateTitle.font = UIFont.systemFont(ofSize: compactPhone ? 11.5 : 13, weight: .regular)
+    centerCoordinateTitle.font = UIFont.systemFont(ofSize: compactPhone ? 10.5 : 13, weight: .regular)
     centerCoordinateTitle.numberOfLines = 1
     centerCoordinateTitle.adjustsFontSizeToFitWidth = true
-    centerCoordinateTitle.minimumScaleFactor = 0.70
+    centerCoordinateTitle.minimumScaleFactor = compactPhone ? 0.62 : 0.70
     centerCoordinateTitle.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let coordinateFields = UIStackView(arrangedSubviews: [
       label("X"), xField,
+      label("Y"), yField,
       label("Z"), zField,
     ])
     coordinateFields.axis = .horizontal
-    coordinateFields.spacing = compactPhone ? 3 : 4
+    coordinateFields.spacing = compactPhone ? 2 : 4
     coordinateFields.alignment = .center
     coordinateFields.setContentHuggingPriority(.required, for: .horizontal)
     coordinateFields.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -1110,7 +1182,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       compactSwitch(title: "选择区块", control: chunkSelectionSwitch),
     ])
     displayOptions.axis = .horizontal
-    displayOptions.spacing = compactPhone ? 24 : 16
+    displayOptions.spacing = compactPhone ? 8 : 16
     displayOptions.alignment = .center
     // On portrait iPhone the row now stretches to match the render-controls
     // row width, using equalSpacing so the three switch groups breathe a bit
@@ -1125,7 +1197,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       renderButton,
     ])
     renderControls.axis = .horizontal
-    renderControls.spacing = compactPhone ? 12 : 9
+    renderControls.spacing = compactPhone ? 5 : 9
     renderControls.alignment = .center
     // Match the phone switch row width and distribute the title / XZ editor
     // / button with equalSpacing, so the second row remains readable and has
@@ -1165,22 +1237,23 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     coordinates.layoutMargins = UIEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
 
     let segmentHeight: CGFloat = compactPhone ? 32 : 36
+    sliceAxisControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
     coordinateModeControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
     dimensionControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
     modeControl.heightAnchor.constraint(equalToConstant: segmentHeight).isActive = true
 
     let controls = UIStackView(arrangedSubviews: [
-      coordinates, coordinateModeControl, dimensionControl, modeControl,
+      coordinates, sliceAxisControl, coordinateModeControl, dimensionControl, modeControl,
     ])
     controls.axis = .vertical
     controls.spacing = compactPhone ? 4 : 6
     controls.translatesAutoresizingMaskIntoConstraints = false
     controls.setContentHuggingPriority(.required, for: .vertical)
     controls.setContentCompressionResistancePriority(.required, for: .vertical)
-    let coordinatesHeight: CGFloat = compactPhone ? 58 : 44
+    let coordinatesHeight: CGFloat = compactPhone ? 64 : 44
     let controlsSpacing: CGFloat = compactPhone ? 4 : 6
     controls.heightAnchor.constraint(equalToConstant:
-      coordinatesHeight + segmentHeight * 3 + controlsSpacing * 3
+      coordinatesHeight + segmentHeight * 4 + controlsSpacing * 4
     ).isActive = true
 
     // Keep the map viewport height stable. On compact-width iPhones the old
@@ -1380,18 +1453,19 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     // row is intrinsic-width and centered, so abbreviations are no longer
     // necessary to prevent clipping.
     titleLabel.text = title
-    titleLabel.font = UIFont.systemFont(ofSize: compactPhone ? 11.5 : 13, weight: .regular)
+    titleLabel.font = UIFont.systemFont(ofSize: compactPhone ? 10.5 : 13, weight: .regular)
     titleLabel.textAlignment = .left
     titleLabel.adjustsFontSizeToFitWidth = true
-    titleLabel.minimumScaleFactor = compactPhone ? 0.88 : 0.82
+    titleLabel.minimumScaleFactor = compactPhone ? 0.78 : 0.82
     titleLabel.setContentHuggingPriority(compactPhone ? .required : .defaultLow, for: .horizontal)
     titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+    if control === gridSwitch { gridOptionTitleLabel = titleLabel }
 
     let switchHolder = UIView()
-    switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 36 : 39).isActive = true
-    switchHolder.heightAnchor.constraint(equalToConstant: compactPhone ? 20 : 22).isActive = true
+    switchHolder.widthAnchor.constraint(equalToConstant: compactPhone ? 32 : 39).isActive = true
+    switchHolder.heightAnchor.constraint(equalToConstant: compactPhone ? 19 : 22).isActive = true
     control.translatesAutoresizingMaskIntoConstraints = false
-    control.transform = CGAffineTransform(scaleX: compactPhone ? 0.59 : 0.62, y: compactPhone ? 0.59 : 0.62)
+    control.transform = CGAffineTransform(scaleX: compactPhone ? 0.54 : 0.62, y: compactPhone ? 0.54 : 0.62)
     switchHolder.addSubview(control)
     NSLayoutConstraint.activate([
       control.centerXAnchor.constraint(equalTo: switchHolder.centerXAnchor),
@@ -1400,7 +1474,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
     let stack = UIStackView(arrangedSubviews: [titleLabel, switchHolder])
     stack.axis = .horizontal
-    stack.spacing = 3
+    stack.spacing = compactPhone ? 2 : 3
     stack.alignment = .center
     stack.distribution = .fill
     stack.heightAnchor.constraint(equalToConstant: compactPhone ? 22 : 24).isActive = true
@@ -1547,7 +1621,46 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
+  @objc private func sliceAxisChanged() {
+    setSelectionMode(false)
+    selectedChunk = nil
+    chunkSelectionSwitch.setOn(false, animated: false)
+    let verticalSlice = currentSliceAxis != .y
+    yField.isEnabled = verticalSlice
+    chunkSelectionSwitch.isEnabled = !verticalSlice
+    selectionButtonView.isEnabled = !verticalSlice
+    selectionButtonView.alpha = verticalSlice ? 0.35 : 1.0
+    gridOptionTitleLabel?.text = verticalSlice ? "子区块网格" : "区块网格"
+
+    if verticalSlice {
+      let originX = MapCoordinate.blockOrigin(ofChunk: lastCenterX) + 8
+      let originZ = MapCoordinate.blockOrigin(ofChunk: lastCenterZ) + 8
+      if coordinateModeControl.selectedSegmentIndex == 1 {
+        sliceCenterBlockX = Int64(xField.text ?? "") ?? originX
+        sliceCenterBlockZ = Int64(zField.text ?? "") ?? originZ
+      } else {
+        sliceCenterBlockX = originX
+        sliceCenterBlockZ = originZ
+      }
+      sliceCenterY = Int32(yField.text ?? "") ?? 63
+      yField.text = String(sliceCenterY)
+    }
+    updateCoordinateFields(centerX: lastCenterX, centerZ: lastCenterZ, anchor: nil)
+    statusLabel.text = verticalSlice
+      ? "已切换到 \(currentSliceAxis.displayName) 轴剖面：Y 正方向在上，负方向在下；网格为 16×16 子区块网格。"
+      : "已切换到 Y 轴俯视地图。"
+    render(
+      centerX: lastCenterX, centerZ: lastCenterZ, anchor: nil,
+      reason: "切换渲染轴", showOverlay: true)
+  }
+
   @objc private func regionOptionChanged() {
+    if currentSliceAxis != .y {
+      render(
+        centerX: lastCenterX, centerZ: lastCenterZ, anchor: nil,
+        reason: "剖面设置", showOverlay: false)
+      return
+    }
     let anchor = currentViewportAnchor()
     let center = anchor.map { chunkCenter(for: $0) } ?? (lastCenterX, lastCenterZ)
     render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "图层设置", showOverlay: false)
@@ -1555,11 +1668,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   @objc private func coordinateModeChanged() {
     updateCoordinateFields(
-      centerX: lastCenterX, centerZ: lastCenterZ, anchor: currentViewportAnchor())
-    statusLabel.text =
-      coordinateModeControl.selectedSegmentIndex == 0
-      ? "输入区块坐标；地图会按当前缩放和可见范围动态加载区块。"
-      : "输入方块坐标；地图会动态加载可见区块，负坐标按数学向下取整。"
+      centerX: lastCenterX, centerZ: lastCenterZ,
+      anchor: currentSliceAxis == .y ? currentViewportAnchor() : nil)
+    if currentSliceAxis != .y {
+      statusLabel.text = coordinateModeControl.selectedSegmentIndex == 0
+        ? "X/Z 剖面中心使用区块坐标；Y 始终使用方块坐标。"
+        : "X/Z 剖面中心使用方块坐标；Y 正方向显示在上方。"
+    } else {
+      statusLabel.text =
+        coordinateModeControl.selectedSegmentIndex == 0
+        ? "输入区块坐标；地图会按当前缩放和可见范围动态加载区块。"
+        : "输入方块坐标；地图会动态加载可见区块，负坐标按数学向下取整。"
+    }
   }
 
   @objc private func dimensionChanged() {
@@ -1570,6 +1690,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let newDimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     if selectedChunk?.dimension != newDimension { selectedChunk = nil }
     activeDimension = newDimension
+
+    if currentSliceAxis != .y {
+      let centerX = MapCoordinate.chunk(fromBlock: sliceCenterBlockX)
+      let centerZ = MapCoordinate.chunk(fromBlock: sliceCenterBlockZ)
+      render(
+        centerX: centerX, centerZ: centerZ, anchor: nil,
+        reason: "切换维度", showOverlay: true
+      )
+      return
+    }
 
     if let state = dimensionViewportStates[newDimension] {
       render(
@@ -1599,14 +1729,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   @objc private func autoRenderChanged() {
     panDebounceWorkItem?.cancel()
-    statusLabel.text =
-      autoRenderSwitch.isOn
-      ? "移动自动渲染已开启：拖动会续载；缩小时会按视口自动扩大区块范围。"
-      : "移动自动渲染已关闭；可拖动查看当前区域，使用坐标和“渲染”按钮跳转。"
+    if currentSliceAxis != .y {
+      statusLabel.text = autoRenderSwitch.isOn
+        ? "剖面自动渲染已开启：拖动会沿剖面横轴和 Y 轴续载，缩放会自动扩大或细化范围。"
+        : "剖面自动渲染已关闭；可拖动查看当前剖面，使用坐标和“渲染”按钮跳转。"
+    } else {
+      statusLabel.text = autoRenderSwitch.isOn
+        ? "移动自动渲染已开启：拖动会续载；缩小时会按视口自动扩大区块范围。"
+        : "移动自动渲染已关闭；可拖动查看当前区域，使用坐标和“渲染”按钮跳转。"
+    }
     saveMapState()
   }
 
   @objc private func chunkSelectionChanged() {
+    if currentSliceAxis != .y {
+      chunkSelectionSwitch.setOn(false, animated: true)
+      statusLabel.text = "X/Z 剖面模式不支持选择区块；网格已切换为子区块网格。"
+      return
+    }
     if chunkSelectionSwitch.isOn {
       setSelectionMode(false)
       clearSelectedWorldObject()
@@ -1644,6 +1784,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       showError(MCBEEditorError.malformedData("坐标必须是整数"), title: "坐标错误")
       return
     }
+    if currentSliceAxis != .y {
+      guard let inputY = Int32(yField.text ?? "") else {
+        showError(MCBEEditorError.malformedData("Y 坐标必须是整数"), title: "坐标错误")
+        return
+      }
+      sliceCenterY = inputY
+    }
 
     let centerX: Int32
     let centerZ: Int32
@@ -1651,17 +1798,21 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     if coordinateModeControl.selectedSegmentIndex == 0 {
       centerX = Int32(clamping: inputX)
       centerZ = Int32(clamping: inputZ)
+      sliceCenterBlockX = MapCoordinate.blockOrigin(ofChunk: centerX) + 8
+      sliceCenterBlockZ = MapCoordinate.blockOrigin(ofChunk: centerZ) + 8
       anchor = nil
     } else {
       centerX = MapCoordinate.chunk(fromBlock: inputX)
       centerZ = MapCoordinate.chunk(fromBlock: inputZ)
-      // The rendered image is still chunk-aligned, but the viewport must
-      // center on the exact block requested instead of the chunk center.
-      anchor = MapViewportAnchor(
-        blockX: Double(inputX) + 0.5,
-        blockZ: Double(inputZ) + 0.5,
-        zoomScale: max(effectiveZoomScale, 1)
-      )
+      sliceCenterBlockX = inputX
+      sliceCenterBlockZ = inputZ
+      anchor = currentSliceAxis == .y
+        ? MapViewportAnchor(
+          blockX: Double(inputX) + 0.5,
+          blockZ: Double(inputZ) + 0.5,
+          zoomScale: max(effectiveZoomScale, 1)
+        )
+        : nil
     }
     render(centerX: centerX, centerZ: centerZ, anchor: anchor, reason: "坐标跳转", showOverlay: true)
   }
@@ -1706,6 +1857,23 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let includeBlockEntities = showBlockEntities
     let includeHardcodedSpawners = showHardcodedSpawners
     let includeVillages = showVillages
+
+    if currentSliceAxis != .y {
+      renderCrossSectionMap(
+        centerX: centerX,
+        centerZ: centerZ,
+        dimension: dimension,
+        sideChunks: sideChunks,
+        mode: mode,
+        drawGrid: drawGrid,
+        requestedZoom: requestedZoom,
+        generation: generation,
+        token: token,
+        overlay: overlay,
+        reason: reason
+      )
+      return
+    }
 
     renderQueue.async { [weak self] in
       guard let self = self else { return }
@@ -1912,6 +2080,125 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           self.showError(error, title: "地图渲染失败")
         }
       }
+    }
+  }
+
+  private func renderCrossSectionMap(
+    centerX: Int32,
+    centerZ: Int32,
+    dimension: Int32,
+    sideChunks: Int,
+    mode: MapRenderMode,
+    drawGrid: Bool,
+    requestedZoom: CGFloat,
+    generation: Int,
+    token: MapRenderToken,
+    overlay: UIView?,
+    reason: String
+  ) {
+    let axis = currentSliceAxis
+    let fixedX = sliceCenterBlockX
+    let fixedZ = sliceCenterBlockZ
+    let centerY = sliceCenterY
+    let sideBlocks = sideChunks * 16
+    statusLabel.text = "\(reason)：正在读取 \(axis.displayName) 轴 \(sideBlocks)×\(sideBlocks) 方块剖面…"
+
+    renderQueue.async { [weak self] in
+      guard let self = self else { return }
+      if token.isCancelled {
+        DispatchQueue.main.async { overlay?.removeFromSuperview() }
+        return
+      }
+      do {
+        let renderer = try self.rendererForCurrentSession()
+        let result = try renderer.renderCrossSection(
+          axis: axis,
+          fixedX: fixedX,
+          fixedZ: fixedZ,
+          centerY: centerY,
+          sideBlocks: sideBlocks,
+          dimension: dimension,
+          mode: mode,
+          drawSubChunkGrid: drawGrid,
+          shouldCancel: { token.isCancelled }
+        )
+        if token.isCancelled { throw MapRenderCancelled() }
+        DispatchQueue.main.async {
+          overlay?.removeFromSuperview()
+          guard generation == self.renderGeneration, self.activeRenderToken === token else { return }
+          self.isRendering = false
+          self.updateMapCanvasSize(sideBlocks: sideBlocks)
+          self.imageView.image = result.image
+          self.lastRenderedImage = result.image
+          self.lastBlockNames = []
+          self.lastBlockHeights = []
+          self.lastErrors = result.errors
+          self.lastSpawnHits = []
+          self.lastPlayerHits = []
+          self.lastWorldObjectHits = []
+          self.lastHardcodedSpawnerHits = []
+          self.lastVillageHits = []
+          self.lastCenterX = centerX
+          self.lastCenterZ = centerZ
+          self.renderedSideChunks = sideChunks
+          self.currentMode = mode
+          self.renderedCrossHorizontalStart = result.minimumHorizontal
+          self.renderedCrossMinimumY = result.minimumY
+          self.renderedCrossMaximumY = result.maximumY
+          self.shareButton.isEnabled = true
+          self.updateCoordinateFields(centerX: centerX, centerZ: centerZ, anchor: nil)
+          self.applyCrossSectionViewport(effectiveZoom: requestedZoom)
+          self.updateObjectOverlay()
+          let sampling = result.sampleStride > 1 ? "；采样步长 \(result.sampleStride)" : ""
+          if self.traitCollection.horizontalSizeClass == .compact {
+            self.statusLabel.text =
+              "\(axis.displayName)剖面 · 中心(\(fixedX),\(centerY),\(fixedZ)) · \(sideBlocks)×\(sideBlocks)方块 · \(mode.displayName) · 错误\(result.errors.count)"
+          } else {
+            self.statusLabel.text =
+              "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；错误 \(result.errors.count) 条。"
+          }
+          self.saveMapState()
+        }
+      } catch is MapRenderCancelledBridge {
+        DispatchQueue.main.async {
+          overlay?.removeFromSuperview()
+          if self.activeRenderToken === token { self.isRendering = false }
+        }
+      } catch is MapRenderCancelled {
+        DispatchQueue.main.async {
+          overlay?.removeFromSuperview()
+          if self.activeRenderToken === token { self.isRendering = false }
+        }
+      } catch {
+        DispatchQueue.main.async {
+          overlay?.removeFromSuperview()
+          guard generation == self.renderGeneration, self.activeRenderToken === token else { return }
+          self.isRendering = false
+          self.lastErrors = [error.localizedDescription]
+          self.statusLabel.text = "剖面读取失败。点按此处查看详情。"
+          self.showError(error, title: "剖面渲染失败")
+        }
+      }
+    }
+  }
+
+  private func applyCrossSectionViewport(effectiveZoom: CGFloat) {
+    isApplyingViewport = true
+    view.layoutIfNeeded()
+    let requestedRawZoom = rawZoomScale(forEffectiveScale: max(effectiveZoom, 0.0001))
+    expandZoomRangeIfNeeded(for: requestedRawZoom)
+    let targetZoom = pixelAlignedZoomScale(requestedRawZoom)
+    scrollView.setZoomScale(targetZoom, animated: false)
+    view.layoutIfNeeded()
+    let center = CGPoint(
+      x: imageView.bounds.midX * targetZoom - scrollView.bounds.width / 2,
+      y: imageView.bounds.midY * targetZoom - scrollView.bounds.height / 2
+    )
+    scrollView.setContentOffset(clampedContentOffset(center), animated: false)
+    alignContentOffsetToDevicePixels()
+    DispatchQueue.main.async { [weak self] in
+      self?.isApplyingViewport = false
+      self?.updateObjectOverlay()
     }
   }
 
@@ -2671,6 +2958,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       objectOverlayView.clear()
       return
     }
+    if currentSliceAxis != .y {
+      objectOverlayView.updateBuildHeightLimits(
+        minimumRenderedY: renderedCrossMinimumY,
+        maximumRenderedY: renderedCrossMaximumY,
+        dimension: BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue,
+        imageView: imageView,
+        visible: showBuildHeightLimits
+      )
+      return
+    }
     let startBlockX = renderedStartBlockX
     let startBlockZ = renderedStartBlockZ
     let poiLinks =
@@ -2734,6 +3031,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func currentViewportAnchor() -> MapViewportAnchor? {
+    guard currentSliceAxis == .y else { return nil }
     guard lastRenderedImage != nil, imageView.bounds.width > 0, imageView.bounds.height > 0 else {
       return nil
     }
@@ -2801,6 +3099,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func updateCoordinateFields(centerX: Int32, centerZ: Int32, anchor: MapViewportAnchor?) {
+    yField.text = String(sliceCenterY)
+    if currentSliceAxis != .y {
+      if coordinateModeControl.selectedSegmentIndex == 0 {
+        xField.text = String(MapCoordinate.chunk(fromBlock: sliceCenterBlockX))
+        zField.text = String(MapCoordinate.chunk(fromBlock: sliceCenterBlockZ))
+      } else {
+        xField.text = String(sliceCenterBlockX)
+        zField.text = String(sliceCenterBlockZ)
+      }
+      return
+    }
     if coordinateModeControl.selectedSegmentIndex == 0 {
       xField.text = String(centerX)
       zField.text = String(centerZ)
@@ -2960,9 +3269,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func autoRenderAtViewportCenter(zoomDrivenOnly: Bool = false) {
-    guard !isApplyingViewport, !isMapInteractionActive, !isRendering,
-      let request = currentViewportRenderRequest()
-    else { return }
+    guard !isApplyingViewport, !isMapInteractionActive, !isRendering else { return }
+    if currentSliceAxis != .y {
+      autoRenderCrossSectionAtViewportCenter(zoomDrivenOnly: zoomDrivenOnly)
+      return
+    }
+    guard let request = currentViewportRenderRequest() else { return }
 
     let containsViewport = renderedRegionContains(request)
     let needsExpansion = request.sideChunks > renderedSideChunks
@@ -3011,9 +3323,114 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
+
+  private func autoRenderCrossSectionAtViewportCenter(zoomDrivenOnly: Bool) {
+    guard currentSliceAxis != .y,
+      lastRenderedImage != nil,
+      imageView.bounds.width > 0,
+      imageView.bounds.height > 0,
+      scrollView.bounds.width > 0,
+      scrollView.bounds.height > 0
+    else { return }
+
+    let rawZoom = max(scrollView.zoomScale, CGFloat.leastNormalMagnitude)
+    guard rawZoom.isFinite, rawZoom > 0 else { return }
+    let sideBlocks = Double(renderedSideChunks * 16)
+    let imageWidth = Double(imageView.bounds.width)
+    let imageHeight = Double(imageView.bounds.height)
+    guard sideBlocks > 0, imageWidth > 0, imageHeight > 0 else { return }
+
+    let minPointH = Double(scrollView.contentOffset.x / rawZoom)
+    let maxPointH = Double((scrollView.contentOffset.x + scrollView.bounds.width) / rawZoom)
+    let minPointV = Double(scrollView.contentOffset.y / rawZoom)
+    let maxPointV = Double((scrollView.contentOffset.y + scrollView.bounds.height) / rawZoom)
+
+    let horizontal0 = Double(renderedCrossHorizontalStart) + minPointH / imageWidth * sideBlocks
+    let horizontal1 = Double(renderedCrossHorizontalStart) + maxPointH / imageWidth * sideBlocks
+    let y0 = Double(renderedCrossMaximumY) - minPointV / imageHeight * sideBlocks
+    let y1 = Double(renderedCrossMaximumY) - maxPointV / imageHeight * sideBlocks
+    guard horizontal0.isFinite, horizontal1.isFinite, y0.isFinite, y1.isFinite else { return }
+
+    let visibleMinHorizontal = min(horizontal0, horizontal1)
+    let visibleMaxHorizontal = max(horizontal0, horizontal1)
+    let visibleMinY = min(y0, y1)
+    let visibleMaxY = max(y0, y1)
+    let viewportHorizontalCenter = (visibleMinHorizontal + visibleMaxHorizontal) / 2
+    let viewportYCenter = (visibleMinY + visibleMaxY) / 2
+
+    let requestedSide = max(
+      minimumDynamicSideChunks,
+      dynamicRenderSideChunks(forZoomScale: effectiveZoomScale(forRawScale: rawZoom))
+    )
+    let needsExpansion = requestedSide > renderedSideChunks
+    let needsDetailRefinement = requestedSide * 2 < renderedSideChunks
+
+    // Reload before the viewport reaches the current image edge. This mirrors
+    // the top-down map preload border, but in a slice the two movable axes are
+    // horizontal-world-coordinate and Y rather than X/Z.
+    let currentMinHorizontal = Double(renderedCrossHorizontalStart)
+    let currentMaxHorizontal = currentMinHorizontal + sideBlocks
+    let currentMinY = Double(renderedCrossMinimumY)
+    let currentMaxYExclusive = Double(renderedCrossMaximumY) + 1
+    let preload = min(sideBlocks * 0.25, Double(dynamicPreloadBorderChunks * 16))
+    let needsRecentering =
+      visibleMinHorizontal < currentMinHorizontal + preload
+      || visibleMaxHorizontal > currentMaxHorizontal - preload
+      || visibleMinY < currentMinY + preload
+      || visibleMaxY > currentMaxYExclusive - preload
+
+    if zoomDrivenOnly {
+      guard needsExpansion || needsDetailRefinement else { return }
+    } else {
+      guard autoRenderSwitch.isOn,
+        needsRecentering || needsExpansion || needsDetailRefinement
+      else { return }
+    }
+
+    func clampedInt64(_ value: Double) -> Int64 {
+      if value <= Double(Int64.min) { return Int64.min }
+      if value >= Double(Int64.max) { return Int64.max }
+      return Int64(floor(value))
+    }
+
+    let horizontalCenter = clampedInt64(viewportHorizontalCenter)
+    sliceCenterY = Int32(clamping: clampedInt64(viewportYCenter))
+    switch currentSliceAxis {
+    case .x:
+      sliceCenterBlockZ = horizontalCenter
+    case .z:
+      sliceCenterBlockX = horizontalCenter
+    case .y:
+      return
+    }
+    let centerX = MapCoordinate.chunk(fromBlock: sliceCenterBlockX)
+    let centerZ = MapCoordinate.chunk(fromBlock: sliceCenterBlockZ)
+    updateCoordinateFields(centerX: centerX, centerZ: centerZ, anchor: nil)
+
+    let targetSideChunks = (needsExpansion || needsDetailRefinement)
+      ? requestedSide : renderedSideChunks
+    let reason: String
+    if needsExpansion {
+      reason = "剖面缩放扩展"
+    } else if needsDetailRefinement {
+      reason = "剖面缩放细化"
+    } else {
+      reason = "剖面移动续载"
+    }
+    render(
+      centerX: centerX,
+      centerZ: centerZ,
+      anchor: nil,
+      reason: reason,
+      showOverlay: false,
+      sideChunksOverride: targetSideChunks
+    )
+  }
+
   private func mapPosition(at point: CGPoint) -> (
     localX: Int, localZ: Int, absoluteX: Int64, absoluteZ: Int64
   )? {
+    guard currentSliceAxis == .y else { return nil }
     let side = renderedSideChunks * 16
     guard lastRenderedImage != nil, imageView.bounds.width > 0, imageView.bounds.height > 0 else {
       return nil
@@ -3028,7 +3445,78 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
+  private func crossSectionPosition(at point: CGPoint) -> (x: Int64, y: Int32, z: Int64)? {
+    guard currentSliceAxis != .y, lastRenderedImage != nil,
+      imageView.bounds.width > 0, imageView.bounds.height > 0
+    else { return nil }
+    let side = renderedSideChunks * 16
+    let localHorizontal = min(
+      side - 1, max(0, Int(point.x / imageView.bounds.width * CGFloat(side))))
+    let localVertical = min(
+      side - 1, max(0, Int(point.y / imageView.bounds.height * CGFloat(side))))
+    let horizontal = renderedCrossHorizontalStart + Int64(localHorizontal)
+    let worldY = renderedCrossMaximumY - Int64(localVertical)
+    switch currentSliceAxis {
+    case .x:
+      return (sliceCenterBlockX, Int32(clamping: worldY), horizontal)
+    case .z:
+      return (horizontal, Int32(clamping: worldY), sliceCenterBlockZ)
+    case .y:
+      return nil
+    }
+  }
+
+  private func showBlockAxisLine(
+    at position: (x: Int64, y: Int32, z: Int64)
+  ) {
+    let axis = currentSliceAxis
+    guard axis == .x || axis == .z else { return }
+    let side = Int64(renderedSideChunks * 16)
+    let half = side / 2
+    let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
+    let minimumCoordinate = centerCoordinate - half
+    let maximumCoordinate = minimumCoordinate + side - 1
+    let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
+    let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
+    renderQueue.async { [weak self] in
+      guard let self = self else { return }
+      do {
+        let result = try self.rendererForCurrentSession().blockAxisLine(
+          axis: axis,
+          fixedY: position.y,
+          fixedX: position.x,
+          fixedZ: position.z,
+          minimumCoordinate: minimumCoordinate,
+          maximumCoordinate: maximumCoordinate,
+          dimension: dimension
+        )
+        DispatchQueue.main.async {
+          overlay.removeFromSuperview()
+          let initial = axis == .x ? position.x : position.z
+          let picker = BlockAxisPickerViewController(
+            result: result,
+            initialCoordinate: initial
+          ) { [weak self] block in
+            self?.selectBlock(block)
+          }
+          let navigation = UINavigationController(rootViewController: picker)
+          navigation.modalPresentationStyle = .formSheet
+          self.present(navigation, animated: true)
+        }
+      } catch {
+        DispatchQueue.main.async {
+          overlay.removeFromSuperview()
+          self.showError(error, title: "无法读取 \(axis.displayName) 轴方块")
+        }
+      }
+    }
+  }
+
   @objc private func toggleSelectionMode() {
+    guard currentSliceAxis == .y else {
+      statusLabel.text = "X/Z 剖面模式不支持地图区域框选。"
+      return
+    }
     setSelectionMode(!isSelectionMode)
   }
 
@@ -3609,7 +4097,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   @objc private func mapTapped(_ recognizer: UITapGestureRecognizer) {
     let imagePoint = recognizer.location(in: imageView)
-    guard !isSelectionMode, let position = mapPosition(at: imagePoint) else { return }
+    guard !isSelectionMode else { return }
+    if currentSliceAxis != .y {
+      guard let blockPosition = crossSectionPosition(at: imagePoint) else { return }
+      showBlockAxisLine(at: blockPosition)
+      return
+    }
+    guard let position = mapPosition(at: imagePoint) else { return }
     selectedVillageID = nil
     selectedVillageEntityIDs.removeAll()
     selectedSpawnerID = nil
@@ -4369,7 +4863,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           overlay.removeFromSuperview()
           self.coordinateModeControl.selectedSegmentIndex = 1
           self.xField.text = String(x)
+          self.yField.text = String(y)
           self.zField.text = String(z)
+          self.sliceCenterBlockX = x
+          self.sliceCenterY = y
+          self.sliceCenterBlockZ = z
           self.selectBlock(block)
           self.render(
             centerX: MapCoordinate.chunk(fromBlock: x),
@@ -4489,7 +4987,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let alert = UIAlertController(
       title: "地图对象图层",
       message:
-        "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；未生成区块纹理会以固定密度显示。玩家与出生点图层默认开启，未生成区块默认关闭。",
+        "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；未生成区块纹理会以固定密度显示。X/Z 剖面中的红色虚线为建筑高度限制，默认显示。玩家与出生点图层默认开启，未生成区块默认关闭。",
       preferredStyle: .actionSheet
     )
     let playerTitle = showPlayers ? "✓ 显示玩家" : "显示玩家"
@@ -4499,6 +4997,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let spawnerTitle = showHardcodedSpawners ? "✓ 显示 HardcodedSpawners" : "显示 HardcodedSpawners"
     let villageTitle = showVillages ? "✓ 显示村庄" : "显示村庄"
     let ungeneratedTitle = showUngeneratedChunks ? "✓ 显示未生成区块" : "显示未生成区块"
+    let heightLimitTitle = showBuildHeightLimits ? "✓ 显示建筑高度限制" : "显示建筑高度限制"
     alert.addAction(
       UIAlertAction(title: playerTitle, style: .default) { [weak self] _ in
         guard let self = self else { return }
@@ -4555,6 +5054,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           showOverlay: false
         )
       })
+    if currentSliceAxis != .y {
+      alert.addAction(
+        UIAlertAction(title: heightLimitTitle, style: .default) { [weak self] _ in
+          guard let self = self else { return }
+          self.showBuildHeightLimits.toggle()
+          self.saveMapState()
+          self.updateObjectOverlay()
+        })
+    }
     alert.addAction(
       UIAlertAction(title: "全部显示", style: .default) { [weak self] _ in
         guard let self = self else { return }
@@ -4565,6 +5073,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showVillages = true
         self.showSpawnPoints = true
         self.showUngeneratedChunks = true
+        self.showBuildHeightLimits = true
         self.saveMapState()
         let anchor = self.currentViewportAnchor()
         let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
@@ -4580,6 +5089,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showVillages = false
         self.showSpawnPoints = false
         self.showUngeneratedChunks = false
+        self.showBuildHeightLimits = false
         self.selectedSpawnerID = nil
         self.selectedVillageID = nil
         self.selectedVillageEntityIDs.removeAll()
@@ -5618,6 +6128,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       if defaults.object(forKey: mapStatePrefix + "showUngeneratedChunks") != nil {
         showUngeneratedChunks = defaults.bool(forKey: mapStatePrefix + "showUngeneratedChunks")
       }
+      if defaults.object(forKey: mapStatePrefix + "showBuildHeightLimits") != nil {
+        showBuildHeightLimits = defaults.bool(forKey: mapStatePrefix + "showBuildHeightLimits")
+      } else {
+        showBuildHeightLimits = true
+      }
+    } else {
+      showBuildHeightLimits = true
     }
     for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
       defaults.removeObject(forKey: mapStatePrefix + key)
@@ -5640,13 +6157,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     defaults.set(showVillages, forKey: mapStatePrefix + "showVillages")
     defaults.set(showSpawnPoints, forKey: mapStatePrefix + "showSpawnPoints")
     defaults.set(showUngeneratedChunks, forKey: mapStatePrefix + "showUngeneratedChunks")
+    defaults.set(showBuildHeightLimits, forKey: mapStatePrefix + "showBuildHeightLimits")
     for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
       defaults.removeObject(forKey: mapStatePrefix + key)
     }
   }
 
   private func rememberCurrentViewportState(for dimension: Int32) {
-    guard lastRenderedImage != nil else { return }
+    guard currentSliceAxis == .y, lastRenderedImage != nil else { return }
     let anchor =
       currentViewportAnchor()
       ?? MapViewportAnchor(

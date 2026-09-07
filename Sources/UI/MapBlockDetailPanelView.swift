@@ -565,28 +565,25 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let node = rows[indexPath.row]
     let cell =
-      tableView.dequeueReusableCell(withIdentifier: "BlockNBTCell")
-      ?? UITableViewCell(style: .subtitle, reuseIdentifier: "BlockNBTCell")
-    cell.indentationLevel = node.depth
-    cell.indentationWidth = isCompactPhone ? 10 : 13
-    cell.textLabel?.font = UIFont.monospacedSystemFont(
-      ofSize: isCompactPhone ? 10.6 : 11.5, weight: .regular)
-    cell.detailTextLabel?.font = UIFont.monospacedSystemFont(
-      ofSize: isCompactPhone ? 9.4 : 10.5, weight: .regular)
-    cell.detailTextLabel?.textColor = .secondaryLabel
-    cell.detailTextLabel?.numberOfLines = 2
-    cell.detailTextLabel?.lineBreakMode = .byCharWrapping
-    cell.imageView?.image = NBTTagIcon.image(for: node.value.type)
-    cell.imageView?.contentMode = .center
-    let marker = node.hasChildren ? (expanded.contains(node.path) ? "▾" : "▸") : " "
+      (tableView.dequeueReusableCell(withIdentifier: "BlockNBTCell") as? NBTTreeCell)
+      ?? NBTTreeCell(style: .default, reuseIdentifier: "BlockNBTCell")
     let linkedMarker = isLegacyTopLevelNode(node, named: "name") ? " 🔗" : ""
-    cell.textLabel?.text = "\(marker) \(node.name)\(linkedMarker)"
-    cell.detailTextLabel?.text = "\(node.value.type.displayName) · \(node.value.summary)"
+    cell.configureCompact(
+      node: node,
+      expanded: expanded.contains(node.path),
+      titleSuffix: linkedMarker,
+      indentationWidth: isCompactPhone ? 10 : 13,
+      titleFont: UIFont.monospacedSystemFont(
+        ofSize: isCompactPhone ? 10.6 : 11.5, weight: .regular),
+      detailFont: UIFont.monospacedSystemFont(
+        ofSize: isCompactPhone ? 9.4 : 10.5, weight: .regular),
+      hierarchyLines: NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+    )
     cell.accessoryType =
       isBatchSelecting
       ? (batchSelectedPaths.contains(node.path) ? .checkmark : .none)
       : (node.hasChildren ? .none : .disclosureIndicator)
-    cell.mcbe_enableCompactText()
     return cell
   }
 

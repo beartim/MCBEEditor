@@ -149,21 +149,15 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
   {
     let node = rows[indexPath.row]
     let cell =
-      tableView.dequeueReusableCell(withIdentifier: "NBTCell")
-      ?? UITableViewCell(style: .subtitle, reuseIdentifier: "NBTCell")
-    cell.indentationLevel = searchQuery.isEmpty ? node.depth : 0
-    cell.indentationWidth = 18
-    cell.textLabel?.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-    cell.detailTextLabel?.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-    cell.detailTextLabel?.textColor = .secondaryLabel
-    cell.detailTextLabel?.numberOfLines = searchQuery.isEmpty ? 1 : 2
-    cell.imageView?.image = NBTTagIcon.image(for: node.value.type)
-    cell.imageView?.contentMode = .center
-    let marker: String
-    if node.hasChildren { marker = expanded.contains(node.path) ? "▾" : "▸" } else { marker = " " }
-    cell.textLabel?.text = "\(marker) \(node.name)  <\(node.value.type.displayName)>"
-    cell.detailTextLabel?.text =
-      searchQuery.isEmpty ? node.value.summary : "\(node.value.summary)\n\(node.pathDescription)"
+      (tableView.dequeueReusableCell(withIdentifier: "NBTCell") as? NBTTreeCell)
+      ?? NBTTreeCell(style: .default, reuseIdentifier: "NBTCell")
+    cell.configure(
+      node: node,
+      expanded: expanded.contains(node.path),
+      searchMode: !searchQuery.isEmpty,
+      hierarchyLines: NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+    )
     ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
       cell, node: node, normalAccessory: node.hasChildren ? .none : .disclosureIndicator)
@@ -182,7 +176,6 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
           }
         })
     }
-    cell.mcbe_enableCompactText()
     return cell
   }
 
@@ -362,6 +355,11 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
   ) -> UISwipeActionsConfiguration? {
     guard !batchSelectionCoordinator.isActive, rows.indices.contains(indexPath.row) else {
+      return nil
+    }
+    if let cell = tableView.cellForRow(at: indexPath) as? NBTTreeCell,
+      cell.canRevealMoreHorizontally
+    {
       return nil
     }
     let node = rows[indexPath.row]
