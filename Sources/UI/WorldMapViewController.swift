@@ -2283,9 +2283,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         cg.strokePath()
       }
       if ungeneratedDisplay == .texture, !ungeneratedTextureRects.isEmpty {
-        for rect in ungeneratedTextureRects {
-          drawUngeneratedChunkTexture(context: cg, in: rect)
-        }
+        drawUngeneratedChunkTexture(
+          context: cg,
+          rects: ungeneratedTextureRects,
+          chunkSide: renderedChunkSide
+        )
       }
     }
     return RenderedMapRegion(
@@ -4909,45 +4911,72 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     case .air:
       drawUngeneratedChunkAirBase(context: context, in: rect)
     case .texture:
-      drawUngeneratedChunkTexture(context: context, in: rect)
+      drawUngeneratedChunkTexture(context: context, rects: [rect], chunkSide: min(rect.width, rect.height))
     }
   }
 
-  private func drawUngeneratedChunkTexture(context: CGContext, in rect: CGRect) {
-    guard rect.width > 0, rect.height > 0 else { return }
+  private func drawUngeneratedChunkTexture(
+    context: CGContext,
+    rects: [CGRect],
+    chunkSide: CGFloat
+  ) {
+    let validRects = rects.filter { $0.width > 0 && $0.height > 0 }
+    guard !validRects.isEmpty, chunkSide > 0 else { return }
 
-    // Use shared rounded chunk boundaries instead of CGRect.integral so adjacent
-    // chunks snap to the same edge coordinates and the stripe endpoints line up.
-    let minX = rect.minX.rounded(.toNearestOrAwayFromZero)
-    let maxX = rect.maxX.rounded(.toNearestOrAwayFromZero)
-    let minY = rect.minY.rounded(.toNearestOrAwayFromZero)
-    let maxY = rect.maxY.rounded(.toNearestOrAwayFromZero)
-    let alignedRect = CGRect(x: minX, y: minY, width: max(1, maxX - minX), height: max(1, maxY - minY))
-    let side = min(alignedRect.width, alignedRect.height)
-    let lineWidth = max(1.0, (side * 0.05).rounded(.toNearestOrAwayFromZero))
-    let bleed = max(1.0, lineWidth * 0.75)
-    let midX = (minX + maxX) * 0.5
-    let midY = (minY + maxY) * 0.5
+    for rect in validRects {
+      drawUngeneratedChunkAirBase(context: context, in: rect)
+    }
+
+    let minX = validRects.map(\.minX).min() ?? 0
+    let minY = validRects.map(\.minY).min() ?? 0
+    let maxX = validRects.map(\.maxX).max() ?? 0
+    let maxY = validRects.map(\.maxY).max() ?? 0
+    let bounds = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    guard !bounds.isEmpty else { return }
+
+    let spacing = max(2.0, chunkSide * 0.5)
+    let lineWidth = max(1.0, (chunkSide * 0.075).rounded(.toNearestOrAwayFromZero))
+    let margin = bounds.width + bounds.height + lineWidth * 4
+    let minIntercept = bounds.minY - bounds.maxX - margin
+    let maxIntercept = bounds.maxY - bounds.minX + margin
+
+    func alignedStart(for value: CGFloat, step: CGFloat) -> CGFloat {
+      return floor(value / step) * step
+    }
 
     context.saveGState()
-    context.clip(to: alignedRect)
+    let clip = CGMutablePath()
+    for rect in validRects {
+      let alignedMinX = rect.minX.rounded(.toNearestOrAwayFromZero)
+      let alignedMaxX = rect.maxX.rounded(.toNearestOrAwayFromZero)
+      let alignedMinY = rect.minY.rounded(.toNearestOrAwayFromZero)
+      let alignedMaxY = rect.maxY.rounded(.toNearestOrAwayFromZero)
+      clip.addRect(
+        CGRect(
+          x: alignedMinX,
+          y: alignedMinY,
+          width: max(1, alignedMaxX - alignedMinX),
+          height: max(1, alignedMaxY - alignedMinY)
+        )
+      )
+    }
+    context.addPath(clip)
+    context.clip()
     context.setShouldAntialias(true)
     context.setAllowsAntialiasing(true)
-    context.setLineCap(.butt)
+    context.setLineCap(.square)
     context.setLineJoin(.miter)
     context.setStrokeColor(UIColor(white: 0.66, alpha: 1.0).cgColor)
     context.setLineWidth(lineWidth)
 
+    let start = alignedStart(for: minIntercept, step: spacing)
+    var intercept = start
     context.beginPath()
-    // Main line: top-left corner to bottom-right corner.
-    context.move(to: CGPoint(x: minX - bleed, y: minY - bleed))
-    context.addLine(to: CGPoint(x: maxX + bleed, y: maxY + bleed))
-    // Upper-right half line: top midpoint to right midpoint.
-    context.move(to: CGPoint(x: midX, y: minY - bleed))
-    context.addLine(to: CGPoint(x: maxX + bleed, y: midY))
-    // Lower-left half line: left midpoint to bottom midpoint.
-    context.move(to: CGPoint(x: minX - bleed, y: midY))
-    context.addLine(to: CGPoint(x: midX, y: maxY + bleed))
+    while intercept <= maxIntercept {
+      context.move(to: CGPoint(x: bounds.minX - margin, y: bounds.minX - margin + intercept))
+      context.addLine(to: CGPoint(x: bounds.maxX + margin, y: bounds.maxX + margin + intercept))
+      intercept += spacing
+    }
     context.strokePath()
     context.restoreGState()
   }
@@ -5436,9 +5465,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         }
       }
       if ungeneratedDisplay == .texture, !ungeneratedTextureRects.isEmpty {
-        for rect in ungeneratedTextureRects {
-          drawUngeneratedChunkTexture(context: context.cgContext, in: rect)
-        }
+        drawUngeneratedChunkTexture(
+          context: context.cgContext,
+          rects: ungeneratedTextureRects,
+          chunkSide: 16
+        )
       }
     }
     return (
