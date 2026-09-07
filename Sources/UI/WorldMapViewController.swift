@@ -4909,7 +4909,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let alignedRect = rect.integral
     let side = min(alignedRect.width, alignedRect.height)
     let lineWidth = max(1.0, (side * 0.05).rounded(.toNearestOrAwayFromZero))
-    let inset = lineWidth * 0.5
+    let bleed = lineWidth
 
     context.saveGState()
     context.clip(to: alignedRect)
@@ -4920,22 +4920,23 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     context.setStrokeColor(UIColor(white: 0.66, alpha: 1.0).cgColor)
     context.setLineWidth(lineWidth)
 
-    let minX = alignedRect.minX + inset
-    let maxX = alignedRect.maxX - inset
-    let minY = alignedRect.minY + inset
-    let maxY = alignedRect.maxY - inset
+    let minX = alignedRect.minX
+    let maxX = alignedRect.maxX
+    let minY = alignedRect.minY
+    let maxY = alignedRect.maxY
     let midX = alignedRect.midX
     let midY = alignedRect.midY
 
     context.beginPath()
-    context.move(to: CGPoint(x: minX, y: minY))
-    context.addLine(to: CGPoint(x: maxX, y: maxY))
-
-    context.move(to: CGPoint(x: midX, y: minY))
-    context.addLine(to: CGPoint(x: maxX, y: midY))
-
-    context.move(to: CGPoint(x: minX, y: midY))
-    context.addLine(to: CGPoint(x: midX, y: maxY))
+    // Main line: top-left corner to bottom-right corner.
+    context.move(to: CGPoint(x: minX - bleed, y: minY - bleed))
+    context.addLine(to: CGPoint(x: maxX + bleed, y: maxY + bleed))
+    // Upper-right half line: top midpoint to right midpoint.
+    context.move(to: CGPoint(x: midX, y: minY - bleed))
+    context.addLine(to: CGPoint(x: maxX + bleed, y: midY))
+    // Lower-left half line: left midpoint to bottom midpoint.
+    context.move(to: CGPoint(x: minX - bleed, y: midY))
+    context.addLine(to: CGPoint(x: midX, y: maxY + bleed))
     context.strokePath()
     context.restoreGState()
   }
