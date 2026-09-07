@@ -38,7 +38,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
   private let detailNodeLabel = UILabel()
 
   private var depth = 0
-  private var indentationWidth: CGFloat = 18
+  private var treeIndentationStep: CGFloat = 18
   private var hierarchyLines: [HierarchyLine] = []
   private var contentLeading: CGFloat = 14
   private var titleText = ""
@@ -119,7 +119,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     hierarchyLines: [HierarchyLine] = []
   ) {
     self.depth = searchMode ? 0 : node.depth
-    self.indentationWidth = indentationWidth
+    self.treeIndentationStep = indentationWidth
     self.titleFont = titleFont
     self.detailFont = detailFont
     self.detailLineCount = detailLineCount ?? (searchMode ? 2 : 1)
@@ -149,7 +149,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     hierarchyLines: [HierarchyLine]
   ) {
     depth = node.depth
-    self.indentationWidth = indentationWidth
+    self.treeIndentationStep = indentationWidth
     self.titleFont = titleFont
     self.detailFont = detailFont
     detailLineCount = 2
@@ -174,7 +174,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
 
     let h = horizontalScrollView.bounds.height
     let iconSize = CGSize(width: 24, height: 24)
-    let iconX = contentLeading + CGFloat(depth) * indentationWidth
+    let iconX = contentLeading + CGFloat(depth) * treeIndentationStep
     let iconY = max(3, (h - iconSize.height) / 2)
     let textX = iconX + iconSize.width + 8
 
@@ -213,7 +213,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
   private func drawHierarchyLines(cellHeight: CGFloat, iconCenterY: CGFloat) {
     let path = UIBezierPath()
     for line in hierarchyLines {
-      let ancestorIconX = contentLeading + CGFloat(line.ancestorDepth) * indentationWidth + 12
+      let ancestorIconX = contentLeading + CGFloat(line.ancestorDepth) * treeIndentationStep + 12
       switch line.kind {
       case .start:
         path.move(to: CGPoint(x: ancestorIconX, y: iconCenterY + 10))
@@ -224,7 +224,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
       case .end:
         path.move(to: CGPoint(x: ancestorIconX, y: 0))
         path.addLine(to: CGPoint(x: ancestorIconX, y: iconCenterY))
-        let currentIconCenterX = contentLeading + CGFloat(depth) * indentationWidth + 12
+        let currentIconCenterX = contentLeading + CGFloat(depth) * treeIndentationStep + 12
         path.addLine(to: CGPoint(x: currentIconCenterX - 10, y: iconCenterY))
       }
     }
