@@ -23,6 +23,7 @@ final class WorldDetailTabBarController: UITabBarController {
             mapController?.locate(worldObject: object)
         }
         let entities = UINavigationController(rootViewController: entitiesController)
+        entities.tabBarItem = UITabBarItem(title: "实体", image: UIImage(systemName: "person.3"), tag: 1)
 
         let chunksController = ChunkListViewController(session: session, initialDimension: 0)
         chunksController.onSelectChunk = { [weak self, weak mapController] position in
@@ -37,6 +38,7 @@ final class WorldDetailTabBarController: UITabBarController {
             mapController?.handleChunkMutationFromChunkTab(message: message, preferredPosition: preferredPosition)
         }
         let chunks = UINavigationController(rootViewController: chunksController)
+        chunks.tabBarItem = UITabBarItem(title: "区块", image: UIImage(systemName: "square.grid.3x3"), tag: 2)
 
         let nbt = UINavigationController(rootViewController: NBTMenuViewController(session: session))
         let commands = UINavigationController(rootViewController: WorldCommandViewController(session: session))

@@ -14,6 +14,12 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let typedTextLabel = UILabel()
     private let cursorView = UIView()
     private let executeButton = UIButton(type: .system)
+    private lazy var keyboardButton = UIBarButtonItem(
+        image: UIImage(systemName: "keyboard"),
+        style: .plain,
+        target: self,
+        action: #selector(toggleKeyboard)
+    )
     private var running = false
 
     init(session: WorldSession) {
@@ -41,12 +47,16 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     private func configureNavigation() {
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
+        let clearButton = UIBarButtonItem(
             title: "清屏",
             style: .plain,
             target: self,
             action: #selector(clearTerminal)
         )
+        keyboardButton.accessibilityLabel = "呼出或收起键盘"
+        keyboardButton.accessibilityHint = "切换命令输入键盘的显示状态"
+        // rightBarButtonItems 的首项位于最右侧，因此键盘按钮位于“清屏”左侧。
+        navigationItem.rightBarButtonItems = [clearButton, keyboardButton]
     }
 
     private func configureViews() {
@@ -201,6 +211,15 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     @objc private func focusCommandInput() {
         guard !running else { return }
         inputField.becomeFirstResponder()
+    }
+
+    @objc private func toggleKeyboard() {
+        guard !running else { return }
+        if inputField.isFirstResponder {
+            inputField.resignFirstResponder()
+        } else {
+            inputField.becomeFirstResponder()
+        }
     }
 
     @objc private func inputChanged() {

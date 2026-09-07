@@ -1,4 +1,5 @@
 import UIKit
+import Photos
 
 private struct MapRenderCancelled: Error {}
 
@@ -5566,12 +5567,107 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     do {
       guard let data = image.pngData() else { throw MCBEEditorError.io("无法编码 PNG") }
       try data.write(to: url, options: .atomic)
-      let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-      controller.popoverPresentationController?.barButtonItem = shareButton
-      present(controller, animated: true)
+      presentMapImageDestination(image: image, url: url)
     } catch {
       showError(error, title: "导出地图失败")
     }
+  }
+
+  private func presentMapImageDestination(image: UIImage, url: URL) {
+    let alert = UIAlertController(
+      title: "地图图片已生成",
+      message: "可直接保存到照片，也可以通过系统分享面板存储到文件或发送到其他 App。",
+      preferredStyle: .actionSheet
+    )
+    alert.addAction(
+      UIAlertAction(title: "保存到相册", style: .default) { [weak self] _ in
+        self?.saveMapImageToPhotoLibrary(fileURL: url)
+      })
+    alert.addAction(
+      UIAlertAction(title: "分享／存储…", style: .default) { [weak self] _ in
+        guard let self = self else { return }
+        // Include both the UIImage and the PNG URL. Modern iOS can therefore
+        // expose image-specific activities such as “Save Image”, while file
+        // providers still receive the named PNG file.
+        let controller = UIActivityViewController(activityItems: [image, url], applicationActivities: nil)
+        controller.popoverPresentationController?.barButtonItem = self.shareButton
+        self.present(controller, animated: true)
+      })
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.barButtonItem = shareButton
+      if popover.barButtonItem == nil {
+        popover.sourceView = view
+        popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.minY + 1, width: 1, height: 1)
+      }
+    }
+    present(alert, animated: true)
+  }
+
+  private func saveMapImageToPhotoLibrary(fileURL: URL) {
+    let save: () -> Void = { [weak self] in
+      PHPhotoLibrary.shared().performChanges({
+        guard PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL) != nil else {
+          return
+        }
+      }) { success, error in
+        DispatchQueue.main.async {
+          guard let self = self else { return }
+          if success {
+            let alert = UIAlertController(title: "已保存", message: "地图图片已保存到相册。", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "好", style: .default))
+            self.present(alert, animated: true)
+          } else {
+            self.showError(error ?? MCBEEditorError.io("照片库未能保存图片"), title: "保存到相册失败")
+          }
+        }
+      }
+    }
+
+    if #available(iOS 14.0, *) {
+      switch PHPhotoLibrary.authorizationStatus(for: .addOnly) {
+      case .authorized, .limited:
+        save()
+      case .notDetermined:
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+          DispatchQueue.main.async {
+            if status == .authorized || status == .limited {
+              save()
+            } else {
+              self.showPhotoLibraryPermissionError()
+            }
+          }
+        }
+      case .denied, .restricted:
+        showPhotoLibraryPermissionError()
+      @unknown default:
+        showPhotoLibraryPermissionError()
+      }
+    } else {
+      switch PHPhotoLibrary.authorizationStatus() {
+      case .authorized:
+        save()
+      case .notDetermined:
+        PHPhotoLibrary.requestAuthorization { status in
+          DispatchQueue.main.async {
+            if status == .authorized {
+              save()
+            } else {
+              self.showPhotoLibraryPermissionError()
+            }
+          }
+        }
+      case .denied, .restricted:
+        showPhotoLibraryPermissionError()
+      @unknown default:
+        showPhotoLibraryPermissionError()
+      }
+    }
+  }
+
+  private func showPhotoLibraryPermissionError() {
+    let error = MCBEEditorError.unsupported("没有照片写入权限。请在系统设置中允许 MCBEEditor 添加照片后重试。")
+    showError(error, title: "无法保存到相册")
   }
 
   private var mapStatePrefix: String { "MCBEEditor.Map.\(session.world.id.uuidString)." }

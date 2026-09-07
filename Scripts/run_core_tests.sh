@@ -4409,3 +4409,5 @@ swiftc -j 4 \
 "$ROOT/Scripts/test_iphone_layout_legacy_block_link.sh"
 
 "$ROOT/Scripts/test_metadata_crud_batch.sh"
+
+"$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"

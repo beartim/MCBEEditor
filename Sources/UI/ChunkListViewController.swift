@@ -160,7 +160,7 @@ final class ChunkListViewController: UITableViewController, UISearchResultsUpdat
                     let available = Set(values.map(\.position))
                     self.batchSelection.formIntersection(available)
                     self.applyFilter()
-                    self.title = "区块列表（\(values.count)）"
+                    self.title = "区块（\(values.count)）"
                     self.updateNavigationButtons()
                 }
             } catch {
