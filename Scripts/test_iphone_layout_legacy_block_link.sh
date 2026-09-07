@@ -29,6 +29,15 @@ grep -q 'modeControl.setTitle("常加载"' "$MAP"
 grep -q 'modeControl.setTitle("史莱姆"' "$MAP"
 grep -q 'min(250, max(200, view.bounds.width \* 0.50))' "$MAP"
 
+# Both live-map and export render paths defer texture drawing until after grid
+# drawing.  Each path must own its own local collection; missing one of these
+# declarations causes the Xcode-only scope error caught in the 2026-09-07 log.
+texture_rect_declarations="$(grep -c 'var ungeneratedTextureRects = \[CGRect\]()' "$MAP")"
+[ "$texture_rect_declarations" -eq 2 ] || {
+  echo "error: expected two scoped ungeneratedTextureRects declarations, found $texture_rect_declarations" >&2
+  exit 1
+}
+
 # The block panel should compact its controls but give the NBT tree more width.
 grep -q 'jumpButton.setTitle(isCompactPhone ? "查看"' "$PANEL"
 grep -q 'returnToSearchButton.setTitle(isCompactPhone ? "结果"' "$PANEL"

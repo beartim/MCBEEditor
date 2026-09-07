@@ -2243,6 +2243,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         context.fill(CGRect(x: 0, y: 0, width: rendererSide, height: rendererSide))
       }
 
+      var ungeneratedTextureRects = [CGRect]()
       for (zIndex, zSample) in samplingPlan.zAxis.enumerated() {
         for (xIndex, xSample) in samplingPlan.xAxis.enumerated() {
           let index = zIndex * samplingPlan.xAxis.count + xIndex
@@ -2257,7 +2258,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           guard let chunkImage = chunkImages[index] else { continue }
           let isUngenerated = ungeneratedTiles[index]
           if isUngenerated {
-            drawUngeneratedChunkPlaceholder(context: cg, in: rect, displayMode: ungeneratedDisplay)
+            if ungeneratedDisplay == .texture {
+              ungeneratedTextureRects.append(rect)
+            } else {
+              drawUngeneratedChunkPlaceholder(context: cg, in: rect, displayMode: ungeneratedDisplay)
+            }
           } else {
             chunkImage.draw(in: rect)
           }
