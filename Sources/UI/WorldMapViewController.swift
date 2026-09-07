@@ -1149,6 +1149,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private var showUngeneratedChunks = false
   private var showBuildHeightLimits = true
   private let crossSectionSelectionHalfRange: Int64 = 128
+  private let crossSectionObjectPlaneTolerance: Double = 0.99
   private let crossSectionDefaultSideBlocks = 256
   private var sliceCenterY: Int32 = 0
   private var sliceCenterBlockX: Int64 = 0
@@ -2469,12 +2470,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         if token.isCancelled { throw MapRenderCancelled() }
 
         func projectedHorizontalAndVertical(
-          worldX: Double, worldY: Double, worldZ: Double
+          worldX: Double, worldY: Double, worldZ: Double, planeTolerance: Double? = nil
         ) -> (CGFloat, CGFloat)? {
-          let blockX = Int64(floor(worldX))
-          let blockZ = Int64(floor(worldZ))
-          if axis == .x, blockX != fixedX { return nil }
-          if axis == .z, blockZ != fixedZ { return nil }
+          if let planeTolerance = planeTolerance {
+            if axis == .x, abs(worldX - Double(fixedX)) > planeTolerance { return nil }
+            if axis == .z, abs(worldZ - Double(fixedZ)) > planeTolerance { return nil }
+          } else {
+            let blockX = Int64(floor(worldX))
+            let blockZ = Int64(floor(worldZ))
+            if axis == .x, blockX != fixedX { return nil }
+            if axis == .z, blockZ != fixedZ { return nil }
+          }
           let horizontal = axis == .x ? worldZ : worldX
           let localHorizontal = horizontal - Double(result.minimumHorizontal)
           let localVertical = Double(result.maximumY + 1) - worldY
@@ -2494,7 +2500,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let projectedObjects = scannedObjects.compactMap { object -> MapWorldObjectHit? in
           guard let position = object.position,
             let local = projectedHorizontalAndVertical(
-              worldX: position.x, worldY: position.y, worldZ: position.z)
+              worldX: position.x, worldY: position.y, worldZ: position.z,
+              planeTolerance: self.crossSectionObjectPlaneTolerance)
           else { return nil }
           let normallyVisible =
             (object.kind == .entity && includeEntities)
@@ -3854,6 +3861,29 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
+  private func crossSectionWorldObjectHit(at imagePoint: CGPoint) -> MapWorldObjectHit? {
+    guard currentSliceAxis != .y, lastRenderedImage != nil,
+      imageView.bounds.width > 0, imageView.bounds.height > 0
+    else { return nil }
+    let sideBlocks = CGFloat(renderedSideChunks * 16)
+    guard sideBlocks > 0 else { return nil }
+    let tapPoint = imageView.convert(imagePoint, to: objectOverlayView)
+    var best: (hit: MapWorldObjectHit, distance: CGFloat)?
+    for hit in lastWorldObjectHits where hit.isNormallyVisible {
+      let projectedInImage = CGPoint(
+        x: hit.localX / sideBlocks * imageView.bounds.width,
+        y: hit.localZ / sideBlocks * imageView.bounds.height
+      )
+      let projected = imageView.convert(projectedInImage, to: objectOverlayView)
+      let dx = projected.x - tapPoint.x
+      let dy = projected.y - tapPoint.y
+      let distance = sqrt(dx * dx + dy * dy)
+      if best == nil || distance < best!.distance { best = (hit, distance) }
+    }
+    guard let best = best, best.distance <= 18 else { return nil }
+    return best.hit
+  }
+
   private func crossSectionPosition(at point: CGPoint) -> (x: Int64, y: Int32, z: Int64)? {
     guard currentSliceAxis != .y, lastRenderedImage != nil,
       imageView.bounds.width > 0, imageView.bounds.height > 0
@@ -3872,6 +3902,26 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       return (horizontal, Int32(clamping: worldY), sliceCenterBlockZ)
     case .y:
       return nil
+    }
+  }
+
+  private func crossSectionHardcodedSpawnerHit(
+    at position: (x: Int64, y: Int32, z: Int64)
+  ) -> MapHardcodedSpawnerHit? {
+    guard showHardcodedSpawners else { return nil }
+    let y = Int64(position.y)
+    return lastHardcodedSpawnerHits.filter { hit in
+      position.x >= Int64(hit.area.minimumX) && position.x <= Int64(hit.area.maximumX)
+        && y >= Int64(hit.area.minimumY) && y <= Int64(hit.area.maximumY)
+        && position.z >= Int64(hit.area.minimumZ) && position.z <= Int64(hit.area.maximumZ)
+    }.min { lhs, rhs in
+      let lhsVolume = max(Int64(1), Int64(lhs.area.maximumX) - Int64(lhs.area.minimumX) + 1)
+        * max(Int64(1), Int64(lhs.area.maximumY) - Int64(lhs.area.minimumY) + 1)
+        * max(Int64(1), Int64(lhs.area.maximumZ) - Int64(lhs.area.minimumZ) + 1)
+      let rhsVolume = max(Int64(1), Int64(rhs.area.maximumX) - Int64(rhs.area.minimumX) + 1)
+        * max(Int64(1), Int64(rhs.area.maximumY) - Int64(rhs.area.minimumY) + 1)
+        * max(Int64(1), Int64(rhs.area.maximumZ) - Int64(rhs.area.minimumZ) + 1)
+      return lhsVolume < rhsVolume
     }
   }
 
@@ -4506,7 +4556,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let imagePoint = recognizer.location(in: imageView)
     guard !isSelectionMode else { return }
     if currentSliceAxis != .y {
+      if let hit = crossSectionWorldObjectHit(at: imagePoint) {
+        selectWorldObject(hit.object)
+        showWorldObjectDetails(hit.object)
+        return
+      }
+      if let player = mapPlayerHits(at: imagePoint).first {
+        showPlayerDetails(player.player)
+        return
+      }
+      if let spawn = spawnPointHits(at: imagePoint).first {
+        showSpawnInformation(spawn.spawn)
+        return
+      }
       guard let blockPosition = crossSectionPosition(at: imagePoint) else { return }
+      if let spawner = crossSectionHardcodedSpawnerHit(at: blockPosition) {
+        openHardcodedSpawnerEditor(spawner)
+        return
+      }
       showBlockAxisLine(at: blockPosition)
       return
     }
@@ -5987,6 +6054,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         hardcodedSpawners: showHardcodedSpawners,
         villages: verticalSlice ? false : showVillages,
         spawnPoints: showSpawnPoints,
+        grid: false,
         ungeneratedDisplay: .transparent
       ),
       hasSelectedRegion: !verticalSlice && isSelectionMode && selectedRegion != nil,
@@ -6020,7 +6088,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let dimensionName = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].displayName
     let mode = currentMode
-    let drawGrid = gridSwitch.isOn
+    let drawGrid = layers.grid
     let centerX = lastCenterX
     let centerZ = lastCenterZ
     let sideChunks = renderedSideChunks
@@ -6288,7 +6356,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let fixedX = sliceCenterBlockX
     let fixedZ = sliceCenterBlockZ
     let centerY = sliceCenterY
-    let drawGrid = gridSwitch.isOn
+    let drawGrid = layers.grid
     let includeBuildLimits = showBuildHeightLimits
     let currentHorizontalRange = renderedCrossHorizontalStart...(
       renderedCrossHorizontalStart + Int64(renderedSideChunks * 16) - 1)
@@ -6381,6 +6449,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           dimension: dimension,
           mode: mode,
           drawSubChunkGrid: drawGrid,
+          pixelsPerBlock: 2,
+          maximumRasterSide: 4096,
           showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
           transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,
           tickingAreas: tickingAreas,
@@ -6480,9 +6550,10 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
       for object in objects {
         guard let position = object.position else { continue }
-        let blockX = Int64(floor(position.x))
-        let blockZ = Int64(floor(position.z))
-        guard axis == .x ? blockX == fixedX : blockZ == fixedZ else { continue }
+        let planeDistance = axis == .x
+          ? abs(position.x - Double(fixedX))
+          : abs(position.z - Double(fixedZ))
+        guard planeDistance <= crossSectionObjectPlaneTolerance else { continue }
         let horizontal = axis == .x ? position.z : position.x
         guard horizontal >= Double(minimumHorizontal), horizontal < Double(maximumHorizontal + 1),
           position.y >= Double(minimumY), position.y < Double(maximumY + 1)

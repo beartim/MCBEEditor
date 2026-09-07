@@ -45,6 +45,8 @@ extension ChunkSurfaceRenderer {
     dimension: Int32,
     mode: MapRenderMode,
     drawSubChunkGrid: Bool,
+    pixelsPerBlock: Int = 1,
+    maximumRasterSide: Int = 2048,
     showUngeneratedSubChunks: Bool = false,
     transparentUngeneratedSubChunks: Bool = false,
     tickingAreas: [BedrockTickingArea] = [],
@@ -79,11 +81,27 @@ extension ChunkSurfaceRenderer {
     }
     let horizontalBlockCount = Int(horizontalBlockCount64)
     let verticalBlockCount = Int(verticalBlockCount64)
-    let maximumRasterSide = 2048
+    let rasterPixelsPerSample = max(1, pixelsPerBlock)
+    let rasterLimit = max(256, maximumRasterSide)
     let longest = max(horizontalBlockCount, verticalBlockCount)
-    let sampleStride = max(1, Int(ceil(Double(longest) / Double(maximumRasterSide))))
-    let rasterWidth = Int(ceil(Double(horizontalBlockCount) / Double(sampleStride)))
-    let rasterHeight = Int(ceil(Double(verticalBlockCount) / Double(sampleStride)))
+    let minimumStride = max(
+      1,
+      Int(ceil(
+        Double(longest * rasterPixelsPerSample) / Double(rasterLimit)
+      ))
+    )
+    // Keep the sampling stride power-of-two whenever downsampling is needed.
+    // For the common 1/2/4/8/16 strides this keeps 16-block SubChunk
+    // boundaries exactly on sampled-cell edges instead of drifting through
+    // the middle of a sampled block.
+    var sampleStride = 1
+    while sampleStride < minimumStride, sampleStride <= Int.max / 2 {
+      sampleStride *= 2
+    }
+    let rasterColumns = Int(ceil(Double(horizontalBlockCount) / Double(sampleStride)))
+    let rasterRows = Int(ceil(Double(verticalBlockCount) / Double(sampleStride)))
+    let rasterWidth = rasterColumns * rasterPixelsPerSample
+    let rasterHeight = rasterRows * rasterPixelsPerSample
 
     struct CachedChunkData {
       let subChunks: [Int8: BedrockSubChunk]
@@ -211,40 +229,93 @@ extension ChunkSurfaceRenderer {
       UIColor.systemGray5.setFill()
       context.fill(CGRect(x: 0, y: 0, width: CGFloat(rasterWidth), height: CGFloat(rasterHeight)))
 
-      for row in 0..<rasterHeight {
+      var ungeneratedTextureRects = [CGRect]()
+      for row in 0..<rasterRows {
         if shouldCancel() { return }
         let y = maximumY - Int64(min(verticalBlockCount - 1, row * sampleStride))
-        for column in 0..<rasterWidth {
+        for column in 0..<rasterColumns {
           if shouldCancel() { return }
           let horizontal = minimumHorizontal + Int64(min(horizontalBlockCount - 1, column * sampleStride))
           let value = sample(horizontal: horizontal, y: y)
+          let rect = CGRect(
+            x: CGFloat(column * rasterPixelsPerSample),
+            y: CGFloat(row * rasterPixelsPerSample),
+            width: CGFloat(rasterPixelsPerSample),
+            height: CGFloat(rasterPixelsPerSample)
+          )
           if transparentUngeneratedSubChunks, !value.hasSubChunk {
-            cg.clear(CGRect(x: CGFloat(column), y: CGFloat(row), width: 1, height: 1))
+            cg.clear(rect)
+            continue
+          }
+          if showUngeneratedSubChunks, !value.hasSubChunk {
+            // Match the Y-map placeholder: a light neutral base with soft,
+            // anti-aliased gray diagonals. Collect sample cells first so the
+            // hatching stays continuous across a whole missing SubChunk.
+            UIColor(red: 0.90, green: 0.90, blue: 0.90, alpha: 1).setFill()
+            context.fill(rect)
+            ungeneratedTextureRects.append(rect)
             continue
           }
           color(for: value, y: y).setFill()
-          context.fill(CGRect(x: CGFloat(column), y: CGFloat(row), width: 1, height: 1))
-          if showUngeneratedSubChunks, !value.hasSubChunk {
-            // Fixed-world-density diagonal texture marks missing SubChunks,
-            // independent of raster downsampling and zoom level.
-            let phase = Int((horizontal &+ y) & 7)
-            if phase == 0 || phase == 1 {
-              UIColor.label.withAlphaComponent(0.28).setFill()
-              context.fill(CGRect(x: CGFloat(column), y: CGFloat(row), width: 1, height: 1))
-            }
+          context.fill(rect)
+        }
+      }
+
+      if showUngeneratedSubChunks, !ungeneratedTextureRects.isEmpty {
+        let minX = ungeneratedTextureRects.map(\.minX).min() ?? 0
+        let minY = ungeneratedTextureRects.map(\.minY).min() ?? 0
+        let maxX = ungeneratedTextureRects.map(\.maxX).max() ?? 0
+        let maxY = ungeneratedTextureRects.map(\.maxY).max() ?? 0
+        let textureBounds = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        if !textureBounds.isEmpty {
+          let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
+          let spacing = max(2.0, 8.0 * worldToRaster)
+          let lineWidth = max(0.65, 1.2 * worldToRaster)
+          let margin = textureBounds.width + textureBounds.height + lineWidth * 4
+          let minimumIntercept = textureBounds.minY - textureBounds.maxX - margin
+          let maximumIntercept = textureBounds.maxY - textureBounds.minX + margin
+
+          cg.saveGState()
+          let clip = CGMutablePath()
+          for rect in ungeneratedTextureRects { clip.addRect(rect) }
+          cg.addPath(clip)
+          cg.clip()
+          cg.setShouldAntialias(true)
+          cg.setAllowsAntialiasing(true)
+          cg.setLineCap(.square)
+          cg.setLineJoin(.miter)
+          cg.setStrokeColor(UIColor(white: 0.66, alpha: 1).cgColor)
+          cg.setLineWidth(lineWidth)
+          var intercept = floor(minimumIntercept / spacing) * spacing
+          cg.beginPath()
+          while intercept <= maximumIntercept {
+            cg.move(to: CGPoint(
+              x: textureBounds.minX - margin,
+              y: textureBounds.minX - margin + intercept
+            ))
+            cg.addLine(to: CGPoint(
+              x: textureBounds.maxX + margin,
+              y: textureBounds.maxX + margin + intercept
+            ))
+            intercept += spacing
           }
+          cg.strokePath()
+          cg.restoreGState()
         }
       }
 
       if drawSubChunkGrid {
-        cg.setStrokeColor(UIColor.label.withAlphaComponent(0.38).cgColor)
-        cg.setLineWidth(1)
+        cg.setShouldAntialias(true)
+        cg.setAllowsAntialiasing(true)
+        cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
+        cg.setLineWidth(max(0.15, CGFloat(rasterPixelsPerSample) * 0.15))
         // Align every line to a rendered sample-cell edge. Using the old
         // side->raster floating scale could put a 16-block boundary through
         // the middle of a sampled pixel when sampleStride > 1.
         func rasterEdge(_ blockOffset: Int64) -> CGFloat {
           let value = Double(blockOffset) / Double(sampleStride)
-          return CGFloat(round(value))
+            * Double(rasterPixelsPerSample)
+          return CGFloat(value)
         }
 
         let horizontalEndExclusive = maximumHorizontal + 1

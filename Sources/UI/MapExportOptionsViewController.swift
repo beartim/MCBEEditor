@@ -34,6 +34,7 @@ struct MapImageExportLayers {
     var hardcodedSpawners: Bool
     var villages: Bool
     var spawnPoints: Bool
+    var grid: Bool
     var ungeneratedDisplay: MapUngeneratedChunkDisplayMode
 }
 
@@ -67,7 +68,7 @@ final class MapExportOptionsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return availableScopes.count
-        case 1: return isCrossSection ? 4 : 5
+        case 1: return isCrossSection ? 5 : 6
         default: return MapUngeneratedChunkDisplayMode.allCases.count
         }
     }
@@ -86,6 +87,8 @@ final class MapExportOptionsViewController: UITableViewController {
             return isCrossSection
                 ? "“当前地图区域”导出当前 X/Z 剖面；“全部已加载区域”沿当前剖面的水平轴遍历全部已加载区块，不受 ±128 选择范围限制。"
                 : "框选模式下可直接导出当前精确框选范围；“全部已加载区域”会按当前维度已有区块的外接范围生成图片，跨度较大时会自动降低输出比例以控制内存。"
+        case 1:
+            return "“网格”默认关闭；导出的 PNG 是否包含区块/子区块网格只由这里的选项决定，不跟随地图页面当前网格开关。"
         case 2:
             return isCrossSection
                 ? "“透明”让未生成 SubChunk 透明；“空气”使用普通背景；“纹理”为未生成 SubChunk 叠加固定密度纹理。"
@@ -108,14 +111,16 @@ final class MapExportOptionsViewController: UITableViewController {
                     ("实体", layers.entities),
                     ("方块实体", layers.blockEntities),
                     ("HardcodedSpawners", layers.hardcodedSpawners),
-                    ("出生点", layers.spawnPoints)
+                    ("出生点", layers.spawnPoints),
+                    ("网格", layers.grid)
                 ]
                 : [
                     ("实体", layers.entities),
                     ("方块实体", layers.blockEntities),
                     ("HardcodedSpawners", layers.hardcodedSpawners),
                     ("村庄", layers.villages),
-                    ("出生点", layers.spawnPoints)
+                    ("出生点", layers.spawnPoints),
+                    ("网格", layers.grid)
                 ]
             cell.textLabel?.text = values[indexPath.row].0
             cell.accessoryType = values[indexPath.row].1 ? .checkmark : .none
@@ -140,6 +145,7 @@ final class MapExportOptionsViewController: UITableViewController {
                 case 1: layers.blockEntities.toggle()
                 case 2: layers.hardcodedSpawners.toggle()
                 case 3: layers.spawnPoints.toggle()
+                case 4: layers.grid.toggle()
                 default: break
                 }
             } else {
@@ -149,6 +155,7 @@ final class MapExportOptionsViewController: UITableViewController {
                 case 2: layers.hardcodedSpawners.toggle()
                 case 3: layers.villages.toggle()
                 case 4: layers.spawnPoints.toggle()
+                case 5: layers.grid.toggle()
                 default: break
                 }
             }
