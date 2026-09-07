@@ -60,6 +60,18 @@ PBXPROJ="$ROOT/MCBEEditor.xcodeproj/project.pbxproj"
   exit 1
 }
 
+# Resources/Info.plist is generated from project.yml by XcodeGen. Photo export
+# crashes or loses the Save-to-Photos path if either privacy description is
+# dropped, so validate the generated product immediately.
+GENERATED_INFO_PLIST="$ROOT/Resources/Info.plist"
+for PHOTO_PRIVACY_KEY in NSPhotoLibraryAddUsageDescription NSPhotoLibraryUsageDescription; do
+  /usr/libexec/PlistBuddy -c "Print :$PHOTO_PRIVACY_KEY" "$GENERATED_INFO_PLIST" >/dev/null 2>&1 || {
+    printf '错误：XcodeGen 生成的 Info.plist 缺少 %s。请在 project.yml 的 info.properties 中声明。\n' \
+      "$PHOTO_PRIVACY_KEY" >&2
+    exit 1
+  }
+done
+
 # XcodeGen 2.44+ defaults to the Xcode 16 project format (objectVersion 77).
 # This project deliberately builds with Xcode 15.4 so that it can target iOS 13.
 # project.yml pins projectFormat=xcode15_3, which XcodeGen emits as objectVersion 63.
