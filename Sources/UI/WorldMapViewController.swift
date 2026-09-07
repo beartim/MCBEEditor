@@ -6290,8 +6290,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let centerY = sliceCenterY
     let drawGrid = gridSwitch.isOn
     let includeBuildLimits = showBuildHeightLimits
-    let currentHorizontalRange = renderedCrossHorizontalStart...
-      (renderedCrossHorizontalStart + Int64(renderedSideChunks * 16) - 1)
+    let currentHorizontalRange = renderedCrossHorizontalStart...(
+      renderedCrossHorizontalStart + Int64(renderedSideChunks * 16) - 1)
     let currentVerticalRange = renderedCrossMinimumY...renderedCrossMaximumY
     let busy = showBusy(
       scope == .loadedDimension ? "正在遍历全部已加载剖面…" : "正在生成当前剖面图片…")
@@ -6327,8 +6327,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           }
           guard let minimumChunk = horizontalChunks.min(), let maximumChunk = horizontalChunks.max()
           else { throw MCBEEditorError.unsupported("当前剖面没有已加载区块。") }
-          horizontalRange = MapCoordinate.blockOrigin(ofChunk: minimumChunk)...
-            (MapCoordinate.blockOrigin(ofChunk: maximumChunk) + 15)
+          horizontalRange = MapCoordinate.blockOrigin(ofChunk: minimumChunk)...(
+            MapCoordinate.blockOrigin(ofChunk: maximumChunk) + 15)
 
           var minimumSubY: Int64?
           var maximumSubY: Int64?

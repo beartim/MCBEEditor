@@ -221,3 +221,4 @@ THIRD_PARTY_NOTICES.md
 Tests/MCBEEditorTests.swift
 Vendor/README.md
 project.yml
+CHANGES_BUILD_XYZ_CLOSED_RANGE_FIX.md

@@ -83,6 +83,8 @@ require_fixed 'startCrossSectionImageExport(scope: scope, layers: layers)' 'Sour
 require_fixed 'intersectingSummaries = allSummaries.filter' 'Sources/UI/WorldMapViewController.swift' 'all-loaded X/Z export must traverse every loaded chunk intersecting the current section plane'
 require_fixed 'horizontalRange: horizontalRange' 'Sources/UI/WorldMapViewController.swift' 'all-loaded section export must pass its full horizontal range explicitly instead of the ±128 picker range'
 require_fixed 'verticalRange: verticalRange' 'Sources/UI/WorldMapViewController.swift' 'all-loaded section export must pass the full loaded SubChunk Y range explicitly'
+require_fixed 'let currentHorizontalRange = renderedCrossHorizontalStart...(' 'Sources/UI/WorldMapViewController.swift' 'current X/Z export range must form a ClosedRange instead of a newline-terminated PartialRangeFrom'
+require_fixed 'horizontalRange = MapCoordinate.blockOrigin(ofChunk: minimumChunk)...(' 'Sources/UI/WorldMapViewController.swift' 'all-loaded X/Z export range must form a ClosedRange instead of a newline-terminated PartialRangeFrom'
 require_fixed '不受 ±128 选择范围限制' 'Sources/UI/MapExportOptionsViewController.swift' 'cross-section export UI must state that all-loaded export is not limited by the picker range'
 
 printf 'NBT tree horizontal reveal / hierarchy guide and X-Y-Z cross-section regression checks passed\n'
