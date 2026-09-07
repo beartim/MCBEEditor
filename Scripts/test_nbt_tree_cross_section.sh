@@ -27,6 +27,8 @@ forbid_fixed() {
 # surface, and trailing deletion must only become available after hidden
 # content has been revealed.
 require_fixed 'private final class NBTTreeHorizontalScrollView: UIScrollView' 'Sources/UI/NBTTreeCell.swift' 'tree rows must use a horizontal scroll surface'
+require_fixed 'horizontalScrollView.isDirectionalLockEnabled = true' 'Sources/UI/NBTTreeCell.swift' 'horizontal NBT row scrolling must use the current UIScrollView directional-lock API'
+forbid_fixed 'horizontalScrollView.directionalLockEnabled = true' 'Sources/UI/NBTTreeCell.swift' 'deprecated pre-Swift-renaming UIScrollView directionalLockEnabled API must not return'
 forbid_fixed 'private var indentationWidth:' 'Sources/UI/NBTTreeCell.swift' 'custom NBT indentation state must not shadow UITableViewCell.indentationWidth'
 require_fixed 'private var treeIndentationStep: CGFloat = 18' 'Sources/UI/NBTTreeCell.swift' 'NBT tree indentation state must use a non-UIKit property name'
 require_fixed 'let iconX = contentLeading + CGFloat(depth) * treeIndentationStep' 'Sources/UI/NBTTreeCell.swift' 'NBT icon must move with hierarchy depth'

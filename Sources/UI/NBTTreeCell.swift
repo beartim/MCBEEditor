@@ -63,7 +63,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     horizontalScrollView.showsVerticalScrollIndicator = false
     horizontalScrollView.alwaysBounceHorizontal = false
     horizontalScrollView.alwaysBounceVertical = false
-    horizontalScrollView.directionalLockEnabled = true
+    horizontalScrollView.isDirectionalLockEnabled = true
     horizontalScrollView.delaysContentTouches = false
     horizontalScrollView.canCancelContentTouches = true
     horizontalScrollView.delegate = self
