@@ -2454,6 +2454,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         diagnostics.append(contentsOf: spawnerScan.diagnostics)
 
         if token.isCancelled { throw MapRenderCancelled() }
+        let generatedChunkPositions = Set(
+          try BedrockChunkStore(session: self.session).listChunks().filter { summary in
+            summary.position.dimension == dimension
+              && (summary.hasTerrain || summary.biomeRecordType != nil
+                  || summary.hasBlockEntities || summary.hasLegacyEntities
+                  || summary.recordCount > (summary.hasActorDigest ? 1 : 0))
+          }.map(\.position)
+        )
         let result = try renderer.renderCrossSection(
           axis: axis,
           fixedX: fixedX,
@@ -2463,6 +2471,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           dimension: dimension,
           mode: mode,
           drawSubChunkGrid: drawGrid,
+          projectionDepth: 128,
+          generatedChunkPositions: generatedChunkPositions,
+          pixelsPerBlock: 4,
           showUngeneratedSubChunks: includeUngeneratedSubChunks,
           tickingAreas: tickingAreas,
           shouldCancel: { token.isCancelled }
@@ -2559,7 +2570,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
               "\(axis.displayName)剖面 · 中心(\(fixedX),\(centerY),\(fixedZ)) · \(sideBlocks)×\(sideBlocks)方块 · \(mode.displayName) · 错误\(allErrors.count)"
           } else {
             self.statusLabel.text =
-              "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；\(layerCounts)；错误 \(allErrors.count) 条。"
+              "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；向 \(axis.displayName)- 投影 128 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；\(layerCounts)；错误 \(allErrors.count) 条。"
           }
           self.saveMapState()
         }
@@ -6374,6 +6385,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             && ($0.hasTerrain || $0.biomeRecordType != nil || $0.hasBlockEntities
                 || $0.hasLegacyEntities || $0.recordCount > ($0.hasActorDigest ? 1 : 0))
         }
+        let generatedChunkPositions = Set(allSummaries.map(\.position))
 
         let horizontalRange: ClosedRange<Int64>
         let verticalRange: ClosedRange<Int64>
@@ -6381,11 +6393,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let intersectingSummaries: [BedrockChunkSummary]
 
         if scope == .loadedDimension {
-          let fixedChunk = axis == .x
-            ? MapCoordinate.chunk(fromBlock: fixedX)
-            : MapCoordinate.chunk(fromBlock: fixedZ)
+          let projectionMinimum = (axis == .x ? fixedX : fixedZ) - 127
+          let projectionMaximum = axis == .x ? fixedX : fixedZ
+          let minimumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMinimum)
+          let maximumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMaximum)
           intersectingSummaries = allSummaries.filter {
-            axis == .x ? $0.position.x == fixedChunk : $0.position.z == fixedChunk
+            let fixedChunkCoordinate = axis == .x ? $0.position.x : $0.position.z
+            return fixedChunkCoordinate >= minimumFixedChunk
+              && fixedChunkCoordinate <= maximumFixedChunk
           }
           guard !intersectingSummaries.isEmpty else {
             throw MCBEEditorError.unsupported("当前剖面没有已加载区块。")
@@ -6449,7 +6464,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           dimension: dimension,
           mode: mode,
           drawSubChunkGrid: drawGrid,
-          pixelsPerBlock: 2,
+          projectionDepth: 128,
+          generatedChunkPositions: generatedChunkPositions,
+          pixelsPerBlock: 4,
           maximumRasterSide: 4096,
           showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
           transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,

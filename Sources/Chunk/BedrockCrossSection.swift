@@ -45,6 +45,8 @@ extension ChunkSurfaceRenderer {
     dimension: Int32,
     mode: MapRenderMode,
     drawSubChunkGrid: Bool,
+    projectionDepth: Int = 128,
+    generatedChunkPositions: Set<ChunkPosition> = [],
     pixelsPerBlock: Int = 1,
     maximumRasterSide: Int = 2048,
     showUngeneratedSubChunks: Bool = false,
@@ -116,6 +118,8 @@ extension ChunkSurfaceRenderer {
       let chunkZ: Int32
     }
 
+    let rayDepth = max(1, projectionDepth)
+
     var errors = [String]()
     var decoded = 0
     var chunkCache = [ChunkPosition: CachedChunkData]()
@@ -164,9 +168,24 @@ extension ChunkSurfaceRenderer {
       return value
     }
 
-    func sample(horizontal: Int64, y: Int64) -> Sample {
-      let worldX = axis == .x ? fixedX : horizontal
-      let worldZ = axis == .z ? fixedZ : horizontal
+    func isAir(_ blockName: String) -> Bool {
+      let lowered = blockName.lowercased()
+      return lowered == "minecraft:air"
+        || lowered.hasSuffix(":cave_air")
+        || lowered.hasSuffix(":void_air")
+    }
+
+    func isOreProjectionTarget(_ blockName: String) -> Bool {
+      let lowered = blockName.lowercased()
+      return lowered.contains("_ore")
+        || lowered.contains("ancient_debris")
+        || lowered.contains("raw_iron_block")
+        || lowered.contains("raw_gold_block")
+        || lowered.contains("raw_copper_block")
+        || lowered.contains("amethyst_cluster")
+    }
+
+    func sampleAt(worldX: Int64, worldZ: Int64, y: Int64) -> Sample {
       let chunkX = MapCoordinate.chunk(fromBlock: worldX)
       let chunkZ = MapCoordinate.chunk(fromBlock: worldZ)
       let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension)
@@ -187,13 +206,64 @@ extension ChunkSurfaceRenderer {
       let primary = states.first(where: { !$0.isAir }) ?? states.first
       let biomeID = cached.biomeDocument?.biomeID(localX: localX, y: Int(y), localZ: localZ)
         ?? cached.legacyTerrain?.biomeID(localX: localX, localZ: localZ)
+      // Bedrock normally omits all-air SubChunks. If the containing chunk is
+      // otherwise known to be generated, an absent SubChunk is ordinary air,
+      // not an ungenerated section placeholder.
+      let generatedOrStored = subChunk != nil || generatedChunkPositions.contains(position)
       return Sample(
         blockName: primary?.name ?? "minecraft:air",
-        hasSubChunk: subChunk != nil,
+        hasSubChunk: generatedOrStored,
         biomeID: biomeID,
         chunkX: chunkX,
         chunkZ: chunkZ
       )
+    }
+
+    /// X/Z block views are orthographic projections rather than a one-block
+    /// paper-thin slice. Look from the current section plane toward the
+    /// negative axis for 128 blocks, so structures immediately behind the
+    /// plane remain visible without changing the section's horizontal/Y
+    /// coordinate system. Property modes intentionally keep reading the exact
+    /// plane selected by the user.
+    func sample(horizontal: Int64, y: Int64) -> Sample {
+      let planeX = axis == .x ? fixedX : horizontal
+      let planeZ = axis == .z ? fixedZ : horizontal
+
+      if mode == .biome || mode == .tickingAreas || mode == .slime {
+        return sampleAt(worldX: planeX, worldZ: planeZ, y: y)
+      }
+
+      var fallback: Sample?
+      var generatedFallback: Sample?
+      for depth in 0..<rayDepth {
+        let worldX = axis == .x ? fixedX - Int64(depth) : horizontal
+        let worldZ = axis == .z ? fixedZ - Int64(depth) : horizontal
+        let value = sampleAt(worldX: worldX, worldZ: worldZ, y: y)
+        if fallback == nil { fallback = value }
+        if value.hasSubChunk, generatedFallback == nil { generatedFallback = value }
+
+        if mode == .xray {
+          if isOreProjectionTarget(value.blockName) { return value }
+        } else if !isAir(value.blockName) {
+          // Closest visible non-air block wins, which is the normal opaque
+          // orthographic projection result for surface/height rendering.
+          return value
+        }
+      }
+
+      if let generatedFallback = generatedFallback {
+        // At least one generated SubChunk exists along this 128-block ray. If
+        // it contains only air, render air rather than marking the pixel as an
+        // ungenerated SubChunk. This also avoids filling empty sky with hatch.
+        return Sample(
+          blockName: "minecraft:air",
+          hasSubChunk: true,
+          biomeID: generatedFallback.biomeID,
+          chunkX: generatedFallback.chunkX,
+          chunkZ: generatedFallback.chunkZ
+        )
+      }
+      return fallback ?? sampleAt(worldX: planeX, worldZ: planeZ, y: y)
     }
 
     func color(for value: Sample, y: Int64) -> UIColor {
@@ -261,6 +331,45 @@ extension ChunkSurfaceRenderer {
         }
       }
 
+      if drawSubChunkGrid {
+        // Match the Y-map grid exactly: same label color/opacity, same
+        // per-block scale-derived line width, and crisp non-antialiased edges.
+        let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
+        cg.setShouldAntialias(false)
+        cg.setAllowsAntialiasing(false)
+        cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
+        cg.setLineWidth(max(0.15, worldToRaster * 0.15))
+
+        func rasterEdge(_ blockOffset: Int64) -> CGFloat {
+          CGFloat(Double(blockOffset) / Double(sampleStride)
+            * Double(rasterPixelsPerSample))
+        }
+
+        let horizontalEndExclusive = maximumHorizontal + 1
+        var boundary = floorDiv16(minimumHorizontal) * 16
+        if boundary < minimumHorizontal { boundary += 16 }
+        while boundary <= horizontalEndExclusive {
+          let x = rasterEdge(boundary - minimumHorizontal)
+          if x >= 0, x <= CGFloat(rasterWidth) {
+            cg.move(to: CGPoint(x: x, y: 0))
+            cg.addLine(to: CGPoint(x: x, y: CGFloat(rasterHeight)))
+          }
+          boundary += 16
+        }
+
+        var yBoundary = floorDiv16(minimumY) * 16
+        if yBoundary < minimumY { yBoundary += 16 }
+        while yBoundary <= maximumY + 1 {
+          let yPosition = rasterEdge(maximumY - yBoundary + 1)
+          if yPosition >= 0, yPosition <= CGFloat(rasterHeight) {
+            cg.move(to: CGPoint(x: 0, y: yPosition))
+            cg.addLine(to: CGPoint(x: CGFloat(rasterWidth), y: yPosition))
+          }
+          yBoundary += 16
+        }
+        cg.strokePath()
+      }
+
       if showUngeneratedSubChunks, !ungeneratedTextureRects.isEmpty {
         let minX = ungeneratedTextureRects.map(\.minX).min() ?? 0
         let minY = ungeneratedTextureRects.map(\.minY).min() ?? 0
@@ -269,15 +378,31 @@ extension ChunkSurfaceRenderer {
         let textureBounds = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
         if !textureBounds.isEmpty {
           let worldToRaster = CGFloat(rasterPixelsPerSample) / CGFloat(sampleStride)
-          let spacing = max(2.0, 8.0 * worldToRaster)
-          let lineWidth = max(0.65, 1.2 * worldToRaster)
+          let renderedSubChunkSide = 16.0 * worldToRaster
+          // Keep the placeholder visually identical to the Y-map texture.
+          let spacing = max(2.0, renderedSubChunkSide * 0.5)
+          let lineWidth = max(
+            1.0,
+            (renderedSubChunkSide * 0.075).rounded(.toNearestOrAwayFromZero)
+          )
           let margin = textureBounds.width + textureBounds.height + lineWidth * 4
           let minimumIntercept = textureBounds.minY - textureBounds.maxX - margin
           let maximumIntercept = textureBounds.maxY - textureBounds.minX + margin
 
           cg.saveGState()
           let clip = CGMutablePath()
-          for rect in ungeneratedTextureRects { clip.addRect(rect) }
+          for rect in ungeneratedTextureRects {
+            let alignedMinX = rect.minX.rounded(.toNearestOrAwayFromZero)
+            let alignedMaxX = rect.maxX.rounded(.toNearestOrAwayFromZero)
+            let alignedMinY = rect.minY.rounded(.toNearestOrAwayFromZero)
+            let alignedMaxY = rect.maxY.rounded(.toNearestOrAwayFromZero)
+            clip.addRect(CGRect(
+              x: alignedMinX,
+              y: alignedMinY,
+              width: max(1, alignedMaxX - alignedMinX),
+              height: max(1, alignedMaxY - alignedMinY)
+            ))
+          }
           cg.addPath(clip)
           cg.clip()
           cg.setShouldAntialias(true)
@@ -302,47 +427,6 @@ extension ChunkSurfaceRenderer {
           cg.strokePath()
           cg.restoreGState()
         }
-      }
-
-      if drawSubChunkGrid {
-        cg.setShouldAntialias(true)
-        cg.setAllowsAntialiasing(true)
-        cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
-        cg.setLineWidth(max(0.15, CGFloat(rasterPixelsPerSample) * 0.15))
-        // Align every line to a rendered sample-cell edge. Using the old
-        // side->raster floating scale could put a 16-block boundary through
-        // the middle of a sampled pixel when sampleStride > 1.
-        func rasterEdge(_ blockOffset: Int64) -> CGFloat {
-          let value = Double(blockOffset) / Double(sampleStride)
-            * Double(rasterPixelsPerSample)
-          return CGFloat(value)
-        }
-
-        let horizontalEndExclusive = maximumHorizontal + 1
-        var boundary = floorDiv16(minimumHorizontal) * 16
-        if boundary < minimumHorizontal { boundary += 16 }
-        while boundary <= horizontalEndExclusive {
-          let x = rasterEdge(boundary - minimumHorizontal)
-          if x >= 0, x <= CGFloat(rasterWidth) {
-            cg.move(to: CGPoint(x: x, y: 0))
-            cg.addLine(to: CGPoint(x: x, y: CGFloat(rasterHeight)))
-          }
-          boundary += 16
-        }
-
-        var yBoundary = floorDiv16(minimumY) * 16
-        if yBoundary < minimumY { yBoundary += 16 }
-        while yBoundary <= maximumY + 1 {
-          // A boundary at Y=k is the edge between blocks k-1 and k. Because
-          // larger Y is at the top, its top-origin block offset is maxY-k+1.
-          let yPosition = rasterEdge(maximumY - yBoundary + 1)
-          if yPosition >= 0, yPosition <= CGFloat(rasterHeight) {
-            cg.move(to: CGPoint(x: 0, y: yPosition))
-            cg.addLine(to: CGPoint(x: CGFloat(rasterWidth), y: yPosition))
-          }
-          yBoundary += 16
-        }
-        cg.strokePath()
       }
     }
     if shouldCancel() { throw MapRenderCancelledBridge.cancelled }
