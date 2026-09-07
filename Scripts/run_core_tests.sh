@@ -169,6 +169,19 @@ struct Main {
             precondition(storages[0].name == "minecraft:leaves" && storages[0].states.count == 3)
             precondition(storages[1].name == "minecraft:chest" && storages[1].states.count == 1)
             precondition((try? WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL")) != nil)
+            let biomeByName = try WorldCommandParser.parse("fillbiome overworld 0 -64 0 15 31 15 minecraft:plains")
+            if case .fillBiome(let dimension, let region, let biome) = biomeByName {
+                precondition(dimension == 0)
+                precondition(region.minimum.y == -64 && region.maximum.y == 31)
+                precondition(biome.rawValue == 1 && biome.displayText == "minecraft:plains")
+            } else { preconditionFailure("fillbiome string ID parser mismatch") }
+            let biomeByNumber = try WorldCommandParser.parse("fillbiome the_end -1 -10 -2 3 20 4 -1")
+            if case .fillBiome(let dimension, _, let biome) = biomeByNumber {
+                precondition(dimension == 2 && biome.rawValue == UInt32.max && biome.displayText == "-1")
+            } else { preconditionFailure("fillbiome numeric parser mismatch") }
+            precondition((try? WorldCommandParser.parse("fillbiome overworld 0 0 0 1 1 1 minecraft:not_a_real_biome")) == nil)
+            precondition((try? WorldCommandParser.parse("info")) != nil)
+            precondition((try? WorldCommandParser.parse("info extra")) == nil)
             precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 minecraft:stone NULL")) != nil)
             precondition((try? WorldCommandParser.parse("getblock overworld 0 64 0")) != nil)
             precondition((try? WorldCommandParser.parse("storage query overworld 0 64 0")) != nil)
@@ -689,24 +702,24 @@ for label in '实体ID' '生物群系ID' '状态效果ID' '魔咒ID'; do
     exit 1
   }
 done
-grep -qF 'entry(178, "minecraft:soulsand_valley"' "$ROOT/Sources/Chunk/BedrockBiomeCatalog.swift" || {
+grep -qF 'value(178, "minecraft:soulsand_valley"' "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" || {
   echo "error: corrected modern Bedrock biome IDs are missing" >&2
   exit 1
 }
-grep -qF 'entry(192, "minecraft:cherry_grove"' "$ROOT/Sources/Chunk/BedrockBiomeCatalog.swift" || {
+grep -qF 'value(192, "minecraft:cherry_grove"' "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" || {
   echo "error: cherry grove biome ID is missing" >&2
   exit 1
 }
 for entry in \
-  'entry(193, "minecraft:pale_garden"' \
-  'entry(194, "minecraft:sulfur_caves"' \
-  'entry(195, "minecraft:dappled_forest"'; do
-  grep -qF "$entry" "$ROOT/Sources/Chunk/BedrockBiomeCatalog.swift" || {
+  'value(193, "minecraft:pale_garden"' \
+  'value(194, "minecraft:sulfur_caves"' \
+  'value(195, "minecraft:dappled_forest"'; do
+  grep -qF "$entry" "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" || {
     echo "error: biome catalogue is missing spreadsheet entry: $entry" >&2
     exit 1
   }
 done
-if grep -qF 'entry(50, "minecraft:soul_sand_valley"' "$ROOT/Sources/Chunk/BedrockBiomeCatalog.swift"; then
+if grep -qF 'value(50, "minecraft:soul_sand_valley"' "$ROOT/Sources/Support/BedrockDataValueCatalog.swift"; then
   echo "error: obsolete incorrect biome IDs 50-65 are still present" >&2
   exit 1
 fi
@@ -2061,6 +2074,11 @@ final class WorldSession {
 final class WorldStore {
     static let shared = WorldStore()
     func metadataURL(for world: ImportedWorld) -> URL { FileManager.default.temporaryDirectory }
+}
+struct VillageNBTRecord { let villageIdentifier: String }
+final class VillageNBTStore {
+    init(session: WorldSession) {}
+    func records() throws -> [VillageNBTRecord] { [] }
 }
 enum AtomicFile { static func write(_ data: Data, to url: URL) throws { try data.write(to: url) } }
 enum MapCoordinate {
@@ -3735,7 +3753,7 @@ echo 'Status-effect give/clear/ALL command support passed'
 
 cat > "$TMP/EffectCommandStubs.swift" <<'SWIFT'
 import Foundation
-struct ImportedWorld { let id: UUID }
+struct ImportedWorld { let id: UUID; let name: String = "Portable Test World" }
 final class MojangLevelDB {
     var values: [Data: Data] = [:]
     init() {}
@@ -3787,6 +3805,11 @@ final class WorldSession {
 final class WorldStore {
     static let shared = WorldStore()
     func metadataURL(for world: ImportedWorld) -> URL { FileManager.default.temporaryDirectory }
+}
+struct VillageNBTRecord { let villageIdentifier: String }
+final class VillageNBTStore {
+    init(session: WorldSession) {}
+    func records() throws -> [VillageNBTRecord] { [] }
 }
 struct BedrockBlockRecord {
     static let editableLayerCount = 2
@@ -4393,6 +4416,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
   "$ROOT/Sources/World/WorldDocument.swift" \
+  "$ROOT/Sources/World/WorldInspector.swift" \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
   "$ROOT/Sources/World/TickingAreaStore.swift" \
@@ -4419,3 +4443,6 @@ bash "$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"
 
 echo "Running NBT tree / X-Y-Z cross-section regression checks..."
 bash "$ROOT/Scripts/test_nbt_tree_cross_section.sh"
+
+echo "Running fillbiome / info / X-Z selection regression checks..."
+bash "$ROOT/Scripts/test_fillbiome_info_xz_selection.sh"

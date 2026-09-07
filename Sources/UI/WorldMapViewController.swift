@@ -3933,8 +3933,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let axis = currentSliceAxis
     guard axis == .x || axis == .z else { return }
     let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
+    // X/Z projection only looks toward the negative axis. Keep the picker on
+    // that same visible depth: the largest selectable coordinate is exactly
+    // the current rendered X/Z plane and can never extend into +X/+Z space
+    // that is not part of the projection.
     let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange
-    let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange
+    let maximumCoordinate = centerCoordinate
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
     renderQueue.async { [weak self] in

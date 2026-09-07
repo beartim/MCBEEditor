@@ -195,6 +195,99 @@ enum BedrockDataValueCatalog {
         value(37, "breath_of_the_nautilus", "鹦鹉螺之息"),
     ]
 
+    /// Numeric/string biome IDs shared by the map UI and command parser.
+    static let biomes: [BedrockDataValueEntry] = [
+        value(0, "minecraft:ocean", "海洋"),
+        value(1, "minecraft:plains", "平原"),
+        value(2, "minecraft:desert", "沙漠"),
+        value(3, "minecraft:extreme_hills", "峭壁"),
+        value(4, "minecraft:forest", "森林"),
+        value(5, "minecraft:taiga", "针叶林"),
+        value(6, "minecraft:swampland", "沼泽"),
+        value(7, "minecraft:river", "河流"),
+        value(8, "minecraft:hell", "下界荒地"),
+        value(9, "minecraft:the_end", "末地"),
+        value(10, "minecraft:legacy_frozen_ocean", "旧版冻洋"),
+        value(11, "minecraft:frozen_river", "冻河"),
+        value(12, "minecraft:ice_plains", "雪原"),
+        value(13, "minecraft:ice_mountains", "雪山"),
+        value(14, "minecraft:mushroom_island", "蘑菇岛"),
+        value(15, "minecraft:mushroom_island_shore", "蘑菇岛岸"),
+        value(16, "minecraft:beach", "沙滩"),
+        value(17, "minecraft:desert_hills", "沙漠丘陵"),
+        value(18, "minecraft:forest_hills", "森林丘陵"),
+        value(19, "minecraft:taiga_hills", "针叶林丘陵"),
+        value(20, "minecraft:extreme_hills_edge", "峭壁边缘"),
+        value(21, "minecraft:jungle", "丛林"),
+        value(22, "minecraft:jungle_hills", "丛林丘陵"),
+        value(23, "minecraft:jungle_edge", "丛林边缘"),
+        value(24, "minecraft:deep_ocean", "深海"),
+        value(25, "minecraft:stone_beach", "石岸"),
+        value(26, "minecraft:cold_beach", "积雪沙滩"),
+        value(27, "minecraft:birch_forest", "桦木森林"),
+        value(28, "minecraft:birch_forest_hills", "桦木森林丘陵"),
+        value(29, "minecraft:roofed_forest", "黑森林"),
+        value(30, "minecraft:cold_taiga", "积雪针叶林"),
+        value(31, "minecraft:cold_taiga_hills", "积雪针叶林丘陵"),
+        value(32, "minecraft:mega_taiga", "巨型针叶林"),
+        value(33, "minecraft:mega_taiga_hills", "巨型针叶林丘陵"),
+        value(34, "minecraft:extreme_hills_plus_trees", "繁茂峭壁"),
+        value(35, "minecraft:savanna", "热带草原"),
+        value(36, "minecraft:savanna_plateau", "热带高原"),
+        value(37, "minecraft:mesa", "恶地"),
+        value(38, "minecraft:mesa_plateau_stone", "繁茂恶地高原"),
+        value(39, "minecraft:mesa_plateau", "恶地高原"),
+        value(40, "minecraft:warm_ocean", "暖水海洋"),
+        value(41, "minecraft:deep_warm_ocean", "暖水深海"),
+        value(42, "minecraft:lukewarm_ocean", "温水海洋"),
+        value(43, "minecraft:deep_lukewarm_ocean", "温水深海"),
+        value(44, "minecraft:cold_ocean", "冷水海洋"),
+        value(45, "minecraft:deep_cold_ocean", "冷水深海"),
+        value(46, "minecraft:frozen_ocean", "冻洋"),
+        value(47, "minecraft:deep_frozen_ocean", "封冻深海"),
+        value(48, "minecraft:bamboo_jungle", "竹林"),
+        value(49, "minecraft:bamboo_jungle_hills", "竹林丘陵"),
+        value(129, "minecraft:sunflower_plains", "向日葵平原"),
+        value(130, "minecraft:desert_mutated", "沙漠湖泊"),
+        value(131, "minecraft:extreme_hills_mutated", "沙砾山地"),
+        value(132, "minecraft:flower_forest", "繁花森林"),
+        value(133, "minecraft:taiga_mutated", "针叶林山地"),
+        value(134, "minecraft:swampland_mutated", "沼泽丘陵"),
+        value(140, "minecraft:ice_plains_spikes", "冰刺之地"),
+        value(149, "minecraft:jungle_mutated", "变种丛林"),
+        value(151, "minecraft:jungle_edge_mutated", "变种丛林边缘"),
+        value(155, "minecraft:birch_forest_mutated", "原始桦木森林"),
+        value(156, "minecraft:birch_forest_hills_mutated", "高大桦木丘陵"),
+        value(157, "minecraft:roofed_forest_mutated", "黑森林丘陵"),
+        value(158, "minecraft:cold_taiga_mutated", "积雪针叶林山地"),
+        value(160, "minecraft:redwood_taiga_mutated", "原始云杉针叶林"),
+        value(161, "minecraft:redwood_taiga_hills_mutated", "巨型云杉针叶林丘陵"),
+        value(162, "minecraft:extreme_hills_plus_trees_mutated", "沙砾山地+"),
+        value(163, "minecraft:savanna_mutated", "风袭热带草原"),
+        value(164, "minecraft:savanna_plateau_mutated", "破碎热带高原"),
+        value(165, "minecraft:mesa_bryce", "风蚀恶地"),
+        value(166, "minecraft:mesa_plateau_stone_mutated", "变种繁茂恶地高原"),
+        value(167, "minecraft:mesa_plateau_mutated", "变种恶地高原"),
+        value(178, "minecraft:soulsand_valley", "灵魂沙峡谷"),
+        value(179, "minecraft:crimson_forest", "绯红森林"),
+        value(180, "minecraft:warped_forest", "诡异森林"),
+        value(181, "minecraft:basalt_deltas", "玄武岩三角洲"),
+        value(182, "minecraft:jagged_peaks", "尖峭山峰"),
+        value(183, "minecraft:frozen_peaks", "冰封山峰"),
+        value(184, "minecraft:snowy_slopes", "积雪山坡"),
+        value(185, "minecraft:grove", "雪林"),
+        value(186, "minecraft:meadow", "草甸"),
+        value(187, "minecraft:lush_caves", "繁茂洞穴"),
+        value(188, "minecraft:dripstone_caves", "溶洞"),
+        value(189, "minecraft:stony_peaks", "裸岩山峰"),
+        value(190, "minecraft:deep_dark", "深暗之域"),
+        value(191, "minecraft:mangrove_swamp", "红树林沼泽"),
+        value(192, "minecraft:cherry_grove", "樱花树林"),
+        value(193, "minecraft:pale_garden", "苍白之园"),
+        value(194, "minecraft:sulfur_caves", "硫磺洞穴"),
+        value(195, "minecraft:dappled_forest", "斑驳森林"),
+    ]
+
     /// Numeric enchantment IDs from the Bedrock data-values table.
     static let enchantments: [BedrockDataValueEntry] = [
         value(0, "protection", "保护"),
@@ -248,6 +341,14 @@ enum BedrockDataValueCatalog {
     private static let entityEntriesByIdentifier: [String: BedrockDataValueEntry] = {
         Dictionary(uniqueKeysWithValues: entities.map { ($0.identifier.lowercased(), $0) })
     }()
+
+    private static let biomeEntriesByIdentifier: [String: BedrockDataValueEntry] = {
+        Dictionary(uniqueKeysWithValues: biomes.map { ($0.identifier.lowercased(), $0) })
+    }()
+
+    static func biome(forIdentifier identifier: String) -> BedrockDataValueEntry? {
+        biomeEntriesByIdentifier[identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+    }
 
     static func entity(forNumericID id: Int64) -> BedrockDataValueEntry? {
         guard id >= Int64(Int.min), id <= Int64(Int.max) else { return nil }

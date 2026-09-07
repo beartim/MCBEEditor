@@ -113,6 +113,18 @@ extension BedrockChunkStore {
     }
 
     func setBiomeID(_ id: UInt32, in region: BedrockMapRegion) throws -> BedrockRegionMutationResult {
+        try setBiomeID(id, in: region, data3DYRange: nil)
+    }
+
+    /// Applies one biome ID to a horizontal map region. When `data3DYRange` is
+    /// provided, Data3D records only change cells whose world Y is in that
+    /// inclusive range. Data2D/Data2DLegacy have no vertical biome storage and
+    /// therefore intentionally ignore Y, matching the map biome editor.
+    func setBiomeID(
+        _ id: UInt32,
+        in region: BedrockMapRegion,
+        data3DYRange: ClosedRange<Int32>?
+    ) throws -> BedrockRegionMutationResult {
         let database = try session.database()
         var puts = [(key: Data, value: Data)]()
         var changedChunks = 0
@@ -126,7 +138,9 @@ extension BedrockChunkStore {
                 continue
             }
             if record.document.format != .data3D && id > UInt32(UInt8.max) {
-                throw MCBEEditorError.malformedData("Data2D 生物群系 ID 必须小于等于 255；当前 ID 为 \(id)")
+                throw MCBEEditorError.malformedData(
+                    "Data2D 生物群系 ID 必须为 0～255；当前 32 位原始值为 \(id)"
+                )
             }
             var changed = 0
             switch record.document.format {
@@ -142,12 +156,27 @@ extension BedrockChunkStore {
                         }
                     }
                 }
+
             case .data3D:
                 for layerIndex in record.document.layers.indices {
-                    guard !record.document.layers[layerIndex].isAbsent else { continue }
+                    guard !record.document.layers[layerIndex].isAbsent,
+                          let baseY = record.document.layers[layerIndex].baseY else { continue }
+
+                    let localYRange: ClosedRange<Int>
+                    if let requested = data3DYRange {
+                        let requestedMinimum = Int(requested.lowerBound)
+                        let requestedMaximum = Int(requested.upperBound)
+                        let lower = max(0, requestedMinimum - baseY)
+                        let upper = min(15, requestedMaximum - baseY)
+                        guard lower <= upper else { continue }
+                        localYRange = lower...upper
+                    } else {
+                        localYRange = 0...15
+                    }
+
                     for x in ranges.x {
                         for z in ranges.z {
-                            for y in 0..<16 {
+                            for y in localYRange {
                                 let index = x * 256 + z * 16 + y
                                 if record.document.layers[layerIndex].biomeIDs.indices.contains(index) {
                                     record.document.layers[layerIndex].biomeIDs[index] = id

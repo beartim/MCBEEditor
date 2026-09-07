@@ -212,6 +212,12 @@ enum CommandExperienceOperation {
     case set(target: CommandTarget, total: Int64)
 }
 
+struct CommandBiomeID: Hashable {
+    /// Raw 32-bit value stored by Data3D. Numeric input need not exist in the catalog.
+    let rawValue: UInt32
+    let displayText: String
+}
+
 enum CommandGiveSlot: Hashable {
     case automatic
     case indexed(Int8)
@@ -226,6 +232,7 @@ enum CommandGiveSlot: Hashable {
 
 enum ParsedWorldCommand {
     case help(command: String?)
+    case info
     case clear(target: CommandTarget)
     case clearSpawnPoint(target: CommandTarget)
     case give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag])
@@ -244,6 +251,7 @@ enum ParsedWorldCommand {
         region: CommandBlockBox,
         storages: [CommandBlockStateSpec]
     )
+    case fillBiome(targetDimension: Int32, region: CommandBlockBox, biome: CommandBiomeID)
     case setBlock(
         targetDimension: Int32,
         position: CommandBlockCoordinate,
@@ -438,13 +446,14 @@ enum CommandEffectNBT {
 
 enum WorldCommandParser {
     static let commandNames = [
-        "help", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "getblock", "give", "kill", "kick",
+        "help", "info", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "fillbiome", "getblock", "give", "kill", "kick",
         "setblock", "setworldspawn", "spawnpoint", "spread", "storage", "structure", "summon", "teleport",
         "tickingarea", "time", "weather"
     ]
 
     static let usage: [String: String] = [
         "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。\n示例：help\n示例：help give",
+        "info": "info\n无参数。输出信息栏目中的全部世界信息，每条信息单独一行。\n示例：info",
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。\n示例：clear @e",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。\n示例：clearspawnpoint @a",
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
@@ -452,6 +461,7 @@ enum WorldCommandParser {
         "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间接受完整 Int32（包括负数）；效果等级接受 -128～255，仍按 Bedrock Byte 原始值写入（例如 -1 与 255 都写为 0xFF）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect give @a strength -1 -1\n示例：effect clear @e ALL",
         "experience": "experience add 目标 整数\nexperience addlevel 目标 整数\nexperience level 目标 0到24791整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。add 按总经验增减并自动换算等级和经验条；addlevel 增减经验等级并保留当前经验条百分比；level 直接设定经验等级并把经验条进度设为 0，等级范围均为 0～24791；percent 修改当前经验条百分比；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience add @a 100\n示例：experience addlevel -4294967270 -3\n示例：experience level @s 30\n示例：experience percent @s 0.5\n示例：experience query @a\n示例：experience set @s 2500",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states [层1方块名 层1states ...]\n维度必须为 overworld、nether 或 the_end。至少提供 storage0，layer1 及之后都可省略；后续参数必须按 方块名+states 成对出现，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 仅能原地表示 layer0/1 的数字 ID；使用更多 storage 或现代 states 时自动升级为现代 SubChunk。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL",
+        "fillbiome": "fillbiome 维度 x1 y1 z1 x2 y2 z2 生物群系数字ID或字符串ID\n维度必须为 overworld、nether 或 the_end。字符串 ID 必须能在内置生物群系表中找到对应数字 ID，否则报错；数字 ID 不要求存在于内置表，可输入 32 位整数原始值。Data3D 只修改两组坐标之间的 Y 范围；Data2D/Data2DLegacy 忽略 Y 坐标并修改水平选区（其格式只能保存 0～255）。\n示例：fillbiome overworld 0 -64 0 15 319 15 minecraft:plains\n示例：fillbiome nether -32 0 -32 31 127 31 178",
         "give": "give 目标 Slot 物品 数目 物品标签\nSlot 只能是 Auto 或 0～35 的整数。目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家：Auto 沿用第一个空 Inventory 槽位、满时最后一格的逻辑，整数 Slot 写入对应 Inventory 槽位。非玩家实体必须已经存在可写入的 Mainhand 标签，否则直接跳过；命令任何时候都不会创建 Mainhand。实体 Auto 写入已有 Mainhand；整数 Slot 在有 ChestItems 时写入对应槽位，超过槽位数时写入最后槽位并同步写入已有 Mainhand；没有 ChestItems 时只写入已有 Mainhand。\n示例：give @s Auto minecraft:stone 64 NULL\n示例：give @a 5 minecraft:diamond 3 NULL\n示例：give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
         "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。\n示例：kick @a\n示例：kick -4294967270",
@@ -485,6 +495,9 @@ enum WorldCommandParser {
                 throw MCBEEditorError.malformedData("不存在的命令：\(target)")
             }
             return .help(command: arguments.first)
+        case "info":
+            guard arguments.isEmpty else { throw usageError(command) }
+            return .info
         case "clear":
             guard arguments.count == 1 else { throw usageError(command) }
             return .clear(target: try parseTarget(arguments[0]))
@@ -632,6 +645,15 @@ enum WorldCommandParser {
                 targetDimension: targetDimension,
                 region: CommandBlockBox(coordinates[0], coordinates[1]),
                 storages: storages
+            )
+        case "fillbiome":
+            guard arguments.count == 8 else { throw usageError(command) }
+            let targetDimension = try parseDimension(arguments[0])
+            let coordinates = try parseCoordinates(Array(arguments[1...6]))
+            return .fillBiome(
+                targetDimension: targetDimension,
+                region: CommandBlockBox(coordinates[0], coordinates[1]),
+                biome: try parseBiomeID(arguments[7])
             )
         case "setblock":
             guard arguments.count >= 6, (arguments.count - 4) % 2 == 0 else { throw usageError(command) }
@@ -1110,6 +1132,24 @@ enum WorldCommandParser {
             result.append(CommandBlockCoordinate(x: x, y: y, z: z))
         }
         return result
+    }
+
+    private static func parseBiomeID(_ text: String) throws -> CommandBiomeID {
+        if let numeric = Int64(text) {
+            guard numeric >= Int64(Int32.min), numeric <= Int64(UInt32.max) else {
+                throw MCBEEditorError.malformedData(
+                    "生物群系数字 ID 必须能表示为 32 位整数原始值：\(text)"
+                )
+            }
+            return CommandBiomeID(rawValue: UInt32(truncatingIfNeeded: numeric), displayText: text)
+        }
+        let identifier = text.lowercased()
+        guard let entry = BedrockDataValueCatalog.biome(forIdentifier: identifier) else {
+            throw MCBEEditorError.malformedData(
+                "生物群系字符串 ID 没有对应的数字 ID：\(text)"
+            )
+        }
+        return CommandBiomeID(rawValue: UInt32(entry.id), displayText: entry.identifier)
     }
 
     private static func parseBlockName(_ text: String) throws -> String {

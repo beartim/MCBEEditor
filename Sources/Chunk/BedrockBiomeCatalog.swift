@@ -12,101 +12,23 @@ struct BedrockBiomeCatalogEntry: Hashable {
 enum BedrockBiomeCatalog {
     /// Bedrock numeric biome IDs from the Bedrock data-values table. Gaps are
     /// intentional: Mojang never assigned those values to public biome IDs.
-    static let entries: [BedrockBiomeCatalogEntry] = [
-        entry(0, "minecraft:ocean", "海洋"),
-        entry(1, "minecraft:plains", "平原"),
-        entry(2, "minecraft:desert", "沙漠"),
-        entry(3, "minecraft:extreme_hills", "峭壁"),
-        entry(4, "minecraft:forest", "森林"),
-        entry(5, "minecraft:taiga", "针叶林"),
-        entry(6, "minecraft:swampland", "沼泽"),
-        entry(7, "minecraft:river", "河流"),
-        entry(8, "minecraft:hell", "下界荒地"),
-        entry(9, "minecraft:the_end", "末地"),
-        entry(10, "minecraft:legacy_frozen_ocean", "旧版冻洋"),
-        entry(11, "minecraft:frozen_river", "冻河"),
-        entry(12, "minecraft:ice_plains", "雪原"),
-        entry(13, "minecraft:ice_mountains", "雪山"),
-        entry(14, "minecraft:mushroom_island", "蘑菇岛"),
-        entry(15, "minecraft:mushroom_island_shore", "蘑菇岛岸"),
-        entry(16, "minecraft:beach", "沙滩"),
-        entry(17, "minecraft:desert_hills", "沙漠丘陵"),
-        entry(18, "minecraft:forest_hills", "森林丘陵"),
-        entry(19, "minecraft:taiga_hills", "针叶林丘陵"),
-        entry(20, "minecraft:extreme_hills_edge", "峭壁边缘"),
-        entry(21, "minecraft:jungle", "丛林"),
-        entry(22, "minecraft:jungle_hills", "丛林丘陵"),
-        entry(23, "minecraft:jungle_edge", "丛林边缘"),
-        entry(24, "minecraft:deep_ocean", "深海"),
-        entry(25, "minecraft:stone_beach", "石岸"),
-        entry(26, "minecraft:cold_beach", "积雪沙滩"),
-        entry(27, "minecraft:birch_forest", "桦木森林"),
-        entry(28, "minecraft:birch_forest_hills", "桦木森林丘陵"),
-        entry(29, "minecraft:roofed_forest", "黑森林"),
-        entry(30, "minecraft:cold_taiga", "积雪针叶林"),
-        entry(31, "minecraft:cold_taiga_hills", "积雪针叶林丘陵"),
-        entry(32, "minecraft:mega_taiga", "巨型针叶林"),
-        entry(33, "minecraft:mega_taiga_hills", "巨型针叶林丘陵"),
-        entry(34, "minecraft:extreme_hills_plus_trees", "繁茂峭壁"),
-        entry(35, "minecraft:savanna", "热带草原"),
-        entry(36, "minecraft:savanna_plateau", "热带高原"),
-        entry(37, "minecraft:mesa", "恶地"),
-        entry(38, "minecraft:mesa_plateau_stone", "繁茂恶地高原"),
-        entry(39, "minecraft:mesa_plateau", "恶地高原"),
-        entry(40, "minecraft:warm_ocean", "暖水海洋"),
-        entry(41, "minecraft:deep_warm_ocean", "暖水深海"),
-        entry(42, "minecraft:lukewarm_ocean", "温水海洋"),
-        entry(43, "minecraft:deep_lukewarm_ocean", "温水深海"),
-        entry(44, "minecraft:cold_ocean", "冷水海洋"),
-        entry(45, "minecraft:deep_cold_ocean", "冷水深海"),
-        entry(46, "minecraft:frozen_ocean", "冻洋"),
-        entry(47, "minecraft:deep_frozen_ocean", "封冻深海"),
-        entry(48, "minecraft:bamboo_jungle", "竹林"),
-        entry(49, "minecraft:bamboo_jungle_hills", "竹林丘陵"),
-        entry(129, "minecraft:sunflower_plains", "向日葵平原"),
-        entry(130, "minecraft:desert_mutated", "沙漠湖泊"),
-        entry(131, "minecraft:extreme_hills_mutated", "沙砾山地"),
-        entry(132, "minecraft:flower_forest", "繁花森林"),
-        entry(133, "minecraft:taiga_mutated", "针叶林山地"),
-        entry(134, "minecraft:swampland_mutated", "沼泽丘陵"),
-        entry(140, "minecraft:ice_plains_spikes", "冰刺之地"),
-        entry(149, "minecraft:jungle_mutated", "变种丛林"),
-        entry(151, "minecraft:jungle_edge_mutated", "变种丛林边缘"),
-        entry(155, "minecraft:birch_forest_mutated", "原始桦木森林"),
-        entry(156, "minecraft:birch_forest_hills_mutated", "高大桦木丘陵"),
-        entry(157, "minecraft:roofed_forest_mutated", "黑森林丘陵"),
-        entry(158, "minecraft:cold_taiga_mutated", "积雪针叶林山地"),
-        entry(160, "minecraft:redwood_taiga_mutated", "原始云杉针叶林"),
-        entry(161, "minecraft:redwood_taiga_hills_mutated", "巨型云杉针叶林丘陵"),
-        entry(162, "minecraft:extreme_hills_plus_trees_mutated", "沙砾山地+"),
-        entry(163, "minecraft:savanna_mutated", "风袭热带草原"),
-        entry(164, "minecraft:savanna_plateau_mutated", "破碎热带高原"),
-        entry(165, "minecraft:mesa_bryce", "风蚀恶地"),
-        entry(166, "minecraft:mesa_plateau_stone_mutated", "变种繁茂恶地高原"),
-        entry(167, "minecraft:mesa_plateau_mutated", "变种恶地高原"),
-        entry(178, "minecraft:soulsand_valley", "灵魂沙峡谷"),
-        entry(179, "minecraft:crimson_forest", "绯红森林"),
-        entry(180, "minecraft:warped_forest", "诡异森林"),
-        entry(181, "minecraft:basalt_deltas", "玄武岩三角洲"),
-        entry(182, "minecraft:jagged_peaks", "尖峭山峰"),
-        entry(183, "minecraft:frozen_peaks", "冰封山峰"),
-        entry(184, "minecraft:snowy_slopes", "积雪山坡"),
-        entry(185, "minecraft:grove", "雪林"),
-        entry(186, "minecraft:meadow", "草甸"),
-        entry(187, "minecraft:lush_caves", "繁茂洞穴"),
-        entry(188, "minecraft:dripstone_caves", "溶洞"),
-        entry(189, "minecraft:stony_peaks", "裸岩山峰"),
-        entry(190, "minecraft:deep_dark", "深暗之域"),
-        entry(191, "minecraft:mangrove_swamp", "红树林沼泽"),
-        entry(192, "minecraft:cherry_grove", "樱花树林"),
-        entry(193, "minecraft:pale_garden", "苍白之园"),
-        entry(194, "minecraft:sulfur_caves", "硫磺洞穴"),
-        entry(195, "minecraft:dappled_forest", "斑驳森林"),
-    ].sorted { $0.id < $1.id }
+    static let entries: [BedrockBiomeCatalogEntry] = BedrockDataValueCatalog.biomes.map { value in
+        BedrockBiomeCatalogEntry(
+            id: UInt32(value.id),
+            identifier: value.identifier,
+            displayName: value.displayName
+        )
+    }.sorted { $0.id < $1.id }
 
     private static let byID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
+    private static let byIdentifier = Dictionary(
+        uniqueKeysWithValues: entries.map { ($0.identifier.lowercased(), $0) }
+    )
 
     static func entry(for id: UInt32) -> BedrockBiomeCatalogEntry? { byID[id] }
+    static func entry(forIdentifier identifier: String) -> BedrockBiomeCatalogEntry? {
+        byIdentifier[identifier.lowercased()]
+    }
 
     static func displayName(for id: UInt32) -> String {
         guard let value = byID[id] else { return "未知生物群系" }
@@ -204,9 +126,5 @@ enum BedrockBiomeCatalog {
 
         if identifier.contains("the_end") || identifier.contains("void") { return UIColor(red: 0.58, green: 0.57, blue: 0.36, alpha: 1) }
         return UIColor(red: 0.40, green: 0.66, blue: 0.32, alpha: 1)
-    }
-
-    private static func entry(_ id: UInt32, _ identifier: String, _ displayName: String) -> BedrockBiomeCatalogEntry {
-        BedrockBiomeCatalogEntry(id: id, identifier: identifier, displayName: displayName)
     }
 }

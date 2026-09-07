@@ -57,6 +57,16 @@ final class WorldCommandExecutor {
         switch command {
         case .help(let target):
             return WorldCommandExecutionResult(message: WorldCommandParser.helpText(for: target), changedWorld: false)
+        case .info:
+            let rows = try WorldInspector().inspect(session: session)
+            let lines = rows.map {
+                WorldCommandOutputLine(text: "\($0.title)=\($0.value)", style: .success)
+            }
+            return WorldCommandExecutionResult(
+                message: lines.map(\.text).joined(separator: "\n"),
+                changedWorld: false,
+                outputLines: lines
+            )
         case .clear(let target):
             return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
         case .clearSpawnPoint(let target):
@@ -100,6 +110,21 @@ final class WorldCommandExecutor {
             let result = try CommandBlockStore(session: session, dimension: targetDimension)
                 .fill(region: region, storages: storages)
             return WorldCommandExecutionResult(message: result, changedWorld: true)
+        case .fillBiome(let targetDimension, let region, let biome):
+            let horizontalRegion = BedrockMapRegion(
+                minimumX: region.minimum.x,
+                minimumZ: region.minimum.z,
+                maximumX: region.maximum.x,
+                maximumZ: region.maximum.z,
+                dimension: targetDimension
+            )
+            let result = try BedrockChunkStore(session: session).setBiomeID(
+                biome.rawValue,
+                in: horizontalRegion,
+                data3DYRange: region.minimum.y...region.maximum.y
+            )
+            let message = "fillbiome 完成：ID \(biome.displayText)，修改 \(result.changedChunkCount) 个区块、\(result.detailCount) 个生物群系位置；跳过 \(result.skippedChunkCount) 个无记录区块。"
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
         case .setBlock(let targetDimension, let position, let storages):
             let region = CommandBlockBox(position, position)
             let result = try CommandBlockStore(session: session, dimension: targetDimension)

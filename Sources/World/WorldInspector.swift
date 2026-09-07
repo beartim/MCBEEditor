@@ -18,7 +18,9 @@ final class WorldInspector {
         let dbStats = try fileStats(at: session.document.databaseURL)
 
         let database = try session.database()
-        let playerCount = try PlayerNBTStore(session: session).records().count
+        let playerStore = PlayerNBTStore(session: session)
+        let playerRecords = try playerStore.records()
+        let playerCount = playerRecords.count
         let entityScan = try BedrockWorldObjectScanner(database: database).scanAll(
             dimensions: nil,
             includeEntities: true,
@@ -33,6 +35,15 @@ final class WorldInspector {
 
         var rows = [WorldInfoRow]()
         rows.append(WorldInfoRow(title: "名称", value: root.stringValue(named: "LevelName") ?? session.world.name))
+        rows.append(WorldInfoRow(
+            title: "种子",
+            value: numericValue(namedAny: ["RandomSeed", "randomSeed", "random_seed"], root: root).map(String.init) ?? "未记录"
+        ))
+        let enchantmentPlayer = playerRecords.first(where: playerStore.isLocalPlayer) ?? playerRecords.first
+        let enchantmentSeed = enchantmentPlayer.flatMap {
+            numericValue(namedAny: ["EnchantmentSeed", "enchantmentSeed", "enchantment_seed"], root: $0.document.root)
+        }
+        rows.append(WorldInfoRow(title: "附魔种子", value: enchantmentSeed.map(String.init) ?? "未记录"))
         rows.append(WorldInfoRow(title: "玩家数目", value: String(playerCount)))
         rows.append(WorldInfoRow(title: "实体数目", value: String(entityCount)))
         rows.append(WorldInfoRow(title: "区块数目", value: String(chunkCount)))
@@ -77,6 +88,16 @@ final class WorldInspector {
             result.size += Int64(values.fileSize ?? 0)
         }
         return result
+    }
+
+    private func numericValue(namedAny names: [String], root: NBTValue) -> Int64? {
+        guard case .compound(let tags) = root else { return nil }
+        for name in names {
+            if let exact = tags.first(where: { $0.name == name }),
+               let number = exact.value.numericInt64Value { return number }
+        }
+        let lowered = Set(names.map { $0.lowercased() })
+        return tags.first(where: { lowered.contains($0.name.lowercased()) })?.value.numericInt64Value
     }
 
     private func versionString(namedAny names: [String], root: NBTValue) -> String? {
