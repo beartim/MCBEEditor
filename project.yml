@@ -127,12 +127,12 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UISupportsDocumentBrowser: false
-        # XcodeGen owns Resources/Info.plist. Keep photo-library privacy keys
-        # here (not only in the generated plist), otherwise `xcodegen generate`
-        # removes them before CI tests/builds. iOS 13 uses the legacy key and
-        # iOS 14+ add-only authorization uses the add key.
-        NSPhotoLibraryAddUsageDescription: "用于将导出的 Minecraft 地图图片保存到相册。"
-        NSPhotoLibraryUsageDescription: "用于将导出的 Minecraft 地图图片保存到相册。"
+        # The system share sheet exposes “Save Image”. That activity still
+        # writes to the photo library on behalf of this app, so iOS requires
+        # photo-library usage descriptions even though MCBEEditor no longer
+        # calls PhotoKit directly. Keep both keys for iOS 13+ compatibility.
+        NSPhotoLibraryAddUsageDescription: "用于通过系统分享界面将导出的 Minecraft 地图图片保存到相册。"
+        NSPhotoLibraryUsageDescription: "用于通过系统分享界面将导出的 Minecraft 地图图片保存到相册。"
         CFBundleDocumentTypes:
           - CFBundleTypeName: Minecraft Bedrock World
             CFBundleTypeRole: Editor
@@ -202,7 +202,6 @@ targets:
     dependencies:
       - target: MojangLevelDB
       - sdk: UIKit.framework
-      - sdk: Photos.framework
       - sdk: MobileCoreServices.framework
       - sdk: libz.tbd
 

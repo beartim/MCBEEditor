@@ -95,6 +95,7 @@ Scripts/test_phone_text_map_stability.sh
 Scripts/test_photo_export_tabs_keyboard.sh
 Scripts/test_subchunk_v0_v9_compat.sh
 Scripts/test_viewed_unsaved_sync.sh
+CHANGES_MAP_EXPORT_DIRECT_SINGLE_PNG_SHARE.md
 Sources/App/AppDelegate.swift
 Sources/App/SceneDelegate.swift
 Sources/Bridge/BTCompressionBridge.h

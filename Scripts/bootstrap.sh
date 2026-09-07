@@ -60,9 +60,10 @@ PBXPROJ="$ROOT/MCBEEditor.xcodeproj/project.pbxproj"
   exit 1
 }
 
-# Resources/Info.plist is generated from project.yml by XcodeGen. Photo export
-# crashes or loses the Save-to-Photos path if either privacy description is
-# dropped, so validate the generated product immediately.
+# Resources/Info.plist is generated from project.yml by XcodeGen. The system
+# share sheet's Save Image activity writes to the photo library on behalf of
+# the app and can crash if the usage descriptions are missing, even though the
+# app no longer calls PhotoKit directly. Validate the generated plist here.
 GENERATED_INFO_PLIST="$ROOT/Resources/Info.plist"
 for PHOTO_PRIVACY_KEY in NSPhotoLibraryAddUsageDescription NSPhotoLibraryUsageDescription; do
   /usr/libexec/PlistBuddy -c "Print :$PHOTO_PRIVACY_KEY" "$GENERATED_INFO_PLIST" >/dev/null 2>&1 || {
