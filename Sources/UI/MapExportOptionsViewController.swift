@@ -43,9 +43,11 @@ final class MapExportOptionsViewController: UITableViewController {
     private var scope: MapImageExportScope
     private let availableScopes: [MapImageExportScope]
     private var layers: MapImageExportLayers
+    private let isCrossSection: Bool
 
-    init(layers: MapImageExportLayers, hasSelectedRegion: Bool = false) {
+    init(layers: MapImageExportLayers, hasSelectedRegion: Bool = false, isCrossSection: Bool = false) {
         self.layers = layers
+        self.isCrossSection = isCrossSection
         self.availableScopes = MapImageExportScope.allCases.filter { $0 != .selectedRegion || hasSelectedRegion }
         self.scope = hasSelectedRegion ? .selectedRegion : .currentRegion
         super.init(style: .insetGrouped)
@@ -65,7 +67,7 @@ final class MapExportOptionsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return availableScopes.count
-        case 1: return 5
+        case 1: return isCrossSection ? 4 : 5
         default: return MapUngeneratedChunkDisplayMode.allCases.count
         }
     }
@@ -74,16 +76,20 @@ final class MapExportOptionsViewController: UITableViewController {
         switch section {
         case 0: return "导出范围"
         case 1: return "附加地图对象图层"
-        default: return "未生成区块显示"
+        default: return isCrossSection ? "未生成子区块显示" : "未生成区块显示"
         }
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         switch section {
         case 0:
-            return "框选模式下可直接导出当前精确框选范围；“全部已加载区域”会按当前维度已有区块的外接范围生成图片，跨度较大时会自动降低输出比例以控制内存。"
+            return isCrossSection
+                ? "“当前地图区域”导出当前 X/Z 剖面；“全部已加载区域”沿当前剖面的水平轴遍历全部已加载区块，不受 ±128 选择范围限制。"
+                : "框选模式下可直接导出当前精确框选范围；“全部已加载区域”会按当前维度已有区块的外接范围生成图片，跨度较大时会自动降低输出比例以控制内存。"
         case 2:
-            return "“透明”会让未生成区块在 PNG 中保持透明；“空气”按空气底色导出；“纹理”会为未生成区块叠加固定密度的纹理。"
+            return isCrossSection
+                ? "“透明”让未生成 SubChunk 透明；“空气”使用普通背景；“纹理”为未生成 SubChunk 叠加固定密度纹理。"
+                : "“透明”会让未生成区块在 PNG 中保持透明；“空气”按空气底色导出；“纹理”会为未生成区块叠加固定密度的纹理。"
         default:
             return nil
         }
@@ -97,13 +103,20 @@ final class MapExportOptionsViewController: UITableViewController {
             cell.textLabel?.text = value.displayName
             cell.accessoryType = value == scope ? .checkmark : .none
         case 1:
-            let values: [(String, Bool)] = [
-                ("实体", layers.entities),
-                ("方块实体", layers.blockEntities),
-                ("HardcodedSpawners", layers.hardcodedSpawners),
-                ("村庄", layers.villages),
-                ("出生点", layers.spawnPoints)
-            ]
+            let values: [(String, Bool)] = isCrossSection
+                ? [
+                    ("实体", layers.entities),
+                    ("方块实体", layers.blockEntities),
+                    ("HardcodedSpawners", layers.hardcodedSpawners),
+                    ("出生点", layers.spawnPoints)
+                ]
+                : [
+                    ("实体", layers.entities),
+                    ("方块实体", layers.blockEntities),
+                    ("HardcodedSpawners", layers.hardcodedSpawners),
+                    ("村庄", layers.villages),
+                    ("出生点", layers.spawnPoints)
+                ]
             cell.textLabel?.text = values[indexPath.row].0
             cell.accessoryType = values[indexPath.row].1 ? .checkmark : .none
         default:
@@ -121,13 +134,23 @@ final class MapExportOptionsViewController: UITableViewController {
         case 0:
             scope = availableScopes[indexPath.row]
         case 1:
-            switch indexPath.row {
-            case 0: layers.entities.toggle()
-            case 1: layers.blockEntities.toggle()
-            case 2: layers.hardcodedSpawners.toggle()
-            case 3: layers.villages.toggle()
-            case 4: layers.spawnPoints.toggle()
-            default: break
+            if isCrossSection {
+                switch indexPath.row {
+                case 0: layers.entities.toggle()
+                case 1: layers.blockEntities.toggle()
+                case 2: layers.hardcodedSpawners.toggle()
+                case 3: layers.spawnPoints.toggle()
+                default: break
+                }
+            } else {
+                switch indexPath.row {
+                case 0: layers.entities.toggle()
+                case 1: layers.blockEntities.toggle()
+                case 2: layers.hardcodedSpawners.toggle()
+                case 3: layers.villages.toggle()
+                case 4: layers.spawnPoints.toggle()
+                default: break
+                }
             }
         default:
             layers.ungeneratedDisplay = MapUngeneratedChunkDisplayMode.allCases[indexPath.row]

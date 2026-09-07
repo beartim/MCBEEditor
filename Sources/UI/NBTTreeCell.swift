@@ -32,6 +32,11 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
 
   private let horizontalScrollView = NBTTreeHorizontalScrollView()
   private let scrollingContentView = UIView()
+  private lazy var rowTapGesture: UITapGestureRecognizer = {
+    let gesture = UITapGestureRecognizer(target: self, action: #selector(handleRowTap(_:)))
+    gesture.cancelsTouchesInView = true
+    return gesture
+  }()
   private let hierarchyLayer = CAShapeLayer()
   private let iconView = UIImageView()
   private let titleNodeLabel = UILabel()
@@ -68,6 +73,11 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     horizontalScrollView.canCancelContentTouches = true
     horizontalScrollView.delegate = self
     horizontalScrollView.scrollsToTop = false
+    // A UIScrollView inside UITableViewCell owns the touch sequence, which
+    // otherwise prevents UITableView from delivering didSelectRowAt. Forward
+    // a true tap back to the table while leaving horizontal pans and context
+    // menus untouched. This restores single-tap NBT editing/expansion.
+    horizontalScrollView.addGestureRecognizer(rowTapGesture)
     contentView.addSubview(horizontalScrollView)
     horizontalScrollView.addSubview(scrollingContentView)
 
@@ -95,6 +105,21 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  @objc private func handleRowTap(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    var view: UIView? = self
+    while let current = view, !(current is UITableView) { view = current.superview }
+    guard let tableView = view as? UITableView,
+      let indexPath = tableView.indexPath(for: self),
+      let delegate = tableView.delegate
+    else { return }
+
+    // The editing controllers deselect immediately in didSelectRowAt, so call
+    // the delegate directly instead of relying on UITableView's selection
+    // recognizer, which never sees touches captured by the nested scroll view.
+    delegate.tableView?(tableView, didSelectRowAt: indexPath)
+  }
 
   override func prepareForReuse() {
     super.prepareForReuse()

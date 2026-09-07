@@ -30,8 +30,8 @@ grep -q 'case selectedRegion' "$OPTIONS" || {
   echo 'error: map export options are missing selected-region scope' >&2
   exit 1
 }
-grep -q 'hasSelectedRegion: isSelectionMode && selectedRegion != nil' "$MAP" || {
-  echo 'error: selected-region map export must only be offered for an active selection' >&2
+grep -q 'hasSelectedRegion: !verticalSlice && isSelectionMode && selectedRegion != nil' "$MAP" || {
+  echo 'error: selected-region map export must only be offered for an active Y-mode selection' >&2
   exit 1
 }
 grep -q 'cropMapExportImage' "$MAP" || {

@@ -380,6 +380,257 @@ private final class MapObjectOverlayView: UIView {
     }
   }
 
+  func updateCrossSection(
+    spawnHits: [MapSpawnHit],
+    playerHits: [MapPlayerHit],
+    worldObjectHits: [MapWorldObjectHit],
+    hardcodedSpawnerHits: [MapHardcodedSpawnerHit],
+    selectedObjectID: String?,
+    selectedSpawnerID: String?,
+    selectedBlock: BedrockBlockRecord?,
+    axis: MapSliceAxis,
+    fixedX: Int64,
+    fixedZ: Int64,
+    minimumHorizontal: Int64,
+    minimumY: Int64,
+    maximumY: Int64,
+    sideBlocks: Int,
+    currentDimension: Int32,
+    imageView: UIView,
+    showBuildHeightLimits: Bool
+  ) {
+    guard axis != .y, sideBlocks > 0, maximumY >= minimumY,
+      imageView.bounds.width > 0, imageView.bounds.height > 0
+    else {
+      clear()
+      return
+    }
+
+    let entityPath = UIBezierPath()
+    let blockEntityPath = UIBezierPath()
+    let localPlayerPath = UIBezierPath()
+    let onlinePlayerPath = UIBezierPath()
+    let hardcodedSpawnerPath = UIBezierPath()
+    let selectedSpawnerPath = UIBezierPath()
+    let worldSpawnPath = UIBezierPath()
+    let worldSpawnGlyphPath = UIBezierPath()
+    let playerSpawnPath = UIBezierPath()
+    let playerSpawnGlyphPath = UIBezierPath()
+    let selectedPath = UIBezierPath()
+    let selectedBlockPath = UIBezierPath()
+    let heightPath = UIBezierPath()
+    var hasSelectedPath = false
+    var hasSelectedSpawnerPath = false
+    var hasSelectedBlockPath = false
+
+    func point(localHorizontal: CGFloat, localVertical: CGFloat) -> CGPoint {
+      let imagePoint = CGPoint(
+        x: localHorizontal / CGFloat(sideBlocks) * imageView.bounds.width,
+        y: localVertical / CGFloat(sideBlocks) * imageView.bounds.height
+      )
+      return imageView.convert(imagePoint, to: self)
+    }
+
+    func appendStar(center: CGPoint, to path: UIBezierPath) {
+      let outerRadius: CGFloat = 8
+      let innerRadius: CGFloat = 3.5
+      let star = UIBezierPath()
+      for index in 0..<10 {
+        let radius = index.isMultiple(of: 2) ? outerRadius : innerRadius
+        let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
+        let p = CGPoint(
+          x: center.x + cos(angle) * radius,
+          y: center.y + sin(angle) * radius
+        )
+        if index == 0 { star.move(to: p) } else { star.addLine(to: p) }
+      }
+      star.close()
+      path.append(star)
+    }
+
+    for hit in playerHits {
+      let center = point(localHorizontal: hit.localX, localVertical: hit.localZ)
+      guard bounds.insetBy(dx: -18, dy: -18).contains(center) else { continue }
+      appendStar(center: center, to: hit.player.isLocal ? localPlayerPath : onlinePlayerPath)
+    }
+
+    for hit in worldObjectHits {
+      let center = point(localHorizontal: hit.localX, localVertical: hit.localZ)
+      guard bounds.insetBy(dx: -16, dy: -16).contains(center) else { continue }
+      if hit.isNormallyVisible {
+        if hit.object.kind == .entity {
+          entityPath.append(
+            UIBezierPath(ovalIn: CGRect(x: center.x - 5.5, y: center.y - 5.5, width: 11, height: 11)))
+        } else {
+          blockEntityPath.append(
+            UIBezierPath(
+              roundedRect: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10),
+              cornerRadius: 1.5))
+        }
+      }
+      if hit.object.stableID == selectedObjectID {
+        hasSelectedPath = true
+        let rect = CGRect(x: center.x - 8, y: center.y - 8, width: 16, height: 16)
+        if hit.object.kind == .entity {
+          selectedPath.append(UIBezierPath(ovalIn: rect))
+        } else {
+          selectedPath.append(UIBezierPath(roundedRect: rect, cornerRadius: 2.5))
+        }
+      }
+    }
+
+    for hit in spawnHits {
+      let center = point(localHorizontal: hit.localX, localVertical: hit.localZ)
+      guard bounds.insetBy(dx: -18, dy: -18).contains(center) else { continue }
+      switch hit.spawn.kind {
+      case .world:
+        worldSpawnPath.append(
+          UIBezierPath(ovalIn: CGRect(x: center.x - 6.5, y: center.y - 6.5, width: 13, height: 13)))
+        worldSpawnGlyphPath.move(to: CGPoint(x: center.x - 3.2, y: center.y))
+        worldSpawnGlyphPath.addLine(to: CGPoint(x: center.x + 3.2, y: center.y))
+        worldSpawnGlyphPath.move(to: CGPoint(x: center.x, y: center.y - 3.2))
+        worldSpawnGlyphPath.addLine(to: CGPoint(x: center.x, y: center.y + 3.2))
+      case .player:
+        playerSpawnPath.append(
+          UIBezierPath(ovalIn: CGRect(x: center.x - 6.5, y: center.y - 6.5, width: 13, height: 13)))
+        playerSpawnGlyphPath.append(
+          UIBezierPath(ovalIn: CGRect(x: center.x - 1.8, y: center.y - 3.6, width: 3.6, height: 3.6)))
+        playerSpawnGlyphPath.move(to: CGPoint(x: center.x - 3.2, y: center.y + 3.5))
+        playerSpawnGlyphPath.addQuadCurve(
+          to: CGPoint(x: center.x + 3.2, y: center.y + 3.5),
+          controlPoint: CGPoint(x: center.x, y: center.y - 0.4))
+      }
+    }
+
+    for hit in hardcodedSpawnerHits {
+      let area = hit.area
+      let planeIntersects: Bool
+      let horizontalMinimum: Int64
+      let horizontalMaximum: Int64
+      switch axis {
+      case .x:
+        planeIntersects = fixedX >= Int64(area.minimumX) && fixedX <= Int64(area.maximumX)
+        horizontalMinimum = Int64(area.minimumZ)
+        horizontalMaximum = Int64(area.maximumZ)
+      case .z:
+        planeIntersects = fixedZ >= Int64(area.minimumZ) && fixedZ <= Int64(area.maximumZ)
+        horizontalMinimum = Int64(area.minimumX)
+        horizontalMaximum = Int64(area.maximumX)
+      case .y:
+        planeIntersects = false
+        horizontalMinimum = 0
+        horizontalMaximum = -1
+      }
+      guard planeIntersects else { continue }
+      let clippedH0 = max(horizontalMinimum, minimumHorizontal)
+      let clippedH1 = min(horizontalMaximum, minimumHorizontal + Int64(sideBlocks) - 1)
+      let clippedY0 = max(Int64(area.minimumY), minimumY)
+      let clippedY1 = min(Int64(area.maximumY), maximumY)
+      guard clippedH0 <= clippedH1, clippedY0 <= clippedY1 else { continue }
+      let topLeft = point(
+        localHorizontal: CGFloat(clippedH0 - minimumHorizontal),
+        localVertical: CGFloat(maximumY - clippedY1))
+      let bottomRight = point(
+        localHorizontal: CGFloat(clippedH1 - minimumHorizontal + 1),
+        localVertical: CGFloat(maximumY - clippedY0 + 1))
+      let rect = CGRect(
+        x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
+        width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y)
+      ).insetBy(dx: 1, dy: 1)
+      if rect.width > 1, rect.height > 1 {
+        hardcodedSpawnerPath.append(UIBezierPath(rect: rect))
+        if hit.stableID == selectedSpawnerID {
+          selectedSpawnerPath.append(UIBezierPath(rect: rect.insetBy(dx: -2, dy: -2)))
+          hasSelectedSpawnerPath = true
+        }
+      }
+    }
+
+    if let block = selectedBlock, block.dimension == currentDimension {
+      // The X/Z picker selects along the axis perpendicular to the visible
+      // plane. Even when the chosen block is deeper than the displayed slice,
+      // its horizontal/Y projection is still the point the user tapped, so
+      // keep that point highlighted and blinking on the section.
+      let horizontal = axis == .x ? block.z : block.x
+      if horizontal >= minimumHorizontal,
+        horizontal < minimumHorizontal + Int64(sideBlocks),
+        Int64(block.y) >= minimumY, Int64(block.y) <= maximumY
+      {
+        let topLeft = point(
+          localHorizontal: CGFloat(horizontal - minimumHorizontal),
+          localVertical: CGFloat(maximumY - Int64(block.y)))
+        let bottomRight = point(
+          localHorizontal: CGFloat(horizontal - minimumHorizontal + 1),
+          localVertical: CGFloat(maximumY - Int64(block.y) + 1))
+        var rect = CGRect(
+          x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
+          width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y)
+        )
+        if rect.width < 12 { rect = rect.insetBy(dx: -(12 - rect.width) / 2, dy: 0) }
+        if rect.height < 12 { rect = rect.insetBy(dx: 0, dy: -(12 - rect.height) / 2) }
+        selectedBlockPath.append(UIBezierPath(rect: rect.insetBy(dx: -1, dy: -1)))
+        hasSelectedBlockPath = true
+      }
+    }
+
+    if showBuildHeightLimits {
+      let limits: (minimum: Int64, maximumExclusive: Int64)
+      switch BedrockDimension(rawValue: currentDimension) {
+      case .nether?: limits = (0, 128)
+      case .end?: limits = (0, 256)
+      default: limits = (-64, 320)
+      }
+      let span = CGFloat(maximumY - minimumY + 1)
+      func appendLimit(_ y: Int64) {
+        let imageY = CGFloat(maximumY - y + 1) / span * imageView.bounds.height
+        let left = imageView.convert(CGPoint(x: 0, y: imageY), to: self)
+        let right = imageView.convert(CGPoint(x: imageView.bounds.width, y: imageY), to: self)
+        guard max(left.y, right.y) >= bounds.minY - 2,
+          min(left.y, right.y) <= bounds.maxY + 2 else { return }
+        heightPath.move(to: left)
+        heightPath.addLine(to: right)
+      }
+      appendLimit(limits.minimum)
+      appendLimit(limits.maximumExclusive)
+    }
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    villageBoundsLayer.path = nil
+    villageCenterLayer.path = nil
+    villagePOILinkLayer.path = nil
+    villagePOILayer.path = nil
+    selectedVillageLayer.path = nil
+    selectedChunkLayer.path = nil
+    entityLayer.path = entityPath.cgPath
+    blockEntityLayer.path = blockEntityPath.cgPath
+    localPlayerLayer.path = localPlayerPath.cgPath
+    onlinePlayerLayer.path = onlinePlayerPath.cgPath
+    hardcodedSpawnerLayer.path = hardcodedSpawnerPath.cgPath
+    worldSpawnLayer.path = worldSpawnPath.cgPath
+    worldSpawnGlyphLayer.path = worldSpawnGlyphPath.cgPath
+    playerSpawnLayer.path = playerSpawnPath.cgPath
+    playerSpawnGlyphLayer.path = playerSpawnGlyphPath.cgPath
+    selectedSpawnerLayer.path = hasSelectedSpawnerPath ? selectedSpawnerPath.cgPath : nil
+    selectedObjectLayer.path = hasSelectedPath ? selectedPath.cgPath : nil
+    selectedBlockLayer.path = hasSelectedBlockPath ? selectedBlockPath.cgPath : nil
+    buildHeightLimitLayer.path = heightPath.cgPath
+    CATransaction.commit()
+
+    self.selectedObjectID = selectedObjectID
+    updateBlink(layer: selectedVillageLayer, key: "selected-village-blink", enabled: false, duration: 0.62)
+    updateBlink(
+      layer: selectedSpawnerLayer, key: "selected-spawner-blink", enabled: hasSelectedSpawnerPath,
+      duration: 0.54)
+    updateBlink(
+      layer: selectedObjectLayer, key: "selected-object-blink", enabled: hasSelectedPath,
+      duration: 0.48)
+    updateBlink(
+      layer: selectedBlockLayer, key: "selected-block-blink", enabled: hasSelectedBlockPath,
+      duration: 0.42)
+    updateBlink(layer: selectedChunkLayer, key: "selected-chunk-blink", enabled: false, duration: 0.58)
+  }
+
   func update(
     spawnHits: [MapSpawnHit],
     playerHits: [MapPlayerHit],
@@ -897,7 +1148,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   private var showSpawnPoints = true
   private var showUngeneratedChunks = false
   private var showBuildHeightLimits = true
-  private var sliceCenterY: Int32 = 63
+  private let crossSectionSelectionHalfRange: Int64 = 128
+  private let crossSectionDefaultSideBlocks = 256
+  private var sliceCenterY: Int32 = 0
   private var sliceCenterBlockX: Int64 = 0
   private var sliceCenterBlockZ: Int64 = 0
   private var renderedCrossHorizontalStart: Int64 = 0
@@ -1092,7 +1345,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let compactPhone = UIDevice.current.userInterfaceIdiom == .phone
 
     xField.text = "0"
-    yField.text = "63"
+    yField.text = "0"
     zField.text = "0"
     for field in [xField, yField, zField] {
       field.borderStyle = .roundedRect
@@ -1642,8 +1895,15 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         sliceCenterBlockX = originX
         sliceCenterBlockZ = originZ
       }
-      sliceCenterY = Int32(yField.text ?? "") ?? 63
-      yField.text = String(sliceCenterY)
+      // X/Z are new vertical-reading modes. Enter them at the conventional
+      // Bedrock Y=63 center regardless of the last Y-mode display value.
+      sliceCenterY = 63
+      yField.text = "63"
+    } else {
+      // The Y-axis top-down map has no vertical slice center; expose a stable
+      // default Y=0 rather than leaking the last X/Z slice Y into the field.
+      sliceCenterY = 0
+      yField.text = "0"
     }
     updateCoordinateFields(centerX: lastCenterX, centerZ: lastCenterZ, anchor: nil)
     statusLabel.text = verticalSlice
@@ -1692,11 +1952,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     activeDimension = newDimension
 
     if currentSliceAxis != .y {
+      // Every dimension switch starts a vertical slice from Y=63 and a
+      // deterministic ±128-block working window. The axis picker uses the
+      // same ±128 range; later pan/zoom may expand the rendered viewport.
+      sliceCenterY = 63
+      yField.text = "63"
       let centerX = MapCoordinate.chunk(fromBlock: sliceCenterBlockX)
       let centerZ = MapCoordinate.chunk(fromBlock: sliceCenterBlockZ)
       render(
         centerX: centerX, centerZ: centerZ, anchor: nil,
-        reason: "切换维度", showOverlay: true
+        reason: "切换维度", showOverlay: true,
+        sideChunksOverride: max(1, crossSectionDefaultSideBlocks / 16)
       )
       return
     }
@@ -2101,6 +2367,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let fixedZ = sliceCenterBlockZ
     let centerY = sliceCenterY
     let sideBlocks = sideChunks * 16
+    let half = sideBlocks / 2
+    let minimumHorizontal = axis == .x ? fixedZ - Int64(half) : fixedX - Int64(half)
+    let minimumY = Int64(centerY) - Int64(half)
+    let maximumY = minimumY + Int64(sideBlocks) - 1
+    let includePlayers = showPlayers
+    let includeEntities = showEntities
+    let includeBlockEntities = showBlockEntities
+    let includeHardcodedSpawners = showHardcodedSpawners
+    let includeSpawns = showSpawnPoints
+    let includeUngeneratedSubChunks = showUngeneratedChunks
     statusLabel.text = "\(reason)：正在读取 \(axis.displayName) 轴 \(sideBlocks)×\(sideBlocks) 方块剖面…"
 
     renderQueue.async { [weak self] in
@@ -2111,6 +2387,72 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       }
       do {
         let renderer = try self.rendererForCurrentSession()
+        let database = try self.session.database()
+        var diagnostics = [String]()
+
+        var tickingAreas = [BedrockTickingArea]()
+        if mode == .tickingAreas {
+          do {
+            tickingAreas = try TickingAreaStore(session: self.session).records()
+              .map(\.area)
+              .filter { $0.dimension == dimension }
+          } catch {
+            diagnostics.append("常加载区块：\(error.localizedDescription)")
+          }
+        }
+
+        // Scan the horizontal window surrounding the slice, then project only
+        // objects whose block coordinate actually intersects the one-block-thick
+        // X/Z plane. Village rendering is intentionally disabled in vertical
+        // sections, but all other object layers remain available.
+        var playerCoordinates = [MapPlayerCoordinate]()
+        if includePlayers {
+          let playerStore = PlayerNBTStore(session: self.session)
+          for record in try playerStore.records() {
+            guard let position = playerStore.currentPosition(for: record),
+              position.dimension == dimension
+            else { continue }
+            playerCoordinates.append(
+              MapPlayerCoordinate(
+                record: record,
+                position: position,
+                isLocal: playerStore.isLocalPlayer(record),
+                uniqueID: playerStore.uniqueID(for: record)
+              ))
+          }
+        }
+
+        var scannedObjects = [BedrockWorldObject]()
+        if includeEntities || includeBlockEntities {
+          let scanRadius = max(1, (sideChunks + 1) / 2)
+          let objectScan = try BedrockWorldObjectScanner(database: database).scanRegionAdaptive(
+            centerX: centerX,
+            centerZ: centerZ,
+            dimension: dimension,
+            radius: scanRadius,
+            includeEntities: includeEntities,
+            includeBlockEntities: includeBlockEntities,
+            maximumObjects: 40_000,
+            shouldCancel: { token.isCancelled }
+          )
+          scannedObjects = objectScan.objects
+          diagnostics.append(contentsOf: objectScan.diagnostics)
+        }
+
+        let spawnerScan = includeHardcodedSpawners
+          ? try self.scanHardcodedSpawners(
+            database: database,
+            centerX: centerX,
+            centerZ: centerZ,
+            dimension: dimension,
+            sideChunks: sideChunks,
+            leftChunks: (sideChunks - 1) / 2,
+            shouldCancel: { token.isCancelled }
+          )
+          : (hits: [MapHardcodedSpawnerHit](), diagnostics: [String]())
+        diagnostics.append(contentsOf: spawnerScan.diagnostics)
+
+        if token.isCancelled { throw MapRenderCancelled() }
         let result = try renderer.renderCrossSection(
           axis: axis,
           fixedX: fixedX,
@@ -2120,9 +2462,63 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           dimension: dimension,
           mode: mode,
           drawSubChunkGrid: drawGrid,
+          showUngeneratedSubChunks: includeUngeneratedSubChunks,
+          tickingAreas: tickingAreas,
           shouldCancel: { token.isCancelled }
         )
         if token.isCancelled { throw MapRenderCancelled() }
+
+        func projectedHorizontalAndVertical(
+          worldX: Double, worldY: Double, worldZ: Double
+        ) -> (CGFloat, CGFloat)? {
+          let blockX = Int64(floor(worldX))
+          let blockZ = Int64(floor(worldZ))
+          if axis == .x, blockX != fixedX { return nil }
+          if axis == .z, blockZ != fixedZ { return nil }
+          let horizontal = axis == .x ? worldZ : worldX
+          let localHorizontal = horizontal - Double(result.minimumHorizontal)
+          let localVertical = Double(result.maximumY + 1) - worldY
+          guard localHorizontal >= 0, localHorizontal < Double(sideBlocks),
+            localVertical >= 0, localVertical < Double(sideBlocks)
+          else { return nil }
+          return (CGFloat(localHorizontal), CGFloat(localVertical))
+        }
+
+        let projectedPlayers = playerCoordinates.compactMap { player -> MapPlayerHit? in
+          guard let local = projectedHorizontalAndVertical(
+            worldX: player.position.x, worldY: player.position.y, worldZ: player.position.z)
+          else { return nil }
+          return MapPlayerHit(player: player, localX: local.0, localZ: local.1)
+        }
+
+        let projectedObjects = scannedObjects.compactMap { object -> MapWorldObjectHit? in
+          guard let position = object.position,
+            let local = projectedHorizontalAndVertical(
+              worldX: position.x, worldY: position.y, worldZ: position.z)
+          else { return nil }
+          let normallyVisible =
+            (object.kind == .entity && includeEntities)
+            || (object.kind == .blockEntity && includeBlockEntities)
+          return MapWorldObjectHit(
+            object: object, localX: local.0, localZ: local.1, isNormallyVisible: normallyVisible)
+        }
+
+        let projectedSpawns: [MapSpawnHit]
+        if includeSpawns {
+          projectedSpawns = self.spawnCoordinates.compactMap { spawn in
+            guard spawn.dimension == dimension, let y = spawn.y else { return nil }
+            let x = Double(spawn.x) + 0.5
+            let z = Double(spawn.z) + 0.5
+            guard let local = projectedHorizontalAndVertical(
+              worldX: x, worldY: Double(y) + 0.5, worldZ: z)
+            else { return nil }
+            return MapSpawnHit(spawn: spawn, localX: local.0, localZ: local.1)
+          }
+        } else {
+          projectedSpawns = []
+        }
+
+        let allErrors = result.errors + diagnostics
         DispatchQueue.main.async {
           overlay?.removeFromSuperview()
           guard generation == self.renderGeneration, self.activeRenderToken === token else { return }
@@ -2132,11 +2528,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           self.lastRenderedImage = result.image
           self.lastBlockNames = []
           self.lastBlockHeights = []
-          self.lastErrors = result.errors
-          self.lastSpawnHits = []
-          self.lastPlayerHits = []
-          self.lastWorldObjectHits = []
-          self.lastHardcodedSpawnerHits = []
+          self.lastErrors = allErrors
+          self.lastSpawnHits = projectedSpawns
+          self.lastPlayerHits = projectedPlayers
+          self.lastWorldObjectHits = projectedObjects
+          self.lastHardcodedSpawnerHits = spawnerScan.hits
           self.lastVillageHits = []
           self.lastCenterX = centerX
           self.lastCenterZ = centerZ
@@ -2150,12 +2546,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           self.applyCrossSectionViewport(effectiveZoom: requestedZoom)
           self.updateObjectOverlay()
           let sampling = result.sampleStride > 1 ? "；采样步长 \(result.sampleStride)" : ""
+          let layerCounts = "玩家 \(projectedPlayers.count)；实体/方块实体 \(projectedObjects.count)；刷怪区域 \(spawnerScan.hits.count)"
           if self.traitCollection.horizontalSizeClass == .compact {
             self.statusLabel.text =
-              "\(axis.displayName)剖面 · 中心(\(fixedX),\(centerY),\(fixedZ)) · \(sideBlocks)×\(sideBlocks)方块 · \(mode.displayName) · 错误\(result.errors.count)"
+              "\(axis.displayName)剖面 · 中心(\(fixedX),\(centerY),\(fixedZ)) · \(sideBlocks)×\(sideBlocks)方块 · \(mode.displayName) · 错误\(allErrors.count)"
           } else {
             self.statusLabel.text =
-              "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；错误 \(result.errors.count) 条。"
+              "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；\(layerCounts)；错误 \(allErrors.count) 条。"
           }
           self.saveMapState()
         }
@@ -2959,12 +3356,24 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       return
     }
     if currentSliceAxis != .y {
-      objectOverlayView.updateBuildHeightLimits(
-        minimumRenderedY: renderedCrossMinimumY,
-        maximumRenderedY: renderedCrossMaximumY,
-        dimension: BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue,
+      objectOverlayView.updateCrossSection(
+        spawnHits: lastSpawnHits,
+        playerHits: lastPlayerHits,
+        worldObjectHits: lastWorldObjectHits,
+        hardcodedSpawnerHits: lastHardcodedSpawnerHits,
+        selectedObjectID: selectedWorldObjectID,
+        selectedSpawnerID: selectedSpawnerID,
+        selectedBlock: selectedBlock,
+        axis: currentSliceAxis,
+        fixedX: sliceCenterBlockX,
+        fixedZ: sliceCenterBlockZ,
+        minimumHorizontal: renderedCrossHorizontalStart,
+        minimumY: renderedCrossMinimumY,
+        maximumY: renderedCrossMaximumY,
+        sideBlocks: renderedSideChunks * 16,
+        currentDimension: BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue,
         imageView: imageView,
-        visible: showBuildHeightLimits
+        showBuildHeightLimits: showBuildHeightLimits
       )
       return
     }
@@ -3471,11 +3880,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   ) {
     let axis = currentSliceAxis
     guard axis == .x || axis == .z else { return }
-    let side = Int64(renderedSideChunks * 16)
-    let half = side / 2
     let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
-    let minimumCoordinate = centerCoordinate - half
-    let maximumCoordinate = minimumCoordinate + side - 1
+    let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange
+    let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
     renderQueue.async { [weak self] in
@@ -4984,10 +5391,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   @objc private func showOverlayOptions() {
+    let verticalSlice = currentSliceAxis != .y
     let alert = UIAlertController(
       title: "地图对象图层",
-      message:
-        "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；未生成区块纹理会以固定密度显示。X/Z 剖面中的红色虚线为建筑高度限制，默认显示。玩家与出生点图层默认开启，未生成区块默认关闭。",
+      message: verticalSlice
+        ? "X/Z 剖面会显示与当前切面相交的玩家、实体、方块实体、HardcodedSpawners 与出生点；村庄图层在剖面模式隐藏。未生成纹理按 SubChunk 显示，红色虚线为建筑高度限制。"
+        : "黄色五角星为本地玩家，蓝色五角星为在线玩家；蓝色圆点为实体，青色方块为方块实体，粉色虚线框为 HardcodedSpawners；绿色虚线框为村庄边界，橙色菱形为村庄中心，紫色方块为兴趣点。黄色标记为世界出生点，绿色标记为玩家出生点；未生成区块纹理会以固定密度显示。",
       preferredStyle: .actionSheet
     )
     let playerTitle = showPlayers ? "✓ 显示玩家" : "显示玩家"
@@ -4996,7 +5405,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let spawnTitle = showSpawnPoints ? "✓ 显示出生点" : "显示出生点"
     let spawnerTitle = showHardcodedSpawners ? "✓ 显示 HardcodedSpawners" : "显示 HardcodedSpawners"
     let villageTitle = showVillages ? "✓ 显示村庄" : "显示村庄"
-    let ungeneratedTitle = showUngeneratedChunks ? "✓ 显示未生成区块" : "显示未生成区块"
+    let ungeneratedTitle: String
+    if verticalSlice {
+      ungeneratedTitle = showUngeneratedChunks ? "✓ 显示未生成子区块" : "显示未生成子区块"
+    } else {
+      ungeneratedTitle = showUngeneratedChunks ? "✓ 显示未生成区块" : "显示未生成区块"
+    }
     let heightLimitTitle = showBuildHeightLimits ? "✓ 显示建筑高度限制" : "显示建筑高度限制"
     alert.addAction(
       UIAlertAction(title: playerTitle, style: .default) { [weak self] _ in
@@ -5029,16 +5443,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         if !self.showHardcodedSpawners { self.selectedSpawnerID = nil }
         self.refreshObjectOverlays(reason: "HardcodedSpawners 图层")
       })
-    alert.addAction(
-      UIAlertAction(title: villageTitle, style: .default) { [weak self] _ in
-        guard let self = self else { return }
-        self.showVillages.toggle()
-        if !self.showVillages {
-          self.selectedVillageID = nil
-          self.selectedVillageEntityIDs.removeAll()
-        }
-        self.refreshObjectOverlays(reason: "村庄图层")
-      })
+    if !verticalSlice {
+      alert.addAction(
+        UIAlertAction(title: villageTitle, style: .default) { [weak self] _ in
+          guard let self = self else { return }
+          self.showVillages.toggle()
+          if !self.showVillages {
+            self.selectedVillageID = nil
+            self.selectedVillageEntityIDs.removeAll()
+          }
+          self.refreshObjectOverlays(reason: "村庄图层")
+        })
+    }
     alert.addAction(
       UIAlertAction(title: ungeneratedTitle, style: .default) { [weak self] _ in
         guard let self = self else { return }
@@ -5050,7 +5466,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           centerX: center.0,
           centerZ: center.1,
           anchor: anchor,
-          reason: "未生成区块图层",
+          reason: verticalSlice ? "未生成子区块图层" : "未生成区块图层",
           showOverlay: false
         )
       })
@@ -5070,7 +5486,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showEntities = true
         self.showBlockEntities = true
         self.showHardcodedSpawners = true
-        self.showVillages = true
+        if !verticalSlice { self.showVillages = true }
         self.showSpawnPoints = true
         self.showUngeneratedChunks = true
         self.showBuildHeightLimits = true
@@ -5563,16 +5979,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   @objc private func shareRenderedMap() {
+    let verticalSlice = currentSliceAxis != .y
     let controller = MapExportOptionsViewController(
       layers: MapImageExportLayers(
         entities: showEntities,
         blockEntities: showBlockEntities,
         hardcodedSpawners: showHardcodedSpawners,
-        villages: showVillages,
+        villages: verticalSlice ? false : showVillages,
         spawnPoints: showSpawnPoints,
         ungeneratedDisplay: .transparent
       ),
-      hasSelectedRegion: isSelectionMode && selectedRegion != nil
+      hasSelectedRegion: !verticalSlice && isSelectionMode && selectedRegion != nil,
+      isCrossSection: verticalSlice
     )
     controller.onExport = { [weak self] scope, layers in
       self?.startMapImageExport(scope: scope, layers: layers)
@@ -5587,6 +6005,11 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       showError(MCBEEditorError.unsupported("请先渲染地图。"), title: "无法导出地图")
       return
     }
+    if currentSliceAxis != .y {
+      startCrossSectionImageExport(scope: scope, layers: layers)
+      return
+    }
+
     let busyText: String
     switch scope {
     case .selectedRegion: busyText = "正在生成当前框选区域图片…"
@@ -5849,6 +6272,293 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           overlay.removeFromSuperview()
           self.showError(error, title: "导出地图失败")
         }
+      }
+    }
+  }
+
+  private func startCrossSectionImageExport(
+    scope: MapImageExportScope,
+    layers: MapImageExportLayers
+  ) {
+    let axis = currentSliceAxis
+    guard axis == .x || axis == .z else { return }
+    let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
+    let dimensionName = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].displayName
+    let mode = currentMode
+    let fixedX = sliceCenterBlockX
+    let fixedZ = sliceCenterBlockZ
+    let centerY = sliceCenterY
+    let drawGrid = gridSwitch.isOn
+    let includeBuildLimits = showBuildHeightLimits
+    let currentHorizontalRange = renderedCrossHorizontalStart...
+      (renderedCrossHorizontalStart + Int64(renderedSideChunks * 16) - 1)
+    let currentVerticalRange = renderedCrossMinimumY...renderedCrossMaximumY
+    let busy = showBusy(
+      scope == .loadedDimension ? "正在遍历全部已加载剖面…" : "正在生成当前剖面图片…")
+
+    renderQueue.async { [weak self] in
+      guard let self = self else { return }
+      do {
+        let renderer = try self.rendererForCurrentSession()
+        let database = try self.session.database()
+        let allSummaries = try BedrockChunkStore(session: self.session).listChunks().filter {
+          $0.position.dimension == dimension
+            && ($0.hasTerrain || $0.biomeRecordType != nil || $0.hasBlockEntities
+                || $0.hasLegacyEntities || $0.recordCount > ($0.hasActorDigest ? 1 : 0))
+        }
+
+        let horizontalRange: ClosedRange<Int64>
+        let verticalRange: ClosedRange<Int64>
+        let exportSuffix: String
+        let intersectingSummaries: [BedrockChunkSummary]
+
+        if scope == .loadedDimension {
+          let fixedChunk = axis == .x
+            ? MapCoordinate.chunk(fromBlock: fixedX)
+            : MapCoordinate.chunk(fromBlock: fixedZ)
+          intersectingSummaries = allSummaries.filter {
+            axis == .x ? $0.position.x == fixedChunk : $0.position.z == fixedChunk
+          }
+          guard !intersectingSummaries.isEmpty else {
+            throw MCBEEditorError.unsupported("当前剖面没有已加载区块。")
+          }
+          let horizontalChunks = intersectingSummaries.map {
+            axis == .x ? $0.position.z : $0.position.x
+          }
+          guard let minimumChunk = horizontalChunks.min(), let maximumChunk = horizontalChunks.max()
+          else { throw MCBEEditorError.unsupported("当前剖面没有已加载区块。") }
+          horizontalRange = MapCoordinate.blockOrigin(ofChunk: minimumChunk)...
+            (MapCoordinate.blockOrigin(ofChunk: maximumChunk) + 15)
+
+          var minimumSubY: Int64?
+          var maximumSubY: Int64?
+          for summary in intersectingSummaries {
+            let records = try BedrockChunkSubChunkAccess.records(
+              database: database, position: summary.position)
+            for record in records {
+              let base = Int64(record.yIndex) * 16
+              minimumSubY = min(minimumSubY ?? base, base)
+              maximumSubY = max(maximumSubY ?? (base + 15), base + 15)
+            }
+          }
+          if let minimumSubY = minimumSubY, let maximumSubY = maximumSubY {
+            verticalRange = minimumSubY...maximumSubY
+          } else {
+            switch BedrockDimension(rawValue: dimension) {
+            case .nether?: verticalRange = 0...127
+            case .end?: verticalRange = 0...255
+            default: verticalRange = -64...319
+            }
+          }
+          exportSuffix = "all-loaded-\(axis.displayName.lowercased())"
+        } else {
+          intersectingSummaries = allSummaries
+          horizontalRange = currentHorizontalRange
+          verticalRange = currentVerticalRange
+          exportSuffix = "current-\(axis.displayName.lowercased())-\(axis == .x ? fixedX : fixedZ)"
+        }
+
+        let horizontalCount = horizontalRange.upperBound - horizontalRange.lowerBound + 1
+        let verticalCount = verticalRange.upperBound - verticalRange.lowerBound + 1
+        guard horizontalCount > 0, verticalCount > 0,
+          horizontalCount <= 200_000, verticalCount <= 20_000
+        else {
+          throw MCBEEditorError.unsupported("剖面跨度过大，无法生成单张图片。")
+        }
+
+        var tickingAreas = [BedrockTickingArea]()
+        if mode == .tickingAreas {
+          tickingAreas = try TickingAreaStore(session: self.session).records()
+            .map(\.area).filter { $0.dimension == dimension }
+        }
+
+        let rendered = try renderer.renderCrossSection(
+          axis: axis,
+          fixedX: fixedX,
+          fixedZ: fixedZ,
+          centerY: centerY,
+          sideBlocks: max(16, renderedSideChunks * 16),
+          dimension: dimension,
+          mode: mode,
+          drawSubChunkGrid: drawGrid,
+          showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
+          transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,
+          tickingAreas: tickingAreas,
+          horizontalRange: horizontalRange,
+          verticalRange: verticalRange,
+          shouldCancel: { false }
+        )
+
+        var objects = [BedrockWorldObject]()
+        if layers.entities || layers.blockEntities {
+          let scan = try BedrockWorldObjectScanner(database: database).scanAll(
+            dimensions: Set([dimension]),
+            includeEntities: layers.entities,
+            includeBlockEntities: layers.blockEntities,
+            maximumObjects: 1_000_000
+          )
+          objects = scan.objects
+        }
+
+        let spawnerHits: [MapHardcodedSpawnerHit]
+        if layers.hardcodedSpawners {
+          let spawnerPositions = allSummaries.filter(\.hasHardcodedSpawners).map(\.position)
+          spawnerHits = try self.scanHardcodedSpawners(
+            database: database, positions: spawnerPositions).hits
+        } else {
+          spawnerHits = []
+        }
+
+        let image = self.composeCrossSectionExportImage(
+          base: rendered.image,
+          axis: axis,
+          fixedX: fixedX,
+          fixedZ: fixedZ,
+          minimumHorizontal: horizontalRange.lowerBound,
+          maximumHorizontal: horizontalRange.upperBound,
+          minimumY: verticalRange.lowerBound,
+          maximumY: verticalRange.upperBound,
+          dimension: dimension,
+          objects: objects,
+          hardcodedSpawnerHits: spawnerHits,
+          spawnCoordinates: layers.spawnPoints
+            ? self.spawnCoordinates.filter { $0.dimension == dimension } : [],
+          layers: layers,
+          showBuildHeightLimits: includeBuildLimits
+        )
+
+        DispatchQueue.main.async {
+          busy.removeFromSuperview()
+          self.shareMapImage(
+            image,
+            filename: "MCBEEditor-\(dimensionName)-\(mode.displayName)-\(exportSuffix).png"
+          )
+        }
+      } catch {
+        DispatchQueue.main.async {
+          busy.removeFromSuperview()
+          self.showError(error, title: "导出剖面失败")
+        }
+      }
+    }
+  }
+
+  private func composeCrossSectionExportImage(
+    base: UIImage,
+    axis: MapSliceAxis,
+    fixedX: Int64,
+    fixedZ: Int64,
+    minimumHorizontal: Int64,
+    maximumHorizontal: Int64,
+    minimumY: Int64,
+    maximumY: Int64,
+    dimension: Int32,
+    objects: [BedrockWorldObject],
+    hardcodedSpawnerHits: [MapHardcodedSpawnerHit],
+    spawnCoordinates: [MapSpawnCoordinate],
+    layers: MapImageExportLayers,
+    showBuildHeightLimits: Bool
+  ) -> UIImage {
+    let horizontalCount = CGFloat(maximumHorizontal - minimumHorizontal + 1)
+    let verticalCount = CGFloat(maximumY - minimumY + 1)
+    guard horizontalCount > 0, verticalCount > 0 else { return base }
+    let format = UIGraphicsImageRendererFormat.default()
+    format.opaque = false
+    format.scale = base.scale
+    return UIGraphicsImageRenderer(size: base.size, format: format).image { context in
+      base.draw(in: CGRect(origin: .zero, size: base.size))
+      let cg = context.cgContext
+      let scaleX = base.size.width / horizontalCount
+      let scaleY = base.size.height / verticalCount
+
+      func point(horizontal: Double, y: Double) -> CGPoint {
+        CGPoint(
+          x: CGFloat(horizontal - Double(minimumHorizontal)) * scaleX,
+          y: CGFloat(Double(maximumY + 1) - y) * scaleY
+        )
+      }
+
+      for object in objects {
+        guard let position = object.position else { continue }
+        let blockX = Int64(floor(position.x))
+        let blockZ = Int64(floor(position.z))
+        guard axis == .x ? blockX == fixedX : blockZ == fixedZ else { continue }
+        let horizontal = axis == .x ? position.z : position.x
+        guard horizontal >= Double(minimumHorizontal), horizontal < Double(maximumHorizontal + 1),
+          position.y >= Double(minimumY), position.y < Double(maximumY + 1)
+        else { continue }
+        let p = point(horizontal: horizontal, y: position.y)
+        if object.kind == .entity, layers.entities {
+          UIColor.systemBlue.setFill()
+          cg.fillEllipse(in: CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8))
+        } else if object.kind == .blockEntity, layers.blockEntities {
+          UIColor.systemTeal.setFill()
+          cg.fill(CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7))
+        }
+      }
+
+      if layers.hardcodedSpawners {
+        cg.saveGState()
+        cg.setStrokeColor(UIColor.systemPink.cgColor)
+        cg.setLineWidth(1.5)
+        cg.setLineDash(phase: 0, lengths: [6, 4])
+        for hit in hardcodedSpawnerHits {
+          let area = hit.area
+          let intersects = axis == .x
+            ? fixedX >= Int64(area.minimumX) && fixedX <= Int64(area.maximumX)
+            : fixedZ >= Int64(area.minimumZ) && fixedZ <= Int64(area.maximumZ)
+          guard intersects else { continue }
+          let h0 = axis == .x ? Int64(area.minimumZ) : Int64(area.minimumX)
+          let h1 = axis == .x ? Int64(area.maximumZ) : Int64(area.maximumX)
+          let clippedH0 = max(h0, minimumHorizontal)
+          let clippedH1 = min(h1, maximumHorizontal)
+          let clippedY0 = max(Int64(area.minimumY), minimumY)
+          let clippedY1 = min(Int64(area.maximumY), maximumY)
+          guard clippedH0 <= clippedH1, clippedY0 <= clippedY1 else { continue }
+          let a = point(horizontal: Double(clippedH0), y: Double(clippedY1 + 1))
+          let b = point(horizontal: Double(clippedH1 + 1), y: Double(clippedY0))
+          cg.stroke(CGRect(
+            x: min(a.x, b.x), y: min(a.y, b.y),
+            width: abs(b.x - a.x), height: abs(b.y - a.y)))
+        }
+        cg.restoreGState()
+      }
+
+      if layers.spawnPoints {
+        for spawn in spawnCoordinates {
+          guard let y = spawn.y else { continue }
+          let blockOnPlane = axis == .x ? spawn.x == fixedX : spawn.z == fixedZ
+          guard blockOnPlane else { continue }
+          let horizontal = axis == .x ? spawn.z : spawn.x
+          guard horizontal >= minimumHorizontal, horizontal <= maximumHorizontal,
+            y >= minimumY, y <= maximumY
+          else { continue }
+          let p = point(horizontal: Double(horizontal) + 0.5, y: Double(y) + 0.5)
+          (spawn.kind == .world ? UIColor.systemYellow : UIColor.systemGreen).setFill()
+          cg.fillEllipse(in: CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8))
+        }
+      }
+
+      if showBuildHeightLimits {
+        let limits: (Int64, Int64)
+        switch BedrockDimension(rawValue: dimension) {
+        case .nether?: limits = (0, 128)
+        case .end?: limits = (0, 256)
+        default: limits = (-64, 320)
+        }
+        cg.saveGState()
+        cg.setStrokeColor(UIColor.systemRed.cgColor)
+        cg.setLineWidth(1.5)
+        cg.setLineDash(phase: 0, lengths: [8, 5])
+        for y in [limits.0, limits.1] {
+          let p = point(horizontal: Double(minimumHorizontal), y: Double(y))
+          if p.y >= -2, p.y <= base.size.height + 2 {
+            cg.move(to: CGPoint(x: 0, y: p.y))
+            cg.addLine(to: CGPoint(x: base.size.width, y: p.y))
+          }
+        }
+        cg.strokePath()
+        cg.restoreGState()
       }
     }
   }
