@@ -63,6 +63,34 @@ final class MCBEEditorTests: XCTestCase {
         XCTAssertEqual(MapCoordinate.chunk(fromBlock: -1), -1)
         XCTAssertEqual(MapCoordinate.chunk(fromBlock: -17), -2)
         XCTAssertEqual(MapCoordinate.chunk(fromBlock: Int64(Int32.max) * 16), Int32.max)
+        XCTAssertEqual(MapCoordinate.floorDiv16(31), 1)
+        XCTAssertEqual(MapCoordinate.floorDiv16(-1), -1)
+        XCTAssertEqual(MapCoordinate.floorDiv16(-16), -1)
+        XCTAssertEqual(MapCoordinate.floorDiv16(-17), -2)
+    }
+
+    func testBlockMapColorsAvoidSubstringCollisionsAndPreserveLegacyVariants() {
+        func color(_ name: String, legacyID: UInt16? = nil, data: UInt8? = nil) -> UInt32 {
+            BedrockBlockMapColorCatalog.rgbHex(for: name, legacyID: legacyID, legacyData: data)
+                ?? BedrockBlockMapColorCatalog.fallbackRGB(for: name)
+        }
+
+        XCTAssertEqual(color("minecraft:soul_sand"), 0x544034)
+        XCTAssertNotEqual(color("minecraft:soul_sand"), color("minecraft:sand"))
+        XCTAssertEqual(color("minecraft:red_sandstone"), 0xB96A39)
+        XCTAssertNotEqual(color("minecraft:red_sandstone"), color("minecraft:red_sand"))
+        XCTAssertNotEqual(color("minecraft:waterlily"), color("minecraft:water"))
+        XCTAssertNotEqual(color("minecraft:underwater_torch"), color("minecraft:water"))
+        XCTAssertNotEqual(color("minecraft:mossy_cobblestone"), color("minecraft:moss_block"))
+        XCTAssertEqual(color("minecraft:stone_bricks"), 0x777777)
+        XCTAssertEqual(color("minecraft:prismarine_bricks"), 0x63A89A)
+        XCTAssertNotEqual(color("minecraft:white_terracotta"), color("minecraft:white_wool"))
+
+        XCTAssertEqual(color("minecraft:sand", legacyID: 12, data: 1), 0xB65A27)
+        XCTAssertEqual(color("minecraft:wool", legacyID: 35, data: 14), 0xB02E26)
+        XCTAssertEqual(color("minecraft:planks", legacyID: 5, data: 5), 0x4B3422)
+        XCTAssertFalse(BedrockBlockIdentifier.isWater("minecraft:waterlily"))
+        XCTAssertTrue(BedrockBlockIdentifier.isWater("minecraft:flowing_water"))
     }
 
     func testDimensionChunkKeyRoundTrip() {

@@ -37,3 +37,13 @@ bash Scripts/bootstrap.sh
 - 世界删除/重命名使用可恢复事务；
 - ZIP 导入增加路径冲突、目录穿越和解压资源限制；
 - 详细说明见 `CHANGES_CODE_AUDIT.md`。
+
+## 地图方块颜色与本轮源码审计
+
+- 地图颜色改为 `BedrockBlockMapColorCatalog` 单一数据源，Y 地图与 X/Z 剖面共用；
+- 修复灵魂沙与普通沙同色，以及 waterlily、mossy cobblestone、stone/prismarine bricks 等模糊字符串误分类；
+- 渲染保留 legacy ID/data，可正确区分旧版红沙、染色方块和木种；
+- 空气/水/岩浆/矿物判定集中到 `BedrockBlockIdentifier`；
+- 负坐标 `floorDiv16` 集中到 `MapCoordinate`；
+- 删除确认无调用的旧 `modernBlockState` 实现，并为颜色结果增加有上限缓存；
+- 详细说明见 `CHANGES_BLOCK_COLORS_PROJECT_AUDIT.md`。

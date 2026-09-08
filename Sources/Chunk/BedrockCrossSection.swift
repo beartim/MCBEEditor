@@ -111,6 +111,8 @@ extension ChunkSurfaceRenderer {
     }
     struct Sample {
       let blockName: String
+      let legacyID: UInt16?
+      let legacyData: UInt8?
       let hasSubChunk: Bool
       let biomeID: UInt32?
       let chunkX: Int32
@@ -125,11 +127,6 @@ extension ChunkSurfaceRenderer {
 
     func localCoordinate(_ value: Int64, chunk: Int32) -> Int {
       Int(value - MapCoordinate.blockOrigin(ofChunk: chunk))
-    }
-
-    func floorDiv16(_ value: Int64) -> Int64 {
-      if value >= 0 { return value / 16 }
-      return -(((-value) + 15) / 16)
     }
 
     func loadChunk(_ position: ChunkPosition) -> CachedChunkData {
@@ -168,20 +165,7 @@ extension ChunkSurfaceRenderer {
     }
 
     func isAir(_ blockName: String) -> Bool {
-      let lowered = blockName.lowercased()
-      return lowered == "minecraft:air"
-        || lowered.hasSuffix(":cave_air")
-        || lowered.hasSuffix(":void_air")
-    }
-
-    func isOreProjectionTarget(_ blockName: String) -> Bool {
-      let lowered = blockName.lowercased()
-      return lowered.contains("_ore")
-        || lowered.contains("ancient_debris")
-        || lowered.contains("raw_iron_block")
-        || lowered.contains("raw_gold_block")
-        || lowered.contains("raw_copper_block")
-        || lowered.contains("amethyst_cluster")
+      BedrockBlockMapColorCatalog.isAir(blockName)
     }
 
     func sampleAt(worldX: Int64, worldZ: Int64, y: Int64) -> Sample {
@@ -189,7 +173,7 @@ extension ChunkSurfaceRenderer {
       let chunkZ = MapCoordinate.chunk(fromBlock: worldZ)
       let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension)
       let cached = loadChunk(position)
-      let subY64 = floorDiv16(y)
+      let subY64 = MapCoordinate.floorDiv16(y)
       let subChunk: BedrockSubChunk?
       if subY64 >= Int64(Int8.min), subY64 <= Int64(Int8.max) {
         subChunk = cached.subChunks[Int8(subY64)]
@@ -211,6 +195,8 @@ extension ChunkSurfaceRenderer {
       // must not be used as an air fallback here.
       return Sample(
         blockName: primary?.name ?? "minecraft:air",
+        legacyID: primary?.legacyID,
+        legacyData: primary?.legacyData,
         hasSubChunk: subChunk != nil,
         biomeID: biomeID,
         chunkX: chunkX,
@@ -250,7 +236,7 @@ extension ChunkSurfaceRenderer {
         if fallback == nil { fallback = value }
 
         if mode == .xray {
-          if isOreProjectionTarget(value.blockName) { return value }
+          if BedrockBlockIdentifier.isHighlightedOre(value.blockName) { return value }
         } else if !isAir(value.blockName) {
           return value
         }
@@ -264,7 +250,7 @@ extension ChunkSurfaceRenderer {
       let chunkX = MapCoordinate.chunk(fromBlock: worldX)
       let chunkZ = MapCoordinate.chunk(fromBlock: worldZ)
       let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: dimension)
-      let subY64 = floorDiv16(y)
+      let subY64 = MapCoordinate.floorDiv16(y)
       guard subY64 >= Int64(Int8.min), subY64 <= Int64(Int8.max) else { return false }
       return loadChunk(position).subChunks[Int8(subY64)] != nil
     }
@@ -286,12 +272,12 @@ extension ChunkSurfaceRenderer {
       let horizontalEndExclusive = maximumHorizontal + 1
       let verticalEndExclusive = maximumY + 1
 
-      var horizontalCellStart = floorDiv16(minimumHorizontal) * 16
+      var horizontalCellStart = MapCoordinate.floorDiv16(minimumHorizontal) * 16
       while horizontalCellStart < horizontalEndExclusive {
         let clippedHorizontalStart = max(horizontalCellStart, minimumHorizontal)
         let clippedHorizontalEnd = min(horizontalCellStart + 16, horizontalEndExclusive)
         if clippedHorizontalEnd > clippedHorizontalStart {
-          var verticalCellStart = floorDiv16(minimumY) * 16
+          var verticalCellStart = MapCoordinate.floorDiv16(minimumY) * 16
           while verticalCellStart < verticalEndExclusive {
             let clippedYStart = max(verticalCellStart, minimumY)
             let clippedYEnd = min(verticalCellStart + 16, verticalEndExclusive)
@@ -331,7 +317,10 @@ extension ChunkSurfaceRenderer {
           ? UIColor(red: 0.25, green: 0.72, blue: 0.25, alpha: 1)
           : UIColor(white: 0.24, alpha: 1)
       default:
-        return crossSectionColor(for: value.blockName, y: Int32(clamping: y), mode: mode)
+        return crossSectionColor(
+          for: value.blockName, legacyID: value.legacyID, legacyData: value.legacyData,
+          y: Int32(clamping: y), mode: mode
+        )
       }
     }
 
@@ -443,7 +432,7 @@ extension ChunkSurfaceRenderer {
         cg.setLineWidth(max(0.15, worldToRaster * 0.15))
 
         let horizontalEndExclusive = maximumHorizontal + 1
-        var boundary = floorDiv16(minimumHorizontal) * 16
+        var boundary = MapCoordinate.floorDiv16(minimumHorizontal) * 16
         if boundary < minimumHorizontal { boundary += 16 }
         while boundary <= horizontalEndExclusive {
           let x = rasterEdge(boundary - minimumHorizontal)
@@ -454,7 +443,7 @@ extension ChunkSurfaceRenderer {
           boundary += 16
         }
 
-        var yBoundary = floorDiv16(minimumY) * 16
+        var yBoundary = MapCoordinate.floorDiv16(minimumY) * 16
         if yBoundary < minimumY { yBoundary += 16 }
         while yBoundary <= maximumY + 1 {
           let yPosition = rasterEdge(maximumY - yBoundary + 1)
@@ -499,11 +488,7 @@ extension ChunkSurfaceRenderer {
     var blocks = [BedrockBlockRecord]()
     blocks.reserveCapacity(Int(upper - cappedLower + 1))
 
-    func floorDiv16(_ value: Int64) -> Int64 {
-      if value >= 0 { return value / 16 }
-      return -(((-value) + 15) / 16)
-    }
-    let subY64 = floorDiv16(Int64(fixedY))
+    let subY64 = MapCoordinate.floorDiv16(Int64(fixedY))
     let localY = Int(Int64(fixedY) - subY64 * 16)
 
     for coordinate in stride(from: upper, through: cappedLower, by: -1) {

@@ -87,6 +87,10 @@ struct Main {
         precondition(MapCoordinate.chunk(fromBlock: Int64(-1)) == -1)
         precondition(MapCoordinate.chunk(fromBlock: Int64(-17)) == -2)
         precondition(MapCoordinate.chunk(fromBlock: Int64(Int32.max) * 16) == Int32.max)
+        precondition(MapCoordinate.floorDiv16(31) == 1)
+        precondition(MapCoordinate.floorDiv16(-1) == -1)
+        precondition(MapCoordinate.floorDiv16(-16) == -1)
+        precondition(MapCoordinate.floorDiv16(-17) == -2)
         precondition(MapCoordinate.chunkDistance(fromBlockDistance: 64) == 4)
         precondition(MapCoordinate.chunkDistance(fromBlockDistance: 65) == 5)
         precondition(MapCoordinate.blockDistance(fromChunkDistance: 4) == 64)
@@ -160,6 +164,25 @@ struct Main {
         let legacyStone = BedrockBlockState(nbt: nil, legacyID: 1, legacyData: 0)
         precondition(legacyStone.name == "minecraft:stone")
         precondition(BedrockLegacyBlockCatalog.searchText(for: legacyStone).contains("0x01"))
+
+        func mapColor(_ name: String, _ legacyID: UInt16? = nil, _ data: UInt8? = nil) -> UInt32 {
+            BedrockBlockMapColorCatalog.rgbHex(for: name, legacyID: legacyID, legacyData: data)
+                ?? BedrockBlockMapColorCatalog.fallbackRGB(for: name)
+        }
+        precondition(mapColor("minecraft:soul_sand") == 0x544034)
+        precondition(mapColor("minecraft:soul_sand") != mapColor("minecraft:sand"))
+        precondition(mapColor("minecraft:red_sandstone") == 0xB96A39)
+        precondition(mapColor("minecraft:red_sandstone") != mapColor("minecraft:red_sand"))
+        precondition(mapColor("minecraft:waterlily") != mapColor("minecraft:water"))
+        precondition(mapColor("minecraft:underwater_torch") != mapColor("minecraft:water"))
+        precondition(mapColor("minecraft:mossy_cobblestone") != mapColor("minecraft:moss_block"))
+        precondition(mapColor("minecraft:stone_bricks") == 0x777777)
+        precondition(mapColor("minecraft:prismarine_bricks") == 0x63A89A)
+        precondition(mapColor("minecraft:white_terracotta") != mapColor("minecraft:white_wool"))
+        precondition(mapColor("minecraft:sand", 12, 1) == 0xB65A27)
+        precondition(mapColor("minecraft:wool", 35, 14) == 0xB02E26)
+        precondition(mapColor("minecraft:planks", 5, 5) == 0x4B3422)
+        precondition(!BedrockBlockIdentifier.isWater("minecraft:waterlily"))
 
         let fillCommand = try WorldCommandParser.parse("fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"")
         if case .fill(let dimension, let box, let storages) = fillCommand {
@@ -432,6 +455,8 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
+  "$ROOT/Sources/Chunk/BedrockBlockMapColorCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
@@ -1217,6 +1242,8 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
+  "$ROOT/Sources/Chunk/BedrockBlockMapColorCatalog.swift" \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
@@ -1269,10 +1296,10 @@ for required in \
   }
 done
 for expected in \
-  'name == "minecraft:vine"' \
-  'UIColor(red: 0.18, green: 0.64, blue: 0.20'; do
-  grep -qF "$expected" "$ROOT/Sources/Chunk/ChunkSurfaceRenderer.swift" || {
-    echo "error: minecraft:vine green map color is missing: $expected" >&2
+  'name.hasSuffix(":vine")' \
+  '0x2E8B3A'; do
+  grep -qF "$expected" "$ROOT/Sources/Chunk/BedrockBlockMapColorCatalog.swift" || {
+    echo "error: minecraft:vine green map color is missing from the shared color catalogue: $expected" >&2
     exit 1
   }
 done
@@ -2082,7 +2109,13 @@ final class VillageNBTStore {
 }
 enum AtomicFile { static func write(_ data: Data, to url: URL) throws { try data.write(to: url) } }
 enum MapCoordinate {
-    static func chunk(fromBlock coordinate: Int64) -> Int32 { Int32(floor(Double(coordinate) / 16.0)) }
+    static func floorDiv16<T: BinaryInteger>(_ coordinate: T) -> Int64 {
+        let value = Int64(clamping: coordinate)
+        let quotient = value / 16
+        let remainder = value % 16
+        return remainder < 0 ? quotient - 1 : quotient
+    }
+    static func chunk(fromBlock coordinate: Int64) -> Int32 { Int32(clamping: floorDiv16(coordinate)) }
     static func blockOrigin(ofChunk chunk: Int32) -> Int64 { Int64(chunk) * 16 }
 }
 struct BedrockBlockRecord {
@@ -2594,6 +2627,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
@@ -4398,6 +4432,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
@@ -4405,6 +4440,7 @@ swiftc -j 4 \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/NBT/ConsecutiveNBTCodec.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
+  "$ROOT/Sources/Chunk/BedrockBlockMapColorCatalog.swift" \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
@@ -4453,3 +4489,6 @@ bash "$ROOT/Scripts/test_nbt_tree_cross_section.sh"
 
 echo "Running fillbiome / info / X-Z selection regression checks..."
 bash "$ROOT/Scripts/test_fillbiome_info_xz_selection.sh"
+
+echo "Running block-color / project-audit regression checks..."
+bash "$ROOT/Scripts/test_block_colors_project_audit.sh"

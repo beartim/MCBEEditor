@@ -3,12 +3,15 @@ import Foundation
 enum MapCoordinate {
     static let blocksPerChunk: Int64 = 16
 
-    static func chunk<T: BinaryInteger>(fromBlock coordinate: T) -> Int32 {
+    static func floorDiv16<T: BinaryInteger>(_ coordinate: T) -> Int64 {
         let value = Int64(clamping: coordinate)
         let quotient = value / blocksPerChunk
         let remainder = value % blocksPerChunk
-        let floored = remainder < 0 ? quotient - 1 : quotient
-        return Int32(clamping: floored)
+        return remainder < 0 ? quotient - 1 : quotient
+    }
+
+    static func chunk<T: BinaryInteger>(fromBlock coordinate: T) -> Int32 {
+        Int32(clamping: floorDiv16(coordinate))
     }
 
     static func blockOrigin(ofChunk chunk: Int32) -> Int64 {

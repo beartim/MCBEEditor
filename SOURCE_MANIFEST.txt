@@ -1,6 +1,7 @@
 .github/workflows/build-ios.yml
 .gitignore
 APPLY.md
+CHANGES_BLOCK_COLORS_PROJECT_AUDIT.md
 CHANGES_BUILD_CORE_TEST_FIX.md
 CHANGES_BUILD_NBTTREE_DIRECTIONAL_LOCK_FIX.md
 CHANGES_BUILD_NBTTREE_INDENTATIONWIDTH_FIX.md
@@ -12,6 +13,7 @@ CHANGES_CODE_AUDIT.md
 CHANGES_COMMAND_ALL_STORAGE_GETBLOCK.md
 CHANGES_ENTITY_IMPORT_FLOAT_TELEPORT.md
 CHANGES_FILLBIOME_INFO_XZ_SELECTION_LIMIT.md
+CHANGES_FILLBIOME_XZ_PICKER_CI_FIX.md
 CHANGES_GIVE_EXISTING_MAINHAND.md
 CHANGES_IOS_PHOTO_TAB_KEYBOARD_FIX.md
 CHANGES_IPHONE_BLOCK_NBT_LEGACY_LINK.md
@@ -89,10 +91,12 @@ Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-iphone-60x60-3x.png
 Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
 Resources/Info.plist
 Resources/LaunchScreen.storyboard
+SOURCE_MANIFEST.txt
 Scripts/bootstrap.sh
 Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
+Scripts/test_block_colors_project_audit.sh
 Scripts/test_fillbiome_info_xz_selection.sh
 Scripts/test_iphone_layout_legacy_block_link.sh
 Scripts/test_legacy_terrain_subchunks.sh
@@ -116,6 +120,7 @@ Sources/Bridge/BTLevelDBBridge.mm
 Sources/Chunk/BedrockBiomeCatalog.swift
 Sources/Chunk/BedrockBiomeData.swift
 Sources/Chunk/BedrockBlockColumn.swift
+Sources/Chunk/BedrockBlockMapColorCatalog.swift
 Sources/Chunk/BedrockBlockSearchScanner.swift
 Sources/Chunk/BedrockChunkStore.swift
 Sources/Chunk/BedrockChunkSubChunkAccess.swift
@@ -148,6 +153,7 @@ Sources/NBT/NBTClipboardCodec.swift
 Sources/NBT/NBTJSONCodec.swift
 Sources/NBT/NBTTypes.swift
 Sources/Support/AtomicFile.swift
+Sources/Support/BedrockBlockIdentifier.swift
 Sources/Support/BedrockDataValueCatalog.swift
 Sources/Support/BedrockLegacyBlockCatalog.swift
 Sources/Support/BedrockLegacyBlockStateConverter.swift
@@ -227,5 +233,3 @@ THIRD_PARTY_NOTICES.md
 Tests/MCBEEditorTests.swift
 Vendor/README.md
 project.yml
-SOURCE_MANIFEST.txt
-CHANGES_FILLBIOME_XZ_PICKER_CI_FIX.md

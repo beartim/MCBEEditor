@@ -87,8 +87,7 @@ struct CommandBlockStateSpec {
     let states: [NBTNamedTag]
 
     var isAir: Bool {
-        let value = name.lowercased()
-        return value == "minecraft:air" || value == "minecraft:cave_air" || value == "minecraft:void_air"
+        BedrockBlockIdentifier.isAir(name)
     }
 
     func modernState(version: Int32?) -> BedrockBlockState {

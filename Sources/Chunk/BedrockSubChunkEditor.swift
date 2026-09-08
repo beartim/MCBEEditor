@@ -901,7 +901,7 @@ final class BedrockBlockNBTStore {
         }
         let chunkX = MapCoordinate.chunk(fromBlock: block.x)
         let chunkZ = MapCoordinate.chunk(fromBlock: block.z)
-        let subChunkY = Int8(floorDiv16(block.y))
+        let subChunkY = Int8(clamping: MapCoordinate.floorDiv16(block.y))
         let localX = Int(block.x - MapCoordinate.blockOrigin(ofChunk: chunkX))
         let localZ = Int(block.z - MapCoordinate.blockOrigin(ofChunk: chunkZ))
         let localY = Int(block.y) - Int(subChunkY) * 16
@@ -1116,44 +1116,6 @@ final class BedrockBlockNBTStore {
         )
     }
 
-    private func modernBlockState(from root: NBTValue, paletteVersion: Int32?) throws -> BedrockBlockState {
-        guard case .compound(let tags) = root else {
-            throw MCBEEditorError.malformedData("现代方块状态根必须是 Compound")
-        }
-        guard let name = tags.first(where: {
-            ["name", "identifier"].contains($0.name.lowercased())
-        }).flatMap({ tag -> String? in
-            guard case .string(let value) = tag.value else { return nil }
-            return value
-        }), !name.isEmpty else {
-            throw MCBEEditorError.malformedData("升级为新版 SubChunk 时必须提供方块 name")
-        }
-        let states: [NBTNamedTag]
-        if let value = tags.first(where: { $0.name.caseInsensitiveCompare("states") == .orderedSame })?.value {
-            guard case .compound(let values) = value else {
-                throw MCBEEditorError.malformedData("方块 states 必须是 Compound")
-            }
-            states = values
-        } else {
-            states = []
-        }
-        let version = tags.first(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame })
-            .flatMap { tag -> Int32? in
-                switch tag.value {
-                case .byte(let value): return Int32(value)
-                case .short(let value): return Int32(value)
-                case .int(let value): return value
-                case .long(let value): return Int32(exactly: value)
-                default: return nil
-                }
-            } ?? paletteVersion ?? BedrockBlockState.defaultPaletteVersion
-        return BedrockBlockState(nbt: .compound([
-            NBTNamedTag(name: "name", value: .string(name)),
-            NBTNamedTag(name: "states", value: .compound(states)),
-            NBTNamedTag(name: "version", value: .int(version))
-        ]), legacyID: nil, legacyData: nil)
-    }
-
     private func adaptedReplacement(
         _ state: BedrockBlockState,
         legacy: Bool,
@@ -1279,11 +1241,6 @@ final class BedrockBlockNBTStore {
             return nil
         }
         return string
-    }
-
-    private func floorDiv16(_ y: Int32) -> Int32 {
-        if y >= 0 { return y / 16 }
-        return (y - 15) / 16
     }
 
 }

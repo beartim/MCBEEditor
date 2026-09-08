@@ -28,8 +28,7 @@ struct BedrockBlockState {
     }
 
     var isAir: Bool {
-        let value = name.lowercased()
-        return value == "minecraft:air" || value == "minecraft:cave_air" || value == "minecraft:void_air" || value == "legacy:0:0"
+        BedrockBlockIdentifier.isAir(name)
     }
 
     var paletteVersion: Int32? {

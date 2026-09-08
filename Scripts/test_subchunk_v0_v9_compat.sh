@@ -195,6 +195,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
   "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \

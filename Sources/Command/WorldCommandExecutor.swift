@@ -1746,7 +1746,7 @@ final class WorldCommandExecutor {
             guard normalized(tag.name) == "name", case .string(let name) = tag.value else { return nil }
             return name.lowercased()
         }
-        return names.contains(where: { $0 == "minecraft:air" || $0.isEmpty })
+        return names.contains(where: { $0.isEmpty || BedrockBlockIdentifier.isAir($0) })
     }
 
     private func removeSpawnTags(in value: NBTValue) -> (value: NBTValue, removedCount: Int) {
@@ -2613,8 +2613,7 @@ private final class CommandBlockStore {
     }
 
     private func subChunkY(for y: Int32) throws -> Int8 {
-        let wide = Int64(y)
-        let quotient = wide >= 0 ? wide / 16 : (wide - 15) / 16
+        let quotient = MapCoordinate.floorDiv16(y)
         guard let value = Int8(exactly: quotient) else {
             throw MCBEEditorError.unsupported("Y=\(y) 超出可编码的 SubChunk 范围")
         }
@@ -2627,7 +2626,7 @@ private final class CommandBlockStore {
         let localX = Int(coordinate.x - MapCoordinate.blockOrigin(ofChunk: chunkX))
         let localZ = Int(coordinate.z - MapCoordinate.blockOrigin(ofChunk: chunkZ))
         let wideY = Int64(coordinate.y)
-        let subY = wideY >= 0 ? wideY / 16 : (wideY - 15) / 16
+        let subY = MapCoordinate.floorDiv16(coordinate.y)
         let localY = Int(wideY - subY * 16)
         return (localX << 8) | (localZ << 4) | localY
     }
