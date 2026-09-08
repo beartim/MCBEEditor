@@ -6,6 +6,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        // Keep the shared Documents/Textures directory available from the first
+        // launch so iTunes File Sharing and the Files app can be used without
+        // any additional in-app setup.
+        BlockTextureOverrideStore.prepareSharedDirectoryAndReload()
+
         // Segmented controls are especially prone to ellipsizing on 4.7–6.1"
         // iPhones. Use a slightly smaller title there while preserving the
         // existing iPad typography.
@@ -22,6 +27,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
+
+
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        // Users may replace PNGs through Files while the app is backgrounded.
+        // Reload here as well; render caches include the override revision so a
+        // subsequent map render immediately uses the changed colours.
+        BlockTextureOverrideStore.prepareSharedDirectoryAndReload()
+    }
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,

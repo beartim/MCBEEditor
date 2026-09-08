@@ -19,6 +19,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
 
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        BlockTextureOverrideStore.prepareSharedDirectoryAndReload()
+    }
+
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         let urls = URLContexts.map { $0.url }
         guard !urls.isEmpty,

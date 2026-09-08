@@ -89,7 +89,7 @@ final class ChunkSurfaceCache {
         mode: MapRenderMode,
         direction: MapProjectionDirection
     ) -> NSString {
-        "\(dimension):\(x):\(z):\(mode.rawValue):\(direction.rawValue)" as NSString
+        "\(dimension):\(x):\(z):\(mode.rawValue):\(direction.rawValue):textures=\(BlockTextureOverrideStore.revision)" as NSString
     }
 }
 
@@ -402,11 +402,13 @@ final class ChunkSurfaceRenderer {
     }
 
     private func surfaceColor(for blockName: String, legacyID: UInt16? = nil, legacyData: UInt8? = nil) -> UIColor {
-        let key = "\(blockName.lowercased())|\(legacyID.map(String.init) ?? "-")|\(legacyData.map(String.init) ?? "-")" as NSString
+        let key = "\(blockName.lowercased())|\(legacyID.map(String.init) ?? "-")|\(legacyData.map(String.init) ?? "-")|textures=\(BlockTextureOverrideStore.revision)" as NSString
         if let cached = blockColorCache.object(forKey: key) { return cached }
-        let hex = BedrockBlockMapColorCatalog.rgbHex(
-            for: blockName, legacyID: legacyID, legacyData: legacyData
-        ) ?? BedrockBlockMapColorCatalog.fallbackRGB(for: blockName)
+        let hex = BlockTextureOverrideStore.rgbHex(for: blockName)
+            ?? BedrockBlockMapColorCatalog.rgbHex(
+                for: blockName, legacyID: legacyID, legacyData: legacyData
+            )
+            ?? BedrockBlockMapColorCatalog.fallbackRGB(for: blockName)
         let color = rgb(hex)
         blockColorCache.setObject(color, forKey: key)
         return color
