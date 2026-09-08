@@ -28,7 +28,6 @@ require 'try Data(readMeText.utf8).write(to: readMeURL, options: .atomic)' "$STO
 forbid '\(WorldCommandParser.helpText())' "$STORE"
 require '当前支持的全部命令（与本版本 help 输出一致）' "$STORE"
 require 'MCBEEditor 不会自动创建、修改或删除 Command.txt。' "$STORE"
-require '并会在 MCBEEditor 每次启动时重置为默认内容。' "$STORE"
 require 'private static let readMeText = """' "$TEXTURES"
 
 # Read Command.txt as UTF-8, skip only blank rows and preserve original line
@@ -82,6 +81,8 @@ require 'self.session.notifyAfterDatabaseMutation()' "$COMMAND_UI"
 # Textures ReadMe remains the exact fixed user-supplied wording.
 require '此目录用于覆盖地图中方块的默认显示颜色。' "$TEXTURES"
 require 'minecraft:bedrock.png）不受支持。' "$TEXTURES"
+require '2. Colors.txt 覆盖' "$TEXTURES"
+require '修改 PNG 或 Colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。' "$TEXTURES"
 forbid '此目录用于覆盖地图与 X/Z 剖面中方块的默认显示颜色。' "$TEXTURES"
 
 # Verify Commands/ReadMe contains a static copy of every current help entry in
@@ -99,7 +100,7 @@ usage = {k: v.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\') for
 expected = '\n\n'.join(usage[name] for name in names)
 readme = re.search(r'private static let readMeText = """\n(.*?)\n"""', store, re.S).group(1)
 marker = '当前支持的全部命令（与本版本 help 输出一致）：\n\n'
-actual = readme.split(marker, 1)[1].split('\n\n注意：本 ReadMe.txt', 1)[0]
+actual = readme.split(marker, 1)[1]
 if actual != expected:
     raise SystemExit('error: fixed Commands/ReadMe help copy is not synchronized with current command help')
 PYEOF

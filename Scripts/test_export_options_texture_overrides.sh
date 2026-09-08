@@ -41,17 +41,17 @@ require 'minecraft_bedrock.png -> minecraft:bedrock' "$STORE"
 require 'minecraft_polished_blackstone.png -> minecraft:polished_blackstone' "$STORE"
 require 'minecraft:bedrock.png）不受支持' "$STORE"
 
-# colors.txt: colon-form block id + #RRGGBB. Invalid lines are skipped by the
+# Colors.txt: colon-form block id + #RRGGBB. Invalid lines are skipped by the
 # guards, duplicate assignment is sequential (last valid line wins), and text
 # entries are merged after PNGs so text always has priority.
-require 'private static let colorsFilename = "colors.txt"' "$STORE"
+require 'private static let colorsFilename = "Colors.txt"' "$STORE"
 require 'let fields = trimmed.split(whereSeparator: { $0.isWhitespace })' "$STORE"
 require 'guard fields.count == 2 else { return }' "$STORE"
 require 'guard text.count == 7, text.first == "#" else { return nil }' "$STORE"
 require 'result[BedrockBlockIdentifier.normalized(identifierText)] = color' "$STORE"
 require 'if let textColors = parseColorsFile(at: colorsURL)' "$STORE"
 require 'loaded[identifier] = color' "$STORE"
-require 'colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。' "$STORE"
+require 'Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。' "$STORE"
 
 # ReadMe is rewritten atomically every preparation/activation.
 require 'private static let readMeFilename = "ReadMe.txt"' "$STORE"
@@ -62,4 +62,4 @@ require 'BlockTextureOverrideStore.rgbHex(for: blockName)' "$RENDER"
 require 'textures=\(BlockTextureOverrideStore.revision)' "$RENDER"
 
 swiftc -parse "$OPTIONS" "$STORE" "$APP" "$SCENE" "$RENDER"
-printf 'export UI / iOS-safe PNG names / colors.txt priority / ReadMe reset checks passed\n'
+printf 'export UI / iOS-safe PNG names / Colors.txt priority / ReadMe reset checks passed\n'

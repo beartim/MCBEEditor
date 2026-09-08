@@ -240,7 +240,5 @@ weather thunder 持续游戏刻 强度 0或1
 强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。
 示例：weather clear 1
 示例：weather thunder 12000 1.0 0
-
-注意：本 ReadMe.txt 是当前版本内置的固定文本，并会在 MCBEEditor 每次启动时重置为默认内容。
 """
 }

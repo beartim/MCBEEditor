@@ -9,7 +9,7 @@ import UIKit
 /// targets `minecraft:bedrock`. The old colon-in-filename form is deliberately
 /// unsupported.
 ///
-/// `colors.txt` uses the normal Bedrock identifier form, one entry per line:
+/// `Colors.txt` uses the normal Bedrock identifier form, one entry per line:
 /// `minecraft:bedrock #808080`. Valid text entries have higher priority than
 /// PNG files, and later duplicate text entries replace earlier ones.
 enum BlockTextureOverrideStore {
@@ -18,7 +18,7 @@ enum BlockTextureOverrideStore {
     private static var revisionValue: UInt64 = 0
 
     private static let readMeFilename = "ReadMe.txt"
-    private static let colorsFilename = "colors.txt"
+    private static let colorsFilename = "Colors.txt"
 
     static var revision: UInt64 {
         lock.lock()
@@ -67,7 +67,7 @@ enum BlockTextureOverrideStore {
             return
         }
 
-        // PNG overrides are loaded first. Any valid colors.txt entry for the
+        // PNG overrides are loaded first. Any valid Colors.txt entry for the
         // same identifier is applied afterwards and therefore completely wins.
         var loaded: [String: UInt32] = [:]
         for url in urls where url.pathExtension.lowercased() == "png" {
@@ -110,7 +110,7 @@ enum BlockTextureOverrideStore {
         return BedrockBlockIdentifier.normalized("\(namespace):\(path)")
     }
 
-    /// Parses `colors.txt` as `identifier #RRGGBB`, one entry per line.
+    /// Parses `Colors.txt` as `identifier #RRGGBB`, one entry per line.
     /// Invalid lines are ignored. Assignment is intentionally sequential so
     /// the last valid occurrence of a duplicated identifier wins.
     private static func parseColorsFile(at url: URL) -> [String: UInt32]? {
@@ -175,18 +175,18 @@ minecraft_polished_blackstone.png -> minecraft:polished_blackstone
 文件名中直接使用冒号的格式（如 minecraft:bedrock.png）不受支持。
 PNG 的可见像素会被计算为一个代表颜色，用于覆盖该方块显示颜色。
 
-2. colors.txt 覆盖
-colors.txt 每行格式必须为：
+2. Colors.txt 覆盖
+Colors.txt 每行格式必须为：
 minecraft:bedrock #808080
 即：完整冒号格式方块 ID + 空格 + #RRGGBB 六位十六进制颜色。
 一行只能包含一个条目。空行会忽略，格式错误的行会忽略。
 同一方块出现多次时，以最后一个有效条目为准。
 
 3. 优先级
-colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
-如果 colors.txt 中存在某方块的有效条目，则忽略该方块对应 PNG 的颜色。
+Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
+如果 Colors.txt 中存在某方块的有效条目，则忽略该方块对应 PNG 的颜色。
 
-修改 PNG 或 colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。
+修改 PNG 或 Colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。
 
 注意：本 ReadMe.txt 由 MCBEEditor 自动生成，并会在程序启动/重新激活时恢复为默认内容。
 """
