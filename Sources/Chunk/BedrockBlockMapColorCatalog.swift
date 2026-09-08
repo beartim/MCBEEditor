@@ -86,14 +86,24 @@ enum BedrockBlockMapColorCatalog {
         if name.hasSuffix(":deny") { return 0xA85B5B }
         if name.contains("border_block") { return 0xB56C60 }
         if name.contains("chalkboard") { return 0x343331 }
-        if name.contains("chemistry_table") || name.contains("camera") { return 0x5E6265 }
+        if name.contains("chemistry_table") || name.contains("compound_creator")
+            || name.contains("lab_table") || name.contains("material_reducer")
+            || name.contains("element_constructor") || name.contains("camera") { return 0x5E6265 }
         if name.contains("chemical_heat") { return 0xD46E35 }
         if name.contains("netherreactor") { return 0x455267 }
         if name.contains("item_frame") || name == "minecraft:frame" { return 0x835432 }
         if name.contains("info_update") { return 0xB06DA8 }
         if name.lowercased().contains("movingblock") || name.contains("moving_block") { return 0x777777 }
-        if name.contains("monster_egg") || name.contains("infested_") { return 0x777777 }
-        if name.contains("element_0") { return 0x8B8B8B }
+        if name.contains("monster_egg") || name.contains("infested_") {
+            // Infested blocks should visually follow the host block rather than collapsing to one
+            // generic gray.  This is especially noticeable for deepslate and mossy variants.
+            if name.contains("deepslate") { return 0x3F4245 }
+            if name.contains("mossy") { return 0x5E7157 }
+            if name.contains("cobblestone") { return 0x686868 }
+            if name.contains("stone_brick") || name.contains("stonebrick") { return 0x777777 }
+            return 0x777777
+        }
+        if name.contains(":element_") { return 0x8B8B8B }
 
         // Transparent/invisible technical blocks.
         if name.hasSuffix(":structure_void") { return airRGB }
@@ -110,9 +120,19 @@ enum BedrockBlockMapColorCatalog {
 
         // Vegetation and organic blocks.
         if name.contains("mangrove_leaves") { return 0x3E7138 }
+        if name.contains("azalea_leaves_flowered") || name.contains("flowering_azalea_leaves") { return 0x718954 }
         if name.contains("azalea_leaves") { return 0x4F8A3A }
+        if name.contains("red_poplar_leaves") { return 0xA84C3F }
+        if name.contains("orange_poplar_leaves") { return 0xC67835 }
+        if name.contains("yellow_poplar_leaves") { return 0xC5B34A }
         if name.contains("cherry_leaves") || name.contains("pink_petals") { return 0xECA7B7 }
         if name.contains("pale_oak_leaves") { return 0x869280 }
+        if name.contains("spruce_leaves") { return 0x426B46 }
+        if name.contains("birch_leaves") { return 0x6F8F46 }
+        if name.contains("jungle_leaves") { return 0x2E7D32 }
+        if name.contains("acacia_leaves") { return 0x507D2A }
+        if name.contains("dark_oak_leaves") || name.contains("darkoak_leaves") { return 0x2E5D2E }
+        if name.contains("oak_leaves") { return 0x3F7D32 }
         if name.contains("leaves") { return 0x3F7D32 }
         if name.hasSuffix(":vine") || name.contains(":vines") { return 0x2E8B3A }
         if name.contains("moss_block") || name.contains("moss_carpet") { return 0x5E9B3B }
@@ -123,6 +143,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("lily_pad") || name.contains("waterlily") { return 0x347A38 }
         if name.contains("cactus") { return 0x3F7F3C }
         if name.contains("sugar_cane") || name.contains("reeds") { return 0x79A94A }
+        if name.contains("dried_kelp_block") { return 0x39452D }
         if name.contains("kelp") || name.contains("seagrass") { return 0x2E6C3A }
         if name.contains("sea_pickle") { return 0x71813C }
         if name.contains("sapling") { return 0x4C7E32 }
@@ -135,11 +156,10 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("melon") { return 0x76A83D }
         if name.contains("pumpkin") { return 0xC87525 }
         if name.contains("cocoa") { return 0x81522D }
-        if name.contains("flower") || name.contains("poppy") || name.contains("dandelion") {
-            if name.contains("blue") { return 0x5C85C9 }
-            if name.contains("yellow") || name.contains("dandelion") { return 0xE0C83E }
-            return 0xB94A4A
-        }
+        if let flower = flowerRGB(name) { return flower }
+        // Unknown/new flowers should not silently become poppy-red.  Distinct known flowers are
+        // handled above; a muted blossom pink is a safer visual fallback for future flower IDs.
+        if name.contains("flower") || name.contains("blossom") { return 0xC9828E }
         if name.contains("mycelium") { return 0x705A6A }
         if name.contains("podzol") { return 0x6B4B2A }
         if name.contains("mud_brick") { return 0x77645A }
@@ -161,6 +181,12 @@ enum BedrockBlockMapColorCatalog {
         // Stone/mineral host families.  Specific brick families stay material-coloured instead
         // of falling into the old generic red `brick` substring rule.
         if name.contains("bedrock") { return 0x3A3A3A }
+        if name.contains("cinnabar") { return name.contains("polished") ? 0xB45B49 : 0xA64A3C }
+        if name.contains("sulfur") {
+            if name.contains("potent_sulfur") { return 0xE0C93A }
+            if name.contains("polished") || name.contains("brick") { return 0xCDBE4A }
+            return 0xD8CB4B
+        }
         if name.contains("sculk") { return 0x12383B }
         if name.contains("dripstone") { return 0x6F594C }
         if name.contains("calcite") { return 0xD7D4CB }
@@ -197,7 +223,7 @@ enum BedrockBlockMapColorCatalog {
 
         // Wood species. Plant forms were handled above so `oak_sapling` never becomes timber.
         if name.contains("pale_oak") { return 0xC6BEA7 }
-        if name.contains("dark_oak") { return 0x4B3422 }
+        if name.contains("dark_oak") || name.contains("darkoak") { return 0x4B3422 }
         if name.contains("spruce") { return 0x6B4A2B }
         if name.contains("birch") { return 0xC4B87A }
         if name.contains("jungle") { return 0x9A6B36 }
@@ -207,6 +233,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("bamboo") { return 0xA9B744 }
         if name.contains("crimson") { return 0x7C334A }
         if name.contains("warped") { return 0x247A75 }
+        if name.contains("poplar") { return 0xA88B61 }
         if name.contains("oak") { return 0x9B743F }
         if isGenericWood(name) { return 0x8B6336 }
 
@@ -223,13 +250,18 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("chorus") { return 0x8B5A89 }
 
         // Copper/metal/gem blocks and distinctive decorative blocks.
-        if name.contains("oxidized_copper") { return 0x4F9C85 }
-        if name.contains("weathered_copper") { return 0x6D8F75 }
-        if name.contains("exposed_copper") { return 0xA66B4A }
-        if name.contains("copper") { return 0xC46C43 }
+        // Raw storage blocks must precede the generic copper family.  Oxidation checks use the
+        // stage token rather than the exact `oxidized_copper` substring so cut/grate/bulb/door
+        // variants such as `waxed_oxidized_cut_copper_stairs` keep the correct patina colour.
         if name.contains("raw_iron_block") { return 0xC9A18B }
         if name.contains("raw_gold_block") { return 0xD5B24C }
         if name.contains("raw_copper_block") { return 0xA86245 }
+        if name.contains("copper") {
+            if name.contains("oxidized") { return 0x4F9C85 }
+            if name.contains("weathered") { return 0x6D8F75 }
+            if name.contains("exposed") { return 0xA66B4A }
+            return 0xC46C43
+        }
         if name.contains("gold_block") { return 0xE5BE32 }
         if name.contains("iron_block") { return 0xC8C5BC }
         if name.contains("diamond_block") { return 0x53C8C2 }
@@ -240,6 +272,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("obsidian") { return name.contains("glowing") ? 0x563D76 : 0x241B35 }
         if name.contains("amethyst") { return 0x8B5CB5 }
         if name.contains("bone_block") { return 0xD8D2B7 }
+        if name.contains("wet_sponge") { return 0x9E9B3F }
         if name.contains("sponge") { return 0xC9BC3B }
         if name.contains("sea_lantern") { return 0xC8DED2 }
         if name.contains("resin") { return 0xC65F2C }
@@ -255,7 +288,8 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("tnt") { return 0xB94A3F }
         if name.contains("bookshelf") { return 0x795533 }
         if name.contains("chest") || name.contains("barrel") { return 0x8B5A2B }
-        if name.contains("crafting_table") || name.contains("jukebox") || name.contains("noteblock") { return 0x79502F }
+        if name.contains("crafting_table") || name.contains("jukebox") || name.contains("noteblock")
+            || name.contains("note_block") { return 0x79502F }
         if name.contains("furnace") || name.contains("dispenser") || name.contains("dropper")
             || name.contains("observer") || name.contains("stonecutter") || name.contains("crafter") {
             return 0x666666
@@ -263,7 +297,8 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("piston") { return 0x8A7A58 }
         if name.contains("hopper") || name.contains("anvil") || name.contains("cauldron") { return 0x55585A }
         if name.contains("rail") { return name.contains("golden") || name.contains("powered") ? 0xB89C43 : 0x807B70 }
-        if name.contains("torch") || name.contains("lantern") || name.contains("campfire") { return 0xD39A43 }
+        if name.hasSuffix(":campfire") { return 0x8B5C36 }
+        if name.contains("torch") || name.contains("lantern") { return 0xD39A43 }
         if name.hasSuffix(":fire") { return 0xE55A1C }
         if name.contains("web") { return 0xD9D9D9 }
         if name.contains("cake") { return 0xE5D0B4 }
@@ -289,11 +324,15 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:respawn_anchor": return 0x40314F
         case "minecraft:end_bricks", "minecraft:end_stone_bricks": return 0xD0D18F
         case "minecraft:chorus_flower": return 0xA565A0
+        case "minecraft:sunflower", "minecraft:sun_flower": return 0xE2B93B
 
         // Redstone: these all used to become generic stone/torch colours.
         case "minecraft:redstone_wire": return 0xA32222
         case "minecraft:redstone_torch": return 0xC53A2F
         case "minecraft:unlit_redstone_torch": return 0x68302B
+        case "minecraft:command_block": return 0xB98168
+        case "minecraft:chain_command_block": return 0x5F8F69
+        case "minecraft:repeating_command_block": return 0x8266A8
 
         // Containers and workstation blocks.
         case "minecraft:trapped_chest": return 0x8A4B29
@@ -305,6 +344,7 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:smithing_table": return 0x4F514C
         case "minecraft:composter": return 0x72502C
         case "minecraft:smoker": return 0x5A5149
+        case "minecraft:lit_smoker": return 0x67584B
         case "minecraft:beehive": return 0xB88935
         case "minecraft:bee_nest": return 0xD2A33C
 
@@ -312,7 +352,7 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:bell": return 0xD0A43A
         case "minecraft:conduit": return 0x5D9B90
         case "minecraft:lodestone": return 0x707575
-        case "minecraft:chain": return 0x555B60
+        case "minecraft:chain", "minecraft:iron_chain": return 0x555B60
         case "minecraft:lightning_rod": return 0xB76A46
         case "minecraft:target": return 0xD8C9AA
         case "minecraft:heavy_core": return 0x4F5355
@@ -320,6 +360,7 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:ominous_vault": return 0x444A46
         case "minecraft:jigsaw": return 0xA58D73
         case "minecraft:barrier": return 0xC95B5B
+        case "minecraft:unknown": return 0x8A4F9B
 
         // Honey / eggs / other recognizable decorative blocks.
         case "minecraft:honey_block": return 0xD79A26
@@ -328,6 +369,16 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:sniffer_egg": return 0x52766C
         case "minecraft:frog_spawn": return 0x82967F
         case "minecraft:suspicious_sand": return 0xC8B783
+        case "minecraft:suspicious_gravel": return 0x817973
+        case "minecraft:dried_ghast": return 0xC8C2B6
+        case "minecraft:glow_frame": return 0xA07843
+        case "minecraft:dragon_head": return 0x34303A
+        case "minecraft:creeper_head": return 0x5D8649
+        case "minecraft:skeleton_skull": return 0xC9C5B2
+        case "minecraft:wither_skeleton_skull": return 0x3A3538
+        case "minecraft:zombie_head": return 0x66794C
+        case "minecraft:piglin_head": return 0x9A6953
+        case "minecraft:player_head": return 0x9A7C69
 
         // Legacy aliases whose old identifiers pre-date modern snake_case.
         case "minecraft:sealantern": return 0xC8DED2
@@ -345,7 +396,8 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:spore_blossom": return 0xA86F8B
         case "minecraft:azalea": return 0x56853E
         case "minecraft:flowering_azalea": return 0x6E8A4B
-        case "minecraft:big_dripleaf", "minecraft:small_dripleaf": return 0x4E7E3A
+        case "minecraft:big_dripleaf", "minecraft:small_dripleaf",
+             "minecraft:small_dripleaf_block": return 0x4E7E3A
         case "minecraft:hanging_roots": return 0x7B5A3A
         case "minecraft:glow_lichen": return 0x66796D
         case "minecraft:leaf_litter": return 0x806744
@@ -353,6 +405,11 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:mangrove_roots": return 0x6B4A34
         case "minecraft:muddy_mangrove_roots": return 0x55483E
         case "minecraft:scaffolding": return 0xB79A50
+        case "minecraft:deadbush": return 0x78603A
+        case "minecraft:red_shrub": return 0x9A5544
+        case "minecraft:mushroom_stem": return 0xC4B7A5
+        case "minecraft:cave_vines", "minecraft:cave_vines_body_with_berries",
+             "minecraft:cave_vines_head_with_berries": return 0x5D843B
 
         // Pale-garden blocks.
         case "minecraft:pale_moss_block", "minecraft:pale_moss_carpet": return 0x87947F
@@ -367,6 +424,10 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:weeping_vines", "minecraft:weeping_vines_plant": return 0x8C2D3E
         case "minecraft:twisting_vines", "minecraft:twisting_vines_plant": return 0x26867B
         case "minecraft:nether_sprouts": return 0x348779
+        case "minecraft:crimson_fungus": return 0x9B3949
+        case "minecraft:warped_fungus": return 0x2C8B7F
+        case "minecraft:crimson_roots": return 0x8A3141
+        case "minecraft:warped_roots": return 0x2B7E75
         case "minecraft:ancient_debris": return 0x5A4038
         case "minecraft:netherite_block": return 0x454146
         case "minecraft:gilded_blackstone": return 0x4E4434
@@ -375,6 +436,19 @@ enum BedrockBlockMapColorCatalog {
         // Transparent/special light blocks.
         case "minecraft:tinted_glass": return 0x4B4654
         case "minecraft:light_block", "minecraft:light": return 0xEEE7A0
+        case "minecraft:jack_o_lantern", "minecraft:lit_pumpkin": return 0xD98B28
+        case "minecraft:trial_spawner": return 0x52655F
+        case "minecraft:crafter": return 0x76695B
+        case "minecraft:sculk_sensor": return 0x18494A
+        case "minecraft:calibrated_sculk_sensor": return 0x3B5559
+        case "minecraft:sculk_catalyst": return 0x183D3B
+        case "minecraft:sculk_shrieker": return 0x334746
+        case "minecraft:sculk_vein": return 0x123436
+        case "minecraft:colored_torch_red": return 0xD94A3A
+        case "minecraft:colored_torch_green": return 0x55B95B
+        case "minecraft:colored_torch_blue": return 0x4B73D1
+        case "minecraft:colored_torch_purple": return 0x9B5BC2
+        case "minecraft:copper_torch": return 0x58A88F
 
         // Froglights have deliberately different vanilla hues.
         case "minecraft:ochre_froglight": return 0xE4C66C
@@ -382,6 +456,15 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:pearlescent_froglight": return 0xD7B9D3
 
         default: break
+        }
+
+        if name.contains(":light_block_") { return 0xEEE7A0 }
+
+        if name.contains("lightning_rod") {
+            if name.contains("oxidized") { return 0x4F9C85 }
+            if name.contains("weathered") { return 0x6D8F75 }
+            if name.contains("exposed") { return 0xA66B4A }
+            return 0xB76A46
         }
 
         // Coral is a large block family and deserves semantic colour rather than fallback hashes.
@@ -397,7 +480,8 @@ enum BedrockBlockMapColorCatalog {
             || name.contains("bamboo_door") || name.contains("bamboo_trapdoor")
             || name.contains("bamboo_stairs") || name.contains("bamboo_slab")
             || name.contains("bamboo_fence") || name.contains("bamboo_button")
-            || name.contains("bamboo_pressure_plate") || name.contains("bamboo_sign") {
+            || name.contains("bamboo_pressure_plate") || name.contains("bamboo_sign")
+            || name.contains("bamboo_shelf") {
             return 0xB5A256
         }
 
@@ -407,7 +491,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("firefly_bush") { return 0x557E42 }
         if name.contains("dry_grass") { return 0x9B874B }
         if name.contains("wildflowers") { return 0xB89A4B }
-        if name.contains("bush") { return 0x557A3E }
+        if name.contains("bush") && !name.contains("deadbush") && !name.contains("rose_bush") { return 0x557A3E }
 
         return nil
     }
@@ -447,6 +531,11 @@ enum BedrockBlockMapColorCatalog {
         case 12: return meta == 1 ? 0xB65A27 : 0xDEC98A
         case 17: return woodRGB(speciesIndex: meta & 0x03)
         case 18: return leafRGB(speciesIndex: meta & 0x03)
+        case 37: return 0xE0C83E // dandelion / yellow flower
+        case 38: return legacyRedFlowerRGB(meta: meta)
+        case 175: return legacyDoublePlantRGB(meta: meta)
+        case 202: return (meta & 0x01) == 0 ? 0xD94A3A : 0x55B95B // red / green torch
+        case 204: return (meta & 0x01) == 0 ? 0x4B73D1 : 0x9B5BC2 // blue / purple torch
         case 35, 160, 171, 218, 236, 237, 241, 254:
             let base = dyeRGB[meta]
             if id == 95 || id == 160 || id == 241 || id == 254 { return blend(base, with: 0xE8F1F2, percentSecond: 24) }
@@ -470,8 +559,60 @@ enum BedrockBlockMapColorCatalog {
         }
     }
 
+    private static func flowerRGB(_ name: String) -> UInt32? {
+        switch name {
+        case "minecraft:yellow_flower", "minecraft:dandelion": return 0xE0C83E
+        case "minecraft:golden_dandelion": return 0xEBC43B
+        case "minecraft:red_flower", "minecraft:poppy", "minecraft:red_tulip",
+             "minecraft:rose_bush": return 0xB94A4A
+        case "minecraft:blue_orchid": return 0x5C91D0
+        case "minecraft:allium": return 0xA56BC0
+        case "minecraft:azure_bluet": return 0xDAD8CE
+        case "minecraft:orange_tulip": return 0xE47B2A
+        case "minecraft:white_tulip", "minecraft:oxeye_daisy",
+             "minecraft:lily_of_the_valley": return 0xE6E4D8
+        case "minecraft:pink_tulip", "minecraft:peony": return 0xE58FA8
+        case "minecraft:cornflower": return 0x5579C6
+        case "minecraft:wither_rose": return 0x3B2B3E
+        case "minecraft:sunflower", "minecraft:sun_flower": return 0xE2B93B
+        case "minecraft:lilac": return 0xB57AB8
+        default: return nil
+        }
+    }
+
+    private static func legacyRedFlowerRGB(meta: Int) -> UInt32 {
+        switch meta & 0x0F {
+        case 1: return 0x5C91D0 // blue orchid
+        case 2: return 0xA56BC0 // allium
+        case 3: return 0xDAD8CE // azure bluet
+        case 4: return 0xB94A4A // red tulip
+        case 5: return 0xE47B2A // orange tulip
+        case 6: return 0xE6E4D8 // white tulip
+        case 7: return 0xE58FA8 // pink tulip
+        case 8: return 0xE6E4D8 // oxeye daisy
+        case 9: return 0x5579C6 // cornflower (later legacy palettes)
+        case 10: return 0xE6E4D8 // lily of the valley
+        default: return 0xB94A4A // poppy
+        }
+    }
+
+    private static func legacyDoublePlantRGB(meta: Int) -> UInt32 {
+        switch meta & 0x07 {
+        case 0: return 0xE2B93B // sunflower
+        case 1: return 0xB57AB8 // lilac
+        case 2: return 0x5E9B3B // double tall grass
+        case 3: return 0x4F813E // large fern
+        case 4: return 0xB94A4A // rose bush
+        case 5: return 0xE58FA8 // peony
+        default: return 0x5E913D
+        }
+    }
+
     private static func dyedFamilyRGB(_ name: String) -> UInt32? {
         let dyeIndex = dyeIndex(in: name)
+
+        // Straw beds are a naturally yellow/tan block, not an undyed white bed.
+        if name == "minecraft:straw_bed" { return 0xC7A84A }
 
         if name.contains("terracotta") || name.contains("hardened_clay") {
             if name.contains("glazed_terracotta") {
@@ -485,6 +626,7 @@ enum BedrockBlockMapColorCatalog {
             || name.contains("_bed") || name.contains("banner")
         guard usesDye else { return nil }
         if name.contains("shulker_box"), dyeIndex == nil { return 0x8B5C8F }
+        if name.contains("candle"), dyeIndex == nil { return 0xD6C28B }
 
         let base = dyeIndex.map { dyeRGB[$0] } ?? dyeRGB[0]
         if name.contains("stained_glass") { return blend(base, with: 0xE8F1F2, percentSecond: 24) }

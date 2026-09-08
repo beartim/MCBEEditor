@@ -36,6 +36,82 @@ struct Main {
         precondition(color("minecraft:twisting_vines") != color("minecraft:vine"))
         precondition(color("minecraft:trapped_chest") != color("minecraft:ender_chest"))
 
+        // Third-pass flower/plant audit.  These used to collapse into the generic red-flower or
+        // green-bush rules.  Sunflower aliases must stay yellow and every common flower keeps a
+        // visually meaningful hue.
+        precondition(color("minecraft:sun_flower") == 0xE2B93B)
+        precondition(color("minecraft:sunflower") == color("minecraft:sun_flower"))
+        precondition(color("minecraft:sunflower") != color("minecraft:red_flower"))
+        precondition(color("minecraft:blue_orchid") == 0x5C91D0)
+        precondition(color("minecraft:allium") == 0xA56BC0)
+        precondition(color("minecraft:azure_bluet") == 0xDAD8CE)
+        precondition(color("minecraft:orange_tulip") == 0xE47B2A)
+        precondition(color("minecraft:white_tulip") == 0xE6E4D8)
+        precondition(color("minecraft:pink_tulip") == 0xE58FA8)
+        precondition(color("minecraft:cornflower") == 0x5579C6)
+        precondition(color("minecraft:wither_rose") == 0x3B2B3E)
+        precondition(color("minecraft:lilac") == 0xB57AB8)
+        precondition(color("minecraft:peony") == 0xE58FA8)
+        precondition(color("minecraft:deadbush") == 0x78603A)
+        precondition(color("minecraft:deadbush") != color("minecraft:bush"))
+        precondition(color("minecraft:dried_kelp_block") != color("minecraft:kelp"))
+        precondition(color("minecraft:wet_sponge") != color("minecraft:sponge"))
+
+        // Copper rules must inspect the oxidation token anywhere in the identifier and must not
+        // steal raw-copper storage blocks.
+        precondition(color("minecraft:raw_copper_block") == 0xA86245)
+        precondition(color("minecraft:waxed_oxidized_cut_copper_stairs") == 0x4F9C85)
+        precondition(color("minecraft:waxed_weathered_copper_lantern") == 0x6D8F75)
+        precondition(color("minecraft:exposed_cut_copper_slab") == 0xA66B4A)
+        precondition(color("minecraft:copper_block") == 0xC46C43)
+
+        // Current Bedrock families added after the original colour table should use semantic
+        // colours rather than identifier-hash fallbacks.
+        precondition(color("minecraft:cinnabar") == 0xA64A3C)
+        precondition(color("minecraft:polished_cinnabar") == 0xB45B49)
+        precondition(color("minecraft:sulfur") == 0xD8CB4B)
+        precondition(color("minecraft:polished_sulfur") == 0xCDBE4A)
+        precondition(color("minecraft:potent_sulfur") == 0xE0C93A)
+        precondition(color("minecraft:golden_dandelion") == 0xEBC43B)
+        precondition(color("minecraft:red_poplar_leaves") == 0xA84C3F)
+        precondition(color("minecraft:orange_poplar_leaves") == 0xC67835)
+        precondition(color("minecraft:yellow_poplar_leaves") == 0xC5B34A)
+        precondition(color("minecraft:red_poplar_leaves") != color("minecraft:poplar_planks"))
+        precondition(color("minecraft:poplar_planks") == 0xA88B61)
+        precondition(color("minecraft:red_shrub") == 0x9A5544)
+        precondition(color("minecraft:small_dripleaf_block") == color("minecraft:small_dripleaf"))
+        precondition(color("minecraft:iron_chain") == color("minecraft:chain"))
+        precondition(color("minecraft:straw_bed") == 0xC7A84A)
+        precondition(color("minecraft:straw_bed") != color("minecraft:white_bed"))
+        precondition(color("minecraft:infested_deepslate") == 0x3F4245)
+        precondition(color("minecraft:infested_mossy_stone_bricks") == 0x5E7157)
+        precondition(color("minecraft:infested_cobblestone") == 0x686868)
+        precondition(color("minecraft:dried_ghast") == 0xC8C2B6)
+        precondition(color("minecraft:copper_torch") == 0x58A88F)
+        precondition(color("minecraft:light_block_15") == 0xEEE7A0)
+        precondition(color("minecraft:element_118") == 0x8B8B8B)
+        precondition(color("minecraft:darkoak_standing_sign") == 0x4B3422)
+        precondition(color("minecraft:darkoak_standing_sign") != color("minecraft:oak_standing_sign"))
+        precondition(color("minecraft:spruce_leaves") == 0x426B46)
+        precondition(color("minecraft:birch_leaves") == 0x6F8F46)
+        precondition(color("minecraft:acacia_leaves") == 0x507D2A)
+        precondition(color("minecraft:dark_oak_leaves") == 0x2E5D2E)
+        precondition(color("minecraft:candle") == 0xD6C28B)
+        precondition(color("minecraft:candle") != color("minecraft:white_candle"))
+        precondition(color("minecraft:oxidized_lightning_rod") == 0x4F9C85)
+        precondition(color("minecraft:weathered_lightning_rod") == 0x6D8F75)
+        precondition(color("minecraft:exposed_lightning_rod") == 0xA66B4A)
+        precondition(color("minecraft:chain_command_block") == 0x5F8F69)
+        precondition(color("minecraft:repeating_command_block") == 0x8266A8)
+        precondition(color("minecraft:chain_command_block") != color("minecraft:command_block"))
+        precondition(color("minecraft:repeating_command_block") != color("minecraft:command_block"))
+        precondition(color("minecraft:lit_smoker") != color("minecraft:furnace"))
+        precondition(color("minecraft:lit_pumpkin") == color("minecraft:jack_o_lantern"))
+        precondition(color("minecraft:skeleton_skull") == 0xC9C5B2)
+        precondition(color("minecraft:wither_skeleton_skull") == 0x3A3538)
+        precondition(color("minecraft:skeleton_skull") != color("minecraft:wither_skeleton_skull"))
+        precondition(color("minecraft:unknown") == 0x8A4F9B)
+
         // Legacy identifier aliases and metadata-driven families.
         precondition(color("minecraft:seaLantern") == color("minecraft:sea_lantern"))
         precondition(color("minecraft:invisibleBedrock", 95, 0) == 0x3A3A3A)
@@ -43,10 +119,27 @@ struct Main {
         precondition(color("minecraft:shulker_box", 218, 11) == 0x3C44AA)
         precondition(color("minecraft:silver_glazed_terracotta") == 0x9D9D97)
         precondition(color("minecraft:pumpkin_stem") == color("minecraft:melon_stem"))
+        // Legacy red_flower and double_plant IDs encode the actual flower in data.
+        precondition(color("minecraft:red_flower", 38, 0) == 0xB94A4A)
+        precondition(color("minecraft:red_flower", 38, 1) == 0x5C91D0)
+        precondition(color("minecraft:red_flower", 38, 2) == 0xA56BC0)
+        precondition(color("minecraft:red_flower", 38, 5) == 0xE47B2A)
+        precondition(color("minecraft:red_flower", 38, 7) == 0xE58FA8)
+        precondition(color("minecraft:double_plant", 175, 0) == 0xE2B93B)
+        precondition(color("minecraft:double_plant", 175, 1) == 0xB57AB8)
+        precondition(color("minecraft:double_plant", 175, 4) == 0xB94A4A)
+        precondition(color("minecraft:double_plant", 175, 5) == 0xE58FA8)
+        precondition(color("minecraft:colored_torch_rg", 202, 0) == 0xD94A3A)
+        precondition(color("minecraft:colored_torch_rg", 202, 1) == 0x55B95B)
+        precondition(color("minecraft:colored_torch_bp", 204, 0) == 0x4B73D1)
+        precondition(color("minecraft:colored_torch_bp", 204, 1) == 0x9B5BC2)
 
         // Distinct newer families should never fall back to identifier-hash colours.
         let representativeModernBlocks = [
             "minecraft:ender_chest", "minecraft:trapped_chest", "minecraft:barrel",
+            "minecraft:sunflower", "minecraft:sun_flower", "minecraft:blue_orchid",
+            "minecraft:allium", "minecraft:azure_bluet", "minecraft:cornflower",
+            "minecraft:lilac", "minecraft:peony", "minecraft:wither_rose",
             "minecraft:lectern", "minecraft:loom", "minecraft:cartography_table",
             "minecraft:fletching_table", "minecraft:smithing_table", "minecraft:composter",
             "minecraft:smoker", "minecraft:blast_furnace", "minecraft:grindstone",
@@ -88,7 +181,16 @@ struct Main {
             "minecraft:piston", "minecraft:sticky_piston", "minecraft:hopper", "minecraft:anvil",
             "minecraft:cauldron", "minecraft:beacon", "minecraft:enchanting_table",
             "minecraft:chiseled_bookshelf", "minecraft:bookshelf", "minecraft:jigsaw",
-            "minecraft:barrier", "minecraft:light_block"
+            "minecraft:barrier", "minecraft:light_block", "minecraft:light_block_15",
+            "minecraft:cinnabar", "minecraft:polished_cinnabar", "minecraft:sulfur",
+            "minecraft:polished_sulfur", "minecraft:potent_sulfur", "minecraft:golden_dandelion",
+            "minecraft:poplar_planks", "minecraft:red_poplar_leaves", "minecraft:orange_poplar_leaves",
+            "minecraft:yellow_poplar_leaves", "minecraft:red_shrub", "minecraft:small_dripleaf_block",
+            "minecraft:iron_chain", "minecraft:straw_bed", "minecraft:infested_deepslate",
+            "minecraft:chain_command_block", "minecraft:repeating_command_block",
+            "minecraft:lit_smoker", "minecraft:lit_pumpkin", "minecraft:skeleton_skull",
+            "minecraft:wither_skeleton_skull", "minecraft:unknown", "minecraft:dried_ghast",
+            "minecraft:dried_kelp_block", "minecraft:copper_torch", "minecraft:element_118"
         ]
         let modernFallbacks = representativeModernBlocks.filter { semantic($0) == nil }
         precondition(modernFallbacks.isEmpty, "Unexpected modern block fallback(s): \(modernFallbacks)")
