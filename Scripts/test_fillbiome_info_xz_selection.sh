@@ -20,7 +20,10 @@ require_fixed "$MAP" 'let maximumCoordinate = centerCoordinate + crossSectionSel
 require_fixed "$MAP" 'automaticSelectionMaximumCoordinate: centerCoordinate' 'X/Z picker auto-selection must be capped at the current rendered plane'
 PICKER="$ROOT/Sources/UI/BlockAxisPickerViewController.swift"
 require_fixed "$PICKER" 'automaticSelectionMaximumCoordinate: Int64? = nil' 'X/Z picker must accept an automatic-selection upper bound'
-require_fixed "$PICKER" 'coordinate <= automaticUpperBound && !block.primaryState.isAir' 'X/Z auto-selection must choose the largest non-air coordinate not exceeding the rendered plane'
+require_fixed "$PICKER" 'guard coordinate >= automaticLowerBound, coordinate <= automaticUpperBound else { return false }' 'X/Z auto-selection must stay inside the requested projection range'
+require_fixed "$PICKER" 'if preferHighlightedOre {' 'X/Z picker must support ore-priority automatic selection'
+require_fixed "$PICKER" 'return BedrockBlockIdentifier.isHighlightedOre(block.primaryState.name)' 'X/Z ore view must choose the largest highlighted ore inside the projection range'
+require_fixed "$PICKER" 'return !block.primaryState.isAir' 'normal X/Z mode must keep choosing the largest non-air block inside the projection range'
 
 require_fixed "$COMMAND" '"fillbiome"' 'fillbiome must be registered'
 require_fixed "$COMMAND" 'case fillBiome(targetDimension: Int32, region: CommandBlockBox, biome: CommandBiomeID)' 'fillbiome parsed command case is missing'
