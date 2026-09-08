@@ -10,6 +10,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // launch so iTunes File Sharing and the Files app can be used without
         // any additional in-app setup.
         BlockTextureOverrideStore.prepareSharedDirectoryAndReload()
+        SharedCommandFileStore.prepareSharedDirectory()
 
         // Segmented controls are especially prone to ellipsizing on 4.7–6.1"
         // iPhones. Use a slightly smaller title there while preserving the

@@ -159,40 +159,41 @@ enum BlockTextureOverrideStore {
         return UInt32(digits, radix: 16)
     }
 
-    /// ReadMe is intentionally rewritten on every preparation so its contents
-    /// always describe the exact formats supported by this build.
+    /// The Textures ReadMe is a fixed text resource embedded in this build and
+    /// is intentionally restored verbatim on every launch / activation.
+    private static let readMeText = """
+MCBEEditor Textures 文件夹说明
+
+此目录用于覆盖地图中方块的默认显示颜色。
+
+1. PNG 覆盖
+文件名必须使用 iOS 兼容格式：命名空间_方块名.png。
+程序只把文件名中的第一个下划线转换为冒号。
+例如：
+minecraft_bedrock.png -> minecraft:bedrock
+minecraft_polished_blackstone.png -> minecraft:polished_blackstone
+文件名中直接使用冒号的格式（如 minecraft:bedrock.png）不受支持。
+PNG 的可见像素会被计算为一个代表颜色，用于覆盖该方块显示颜色。
+
+2. colors.txt 覆盖
+colors.txt 每行格式必须为：
+minecraft:bedrock #808080
+即：完整冒号格式方块 ID + 空格 + #RRGGBB 六位十六进制颜色。
+一行只能包含一个条目。空行会忽略，格式错误的行会忽略。
+同一方块出现多次时，以最后一个有效条目为准。
+
+3. 优先级
+colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
+如果 colors.txt 中存在某方块的有效条目，则忽略该方块对应 PNG 的颜色。
+
+修改 PNG 或 colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。
+
+注意：本 ReadMe.txt 由 MCBEEditor 自动生成，并会在程序启动/重新激活时恢复为默认内容。
+"""
+
     private static func writeReadMe(in directory: URL) throws {
         let url = directory.appendingPathComponent(readMeFilename, isDirectory: false)
-        let text = """
-        MCBEEditor Textures 文件夹说明
-
-        此目录用于覆盖地图与 X/Z 剖面中方块的默认显示颜色。
-
-        1. PNG 覆盖
-        文件名必须使用 iOS 兼容格式：命名空间_方块名.png。
-        程序只把文件名中的第一个下划线转换为冒号。
-        例如：
-        minecraft_bedrock.png -> minecraft:bedrock
-        minecraft_polished_blackstone.png -> minecraft:polished_blackstone
-        文件名中直接使用冒号的旧格式（如 minecraft:bedrock.png）不再支持。
-        PNG 的可见像素会被计算为一个代表颜色，用于覆盖该方块显示颜色。
-
-        2. colors.txt 覆盖
-        colors.txt 每行格式必须为：
-        minecraft:bedrock #808080
-        即：完整冒号格式方块 ID + 空格 + #RRGGBB 六位十六进制颜色。
-        一行只能包含一个条目。空行会忽略，格式错误的行会忽略。
-        同一方块出现多次时，以最后一个有效条目为准。
-
-        3. 优先级
-        colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
-        如果 colors.txt 中存在某方块的有效条目，则忽略该方块对应 PNG 的颜色。
-
-        修改 PNG 或 colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。
-
-        注意：本 ReadMe.txt 由 MCBEEditor 自动生成，并会在程序启动/重新激活时恢复为默认内容。
-        """
-        try Data(text.utf8).write(to: url, options: .atomic)
+        try Data(readMeText.utf8).write(to: url, options: .atomic)
     }
 
     private static func averageRGB(ofPNGAt url: URL) -> UInt32? {

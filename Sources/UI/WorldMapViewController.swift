@@ -3545,6 +3545,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       || selectionMapPanOrigin != nil || selectionPinchOriginZoom != nil
   }
 
+  /// Stops any in-flight map read before a shared Command.txt batch begins.
+  /// The batch posts one database-mutation notification after execution, which
+  /// starts a fresh render from the updated world state.
+  func prepareForSharedCommandBatch() {
+    activeRenderToken?.cancel()
+    panDebounceWorkItem?.cancel()
+    panDebounceWorkItem = nil
+    activeRenderToken = nil
+    isRendering = false
+    shareButton.isEnabled = lastRenderedImage != nil
+  }
+
   private func cancelInFlightRenderForUserInteraction() {
     panDebounceWorkItem?.cancel()
     panDebounceWorkItem = nil

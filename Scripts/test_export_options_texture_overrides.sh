@@ -39,7 +39,7 @@ require 'let underscore = trimmed.firstIndex(of: "_")' "$STORE"
 require 'return BedrockBlockIdentifier.normalized("\(namespace):\(path)")' "$STORE"
 require 'minecraft_bedrock.png -> minecraft:bedrock' "$STORE"
 require 'minecraft_polished_blackstone.png -> minecraft:polished_blackstone' "$STORE"
-require 'minecraft:bedrock.png）不再支持' "$STORE"
+require 'minecraft:bedrock.png）不受支持' "$STORE"
 
 # colors.txt: colon-form block id + #RRGGBB. Invalid lines are skipped by the
 # guards, duplicate assignment is sequential (last valid line wins), and text
@@ -56,7 +56,7 @@ require 'colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
 # ReadMe is rewritten atomically every preparation/activation.
 require 'private static let readMeFilename = "ReadMe.txt"' "$STORE"
 require 'try writeReadMe(in: directory)' "$STORE"
-require 'try Data(text.utf8).write(to: url, options: .atomic)' "$STORE"
+require 'try Data(readMeText.utf8).write(to: url, options: .atomic)' "$STORE"
 
 require 'BlockTextureOverrideStore.rgbHex(for: blockName)' "$RENDER"
 require 'textures=\(BlockTextureOverrideStore.revision)' "$RENDER"

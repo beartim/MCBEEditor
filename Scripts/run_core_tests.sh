@@ -4545,3 +4545,5 @@ echo "Running full block-color semantic audit..."
 bash "$ROOT/Scripts/test_block_colors_full_audit.sh"
 
 bash "$ROOT/Scripts/test_export_options_texture_overrides.sh"
+
+bash "$ROOT/Scripts/test_shared_command_file.sh"

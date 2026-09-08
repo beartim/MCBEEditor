@@ -1,5 +1,11 @@
 import UIKit
 
+struct ValidatedSharedWorldCommand {
+    let lineNumber: Int
+    let rawText: String
+    let command: ParsedWorldCommand
+}
+
 final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let session: WorldSession
     private let executor: WorldCommandExecutor
@@ -285,6 +291,78 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
                     self.setRunning(false)
                 }
+            }
+        }
+    }
+
+    /// Executes a Command.txt batch that has already passed the parser for every
+    /// non-empty source line. Each command and its result are appended to the
+    /// terminal immediately before the next command starts, so Command.txt is a
+    /// live audit trail rather than a report printed only after the whole batch.
+    /// Runtime failures do not stop later commands.
+    func executeValidatedSharedCommands(
+        _ commands: [ValidatedSharedWorldCommand],
+        completion: @escaping () -> Void
+    ) {
+        guard !commands.isEmpty else {
+            completion()
+            return
+        }
+        loadViewIfNeeded()
+        guard !running else {
+            completion()
+            return
+        }
+
+        inputField.resignFirstResponder()
+        setRunning(true)
+        appendOutput("[Command.txt] 开始执行，共 \(commands.count) 条命令。", color: .systemBlue)
+
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            var changedWorld = false
+            var failureCount = 0
+
+            for item in commands {
+                DispatchQueue.main.sync {
+                    self.appendOutput("[第 \(item.lineNumber) 行] > \(item.rawText)")
+                }
+
+                do {
+                    let result = try self.executor.execute(item.command)
+                    changedWorld = changedWorld || result.changedWorld
+                    DispatchQueue.main.sync {
+                        if result.outputLines.isEmpty {
+                            self.appendOutput(result.message, color: .systemGreen)
+                        } else {
+                            for line in result.outputLines {
+                                self.appendOutput(line.text, color: self.outputColor(for: line.style))
+                            }
+                        }
+                    }
+                } catch {
+                    failureCount += 1
+                    let message = error.localizedDescription
+                    DispatchQueue.main.sync {
+                        self.appendOutput("错误：\(message)", color: .systemRed)
+                    }
+                }
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if changedWorld {
+                    // A single invalidation after the serial batch avoids
+                    // refreshing other tabs between commands while retaining
+                    // normal post-write behavior once the batch is complete.
+                    self.session.notifyAfterDatabaseMutation()
+                }
+                let summary = failureCount == 0
+                    ? "[Command.txt] 全部命令执行完成。"
+                    : "[Command.txt] 执行完成：\(failureCount) 条命令发生运行时错误，其余命令已继续执行。"
+                self.appendOutput(summary, color: failureCount == 0 ? .systemGreen : .systemRed)
+                self.setRunning(false)
+                completion()
             }
         }
     }
