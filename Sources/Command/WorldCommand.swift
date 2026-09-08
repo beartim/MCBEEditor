@@ -258,6 +258,7 @@ enum ParsedWorldCommand {
     )
     case getBlock(targetDimension: Int32, position: CommandBlockCoordinate)
     case storage(operation: CommandStorageOperation)
+    case chunk(operation: CommandChunkOperation)
     case setWorldSpawn(position: CommandBlockCoordinate)
     case spawnPoint(target: CommandTarget, dimension: Int32, position: CommandBlockCoordinate)
     case teleport(target: CommandTarget, dimension: Int32, x: Double, y: CommandTeleportY, z: Double)
@@ -270,6 +271,12 @@ enum ParsedWorldCommand {
     case tickingArea(operation: CommandTickingAreaOperation)
 }
 
+
+enum CommandChunkOperation {
+    case query(dimension: Int32?, x: Int32?, z: Int32?)
+    case empty(dimension: Int32, x: Int32, z: Int32)
+    case regenerate(dimension: Int32, x: Int32, z: Int32)
+}
 
 enum CommandStorageOperation {
     case query(dimension: Int32, position: CommandBlockCoordinate)
@@ -445,7 +452,7 @@ enum CommandEffectNBT {
 
 enum WorldCommandParser {
     static let commandNames = [
-        "help", "info", "clear", "clearspawnpoint", "clone", "daylock", "effect", "experience", "fill", "fillbiome", "getblock", "give", "kill", "kick",
+        "help", "info", "clear", "clearspawnpoint", "clone", "chunk", "daylock", "effect", "experience", "fill", "fillbiome", "getblock", "give", "kill", "kick",
         "setblock", "setworldspawn", "spawnpoint", "spread", "storage", "structure", "summon", "teleport",
         "tickingarea", "time", "weather"
     ]
@@ -457,6 +464,7 @@ enum WorldCommandParser {
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。\n示例：clearspawnpoint @a",
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度必须为 overworld、nether 或 the_end。复制源区域两角到目标维度的目标起点；v8 或更新的已知结构化 SubChunk 会逐方块复制所有实际存在的 storage，并把目标多余 storage 在复制位置清为空气；旧数字格式仍按 layer0 + LegacyBlockExtraData layer1 处理。涉及未加载区块时会先写入空气区块与生成完成状态；重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9",
+        "chunk": "chunk query [维度 [区块X 区块Z]]\nchunk empty [维度] 区块X 区块Z\nchunk regenerate [维度] 区块X 区块Z\nquery 无后续参数时按主世界、下界、末地顺序逐行用蓝色输出全部已加载区块的信息和生成情况；指定维度时只显示该维度；再指定区块 X/Z 时只查询该坐标。empty 与 regenerate 复用区块栏的清空/重新生成功能；省略维度时默认 overworld。\n示例：chunk query\n示例：chunk query overworld\n示例：chunk query overworld 0 0\n示例：chunk empty 0 0\n示例：chunk regenerate nether -2 5",
         "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间接受完整 Int32（包括负数）；效果等级接受 -128～255，仍按 Bedrock Byte 原始值写入（例如 -1 与 255 都写为 0xFF）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect give @a strength -1 -1\n示例：effect clear @e ALL",
         "experience": "experience add 目标 整数\nexperience addlevel 目标 整数\nexperience level 目标 0到24791整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。add 按总经验增减并自动换算等级和经验条；addlevel 增减经验等级并保留当前经验条百分比；level 直接设定经验等级并把经验条进度设为 0，等级范围均为 0～24791；percent 修改当前经验条百分比；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience add @a 100\n示例：experience addlevel -4294967270 -3\n示例：experience level @s 30\n示例：experience percent @s 0.5\n示例：experience query @a\n示例：experience set @s 2500",
         "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states [层1方块名 层1states ...]\n维度必须为 overworld、nether 或 the_end。至少提供 storage0，layer1 及之后都可省略；后续参数必须按 方块名+states 成对出现，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 仅能原地表示 layer0/1 的数字 ID；使用更多 storage 或现代 states 时自动升级为现代 SubChunk。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL",
@@ -503,6 +511,48 @@ enum WorldCommandParser {
         case "clearspawnpoint":
             guard arguments.count == 1 else { throw usageError(command) }
             return .clearSpawnPoint(target: try parseTarget(arguments[0]))
+        case "chunk":
+            guard let action = arguments.first else { throw usageError(command) }
+            switch action {
+            case "query":
+                switch arguments.count {
+                case 1:
+                    return .chunk(operation: .query(dimension: nil, x: nil, z: nil))
+                case 2:
+                    return .chunk(operation: .query(
+                        dimension: try parseDimension(arguments[1]), x: nil, z: nil
+                    ))
+                case 4:
+                    return .chunk(operation: .query(
+                        dimension: try parseDimension(arguments[1]),
+                        x: try parseChunkCoordinate(arguments[2], name: "区块 X"),
+                        z: try parseChunkCoordinate(arguments[3], name: "区块 Z")
+                    ))
+                default:
+                    throw usageError(command)
+                }
+            case "empty", "regenerate":
+                let dimension: Int32
+                let x: Int32
+                let z: Int32
+                switch arguments.count {
+                case 3:
+                    dimension = 0
+                    x = try parseChunkCoordinate(arguments[1], name: "区块 X")
+                    z = try parseChunkCoordinate(arguments[2], name: "区块 Z")
+                case 4:
+                    dimension = try parseDimension(arguments[1])
+                    x = try parseChunkCoordinate(arguments[2], name: "区块 X")
+                    z = try parseChunkCoordinate(arguments[3], name: "区块 Z")
+                default:
+                    throw usageError(command)
+                }
+                return .chunk(operation: action == "empty"
+                    ? .empty(dimension: dimension, x: x, z: z)
+                    : .regenerate(dimension: dimension, x: x, z: z))
+            default:
+                throw usageError(command)
+            }
         case "daylock":
             guard arguments.count == 1 else { throw usageError(command) }
             return .dayLock(locked: try parseBooleanFlag(arguments[0], name: "是否锁定时间"))

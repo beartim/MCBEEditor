@@ -3933,13 +3933,14 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let axis = currentSliceAxis
     guard axis == .x || axis == .z else { return }
     let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
-    // Keep the full ±128 axis line available for manual selection. The visible
-    // projection itself only looks toward the negative axis, so the picker
-    // receives `centerCoordinate` separately as the automatic-selection upper
-    // bound: rows above the rendered plane remain manually selectable but are
-    // never chosen automatically.
+    // Mineral view reads exactly the same negative-axis slab as the X/Z xray
+    // projection: current X/Z through current X/Z-128 (both endpoints). Other
+    // block modes keep the existing ±128 line so users can manually inspect
+    // either side of the selected plane.
     let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange
-    let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange
+    let maximumCoordinate = currentMode == .xray
+      ? centerCoordinate
+      : centerCoordinate + crossSectionSelectionHalfRange
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
     renderQueue.async { [weak self] in
@@ -3960,7 +3961,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           let picker = BlockAxisPickerViewController(
             result: result,
             initialCoordinate: initial,
-            automaticSelectionMaximumCoordinate: centerCoordinate
+            automaticSelectionMaximumCoordinate: centerCoordinate,
+            preferHighlightedOre: self.currentMode == .xray
           ) { [weak self] block in
             self?.selectBlock(block)
           }
@@ -6063,7 +6065,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         villages: verticalSlice ? false : showVillages,
         spawnPoints: showSpawnPoints,
         grid: false,
-        ungeneratedDisplay: .transparent
+        ungeneratedDisplay: verticalSlice ? .air : .transparent
       ),
       hasSelectedRegion: !verticalSlice && isSelectionMode && selectedRegion != nil,
       isCrossSection: verticalSlice
@@ -6388,8 +6390,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let intersectingSummaries: [BedrockChunkSummary]
 
         if scope == .loadedDimension {
-          let projectionMinimum = (axis == .x ? fixedX : fixedZ) - 127
           let projectionMaximum = axis == .x ? fixedX : fixedZ
+          let projectionNegativeDistance: Int64 = mode == .xray ? 128 : 127
+          let projectionMinimum = projectionMaximum - projectionNegativeDistance
           let minimumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMinimum)
           let maximumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMaximum)
           intersectingSummaries = allSummaries.filter {
@@ -6464,6 +6467,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           maximumRasterSide: 4096,
           showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
           transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,
+          airUngeneratedSubChunks: layers.ungeneratedDisplay == .air,
           tickingAreas: tickingAreas,
           horizontalRange: horizontalRange,
           verticalRange: verticalRange,

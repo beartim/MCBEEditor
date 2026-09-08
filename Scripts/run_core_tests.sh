@@ -219,6 +219,14 @@ struct Main {
             precondition((try? WorldCommandParser.parse("storage clear overworld 0 64 0 255")) != nil)
             precondition((try? WorldCommandParser.parse("storage clear overworld 0 64 0 256")) == nil)
             precondition((try? WorldCommandParser.parse("effect give @a strength -1 -1")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk query")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk query overworld")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk query the_end -12 34")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk query 0 0")) == nil)
+            precondition((try? WorldCommandParser.parse("chunk empty 0 0")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk empty nether -2 5")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk regenerate 0 0")) != nil)
+            precondition((try? WorldCommandParser.parse("chunk regenerate the_end 2 -3")) != nil)
         } else {
             preconditionFailure("fill command parsed as wrong command")
         }
@@ -4406,6 +4414,43 @@ struct EffectCommandTest {
         precondition(importedRoot != nil)
         precondition(BedrockEntityCommonNBT.dimension(in: importedRoot!) == nil)
         precondition(importedRoot!.stringValue(namedAny: ["CustomOnly"]) == "keep")
+
+        // chunk query/empty/regenerate: query rows are blue (.block), all-dimension
+        // output is ordered overworld -> nether -> the_end, empty keeps a generated
+        // air skeleton, and regenerate removes the coordinate back to ungenerated.
+        let chunkPositions = [
+            ChunkPosition(x: 30_001, z: -30_001, dimension: 0),
+            ChunkPosition(x: 30_002, z: -30_002, dimension: 1),
+            ChunkPosition(x: 30_003, z: -30_003, dimension: 2)
+        ]
+        for position in chunkPositions {
+            let records = BedrockEmptyChunk.metadataRecords(at: position)
+            try session.db.applyBatch(
+                puts: records.map { ($0.key, $0.value) }, deletes: [], sync: true
+            )
+        }
+        let chunkQueryAll = try executor.execute(try WorldCommandParser.parse("chunk query"))
+        let uniqueChunkRows = chunkQueryAll.outputLines.enumerated().compactMap { index, line -> (Int, Int32)? in
+            guard let position = chunkPositions.first(where: { line.text.contains($0.dimension == 0
+                ? "overworld (\($0.x), \($0.z))"
+                : ($0.dimension == 1 ? "nether (\($0.x), \($0.z))" : "the_end (\($0.x), \($0.z))")) }) else { return nil }
+            if case .block = line.style {} else { preconditionFailure("chunk query row must be blue/block style") }
+            return (index, position.dimension)
+        }
+        precondition(uniqueChunkRows.count == 3)
+        precondition(uniqueChunkRows[0].1 == 0 && uniqueChunkRows[1].1 == 1 && uniqueChunkRows[2].1 == 2)
+
+        let exactAir = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
+        precondition(exactAir.outputLines.count == 1)
+        precondition(exactAir.message.contains("生成=已生成（空气/无SubChunk）"))
+        let emptied = try executor.execute(try WorldCommandParser.parse("chunk empty 30001 -30001"))
+        precondition(emptied.changedWorld)
+        let stillGenerated = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
+        precondition(stillGenerated.message.contains("生成=已生成（空气/无SubChunk）"))
+        let regenerated = try executor.execute(try WorldCommandParser.parse("chunk regenerate overworld 30001 -30001"))
+        precondition(regenerated.changedWorld)
+        let nowUngenerated = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
+        precondition(nowUngenerated.message.contains("生成=未生成"))
 
         let floatingSummon = try executor.execute(try WorldCommandParser.parse(
             "summon minecraft:pig overworld 12.5 66.25 -2.75 default"

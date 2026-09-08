@@ -11,6 +11,7 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
     result: BedrockBlockAxisLineResult,
     initialCoordinate: Int64?,
     automaticSelectionMaximumCoordinate: Int64? = nil,
+    preferHighlightedOre: Bool = false,
     onSelect: @escaping (BedrockBlockRecord) -> Void
   ) {
     self.result = result
@@ -18,13 +19,19 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
     // `blockAxisLine` is ordered from the largest X/Z coordinate downward and
     // intentionally keeps the full ±128 manual-selection range. Automatic
     // selection, however, must represent the negative-axis projection: ignore
-    // any row whose X/Z is above the current rendered plane, then choose the
-    // largest remaining non-air coordinate.
+    // any row whose X/Z is above the current rendered plane. Normal block
+    // modes choose the largest remaining non-air coordinate; mineral view
+    // instead chooses the largest highlighted-ore coordinate.
     let automaticUpperBound = automaticSelectionMaximumCoordinate ?? Int64.max
-    if let index = result.blocks.firstIndex(where: { block in
+    let automaticIndex = result.blocks.firstIndex(where: { block in
       let coordinate = result.axis == .x ? block.x : block.z
-      return coordinate <= automaticUpperBound && !block.primaryState.isAir
-    }) {
+      guard coordinate <= automaticUpperBound else { return false }
+      if preferHighlightedOre {
+        return BedrockBlockIdentifier.isHighlightedOre(block.primaryState.name)
+      }
+      return !block.primaryState.isAir
+    })
+    if let index = automaticIndex {
       selectedRow = index
     } else if let initialCoordinate = initialCoordinate,
       let index = result.blocks.firstIndex(where: {

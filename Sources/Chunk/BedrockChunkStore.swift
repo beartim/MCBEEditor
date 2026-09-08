@@ -10,6 +10,8 @@ struct BedrockChunkSummary: Hashable {
     let hasBlockEntities: Bool
     let hasLegacyEntities: Bool
     let hasActorDigest: Bool
+    let hasVersionRecord: Bool
+    let hasFinalizedState: Bool
     let biomeRecordType: ChunkRecordType?
     let hasHardcodedSpawners: Bool
 
@@ -82,6 +84,8 @@ final class BedrockChunkStore {
             var hasBlockEntities = false
             var hasLegacyEntities = false
             var hasActorDigest = false
+            var hasVersionRecord = false
+            var hasFinalizedState = false
             var biomeRecordType: ChunkRecordType?
             var hasHardcodedSpawners = false
         }
@@ -94,6 +98,8 @@ final class BedrockChunkStore {
                 value.records += 1
                 if key.recordType == .subChunk, let y = key.subChunkIndex { value.subChunkYs.insert(y) }
                 if key.recordType == .legacyTerrain { value.hasLegacyTerrain = true }
+                if key.recordType == .version || key.recordType == .legacyVersion { value.hasVersionRecord = true }
+                if key.recordType == .finalizedState { value.hasFinalizedState = true }
                 if key.recordType == .blockEntity { value.hasBlockEntities = true }
                 if key.recordType == .entity { value.hasLegacyEntities = true }
                 if [.data3D, .data2D, .data2DLegacy].contains(key.recordType) {
@@ -121,6 +127,8 @@ final class BedrockChunkStore {
                 hasBlockEntities: accumulator.hasBlockEntities,
                 hasLegacyEntities: accumulator.hasLegacyEntities,
                 hasActorDigest: accumulator.hasActorDigest,
+                hasVersionRecord: accumulator.hasVersionRecord,
+                hasFinalizedState: accumulator.hasFinalizedState,
                 biomeRecordType: accumulator.biomeRecordType,
                 hasHardcodedSpawners: accumulator.hasHardcodedSpawners
             )
@@ -137,6 +145,8 @@ final class BedrockChunkStore {
         var hasLegacyTerrain = false
         var hasBlockEntities = false
         var hasLegacyEntities = false
+        var hasVersionRecord = false
+        var hasFinalizedState = false
         var biomeRecordType: ChunkRecordType?
         var hasHardcodedSpawners = false
 
@@ -144,6 +154,8 @@ final class BedrockChunkStore {
             guard let parsed = BedrockDBKey.parse(record.key), parsed.position == position else { continue }
             if parsed.recordType == .subChunk, let y = parsed.subChunkIndex { subChunkYs.insert(y) }
             if parsed.recordType == .legacyTerrain { hasLegacyTerrain = true }
+            if parsed.recordType == .version || parsed.recordType == .legacyVersion { hasVersionRecord = true }
+            if parsed.recordType == .finalizedState { hasFinalizedState = true }
             if parsed.recordType == .blockEntity { hasBlockEntities = true }
             if parsed.recordType == .entity { hasLegacyEntities = true }
             if [.data3D, .data2D, .data2DLegacy].contains(parsed.recordType) {
@@ -167,6 +179,8 @@ final class BedrockChunkStore {
             hasBlockEntities: hasBlockEntities,
             hasLegacyEntities: hasLegacyEntities,
             hasActorDigest: digestCount > 0,
+            hasVersionRecord: hasVersionRecord,
+            hasFinalizedState: hasFinalizedState,
             biomeRecordType: biomeRecordType,
             hasHardcodedSpawners: hasHardcodedSpawners
         )

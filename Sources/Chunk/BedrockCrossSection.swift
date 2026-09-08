@@ -50,6 +50,7 @@ extension ChunkSurfaceRenderer {
     maximumRasterSide: Int = 2048,
     showUngeneratedSubChunks: Bool = false,
     transparentUngeneratedSubChunks: Bool = false,
+    airUngeneratedSubChunks: Bool = false,
     tickingAreas: [BedrockTickingArea] = [],
     horizontalRange: ClosedRange<Int64>? = nil,
     verticalRange: ClosedRange<Int64>? = nil,
@@ -223,7 +224,11 @@ extension ChunkSurfaceRenderer {
       // non-air block in the 128-block slab instead of depending on incidental
       // loop/fallback order.
       let maximumProjectionCoordinate = axis == .x ? fixedX : fixedZ
-      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(rayDepth - 1)
+      // Mineral view includes both endpoints requested by the UI: current X/Z
+      // through current X/Z-128. With projectionDepth=128 this is 129 sampled
+      // coordinates. Other block modes retain their established 128-cell slab.
+      let projectionNegativeDistance = mode == .xray ? rayDepth : max(0, rayDepth - 1)
+      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(projectionNegativeDistance)
       var fallback: Sample?
       for coordinate in stride(
         from: maximumProjectionCoordinate,
@@ -267,7 +272,7 @@ extension ChunkSurfaceRenderer {
     /// world-to-raster transform as the 16-block grid and cannot drift away
     /// from the grid when the viewport origin or sample stride changes.
     func ungeneratedPlaneSubChunkRects() -> [CGRect] {
-      guard showUngeneratedSubChunks || transparentUngeneratedSubChunks else { return [] }
+      guard showUngeneratedSubChunks || transparentUngeneratedSubChunks || airUngeneratedSubChunks else { return [] }
       var rects = [CGRect]()
       let horizontalEndExclusive = maximumHorizontal + 1
       let verticalEndExclusive = maximumY + 1
@@ -357,6 +362,13 @@ extension ChunkSurfaceRenderer {
         }
       }
 
+      if airUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
+        // Export option “空气” must really hide projected terrain behind a
+        // missing selected-plane SubChunk, matching the Y-map air placeholder.
+        UIColor.systemGray5.setFill()
+        for rect in exactUngeneratedRects where !rect.isEmpty { context.fill(rect) }
+      }
+
       if transparentUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
         for rect in exactUngeneratedRects where !rect.isEmpty { cg.clear(rect) }
       }
@@ -424,10 +436,14 @@ extension ChunkSurfaceRenderer {
       }
 
       if drawSubChunkGrid {
-        // Match the Y-map grid exactly, and draw it after missing-section hatch
-        // so the 16-block boundaries remain visible on top of the texture.
-        cg.setShouldAntialias(false)
-        cg.setAllowsAntialiasing(false)
+        // Draw after the missing-section hatch so 16-block boundaries stay
+        // visible. Keep the path itself on the exact world block edge and use
+        // antialiasing so the visible stroke is centered on that edge. With
+        // non-antialiased sub-pixel strokes Core Graphics snaps the coverage to
+        // one side, making the stroke's outer edge (rather than its center) line
+        // up with the block boundary.
+        cg.setShouldAntialias(true)
+        cg.setAllowsAntialiasing(true)
         cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
         cg.setLineWidth(max(0.15, worldToRaster * 0.15))
 

@@ -137,6 +137,8 @@ final class WorldCommandExecutor {
             return try executeGetBlock(dimension: targetDimension, position: position)
         case .storage(let operation):
             return try executeStorage(operation)
+        case .chunk(let operation):
+            return try executeChunk(operation)
         case .setWorldSpawn(let position):
             return WorldCommandExecutionResult(message: try setWorldSpawn(position), changedWorld: true)
         case .spawnPoint(let target, let dimension, let position):
@@ -167,6 +169,81 @@ final class WorldCommandExecutor {
             let result = try executeTickingArea(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         }
+    }
+
+    // MARK: chunk query / empty / regenerate
+
+    private func executeChunk(_ operation: CommandChunkOperation) throws -> WorldCommandExecutionResult {
+        let store = BedrockChunkStore(session: session)
+        switch operation {
+        case .query(let dimension, let x, let z):
+            let summaries: [BedrockChunkSummary]
+            if let dimension = dimension, let x = x, let z = z {
+                let summary = try store.summary(at: ChunkPosition(x: x, z: z, dimension: dimension))
+                summaries = [summary]
+            } else {
+                summaries = try store.listChunks().filter { summary in
+                    guard BedrockDimension(rawValue: summary.position.dimension) != nil else { return false }
+                    return dimension == nil || summary.position.dimension == dimension
+                }.sorted { lhs, rhs in
+                    if lhs.position.dimension != rhs.position.dimension {
+                        return lhs.position.dimension < rhs.position.dimension
+                    }
+                    if lhs.position.z != rhs.position.z { return lhs.position.z < rhs.position.z }
+                    return lhs.position.x < rhs.position.x
+                }
+            }
+
+            let lines: [WorldCommandOutputLine]
+            if summaries.isEmpty {
+                let scope = dimension.map { WorldCommandParser.dimensionName(for: $0) } ?? "overworld/nether/the_end"
+                lines = [WorldCommandOutputLine(text: "chunk query：\(scope) 没有已加载区块", style: .block)]
+            } else {
+                lines = summaries.map { summary in
+                    WorldCommandOutputLine(text: chunkQueryLine(summary), style: .block)
+                }
+            }
+            return WorldCommandExecutionResult(
+                message: lines.map(\.text).joined(separator: "\n"),
+                changedWorld: false,
+                outputLines: lines
+            )
+
+        case .empty(let dimension, let x, let z):
+            let position = ChunkPosition(x: x, z: z, dimension: dimension)
+            let result = try store.clearChunk(position)
+            var extras = [String]()
+            if result.deletedDigestCount > 0 { extras.append("Actor索引 \(result.deletedDigestCount)") }
+            if result.deletedActorCount > 0 { extras.append("Actor \(result.deletedActorCount)") }
+            let suffix = extras.isEmpty ? "" : "；删除" + extras.joined(separator: "、")
+            let message = "chunk empty 完成：\(WorldCommandParser.dimensionName(for: dimension)) (\(x), \(z))；删除 \(result.deletedChunkRecordCount) 条区块记录\(suffix)，写入 \(result.createdMetadataRecordCount) 条已生成空气区块元数据。"
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
+
+        case .regenerate(let dimension, let x, let z):
+            let position = ChunkPosition(x: x, z: z, dimension: dimension)
+            let result = try store.regenerateChunk(position)
+            var extras = [String]()
+            if result.deletedDigestCount > 0 { extras.append("Actor索引 \(result.deletedDigestCount)") }
+            if result.deletedActorCount > 0 { extras.append("Actor \(result.deletedActorCount)") }
+            let suffix = extras.isEmpty ? "" : "；删除" + extras.joined(separator: "、")
+            let message = "chunk regenerate 完成：\(WorldCommandParser.dimensionName(for: dimension)) (\(x), \(z))；删除 \(result.deletedChunkRecordCount) 条区块记录\(suffix)。Minecraft 下次加载该位置时会按种子重新生成。"
+            return WorldCommandExecutionResult(message: message, changedWorld: true)
+        }
+    }
+
+    private func chunkQueryLine(_ summary: BedrockChunkSummary) -> String {
+        let generation: String
+        if summary.recordCount == 0 {
+            generation = "未生成"
+        } else if summary.hasTerrain {
+            generation = "已生成"
+        } else if summary.hasVersionRecord && summary.hasFinalizedState {
+            generation = "已生成（空气/无SubChunk）"
+        } else {
+            generation = "已加载（生成状态不完整）"
+        }
+        let dimension = WorldCommandParser.dimensionName(for: summary.position.dimension)
+        return "\(dimension) \(summary.coordinateText) · 生成=\(generation) · \(summary.detailText)"
     }
 
     // MARK: block/storage query and direct storage editing
