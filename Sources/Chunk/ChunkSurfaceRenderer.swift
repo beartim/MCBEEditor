@@ -39,6 +39,12 @@ private final class CachedChunkBox: NSObject {
     init(result: ChunkSurfaceResult) { self.result = result }
 }
 
+
+enum MapProjectionDirection: Int {
+    case positiveToNegative
+    case negativeToPositive
+}
+
 final class ChunkSurfaceCache {
     private let cache = NSCache<NSString, CachedChunkBox>()
 
@@ -47,24 +53,43 @@ final class ChunkSurfaceCache {
         cache.totalCostLimit = 64 * 1024 * 1024
     }
 
-    func result(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) -> ChunkSurfaceResult? {
-        cache.object(forKey: key(x: x, z: z, dimension: dimension, mode: mode))?.result
+    func result(
+        x: Int32,
+        z: Int32,
+        dimension: Int32,
+        mode: MapRenderMode,
+        direction: MapProjectionDirection
+    ) -> ChunkSurfaceResult? {
+        cache.object(forKey: key(x: x, z: z, dimension: dimension, mode: mode, direction: direction))?.result
     }
 
-    func insert(_ result: ChunkSurfaceResult, x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) {
+    func insert(
+        _ result: ChunkSurfaceResult,
+        x: Int32,
+        z: Int32,
+        dimension: Int32,
+        mode: MapRenderMode,
+        direction: MapProjectionDirection
+    ) {
         let nameBytes = result.blockNames.reduce(0) { $0 + $1.utf8.count }
         let cost = 16 * 16 * 4 + result.blockHeights.count * 2 + result.biomeIDs.count * 4 + nameBytes
         cache.setObject(
             CachedChunkBox(result: result),
-            forKey: key(x: x, z: z, dimension: dimension, mode: mode),
+            forKey: key(x: x, z: z, dimension: dimension, mode: mode, direction: direction),
             cost: cost
         )
     }
 
     func removeAll() { cache.removeAllObjects() }
 
-    private func key(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) -> NSString {
-        "\(dimension):\(x):\(z):\(mode.rawValue)" as NSString
+    private func key(
+        x: Int32,
+        z: Int32,
+        dimension: Int32,
+        mode: MapRenderMode,
+        direction: MapProjectionDirection
+    ) -> NSString {
+        "\(dimension):\(x):\(z):\(mode.rawValue):\(direction.rawValue)" as NSString
     }
 }
 
@@ -79,19 +104,25 @@ final class ChunkSurfaceRenderer {
         blockColorCache.countLimit = 2048
     }
 
-    func renderChunk(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) throws -> ChunkRenderLookup {
-        if let cached = cache.result(x: x, z: z, dimension: dimension, mode: mode) {
+    func renderChunk(
+        x: Int32,
+        z: Int32,
+        dimension: Int32,
+        mode: MapRenderMode,
+        direction: MapProjectionDirection = .positiveToNegative
+    ) throws -> ChunkRenderLookup {
+        if let cached = cache.result(x: x, z: z, dimension: dimension, mode: mode, direction: direction) {
             return ChunkRenderLookup(result: cached, cacheHit: true)
         }
 
-        let rendered = try decodeChunk(x: x, z: z, dimension: dimension, mode: mode)
-        cache.insert(rendered, x: x, z: z, dimension: dimension, mode: mode)
+        let rendered = try decodeChunk(x: x, z: z, dimension: dimension, mode: mode, direction: direction)
+        cache.insert(rendered, x: x, z: z, dimension: dimension, mode: mode, direction: direction)
         return ChunkRenderLookup(result: rendered, cacheHit: false)
     }
 
     func clearCache() { cache.removeAll() }
 
-    private func decodeChunk(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode) throws -> ChunkSurfaceResult {
+    private func decodeChunk(x: Int32, z: Int32, dimension: Int32, mode: MapRenderMode, direction: MapProjectionDirection) throws -> ChunkSurfaceResult {
         if mode == .slime {
             let slime = BedrockSlimeChunk.isSlimeChunk(x: x, z: z)
             let name = slime ? "mcbeeditor:slime_chunk" : "mcbeeditor:non_slime_chunk"
@@ -133,7 +164,15 @@ final class ChunkSurfaceRenderer {
             terrainRecords = []
         }
 
-        for record in terrainRecords.reversed() {
+        let orderedRecords: [BedrockStoredSubChunk]
+        switch direction {
+        case .positiveToNegative:
+            orderedRecords = Array(terrainRecords.reversed())
+        case .negativeToPositive:
+            orderedRecords = terrainRecords
+        }
+
+        for record in orderedRecords {
             if mode != .xray, unresolved == 0 { break }
             let yValue = Int(record.yIndex)
             let subChunk = record.subChunk
@@ -145,7 +184,15 @@ final class ChunkSurfaceRenderer {
                     let column = localZ * 16 + localX
                     if mode != .xray, visibleStates[column] != nil { continue }
 
-                    for localY in stride(from: 15, through: 0, by: -1) {
+                    let localYSequence: [Int]
+                    switch direction {
+                    case .positiveToNegative:
+                        localYSequence = Array(stride(from: 15, through: 0, by: -1))
+                    case .negativeToPositive:
+                        localYSequence = Array(stride(from: 0, through: 15, by: 1))
+                    }
+
+                    for localY in localYSequence {
                         guard let state = preferredState(in: subChunk, x: localX, y: localY, z: localZ) else { continue }
                         let name = state.name
                         if mode == .xray {

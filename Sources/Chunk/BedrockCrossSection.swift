@@ -53,6 +53,8 @@ extension ChunkSurfaceRenderer {
     tickingAreas: [BedrockTickingArea] = [],
     horizontalRange: ClosedRange<Int64>? = nil,
     verticalRange: ClosedRange<Int64>? = nil,
+    projectionCoordinateRange: ClosedRange<Int64>? = nil,
+    projectionDirection: MapProjectionDirection = .positiveToNegative,
     shouldCancel: () -> Bool
   ) throws -> BedrockCrossSectionResult {
     guard axis == .x || axis == .z else {
@@ -120,6 +122,17 @@ extension ChunkSurfaceRenderer {
     }
 
     let rayDepth = max(1, projectionDepth)
+    let planeCoordinate = axis == .x ? fixedX : fixedZ
+    let defaultProjectionCoordinateRange: ClosedRange<Int64>
+    if let projectionCoordinateRange = projectionCoordinateRange {
+      defaultProjectionCoordinateRange = projectionCoordinateRange
+    } else if showUngeneratedSubChunks || transparentUngeneratedSubChunks {
+      let chunk = MapCoordinate.chunk(fromBlock: planeCoordinate)
+      let minimumChunkCoordinate = MapCoordinate.blockOrigin(ofChunk: chunk)
+      defaultProjectionCoordinateRange = minimumChunkCoordinate...(minimumChunkCoordinate + 15)
+    } else {
+      defaultProjectionCoordinateRange = (planeCoordinate - Int64(rayDepth - 1))...planeCoordinate
+    }
 
     var errors = [String]()
     var decoded = 0
@@ -211,36 +224,59 @@ extension ChunkSurfaceRenderer {
     /// coordinate system. Property modes intentionally keep reading the exact
     /// plane selected by the user.
     func sample(horizontal: Int64, y: Int64) -> Sample {
-      let planeX = axis == .x ? fixedX : horizontal
-      let planeZ = axis == .z ? fixedZ : horizontal
+      let frontProjectionCoordinate: Int64
+      switch projectionDirection {
+      case .positiveToNegative:
+        frontProjectionCoordinate = defaultProjectionCoordinateRange.upperBound
+      case .negativeToPositive:
+        frontProjectionCoordinate = defaultProjectionCoordinateRange.lowerBound
+      }
+      let planeX = axis == .x ? frontProjectionCoordinate : horizontal
+      let planeZ = axis == .z ? frontProjectionCoordinate : horizontal
 
       if mode == .biome || mode == .tickingAreas || mode == .slime {
         return sampleAt(worldX: planeX, worldZ: planeZ, y: y)
       }
 
-      // Traverse coordinates from the largest X/Z toward the negative axis.
-      // This makes the projected pixel explicitly prefer the largest-coordinate
-      // non-air block in the 128-block slab instead of depending on incidental
-      // loop/fallback order.
-      let maximumProjectionCoordinate = axis == .x ? fixedX : fixedZ
-      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(rayDepth - 1)
+      let maximumProjectionCoordinate = defaultProjectionCoordinateRange.upperBound
+      let minimumProjectionCoordinate = defaultProjectionCoordinateRange.lowerBound
       var fallback: Sample?
-      for coordinate in stride(
-        from: maximumProjectionCoordinate,
-        through: minimumProjectionCoordinate,
-        by: -1
-      ) {
-        let worldX = axis == .x ? coordinate : horizontal
-        let worldZ = axis == .z ? coordinate : horizontal
-        let value = sampleAt(worldX: worldX, worldZ: worldZ, y: y)
-        if fallback == nil { fallback = value }
 
-        if mode == .xray {
-          if BedrockBlockIdentifier.isHighlightedOre(value.blockName) { return value }
-        } else if !isAir(value.blockName) {
-          return value
+      switch projectionDirection {
+      case .positiveToNegative:
+        for coordinate in stride(
+          from: maximumProjectionCoordinate,
+          through: minimumProjectionCoordinate,
+          by: -1
+        ) {
+          let worldX = axis == .x ? coordinate : horizontal
+          let worldZ = axis == .z ? coordinate : horizontal
+          let value = sampleAt(worldX: worldX, worldZ: worldZ, y: y)
+          if fallback == nil { fallback = value }
+          if mode == .xray {
+            if BedrockBlockIdentifier.isHighlightedOre(value.blockName) { return value }
+          } else if !isAir(value.blockName) {
+            return value
+          }
+        }
+      case .negativeToPositive:
+        for coordinate in stride(
+          from: minimumProjectionCoordinate,
+          through: maximumProjectionCoordinate,
+          by: 1
+        ) {
+          let worldX = axis == .x ? coordinate : horizontal
+          let worldZ = axis == .z ? coordinate : horizontal
+          let value = sampleAt(worldX: worldX, worldZ: worldZ, y: y)
+          if fallback == nil { fallback = value }
+          if mode == .xray {
+            if BedrockBlockIdentifier.isHighlightedOre(value.blockName) { return value }
+          } else if !isAir(value.blockName) {
+            return value
+          }
         }
       }
+
       return fallback ?? sampleAt(worldX: planeX, worldZ: planeZ, y: y)
     }
 

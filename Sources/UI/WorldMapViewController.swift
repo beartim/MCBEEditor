@@ -6057,6 +6057,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   @objc private func shareRenderedMap() {
     let verticalSlice = currentSliceAxis != .y
+    let currentStartBlockX = MapCoordinate.blockOrigin(
+      ofChunk: lastCenterX - Int32(renderedLeftChunks))
+    let currentStartBlockZ = MapCoordinate.blockOrigin(
+      ofChunk: lastCenterZ - Int32(renderedLeftChunks))
+    let currentEndBlockX = currentStartBlockX + Int64(renderedSideChunks * 16) - 1
+    let currentEndBlockZ = currentStartBlockZ + Int64(renderedSideChunks * 16) - 1
+    let defaultCrossSectionAngle: CrossSectionExportAngle = currentSliceAxis == .x ? .xPositive : .zPositive
     let controller = MapExportOptionsViewController(
       layers: MapImageExportLayers(
         entities: showEntities,
@@ -6068,23 +6075,40 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         ungeneratedDisplay: verticalSlice ? .air : .transparent
       ),
       hasSelectedRegion: !verticalSlice && isSelectionMode && selectedRegion != nil,
-      isCrossSection: verticalSlice
+      isCrossSection: verticalSlice,
+      crossSectionConfiguration: verticalSlice
+        ? CrossSectionExportConfiguration(
+          minimumX: currentStartBlockX,
+          minimumZ: currentStartBlockZ,
+          maximumX: currentEndBlockX,
+          maximumZ: currentEndBlockZ,
+          angle: defaultCrossSectionAngle
+        )
+        : nil
     )
-    controller.onExport = { [weak self] scope, layers in
-      self?.startMapImageExport(scope: scope, layers: layers)
+    controller.onExport = { [weak self] scope, layers, crossSectionConfiguration in
+      self?.startMapImageExport(
+        scope: scope,
+        layers: layers,
+        crossSectionConfiguration: crossSectionConfiguration
+      )
     }
     let navigation = UINavigationController(rootViewController: controller)
     navigation.modalPresentationStyle = .formSheet
     present(navigation, animated: true)
   }
 
-  private func startMapImageExport(scope: MapImageExportScope, layers: MapImageExportLayers) {
+  private func startMapImageExport(
+    scope: MapImageExportScope,
+    layers: MapImageExportLayers,
+    crossSectionConfiguration: CrossSectionExportConfiguration? = nil
+  ) {
     guard lastRenderedImage != nil else {
       showError(MCBEEditorError.unsupported("请先渲染地图。"), title: "无法导出地图")
       return
     }
     if currentSliceAxis != .y {
-      startCrossSectionImageExport(scope: scope, layers: layers)
+      startCrossSectionImageExport(scope: scope, layers: layers, configuration: crossSectionConfiguration)
       return
     }
 
@@ -6356,23 +6380,18 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   private func startCrossSectionImageExport(
     scope: MapImageExportScope,
-    layers: MapImageExportLayers
+    layers: MapImageExportLayers,
+    configuration: CrossSectionExportConfiguration? = nil
   ) {
-    let axis = currentSliceAxis
-    guard axis == .x || axis == .z else { return }
-    let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
+    let currentAxis = currentSliceAxis
+    let currentDimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let dimensionName = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].displayName
     let mode = currentMode
-    let fixedX = sliceCenterBlockX
-    let fixedZ = sliceCenterBlockZ
+    let currentFixedX = sliceCenterBlockX
+    let currentFixedZ = sliceCenterBlockZ
     let centerY = sliceCenterY
-    let drawGrid = layers.grid
     let includeBuildLimits = showBuildHeightLimits
-    let currentHorizontalRange = renderedCrossHorizontalStart...(
-      renderedCrossHorizontalStart + Int64(renderedSideChunks * 16) - 1)
-    let currentVerticalRange = renderedCrossMinimumY...renderedCrossMaximumY
-    let busy = showBusy(
-      scope == .loadedDimension ? "正在遍历全部已加载剖面…" : "正在生成当前剖面图片…")
+    let busy = showBusy("正在生成导出图片…")
 
     renderQueue.async { [weak self] in
       guard let self = self else { return }
@@ -6380,136 +6399,256 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         let renderer = try self.rendererForCurrentSession()
         let database = try self.session.database()
         let allSummaries = try BedrockChunkStore(session: self.session).listChunks().filter {
-          $0.position.dimension == dimension
+          $0.position.dimension == currentDimension
             && ($0.hasTerrain || $0.biomeRecordType != nil || $0.hasBlockEntities
                 || $0.hasLegacyEntities || $0.recordCount > ($0.hasActorDigest ? 1 : 0))
         }
-        let horizontalRange: ClosedRange<Int64>
-        let verticalRange: ClosedRange<Int64>
-        let exportSuffix: String
-        let intersectingSummaries: [BedrockChunkSummary]
+        guard !allSummaries.isEmpty else {
+          throw MCBEEditorError.unsupported("当前维度没有可导出的已加载区块。")
+        }
 
-        if scope == .loadedDimension {
-          let projectionDistance: Int64 = mode == .xray ? 128 : 127
-          let projectionMinimum = (axis == .x ? fixedX : fixedZ) - projectionDistance
-          let projectionMaximum = axis == .x ? fixedX : fixedZ
-          let minimumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMinimum)
-          let maximumFixedChunk = MapCoordinate.chunk(fromBlock: projectionMaximum)
-          intersectingSummaries = allSummaries.filter {
+        let loadedMinimumChunkX = allSummaries.map { $0.position.x }.min() ?? 0
+        let loadedMaximumChunkX = allSummaries.map { $0.position.x }.max() ?? 0
+        let loadedMinimumChunkZ = allSummaries.map { $0.position.z }.min() ?? 0
+        let loadedMaximumChunkZ = allSummaries.map { $0.position.z }.max() ?? 0
+        let loadedMinimumX = MapCoordinate.blockOrigin(ofChunk: loadedMinimumChunkX)
+        let loadedMaximumX = MapCoordinate.blockOrigin(ofChunk: loadedMaximumChunkX) + 15
+        let loadedMinimumZ = MapCoordinate.blockOrigin(ofChunk: loadedMinimumChunkZ)
+        let loadedMaximumZ = MapCoordinate.blockOrigin(ofChunk: loadedMaximumChunkZ) + 15
+
+        let defaultStartBlockX = MapCoordinate.blockOrigin(
+          ofChunk: lastCenterX - Int32(renderedLeftChunks))
+        let defaultStartBlockZ = MapCoordinate.blockOrigin(
+          ofChunk: lastCenterZ - Int32(renderedLeftChunks))
+        let defaultEndBlockX = defaultStartBlockX + Int64(renderedSideChunks * 16) - 1
+        let defaultEndBlockZ = defaultStartBlockZ + Int64(renderedSideChunks * 16) - 1
+
+        let defaultAngle: CrossSectionExportAngle = currentAxis == .z ? .zPositive : .xPositive
+        let request = configuration ?? CrossSectionExportConfiguration(
+          minimumX: defaultStartBlockX,
+          minimumZ: defaultStartBlockZ,
+          maximumX: defaultEndBlockX,
+          maximumZ: defaultEndBlockZ,
+          angle: defaultAngle
+        )
+        let resolvedMinimumX = request.minimumX ?? loadedMinimumX
+        let resolvedMaximumX = request.maximumX ?? loadedMaximumX
+        let resolvedMinimumZ = request.minimumZ ?? loadedMinimumZ
+        let resolvedMaximumZ = request.maximumZ ?? loadedMaximumZ
+        guard resolvedMinimumX <= resolvedMaximumX, resolvedMinimumZ <= resolvedMaximumZ else {
+          throw MCBEEditorError.malformedData("导出范围无效")
+        }
+        let exportRegion = BedrockMapRegion(
+          minimumX: resolvedMinimumX,
+          minimumZ: resolvedMinimumZ,
+          maximumX: resolvedMaximumX,
+          maximumZ: resolvedMaximumZ,
+          dimension: currentDimension
+        )
+
+        let objects: [BedrockWorldObject]
+        if layers.entities || layers.blockEntities {
+          objects = try BedrockWorldObjectScanner(database: database).scanAll(
+            dimensions: Set([currentDimension]),
+            includeEntities: layers.entities,
+            includeBlockEntities: layers.blockEntities,
+            maximumObjects: 1_000_000
+          ).objects
+        } else {
+          objects = []
+        }
+
+        let uniqueObjects = Dictionary(
+          objects.map { ($0.stableID, $0) },
+          uniquingKeysWith: { current, candidate in
+            current.source == .modernActor ? current : candidate
+          }
+        ).map(\.value)
+
+        let spawnCoordinates = layers.spawnPoints
+          ? self.spawnCoordinates.filter { $0.dimension == currentDimension }
+          : []
+
+        let image: UIImage
+        let exportSuffix: String
+
+        switch request.angle {
+        case .yPositive, .yNegative:
+          let generatedSummaries = allSummaries.filter {
+            $0.position.x >= exportRegion.minimumChunkX && $0.position.x <= exportRegion.maximumChunkX
+              && $0.position.z >= exportRegion.minimumChunkZ && $0.position.z <= exportRegion.maximumChunkZ
+          }
+          let base = try self.renderChunkAlignedRegionBase(
+            renderer: renderer,
+            minimumChunkX: exportRegion.minimumChunkX,
+            maximumChunkX: exportRegion.maximumChunkX,
+            minimumChunkZ: exportRegion.minimumChunkZ,
+            maximumChunkZ: exportRegion.maximumChunkZ,
+            dimension: currentDimension,
+            generatedPositions: Set(generatedSummaries.map(\.position)),
+            mode: mode,
+            drawGrid: layers.grid,
+            ungeneratedDisplay: layers.ungeneratedDisplay,
+            verticalDirection: request.angle == .yPositive ? .positiveToNegative : .negativeToPositive
+          )
+          let worldHits = self.makeExportWorldObjectHits(
+            objects: uniqueObjects,
+            villages: [],
+            startBlockX: base.startBlockX,
+            startBlockZ: base.startBlockZ,
+            widthBlocks: base.widthBlocks,
+            heightBlocks: base.heightBlocks,
+            layers: layers
+          )
+          let spawnerHits = layers.hardcodedSpawners
+            ? try self.scanHardcodedSpawners(
+              database: database,
+              positions: generatedSummaries.filter { $0.hasHardcodedSpawners }.map(\.position)
+            ).hits
+            : []
+          let spawnHits = spawnCoordinates.compactMap { spawn -> MapSpawnHit? in
+            guard spawn.x >= base.startBlockX,
+              spawn.x < base.startBlockX + Int64(base.widthBlocks),
+              spawn.z >= base.startBlockZ,
+              spawn.z < base.startBlockZ + Int64(base.heightBlocks)
+            else { return nil }
+            return MapSpawnHit(
+              spawn: spawn,
+              localX: CGFloat(spawn.x - base.startBlockX) + 0.5,
+              localZ: CGFloat(spawn.z - base.startBlockZ) + 0.5
+            )
+          }
+          let composed = self.composeExportImage(
+            base: base.image,
+            startBlockX: base.startBlockX,
+            startBlockZ: base.startBlockZ,
+            worldObjectHits: worldHits,
+            hardcodedSpawnerHits: spawnerHits,
+            villageHits: [],
+            spawnHits: spawnHits,
+            layers: layers
+          )
+          image = try self.cropMapExportImage(
+            composed,
+            startBlockX: base.startBlockX,
+            startBlockZ: base.startBlockZ,
+            widthBlocks: base.widthBlocks,
+            heightBlocks: base.heightBlocks,
+            region: exportRegion
+          )
+          exportSuffix = "\(request.angle.displayName)-\(exportRegion.minimumX)-\(exportRegion.minimumZ)-\(exportRegion.maximumX)-\(exportRegion.maximumZ)"
+
+        case .xPositive, .xNegative, .zPositive, .zNegative:
+          let axis: MapSliceAxis = (request.angle == .xPositive || request.angle == .xNegative) ? .x : .z
+          let projectionRange: ClosedRange<Int64> = axis == .x
+            ? exportRegion.minimumX...exportRegion.maximumX
+            : exportRegion.minimumZ...exportRegion.maximumZ
+          let horizontalRange: ClosedRange<Int64> = axis == .x
+            ? exportRegion.minimumZ...exportRegion.maximumZ
+            : exportRegion.minimumX...exportRegion.maximumX
+          let projectionDirection: MapProjectionDirection =
+            (request.angle == .xPositive || request.angle == .zPositive)
+            ? .positiveToNegative
+            : .negativeToPositive
+          let frontCoordinate: Int64 = projectionDirection == .positiveToNegative
+            ? projectionRange.upperBound
+            : projectionRange.lowerBound
+          let fixedX = axis == .x ? frontCoordinate : currentFixedX
+          let fixedZ = axis == .z ? frontCoordinate : currentFixedZ
+          let minimumProjectionChunk = axis == .x
+            ? MapCoordinate.chunk(fromBlock: projectionRange.lowerBound)
+            : MapCoordinate.chunk(fromBlock: projectionRange.lowerBound)
+          let maximumProjectionChunk = axis == .x
+            ? MapCoordinate.chunk(fromBlock: projectionRange.upperBound)
+            : MapCoordinate.chunk(fromBlock: projectionRange.upperBound)
+          let intersectingSummaries = allSummaries.filter {
             let fixedChunkCoordinate = axis == .x ? $0.position.x : $0.position.z
-            return fixedChunkCoordinate >= minimumFixedChunk
-              && fixedChunkCoordinate <= maximumFixedChunk
+            return fixedChunkCoordinate >= minimumProjectionChunk
+              && fixedChunkCoordinate <= maximumProjectionChunk
           }
           guard !intersectingSummaries.isEmpty else {
             throw MCBEEditorError.unsupported("当前剖面没有已加载区块。")
           }
-          let horizontalChunks = intersectingSummaries.map {
-            axis == .x ? $0.position.z : $0.position.x
-          }
-          guard let minimumChunk = horizontalChunks.min(), let maximumChunk = horizontalChunks.max()
-          else { throw MCBEEditorError.unsupported("当前剖面没有已加载区块。") }
-          horizontalRange = MapCoordinate.blockOrigin(ofChunk: minimumChunk)...(
-            MapCoordinate.blockOrigin(ofChunk: maximumChunk) + 15)
 
           var minimumSubY: Int64?
           var maximumSubY: Int64?
           for summary in intersectingSummaries {
             let records = try BedrockChunkSubChunkAccess.records(
-              database: database, position: summary.position)
+              database: database,
+              position: summary.position)
             for record in records {
               let base = Int64(record.yIndex) * 16
               minimumSubY = min(minimumSubY ?? base, base)
               maximumSubY = max(maximumSubY ?? (base + 15), base + 15)
             }
           }
+          let verticalRange: ClosedRange<Int64>
           if let minimumSubY = minimumSubY, let maximumSubY = maximumSubY {
             verticalRange = minimumSubY...maximumSubY
           } else {
-            switch BedrockDimension(rawValue: dimension) {
+            switch BedrockDimension(rawValue: currentDimension) {
             case .nether?: verticalRange = 0...127
             case .end?: verticalRange = 0...255
             default: verticalRange = -64...319
             }
           }
-          exportSuffix = "all-loaded-\(axis.displayName.lowercased())"
-        } else {
-          intersectingSummaries = allSummaries
-          horizontalRange = currentHorizontalRange
-          verticalRange = currentVerticalRange
-          exportSuffix = "current-\(axis.displayName.lowercased())-\(axis == .x ? fixedX : fixedZ)"
-        }
 
-        let horizontalCount = horizontalRange.upperBound - horizontalRange.lowerBound + 1
-        let verticalCount = verticalRange.upperBound - verticalRange.lowerBound + 1
-        guard horizontalCount > 0, verticalCount > 0,
-          horizontalCount <= 200_000, verticalCount <= 20_000
-        else {
-          throw MCBEEditorError.unsupported("剖面跨度过大，无法生成单张图片。")
-        }
+          var tickingAreas = [BedrockTickingArea]()
+          if mode == .tickingAreas {
+            tickingAreas = try TickingAreaStore(session: self.session).records()
+              .map(\.area).filter { $0.dimension == currentDimension }
+          }
 
-        var tickingAreas = [BedrockTickingArea]()
-        if mode == .tickingAreas {
-          tickingAreas = try TickingAreaStore(session: self.session).records()
-            .map(\.area).filter { $0.dimension == dimension }
-        }
-
-        let rendered = try renderer.renderCrossSection(
-          axis: axis,
-          fixedX: fixedX,
-          fixedZ: fixedZ,
-          centerY: centerY,
-          sideBlocks: max(16, renderedSideChunks * 16),
-          dimension: dimension,
-          mode: mode,
-          drawSubChunkGrid: drawGrid,
-          projectionDepth: mode == .xray ? 129 : 128,
-          pixelsPerBlock: 4,
-          maximumRasterSide: 4096,
-          showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
-          transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,
-          tickingAreas: tickingAreas,
-          horizontalRange: horizontalRange,
-          verticalRange: verticalRange,
-          shouldCancel: { false }
-        )
-
-        var objects = [BedrockWorldObject]()
-        if layers.entities || layers.blockEntities {
-          let scan = try BedrockWorldObjectScanner(database: database).scanAll(
-            dimensions: Set([dimension]),
-            includeEntities: layers.entities,
-            includeBlockEntities: layers.blockEntities,
-            maximumObjects: 1_000_000
+          let rendered = try renderer.renderCrossSection(
+            axis: axis,
+            fixedX: fixedX,
+            fixedZ: fixedZ,
+            centerY: centerY,
+            sideBlocks: max(horizontalRange.count, 16),
+            dimension: currentDimension,
+            mode: mode,
+            drawSubChunkGrid: layers.grid,
+            projectionDepth: max(1, Int(projectionRange.upperBound - projectionRange.lowerBound + 1)),
+            pixelsPerBlock: 4,
+            maximumRasterSide: 4096,
+            showUngeneratedSubChunks: layers.ungeneratedDisplay == .texture,
+            transparentUngeneratedSubChunks: layers.ungeneratedDisplay == .transparent,
+            tickingAreas: tickingAreas,
+            horizontalRange: horizontalRange,
+            verticalRange: verticalRange,
+            projectionCoordinateRange: projectionRange,
+            projectionDirection: projectionDirection,
+            shouldCancel: { false }
           )
-          objects = scan.objects
-        }
 
-        let spawnerHits: [MapHardcodedSpawnerHit]
-        if layers.hardcodedSpawners {
-          let spawnerPositions = allSummaries.filter(\.hasHardcodedSpawners).map(\.position)
-          spawnerHits = try self.scanHardcodedSpawners(
-            database: database, positions: spawnerPositions).hits
-        } else {
-          spawnerHits = []
-        }
+          let spawnerHits: [MapHardcodedSpawnerHit]
+          if layers.hardcodedSpawners {
+            let spawnerPositions = allSummaries.filter(\.hasHardcodedSpawners).map(\.position)
+            spawnerHits = try self.scanHardcodedSpawners(
+              database: database,
+              positions: spawnerPositions).hits
+          } else {
+            spawnerHits = []
+          }
 
-        let image = self.composeCrossSectionExportImage(
-          base: rendered.image,
-          axis: axis,
-          fixedX: fixedX,
-          fixedZ: fixedZ,
-          minimumHorizontal: horizontalRange.lowerBound,
-          maximumHorizontal: horizontalRange.upperBound,
-          minimumY: verticalRange.lowerBound,
-          maximumY: verticalRange.upperBound,
-          dimension: dimension,
-          objects: objects,
-          hardcodedSpawnerHits: spawnerHits,
-          spawnCoordinates: layers.spawnPoints
-            ? self.spawnCoordinates.filter { $0.dimension == dimension } : [],
-          layers: layers,
-          showBuildHeightLimits: includeBuildLimits
-        )
+          image = self.composeCrossSectionExportImage(
+            base: rendered.image,
+            axis: axis,
+            fixedX: fixedX,
+            fixedZ: fixedZ,
+            minimumHorizontal: horizontalRange.lowerBound,
+            maximumHorizontal: horizontalRange.upperBound,
+            minimumY: verticalRange.lowerBound,
+            maximumY: verticalRange.upperBound,
+            dimension: currentDimension,
+            objects: uniqueObjects,
+            hardcodedSpawnerHits: spawnerHits,
+            spawnCoordinates: spawnCoordinates,
+            layers: layers,
+            showBuildHeightLimits: includeBuildLimits
+          )
+          exportSuffix = "\(request.angle.displayName)-\(exportRegion.minimumX)-\(exportRegion.minimumZ)-\(exportRegion.maximumX)-\(exportRegion.maximumZ)"
+        }
 
         DispatchQueue.main.async {
           busy.removeFromSuperview()
@@ -6655,11 +6794,29 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     sideBlocks: Int,
     region: BedrockMapRegion
   ) throws -> UIImage {
-    guard sideBlocks > 0, image.size.width > 0, image.size.height > 0 else {
+    try cropMapExportImage(
+      image,
+      startBlockX: startBlockX,
+      startBlockZ: startBlockZ,
+      widthBlocks: sideBlocks,
+      heightBlocks: sideBlocks,
+      region: region
+    )
+  }
+
+  private func cropMapExportImage(
+    _ image: UIImage,
+    startBlockX: Int64,
+    startBlockZ: Int64,
+    widthBlocks: Int,
+    heightBlocks: Int,
+    region: BedrockMapRegion
+  ) throws -> UIImage {
+    guard widthBlocks > 0, heightBlocks > 0, image.size.width > 0, image.size.height > 0 else {
       throw MCBEEditorError.malformedData("地图导出裁剪尺寸无效。")
     }
-    let scaleX = image.size.width / CGFloat(sideBlocks)
-    let scaleZ = image.size.height / CGFloat(sideBlocks)
+    let scaleX = image.size.width / CGFloat(widthBlocks)
+    let scaleZ = image.size.height / CGFloat(heightBlocks)
     let cropRect = CGRect(
       x: CGFloat(region.minimumX - startBlockX) * scaleX,
       y: CGFloat(region.minimumZ - startBlockZ) * scaleZ,
@@ -6678,22 +6835,23 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
   }
 
-  private func renderLoadedDimensionBase(
+  private func renderChunkAlignedRegionBase(
     renderer: ChunkSurfaceRenderer,
-    positions: [ChunkPosition],
+    minimumChunkX: Int32,
+    maximumChunkX: Int32,
+    minimumChunkZ: Int32,
+    maximumChunkZ: Int32,
+    dimension: Int32,
+    generatedPositions: Set<ChunkPosition>,
     mode: MapRenderMode,
     drawGrid: Bool,
-    ungeneratedDisplay: MapUngeneratedChunkDisplayMode
+    ungeneratedDisplay: MapUngeneratedChunkDisplayMode,
+    verticalDirection: MapProjectionDirection = .positiveToNegative
   ) throws -> (
     image: UIImage, startBlockX: Int64, startBlockZ: Int64, widthBlocks: Int, heightBlocks: Int
   ) {
-    guard let minimumX = positions.map(\.x).min(), let maximumX = positions.map(\.x).max(),
-      let minimumZ = positions.map(\.z).min(), let maximumZ = positions.map(\.z).max()
-    else {
-      throw MCBEEditorError.unsupported("没有可导出的区块。")
-    }
-    let widthChunks = Int64(maximumX) - Int64(minimumX) + 1
-    let heightChunks = Int64(maximumZ) - Int64(minimumZ) + 1
+    let widthChunks = Int64(maximumChunkX) - Int64(minimumChunkX) + 1
+    let heightChunks = Int64(maximumChunkZ) - Int64(minimumChunkZ) + 1
     let widthBlocks64 = widthChunks * 16
     let heightBlocks64 = heightChunks * 16
     guard widthBlocks64 > 0, heightBlocks64 > 0,
@@ -6708,17 +6866,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let format = UIGraphicsImageRendererFormat.default()
     format.opaque = ungeneratedDisplay == .air
     format.scale = outputScale
-    let positionSet = Set(positions)
+
     var images = [(position: ChunkPosition, image: UIImage)]()
-    images.reserveCapacity(positions.count)
-    for position in positions.sorted(by: { lhs, rhs in
+    images.reserveCapacity(generatedPositions.count)
+    for position in generatedPositions.sorted(by: { lhs, rhs in
       lhs.z == rhs.z ? lhs.x < rhs.x : lhs.z < rhs.z
     }) {
       let result = try renderer.renderChunk(
-        x: position.x, z: position.z, dimension: position.dimension, mode: mode
+        x: position.x,
+        z: position.z,
+        dimension: position.dimension,
+        mode: mode,
+        direction: verticalDirection
       ).result
       images.append((position, result.image))
     }
+
     let image = UIGraphicsImageRenderer(
       size: CGSize(width: widthBlocks, height: heightBlocks),
       format: format
@@ -6731,37 +6894,41 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       }
       var ungeneratedTextureRects = [CGRect]()
       if ungeneratedDisplay != .transparent {
-        for z in minimumZ...maximumZ {
-          for x in minimumX...maximumX {
-            let position = ChunkPosition(x: x, z: z, dimension: positions.first?.dimension ?? 0)
-            guard !positionSet.contains(position) else { continue }
+        for z in minimumChunkZ...maximumChunkZ {
+          for x in minimumChunkX...maximumChunkX {
+            let position = ChunkPosition(x: x, z: z, dimension: dimension)
+            guard !generatedPositions.contains(position) else { continue }
             let rect = CGRect(
-              x: Int(Int64(x) - Int64(minimumX)) * 16,
-              y: Int(Int64(z) - Int64(minimumZ)) * 16,
+              x: Int(Int64(x) - Int64(minimumChunkX)) * 16,
+              y: Int(Int64(z) - Int64(minimumChunkZ)) * 16,
               width: 16,
               height: 16
             )
             if ungeneratedDisplay == .texture {
               ungeneratedTextureRects.append(rect)
             } else {
-              drawUngeneratedChunkPlaceholder(context: context.cgContext, in: rect, displayMode: ungeneratedDisplay)
+              drawUngeneratedChunkPlaceholder(
+                context: context.cgContext,
+                in: rect,
+                displayMode: ungeneratedDisplay
+              )
             }
           }
         }
       }
       for item in images {
-        let x = Int(Int64(item.position.x) - Int64(minimumX)) * 16
-        let z = Int(Int64(item.position.z) - Int64(minimumZ)) * 16
+        let x = Int(Int64(item.position.x) - Int64(minimumChunkX)) * 16
+        let z = Int(Int64(item.position.z) - Int64(minimumChunkZ)) * 16
         item.image.draw(in: CGRect(x: x, y: z, width: 16, height: 16))
       }
       if drawGrid {
         context.cgContext.setStrokeColor(UIColor.label.withAlphaComponent(0.34).cgColor)
         context.cgContext.setLineWidth(max(0.18, 1.0 / max(outputScale, 0.02)))
-        for z in minimumZ...maximumZ {
-          for x in minimumX...maximumX {
+        for z in minimumChunkZ...maximumChunkZ {
+          for x in minimumChunkX...maximumChunkX {
             let rect = CGRect(
-              x: Int(Int64(x) - Int64(minimumX)) * 16,
-              y: Int(Int64(z) - Int64(minimumZ)) * 16,
+              x: Int(Int64(x) - Int64(minimumChunkX)) * 16,
+              y: Int(Int64(z) - Int64(minimumChunkZ)) * 16,
               width: 16,
               height: 16
             )
@@ -6777,12 +6944,41 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         )
       }
     }
+
     return (
       image,
-      MapCoordinate.blockOrigin(ofChunk: minimumX),
-      MapCoordinate.blockOrigin(ofChunk: minimumZ),
+      MapCoordinate.blockOrigin(ofChunk: minimumChunkX),
+      MapCoordinate.blockOrigin(ofChunk: minimumChunkZ),
       widthBlocks,
       heightBlocks
+    )
+  }
+
+  private func renderLoadedDimensionBase(
+    renderer: ChunkSurfaceRenderer,
+    positions: [ChunkPosition],
+    mode: MapRenderMode,
+    drawGrid: Bool,
+    ungeneratedDisplay: MapUngeneratedChunkDisplayMode
+  ) throws -> (
+    image: UIImage, startBlockX: Int64, startBlockZ: Int64, widthBlocks: Int, heightBlocks: Int
+  ) {
+    guard let minimumX = positions.map(\.x).min(), let maximumX = positions.map(\.x).max(),
+      let minimumZ = positions.map(\.z).min(), let maximumZ = positions.map(\.z).max()
+    else {
+      throw MCBEEditorError.unsupported("没有可导出的区块。")
+    }
+    return try renderChunkAlignedRegionBase(
+      renderer: renderer,
+      minimumChunkX: minimumX,
+      maximumChunkX: maximumX,
+      minimumChunkZ: minimumZ,
+      maximumChunkZ: maximumZ,
+      dimension: positions.first?.dimension ?? 0,
+      generatedPositions: Set(positions),
+      mode: mode,
+      drawGrid: drawGrid,
+      ungeneratedDisplay: ungeneratedDisplay
     )
   }
 
