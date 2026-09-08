@@ -50,7 +50,6 @@ extension ChunkSurfaceRenderer {
     maximumRasterSide: Int = 2048,
     showUngeneratedSubChunks: Bool = false,
     transparentUngeneratedSubChunks: Bool = false,
-    airUngeneratedSubChunks: Bool = false,
     tickingAreas: [BedrockTickingArea] = [],
     horizontalRange: ClosedRange<Int64>? = nil,
     verticalRange: ClosedRange<Int64>? = nil,
@@ -224,11 +223,7 @@ extension ChunkSurfaceRenderer {
       // non-air block in the 128-block slab instead of depending on incidental
       // loop/fallback order.
       let maximumProjectionCoordinate = axis == .x ? fixedX : fixedZ
-      // Mineral view includes both endpoints requested by the UI: current X/Z
-      // through current X/Z-128. With projectionDepth=128 this is 129 sampled
-      // coordinates. Other block modes retain their established 128-cell slab.
-      let projectionNegativeDistance = mode == .xray ? rayDepth : max(0, rayDepth - 1)
-      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(projectionNegativeDistance)
+      let minimumProjectionCoordinate = maximumProjectionCoordinate - Int64(rayDepth - 1)
       var fallback: Sample?
       for coordinate in stride(
         from: maximumProjectionCoordinate,
@@ -272,7 +267,7 @@ extension ChunkSurfaceRenderer {
     /// world-to-raster transform as the 16-block grid and cannot drift away
     /// from the grid when the viewport origin or sample stride changes.
     func ungeneratedPlaneSubChunkRects() -> [CGRect] {
-      guard showUngeneratedSubChunks || transparentUngeneratedSubChunks || airUngeneratedSubChunks else { return [] }
+      guard showUngeneratedSubChunks || transparentUngeneratedSubChunks else { return [] }
       var rects = [CGRect]()
       let horizontalEndExclusive = maximumHorizontal + 1
       let verticalEndExclusive = maximumY + 1
@@ -362,13 +357,6 @@ extension ChunkSurfaceRenderer {
         }
       }
 
-      if airUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
-        // Export option “空气” must really hide projected terrain behind a
-        // missing selected-plane SubChunk, matching the Y-map air placeholder.
-        UIColor.systemGray5.setFill()
-        for rect in exactUngeneratedRects where !rect.isEmpty { context.fill(rect) }
-      }
-
       if transparentUngeneratedSubChunks, !exactUngeneratedRects.isEmpty {
         for rect in exactUngeneratedRects where !rect.isEmpty { cg.clear(rect) }
       }
@@ -436,40 +424,50 @@ extension ChunkSurfaceRenderer {
       }
 
       if drawSubChunkGrid {
-        // Draw after the missing-section hatch so 16-block boundaries stay
-        // visible. Keep the path itself on the exact world block edge and use
-        // antialiasing so the visible stroke is centered on that edge. With
-        // non-antialiased sub-pixel strokes Core Graphics snaps the coverage to
-        // one side, making the stroke's outer edge (rather than its center) line
-        // up with the block boundary.
+        // Draw the grid as rectangles centred on the exact world-space SubChunk
+        // boundary. A stroked, non-antialiased path can raster-snap the whole
+        // thin stroke to one side, which makes the *edge* of the visible line
+        // coincide with the block edge. Centered fills keep the line midpoint
+        // on the boundary in both live rendering and exported PNGs.
         cg.setShouldAntialias(true)
         cg.setAllowsAntialiasing(true)
-        cg.setStrokeColor(UIColor.label.withAlphaComponent(0.28).cgColor)
-        cg.setLineWidth(max(0.15, worldToRaster * 0.15))
+        let gridLineWidth = max(0.15, worldToRaster * 0.15)
+        cg.setFillColor(UIColor.label.withAlphaComponent(0.28).cgColor)
+
+        func drawVerticalBoundary(_ x: CGFloat) {
+          guard x >= 0, x <= CGFloat(rasterWidth) else { return }
+          cg.fill(CGRect(
+            x: x - gridLineWidth * 0.5,
+            y: 0,
+            width: gridLineWidth,
+            height: CGFloat(rasterHeight)
+          ))
+        }
+
+        func drawHorizontalBoundary(_ y: CGFloat) {
+          guard y >= 0, y <= CGFloat(rasterHeight) else { return }
+          cg.fill(CGRect(
+            x: 0,
+            y: y - gridLineWidth * 0.5,
+            width: CGFloat(rasterWidth),
+            height: gridLineWidth
+          ))
+        }
 
         let horizontalEndExclusive = maximumHorizontal + 1
         var boundary = MapCoordinate.floorDiv16(minimumHorizontal) * 16
         if boundary < minimumHorizontal { boundary += 16 }
         while boundary <= horizontalEndExclusive {
-          let x = rasterEdge(boundary - minimumHorizontal)
-          if x >= 0, x <= CGFloat(rasterWidth) {
-            cg.move(to: CGPoint(x: x, y: 0))
-            cg.addLine(to: CGPoint(x: x, y: CGFloat(rasterHeight)))
-          }
+          drawVerticalBoundary(rasterEdge(boundary - minimumHorizontal))
           boundary += 16
         }
 
         var yBoundary = MapCoordinate.floorDiv16(minimumY) * 16
         if yBoundary < minimumY { yBoundary += 16 }
         while yBoundary <= maximumY + 1 {
-          let yPosition = rasterEdge(maximumY - yBoundary + 1)
-          if yPosition >= 0, yPosition <= CGFloat(rasterHeight) {
-            cg.move(to: CGPoint(x: 0, y: yPosition))
-            cg.addLine(to: CGPoint(x: CGFloat(rasterWidth), y: yPosition))
-          }
+          drawHorizontalBoundary(rasterEdge(maximumY - yBoundary + 1))
           yBoundary += 16
         }
-        cg.strokePath()
       }
     }
     if shouldCancel() { throw MapRenderCancelledBridge.cancelled }

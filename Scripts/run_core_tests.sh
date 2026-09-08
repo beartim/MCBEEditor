@@ -219,14 +219,6 @@ struct Main {
             precondition((try? WorldCommandParser.parse("storage clear overworld 0 64 0 255")) != nil)
             precondition((try? WorldCommandParser.parse("storage clear overworld 0 64 0 256")) == nil)
             precondition((try? WorldCommandParser.parse("effect give @a strength -1 -1")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk query")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk query overworld")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk query the_end -12 34")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk query 0 0")) == nil)
-            precondition((try? WorldCommandParser.parse("chunk empty 0 0")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk empty nether -2 5")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk regenerate 0 0")) != nil)
-            precondition((try? WorldCommandParser.parse("chunk regenerate the_end 2 -3")) != nil)
         } else {
             preconditionFailure("fill command parsed as wrong command")
         }
@@ -288,6 +280,11 @@ struct Main {
             preconditionFailure("effect clear parsed as wrong command")
         }
         _ = try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL")
+        _ = try WorldCommandParser.parse("chunk query")
+        _ = try WorldCommandParser.parse("chunk query overworld")
+        _ = try WorldCommandParser.parse("chunk query overworld 0 0")
+        _ = try WorldCommandParser.parse("chunk empty nether -2 5")
+        _ = try WorldCommandParser.parse("chunk regenerate the_end 0 0")
         _ = try WorldCommandParser.parse("setworldspawn 0 80 0")
         _ = try WorldCommandParser.parse("spawnpoint @a the_end 0 100 0")
         _ = try WorldCommandParser.parse("teleport -4294967270 the_end 10 70 10")
@@ -3584,6 +3581,7 @@ for expected in \
   'give(target:' \
   'kill(target:' \
   'kick(target:' \
+  'executeChunk(' \
   'summon(identifier:' \
   'tradeContainerNames' \
   'settingHealthCurrentToZero' \
@@ -3756,7 +3754,7 @@ if grep -qF 'case "set", "add"' "$COMMAND_PARSER" || grep -qF '兼容别名 add'
   echo 'error: storage add alias must not be accepted' >&2
   exit 1
 fi
-for command_name in help clear clearspawnpoint clone daylock effect experience fill getblock give kill kick setblock setworldspawn spawnpoint spread storage structure summon teleport tickingarea time weather; do
+for command_name in help clear clearspawnpoint clone chunk daylock effect experience fill getblock give kill kick setblock setworldspawn spawnpoint spread storage structure summon teleport tickingarea time weather; do
   python3 - "$COMMAND_PARSER" "$command_name" <<'PY_CHECK' || exit 1
 import re, sys
 text=open(sys.argv[1],encoding='utf-8').read()
@@ -3991,6 +3989,48 @@ struct EffectCommandTest {
         }
         session.db.values[entityKey] = try ConsecutiveNBTCodec.encode(records)
         let executor = WorldCommandExecutor(session: session)
+
+        // chunk query must use blue lines, preserve overworld -> nether -> the_end
+        // ordering, and empty/regenerate must route through the same chunk-store
+        // mutations used by the chunk UI.
+        func seedChunk(_ position: ChunkPosition) throws {
+            let versionKey = BedrockDBKey(position: position, recordType: .version, subChunkIndex: nil).encoded()
+            let finalizedKey = BedrockDBKey(position: position, recordType: .finalizedState, subChunkIndex: nil).encoded()
+            var finalized = Data()
+            finalized.appendLE(Int32(2))
+            try session.db.put(Data([40]), for: versionKey)
+            try session.db.put(finalized, for: finalizedKey)
+        }
+        try seedChunk(ChunkPosition(x: 20, z: 20, dimension: 0))
+        try seedChunk(ChunkPosition(x: 21, z: 21, dimension: 1))
+        try seedChunk(ChunkPosition(x: 22, z: 22, dimension: 2))
+        let chunkQuery = try executor.execute(try WorldCommandParser.parse("chunk query"))
+        precondition(!chunkQuery.changedWorld)
+        precondition(chunkQuery.outputLines.count >= 3)
+        precondition(chunkQuery.outputLines.allSatisfy { line in
+            if case .block = line.style { return true }
+            return false
+        })
+        let dimensionPrefixes = chunkQuery.outputLines.map { $0.text.split(separator: " ").first.map(String.init) ?? "" }
+        let firstNether = dimensionPrefixes.firstIndex(of: "nether")!
+        let firstEnd = dimensionPrefixes.firstIndex(of: "the_end")!
+        precondition(dimensionPrefixes[..<firstNether].allSatisfy { $0 == "overworld" })
+        precondition(dimensionPrefixes[firstNether..<firstEnd].allSatisfy { $0 == "nether" })
+        precondition(dimensionPrefixes[firstEnd...].allSatisfy { $0 == "the_end" })
+        let specificChunk = try executor.execute(try WorldCommandParser.parse("chunk query overworld 20 20"))
+        precondition(specificChunk.message.contains("FinalizedState=2"))
+        let missingChunk = try executor.execute(try WorldCommandParser.parse("chunk query overworld 999 999"))
+        precondition(missingChunk.message.contains("无区块记录"))
+        precondition(missingChunk.message.contains("未生成"))
+        let emptiedChunk = try executor.execute(try WorldCommandParser.parse("chunk empty overworld 20 20"))
+        precondition(emptiedChunk.changedWorld)
+        precondition(emptiedChunk.message.contains("FinalizedState=2"))
+        let regeneratedChunk = try executor.execute(try WorldCommandParser.parse("chunk regenerate the_end 22 22"))
+        precondition(regeneratedChunk.changedWorld)
+        let regeneratedSummary = try BedrockChunkStore(session: session).summary(
+            at: ChunkPosition(x: 22, z: 22, dimension: 2)
+        )
+        precondition(regeneratedSummary.recordCount == 0)
 
         let given = try executor.execute(try WorldCommandParser.parse("effect give @e strength 12000 50"))
         precondition(given.changedWorld)
@@ -4414,43 +4454,6 @@ struct EffectCommandTest {
         precondition(importedRoot != nil)
         precondition(BedrockEntityCommonNBT.dimension(in: importedRoot!) == nil)
         precondition(importedRoot!.stringValue(namedAny: ["CustomOnly"]) == "keep")
-
-        // chunk query/empty/regenerate: query rows are blue (.block), all-dimension
-        // output is ordered overworld -> nether -> the_end, empty keeps a generated
-        // air skeleton, and regenerate removes the coordinate back to ungenerated.
-        let chunkPositions = [
-            ChunkPosition(x: 30_001, z: -30_001, dimension: 0),
-            ChunkPosition(x: 30_002, z: -30_002, dimension: 1),
-            ChunkPosition(x: 30_003, z: -30_003, dimension: 2)
-        ]
-        for position in chunkPositions {
-            let records = BedrockEmptyChunk.metadataRecords(at: position)
-            try session.db.applyBatch(
-                puts: records.map { ($0.key, $0.value) }, deletes: [], sync: true
-            )
-        }
-        let chunkQueryAll = try executor.execute(try WorldCommandParser.parse("chunk query"))
-        let uniqueChunkRows = chunkQueryAll.outputLines.enumerated().compactMap { index, line -> (Int, Int32)? in
-            guard let position = chunkPositions.first(where: { line.text.contains($0.dimension == 0
-                ? "overworld (\($0.x), \($0.z))"
-                : ($0.dimension == 1 ? "nether (\($0.x), \($0.z))" : "the_end (\($0.x), \($0.z))")) }) else { return nil }
-            if case .block = line.style {} else { preconditionFailure("chunk query row must be blue/block style") }
-            return (index, position.dimension)
-        }
-        precondition(uniqueChunkRows.count == 3)
-        precondition(uniqueChunkRows[0].1 == 0 && uniqueChunkRows[1].1 == 1 && uniqueChunkRows[2].1 == 2)
-
-        let exactAir = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
-        precondition(exactAir.outputLines.count == 1)
-        precondition(exactAir.message.contains("生成=已生成（空气/无SubChunk）"))
-        let emptied = try executor.execute(try WorldCommandParser.parse("chunk empty 30001 -30001"))
-        precondition(emptied.changedWorld)
-        let stillGenerated = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
-        precondition(stillGenerated.message.contains("生成=已生成（空气/无SubChunk）"))
-        let regenerated = try executor.execute(try WorldCommandParser.parse("chunk regenerate overworld 30001 -30001"))
-        precondition(regenerated.changedWorld)
-        let nowUngenerated = try executor.execute(try WorldCommandParser.parse("chunk query overworld 30001 -30001"))
-        precondition(nowUngenerated.message.contains("生成=未生成"))
 
         let floatingSummon = try executor.execute(try WorldCommandParser.parse(
             "summon minecraft:pig overworld 12.5 66.25 -2.75 default"

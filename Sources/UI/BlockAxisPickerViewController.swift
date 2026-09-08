@@ -10,6 +10,7 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
   init(
     result: BedrockBlockAxisLineResult,
     initialCoordinate: Int64?,
+    automaticSelectionMinimumCoordinate: Int64? = nil,
     automaticSelectionMaximumCoordinate: Int64? = nil,
     preferHighlightedOre: Bool = false,
     onSelect: @escaping (BedrockBlockRecord) -> Void
@@ -18,20 +19,20 @@ final class BlockAxisPickerViewController: UIViewController, UIPickerViewDataSou
     self.onSelect = onSelect
     // `blockAxisLine` is ordered from the largest X/Z coordinate downward and
     // intentionally keeps the full ±128 manual-selection range. Automatic
-    // selection, however, must represent the negative-axis projection: ignore
-    // any row whose X/Z is above the current rendered plane. Normal block
-    // modes choose the largest remaining non-air coordinate; mineral view
-    // instead chooses the largest highlighted-ore coordinate.
+    // selection, however, must represent the negative-axis projection. The
+    // caller supplies the automatic bounds, and X-ray mode additionally asks us
+    // to choose the largest highlighted ore coordinate rather than merely the
+    // first non-air block.
+    let automaticLowerBound = automaticSelectionMinimumCoordinate ?? Int64.min
     let automaticUpperBound = automaticSelectionMaximumCoordinate ?? Int64.max
-    let automaticIndex = result.blocks.firstIndex(where: { block in
+    if let index = result.blocks.firstIndex(where: { block in
       let coordinate = result.axis == .x ? block.x : block.z
-      guard coordinate <= automaticUpperBound else { return false }
+      guard coordinate >= automaticLowerBound, coordinate <= automaticUpperBound else { return false }
       if preferHighlightedOre {
         return BedrockBlockIdentifier.isHighlightedOre(block.primaryState.name)
       }
       return !block.primaryState.isAir
-    })
-    if let index = automaticIndex {
+    }) {
       selectedRow = index
     } else if let initialCoordinate = initialCoordinate,
       let index = result.blocks.firstIndex(where: {
