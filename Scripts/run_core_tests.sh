@@ -4492,3 +4492,6 @@ bash "$ROOT/Scripts/test_fillbiome_info_xz_selection.sh"
 
 echo "Running block-color / project-audit regression checks..."
 bash "$ROOT/Scripts/test_block_colors_project_audit.sh"
+
+echo "Running full block-color semantic audit..."
+bash "$ROOT/Scripts/test_block_colors_full_audit.sh"

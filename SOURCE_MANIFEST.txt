@@ -1,6 +1,7 @@
 .github/workflows/build-ios.yml
 .gitignore
 APPLY.md
+CHANGES_BLOCK_COLORS_FULL_AUDIT.md
 CHANGES_BLOCK_COLORS_PROJECT_AUDIT.md
 CHANGES_BUILD_CORE_TEST_FIX.md
 CHANGES_BUILD_NBTTREE_DIRECTIONAL_LOCK_FIX.md
@@ -96,6 +97,7 @@ Scripts/bootstrap.sh
 Scripts/build_unsigned_ipa.sh
 Scripts/cleanup_ios13_only.sh
 Scripts/run_core_tests.sh
+Scripts/test_block_colors_full_audit.sh
 Scripts/test_block_colors_project_audit.sh
 Scripts/test_fillbiome_info_xz_selection.sh
 Scripts/test_iphone_layout_legacy_block_link.sh

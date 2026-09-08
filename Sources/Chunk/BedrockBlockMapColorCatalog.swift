@@ -28,7 +28,7 @@ enum BedrockBlockMapColorCatalog {
 
     private static let dyeNames: [(String, Int)] = [
         ("light_blue", 3), ("light_gray", 8), ("magenta", 2), ("orange", 1),
-        ("yellow", 4), ("lime", 5), ("pink", 6), ("gray", 7),
+        ("yellow", 4), ("lime", 5), ("pink", 6), ("silver", 8), ("gray", 7),
         ("cyan", 9), ("purple", 10), ("blue", 11), ("brown", 12),
         ("green", 13), ("red", 14), ("black", 15), ("white", 0)
     ]
@@ -58,6 +58,12 @@ enum BedrockBlockMapColorCatalog {
         if BedrockBlockIdentifier.isLava(name) { return 0xF05A19 }
 
         if let dyed = dyedFamilyRGB(name) { return dyed }
+
+        // Exact/special semantic colours are intentionally evaluated before broad material
+        // families.  Many block identifiers contain a misleading material token: for example
+        // `ender_chest` is obsidian/teal rather than oak-brown, `flower_pot` is terracotta rather
+        // than a flower, and `end_stone_bricks` must not be swallowed by generic stone bricks.
+        if let special = specialSemanticRGB(name) { return special }
 
         // Legacy/functional blocks whose identifiers do not carry their material in the name.
         if name == "minecraft:bed" { return 0xB02E26 }
@@ -171,7 +177,7 @@ enum BedrockBlockMapColorCatalog {
             return 0x5E9B8B
         }
         if name.contains("cobblestone") { return 0x686868 }
-        if name.contains("stone_brick") || name.contains("stonebrick") || name.contains("end_bricks") { return 0x777777 }
+        if name.contains("stone_brick") || name.contains("stonebrick") { return 0x777777 }
 
         // Ores should resemble their host block in normal surface mode.  X-ray mode has a
         // separate vivid ore palette, so making exposed ore cyan/yellow here is misleading.
@@ -272,6 +278,140 @@ enum BedrockBlockMapColorCatalog {
         return nil
     }
 
+    /// Colours for blocks whose identifier is easily captured by the wrong broad family, or
+    /// whose dominant appearance is distinctive enough to deserve an explicit map colour.
+    /// Keep this function exact/prefix-oriented; broad material fallbacks belong in `rgbHex`.
+    private static func specialSemanticRGB(_ name: String) -> UInt32? {
+        switch name {
+        // End / obsidian family.
+        case "minecraft:ender_chest": return 0x234342
+        case "minecraft:crying_obsidian": return 0x35234F
+        case "minecraft:respawn_anchor": return 0x40314F
+        case "minecraft:end_bricks", "minecraft:end_stone_bricks": return 0xD0D18F
+        case "minecraft:chorus_flower": return 0xA565A0
+
+        // Redstone: these all used to become generic stone/torch colours.
+        case "minecraft:redstone_wire": return 0xA32222
+        case "minecraft:redstone_torch": return 0xC53A2F
+        case "minecraft:unlit_redstone_torch": return 0x68302B
+
+        // Containers and workstation blocks.
+        case "minecraft:trapped_chest": return 0x8A4B29
+        case "minecraft:flower_pot", "minecraft:decorated_pot": return 0x9D563D
+        case "minecraft:lectern": return 0x8A6539
+        case "minecraft:loom": return 0x9A7A4F
+        case "minecraft:cartography_table": return 0x8C7152
+        case "minecraft:fletching_table": return 0xA38857
+        case "minecraft:smithing_table": return 0x4F514C
+        case "minecraft:composter": return 0x72502C
+        case "minecraft:smoker": return 0x5A5149
+        case "minecraft:beehive": return 0xB88935
+        case "minecraft:bee_nest": return 0xD2A33C
+
+        // Distinct utility / metal blocks.
+        case "minecraft:bell": return 0xD0A43A
+        case "minecraft:conduit": return 0x5D9B90
+        case "minecraft:lodestone": return 0x707575
+        case "minecraft:chain": return 0x555B60
+        case "minecraft:lightning_rod": return 0xB76A46
+        case "minecraft:target": return 0xD8C9AA
+        case "minecraft:heavy_core": return 0x4F5355
+        case "minecraft:vault": return 0x59645D
+        case "minecraft:ominous_vault": return 0x444A46
+        case "minecraft:jigsaw": return 0xA58D73
+        case "minecraft:barrier": return 0xC95B5B
+
+        // Honey / eggs / other recognizable decorative blocks.
+        case "minecraft:honey_block": return 0xD79A26
+        case "minecraft:honeycomb_block": return 0xC77B1E
+        case "minecraft:turtle_egg": return 0xD6D4B0
+        case "minecraft:sniffer_egg": return 0x52766C
+        case "minecraft:frog_spawn": return 0x82967F
+        case "minecraft:suspicious_sand": return 0xC8B783
+
+        // Legacy aliases whose old identifiers pre-date modern snake_case.
+        case "minecraft:sealantern": return 0xC8DED2
+        case "minecraft:invisiblebedrock": return 0x3A3A3A
+        case "minecraft:silver_glazed_terracotta": return dyeRGB[8]
+
+        // Crop stems and small vegetation should not inherit the fruit/wood colour.
+        case "minecraft:pumpkin_stem", "minecraft:melon_stem",
+             "minecraft:attached_pumpkin_stem", "minecraft:attached_melon_stem": return 0x6F8138
+        case "minecraft:cactus_flower": return 0xE698A8
+        case "minecraft:torchflower": return 0xD98232
+        case "minecraft:torchflower_crop": return 0x718D3B
+        case "minecraft:pitcher_plant": return 0x668B46
+        case "minecraft:pitcher_crop": return 0x6C8A42
+        case "minecraft:spore_blossom": return 0xA86F8B
+        case "minecraft:azalea": return 0x56853E
+        case "minecraft:flowering_azalea": return 0x6E8A4B
+        case "minecraft:big_dripleaf", "minecraft:small_dripleaf": return 0x4E7E3A
+        case "minecraft:hanging_roots": return 0x7B5A3A
+        case "minecraft:glow_lichen": return 0x66796D
+        case "minecraft:leaf_litter": return 0x806744
+        case "minecraft:mangrove_propagule": return 0x688844
+        case "minecraft:mangrove_roots": return 0x6B4A34
+        case "minecraft:muddy_mangrove_roots": return 0x55483E
+        case "minecraft:scaffolding": return 0xB79A50
+
+        // Pale-garden blocks.
+        case "minecraft:pale_moss_block", "minecraft:pale_moss_carpet": return 0x87947F
+        case "minecraft:pale_hanging_moss": return 0x7D8A76
+        case "minecraft:creaking_heart": return 0x75664E
+        case "minecraft:open_eyeblossom": return 0xC68A35
+        case "minecraft:closed_eyeblossom", "minecraft:eyeblossom": return 0x77776C
+
+        // Nether blocks where the broad torch/vine/stone rule gives the wrong hue.
+        case "minecraft:soul_fire", "minecraft:soul_torch", "minecraft:soul_lantern",
+             "minecraft:soul_campfire": return 0x53BEC2
+        case "minecraft:weeping_vines", "minecraft:weeping_vines_plant": return 0x8C2D3E
+        case "minecraft:twisting_vines", "minecraft:twisting_vines_plant": return 0x26867B
+        case "minecraft:nether_sprouts": return 0x348779
+        case "minecraft:ancient_debris": return 0x5A4038
+        case "minecraft:netherite_block": return 0x454146
+        case "minecraft:gilded_blackstone": return 0x4E4434
+        case "minecraft:red_nether_brick", "minecraft:red_nether_bricks": return 0x672934
+
+        // Transparent/special light blocks.
+        case "minecraft:tinted_glass": return 0x4B4654
+        case "minecraft:light_block", "minecraft:light": return 0xEEE7A0
+
+        // Froglights have deliberately different vanilla hues.
+        case "minecraft:ochre_froglight": return 0xE4C66C
+        case "minecraft:verdant_froglight": return 0xC4DDB1
+        case "minecraft:pearlescent_froglight": return 0xD7B9D3
+
+        default: break
+        }
+
+        // Coral is a large block family and deserves semantic colour rather than fallback hashes.
+        if name.contains("dead_") && name.contains("coral") { return 0x77716D }
+        if name.contains("tube_coral") { return 0x315FC4 }
+        if name.contains("brain_coral") { return 0xD4689C }
+        if name.contains("bubble_coral") { return 0x9D55B8 }
+        if name.contains("fire_coral") { return 0xB94A4A }
+        if name.contains("horn_coral") { return 0xD6C547 }
+
+        // Modern bamboo building blocks are warmer than the live bamboo plant.
+        if name.contains("bamboo_planks") || name.contains("bamboo_mosaic")
+            || name.contains("bamboo_door") || name.contains("bamboo_trapdoor")
+            || name.contains("bamboo_stairs") || name.contains("bamboo_slab")
+            || name.contains("bamboo_fence") || name.contains("bamboo_button")
+            || name.contains("bamboo_pressure_plate") || name.contains("bamboo_sign") {
+            return 0xB5A256
+        }
+
+        // Generic vegetation added by newer Bedrock versions. Exact distinctive plants above
+        // still win, while these rules keep newly introduced bushes/grasses out of hash colours.
+        if name.contains("sweet_berry_bush") { return 0x4D7839 }
+        if name.contains("firefly_bush") { return 0x557E42 }
+        if name.contains("dry_grass") { return 0x9B874B }
+        if name.contains("wildflowers") { return 0xB89A4B }
+        if name.contains("bush") { return 0x557A3E }
+
+        return nil
+    }
+
     /// Returns a stable, muted RGB for custom/unknown blocks.
     static func fallbackRGB(for identifier: String) -> UInt32 {
         var hash: UInt32 = 2_166_136_261
@@ -307,7 +447,7 @@ enum BedrockBlockMapColorCatalog {
         case 12: return meta == 1 ? 0xB65A27 : 0xDEC98A
         case 17: return woodRGB(speciesIndex: meta & 0x03)
         case 18: return leafRGB(speciesIndex: meta & 0x03)
-        case 35, 95, 160, 171, 236, 237, 241, 254:
+        case 35, 160, 171, 218, 236, 237, 241, 254:
             let base = dyeRGB[meta]
             if id == 95 || id == 160 || id == 241 || id == 254 { return blend(base, with: 0xE8F1F2, percentSecond: 24) }
             if id == 237 { return blend(base, with: 0xC8C8C8, percentSecond: 10) }
