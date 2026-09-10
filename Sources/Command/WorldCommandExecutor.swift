@@ -1758,15 +1758,7 @@ final class WorldCommandExecutor {
     }
 
     private func numericValue(_ value: NBTValue) -> Int64? {
-        switch value {
-        case .byte(let number): return Int64(number)
-        case .short(let number): return Int64(number)
-        case .int(let number): return Int64(number)
-        case .long(let number): return number
-        case .float(let number): return number.isFinite ? Int64(number) : nil
-        case .double(let number): return number.isFinite ? Int64(number) : nil
-        default: return nil
-        }
+        value.integerValue()
     }
 
     private func clearItemContainers(in value: NBTValue) -> (value: NBTValue, itemCount: Int, containerCount: Int) {
@@ -3132,15 +3124,7 @@ private final class CommandBlockStore {
         guard case .compound(let tags) = root else { return nil }
         func number(_ names: Set<String>) -> Int64? {
             for tag in tags where names.contains(tag.name.lowercased()) {
-                switch tag.value {
-                case .byte(let value): return Int64(value)
-                case .short(let value): return Int64(value)
-                case .int(let value): return Int64(value)
-                case .long(let value): return value
-                case .float(let value): return Int64(value)
-                case .double(let value): return Int64(value)
-                default: continue
-                }
+                if let value = tag.value.integerValue() { return value }
             }
             return nil
         }

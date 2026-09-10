@@ -43,13 +43,13 @@ require 'minecraft:bedrock.png）不受支持' "$STORE"
 
 # Colors.txt: colon-form block id + #RRGGBB. Invalid lines are skipped by the
 # guards, duplicate assignment is sequential (last valid line wins), and text
-# entries are merged after PNGs so text always has priority.
+# entries are loaded first and skip shadowed PNGs so text always has priority.
 require 'private static let colorsFilename = "Colors.txt"' "$STORE"
 require 'let fields = trimmed.split(whereSeparator: { $0.isWhitespace })' "$STORE"
 require 'guard fields.count == 2 else { return }' "$STORE"
 require 'guard text.count == 7, text.first == "#" else { return nil }' "$STORE"
 require 'result[BedrockBlockIdentifier.normalized(identifierText)] = color' "$STORE"
-require 'if let textColors = parseColorsFile(at: colorsURL)' "$STORE"
+require 'textColors[identifier] == nil' "$STORE"
 require 'loaded[identifier] = color' "$STORE"
 require 'Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。' "$STORE"
 

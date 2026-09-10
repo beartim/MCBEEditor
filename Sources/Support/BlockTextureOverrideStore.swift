@@ -1,5 +1,6 @@
 import Foundation
-import UIKit
+import CoreGraphics
+import ImageIO
 
 /// Loads user-provided block colour overrides from the app's shared
 /// Documents/Textures directory.
@@ -55,7 +56,7 @@ enum BlockTextureOverrideStore {
         return colors[key]
     }
 
-    private static func reload(from directory: URL) {
+    static func reload(from directory: URL) {
         let urls: [URL]
         do {
             urls = try FileManager.default.contentsOfDirectory(
@@ -67,23 +68,18 @@ enum BlockTextureOverrideStore {
             return
         }
 
-        // PNG overrides are loaded first. Any valid Colors.txt entry for the
-        // same identifier is applied afterwards and therefore completely wins.
-        var loaded: [String: UInt32] = [:]
-        for url in urls where url.pathExtension.lowercased() == "png" {
+        // Text entries win without decoding PNGs whose colour would be discarded.
+        let colorsURL = directory.appendingPathComponent(colorsFilename, isDirectory: false)
+        let textColors = parseColorsFile(at: colorsURL) ?? [:]
+        var loaded = textColors
+        let orderedURLs = urls.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        for url in orderedURLs where url.pathExtension.lowercased() == "png" {
             guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
                   values.isRegularFile == true else { continue }
             let stem = url.deletingPathExtension().lastPathComponent
-            guard let identifier = identifierFromPNGStem(stem),
+            guard let identifier = identifierFromPNGStem(stem), textColors[identifier] == nil,
                   let color = averageRGB(ofPNGAt: url) else { continue }
             loaded[identifier] = color
-        }
-
-        let colorsURL = directory.appendingPathComponent(colorsFilename, isDirectory: false)
-        if let textColors = parseColorsFile(at: colorsURL) {
-            for (identifier, color) in textColors {
-                loaded[identifier] = color
-            }
         }
 
         lock.lock()
@@ -117,8 +113,13 @@ enum BlockTextureOverrideStore {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return nil }
 
+        return parseColorsText(text)
+    }
+
+    static func parseColorsText(_ text: String) -> [String: UInt32] {
+        let source = text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text
         var result: [String: UInt32] = [:]
-        text.enumerateLines { line, _ in
+        source.enumerateLines { line, _ in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
 
@@ -197,34 +198,47 @@ Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
     }
 
     private static func averageRGB(ofPNGAt url: URL) -> UInt32? {
-        guard let image = UIImage(contentsOfFile: url.path), let cgImage = image.cgImage else { return nil }
+        // Decode a bounded thumbnail: opening a large external texture should
+        // not allocate its full-resolution bitmap merely to obtain one colour.
+        guard let source = CGImageSourceCreateWithURL(
+            url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary
+        ), let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 64,
+            kCGImageSourceShouldCacheImmediately: true
+        ] as CFDictionary) else { return nil }
 
-        var pixel = [UInt8](repeating: 0, count: 4)
-        return pixel.withUnsafeMutableBytes { rawBuffer -> UInt32? in
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0, width <= 64, height <= 64 else { return nil }
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        return pixels.withUnsafeMutableBytes { rawBuffer -> UInt32? in
             guard let baseAddress = rawBuffer.baseAddress,
                   let context = CGContext(
-                    data: baseAddress,
-                    width: 1,
-                    height: 1,
-                    bitsPerComponent: 8,
-                    bytesPerRow: 4,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    data: baseAddress, width: width, height: height,
+                    bitsPerComponent: 8, bytesPerRow: width * 4,
+                    space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
                   ) else { return nil }
-
-            context.interpolationQuality = .high
             context.setBlendMode(.copy)
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
 
             let bytes = rawBuffer.bindMemory(to: UInt8.self)
-            let alpha = Int(bytes[3])
+            var red = 0, green = 0, blue = 0, alpha = 0
+            for offset in stride(from: 0, to: bytes.count, by: 4) {
+                red += Int(bytes[offset])
+                green += Int(bytes[offset + 1])
+                blue += Int(bytes[offset + 2])
+                alpha += Int(bytes[offset + 3])
+            }
             guard alpha > 0 else { return nil }
-            // CGContext stores premultiplied RGB. Unpremultiply the 1x1 sample so
-            // transparent texels do not artificially darken the visible colour.
-            let red = min(255, Int(bytes[0]) * 255 / alpha)
-            let green = min(255, Int(bytes[1]) * 255 / alpha)
-            let blue = min(255, Int(bytes[2]) * 255 / alpha)
-            return UInt32(red << 16 | green << 8 | blue)
+            // Average all premultiplied samples, then unpremultiply once. Fully
+            // transparent pixels contribute no colour and cannot darken it.
+            let r = min(255, (red * 255 + alpha / 2) / alpha)
+            let g = min(255, (green * 255 + alpha / 2) / alpha)
+            let b = min(255, (blue * 255 + alpha / 2) / alpha)
+            return UInt32(r << 16 | g << 8 | b)
         }
     }
 }

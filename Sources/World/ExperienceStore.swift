@@ -57,7 +57,7 @@ struct BedrockPlayerExperience {
 
     /// XP required to move from `level` to `level + 1`.
     static func pointsRequiredForNextLevel(_ level: Int32) -> Int32 {
-        let value = max(0, level)
+        let value = min(maximumLevel, max(0, level))
         switch value {
         case 0...15:
             return 2 * value + 7
@@ -164,8 +164,16 @@ final class ExperienceStore {
         case .short(let number): raw = Int64(number)
         case .int(let number): raw = Int64(number)
         case .long(let number): raw = number
-        case .float(let number): raw = Int64(number)
-        case .double(let number): raw = Int64(number)
+        case .float(let number):
+            guard let integer = Int64(exactly: number) else {
+                throw MCBEEditorError.malformedData("玩家 \(name) 必须是有限整数")
+            }
+            raw = integer
+        case .double(let number):
+            guard let integer = Int64(exactly: number) else {
+                throw MCBEEditorError.malformedData("玩家 \(name) 必须是有限整数")
+            }
+            raw = integer
         default: throw MCBEEditorError.malformedData("玩家 \(name) 标签必须是数字类型")
         }
         guard let result = Int32(exactly: raw) else {

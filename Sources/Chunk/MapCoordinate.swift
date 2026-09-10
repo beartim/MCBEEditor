@@ -26,10 +26,11 @@ enum MapCoordinate {
     /// by commands such as `/tickingarea add circle`. Partial chunks round up.
     static func chunkDistance(fromBlockDistance distance: Int64) -> Int32 {
         let nonnegative = max(0, distance)
-        return Int32(clamping: (nonnegative + blocksPerChunk - 1) / blocksPerChunk)
+        let whole = nonnegative / blocksPerChunk
+        return Int32(clamping: whole + (nonnegative % blocksPerChunk == 0 ? 0 : 1))
     }
 
     static func blockDistance(fromChunkDistance distance: Int64) -> Int64 {
-        max(0, distance) * blocksPerChunk
+        min(max(0, distance), Int64.max / blocksPerChunk) * blocksPerChunk
     }
 }

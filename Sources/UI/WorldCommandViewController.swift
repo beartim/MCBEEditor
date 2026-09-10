@@ -276,13 +276,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     if result.changedWorld {
                         self.session.notifyAfterDatabaseMutation()
                     }
-                    if result.outputLines.isEmpty {
-                        self.appendOutput(result.message, color: .systemGreen)
-                    } else {
-                        for line in result.outputLines {
-                            self.appendOutput(line.text, color: self.outputColor(for: line.style))
-                        }
-                    }
+                    self.appendResult(result)
                     self.setRunning(false)
                 }
             } catch {
@@ -332,13 +326,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
                     let result = try self.executor.execute(item.command)
                     changedWorld = changedWorld || result.changedWorld
                     DispatchQueue.main.sync {
-                        if result.outputLines.isEmpty {
-                            self.appendOutput(result.message, color: .systemGreen)
-                        } else {
-                            for line in result.outputLines {
-                                self.appendOutput(line.text, color: self.outputColor(for: line.style))
-                            }
-                        }
+                        self.appendResult(result)
                     }
                 } catch {
                     failureCount += 1
@@ -386,13 +374,32 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         }
     }
 
-    private func appendOutput(_ text: String, color: UIColor? = nil) {
+    private func appendResult(_ result: WorldCommandExecutionResult) {
+        if result.outputLines.isEmpty {
+            appendOutput(result.message, color: .systemGreen)
+            return
+        }
+        // One layout/scroll per result, even for a query listing thousands of
+        // chunks. Every line retains its original text, order and colour.
+        outputView.textStorage.beginEditing()
+        for line in result.outputLines {
+            appendOutput(line.text, color: outputColor(for: line.style), scroll: false)
+        }
+        outputView.textStorage.endEditing()
+        scrollOutputToEnd()
+    }
+
+    private func appendOutput(_ text: String, color: UIColor? = nil, scroll: Bool = true) {
         let prefix = outputView.textStorage.length == 0 ? "" : "\n"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: outputView.font ?? UIFont.monospacedSystemFont(ofSize: 13, weight: .regular),
             .foregroundColor: color ?? outputView.textColor ?? UIColor(white: 0.92, alpha: 1)
         ]
         outputView.textStorage.append(NSAttributedString(string: prefix + text, attributes: attributes))
+        if scroll { scrollOutputToEnd() }
+    }
+
+    private func scrollOutputToEnd() {
         let end = NSRange(location: outputView.textStorage.length, length: 0)
         outputView.scrollRangeToVisible(end)
     }

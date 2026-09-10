@@ -1222,15 +1222,7 @@ final class BedrockBlockNBTStore {
         guard let value = tags.first(where: { lowered.contains($0.name.lowercased()) })?.value else {
             return nil
         }
-        switch value {
-        case .byte(let number): return Int64(number)
-        case .short(let number): return Int64(number)
-        case .int(let number): return Int64(number)
-        case .long(let number): return number
-        case .float(let number): return Int64(number)
-        case .double(let number): return Int64(number)
-        default: return nil
-        }
+        return value.integerValue()
     }
 
     private func firstStringValue(in root: NBTValue, names: [String]) -> String? {

@@ -10,14 +10,15 @@ struct BinaryCursor {
     mutating func readByte() throws -> UInt8 {
         guard offset < data.count else { throw MCBEEditorError.malformedData("读取字节越界") }
         defer { offset += 1 }
-        return data[offset]
+        return data[data.startIndex + offset]
     }
 
     mutating func readData(count: Int) throws -> Data {
-        guard count >= 0, offset + count <= data.count else {
+        guard count >= 0, count <= remaining else {
             throw MCBEEditorError.malformedData("读取 \(count) 字节越界")
         }
-        let result = data.subdata(in: offset..<(offset + count))
+        let start = data.startIndex + offset
+        let result = Data(data[start..<(start + count)])
         offset += count
         return result
     }
@@ -103,19 +104,27 @@ struct BinaryCursor {
     }
 
     mutating func readUnsignedVarInt(maxBytes: Int = 5) throws -> UInt64 {
+        guard (1...10).contains(maxBytes) else {
+            throw MCBEEditorError.malformedData("VarInt 字节上限无效")
+        }
         var result: UInt64 = 0
-        var shift: UInt64 = 0
-        for _ in 0..<maxBytes {
+        for index in 0..<maxBytes {
             let byte = try readByte()
-            result |= UInt64(byte & 0x7f) << shift
+            let payload = UInt64(byte & 0x7f)
+            // The fifth UInt32 byte has only four useful bits; the tenth
+            // UInt64 byte has only one. Never silently discard high bits.
+            guard !(maxBytes == 5 && index == 4 && payload > 0x0f),
+                  !(index == 9 && payload > 1) else {
+                throw MCBEEditorError.malformedData("VarInt 数值溢出")
+            }
+            result |= payload << (index * 7)
             if byte & 0x80 == 0 { return result }
-            shift += 7
         }
         throw MCBEEditorError.malformedData("VarInt 过长")
     }
 
     mutating func readSignedVarInt32() throws -> Int32 {
-        let raw = UInt32(truncatingIfNeeded: try readUnsignedVarInt(maxBytes: 5))
+        let raw = UInt32(try readUnsignedVarInt(maxBytes: 5))
         return Int32(bitPattern: (raw >> 1) ^ (~(raw & 1) &+ 1))
     }
 

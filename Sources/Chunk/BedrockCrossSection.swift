@@ -112,9 +112,8 @@ extension ChunkSurfaceRenderer {
       let legacyTerrain: BedrockLegacyTerrain?
     }
     struct Sample {
-      let blockName: String
-      let legacyID: UInt16?
-      let legacyData: UInt8?
+      let state: BedrockBlockState?
+      var blockName: String { state?.name ?? "minecraft:air" }
       let hasSubChunk: Bool
       let biomeID: UInt32?
       let chunkX: Int32
@@ -207,9 +206,7 @@ extension ChunkSurfaceRenderer {
       // individual SubChunk was never generated, so chunk-level generation state
       // must not be used as an air fallback here.
       return Sample(
-        blockName: primary?.name ?? "minecraft:air",
-        legacyID: primary?.legacyID,
-        legacyData: primary?.legacyData,
+        state: primary,
         hasSubChunk: subChunk != nil,
         biomeID: biomeID,
         chunkX: chunkX,
@@ -353,8 +350,12 @@ extension ChunkSurfaceRenderer {
           ? UIColor(red: 0.25, green: 0.72, blue: 0.25, alpha: 1)
           : UIColor(white: 0.24, alpha: 1)
       default:
+        // Resolve colour properties only for the selected visible sample,
+        // rather than for every block visited by the projection ray.
+        let input = BedrockBlockMapColorInput(state: value.state)
         return crossSectionColor(
-          for: value.blockName, legacyID: value.legacyID, legacyData: value.legacyData,
+          for: value.blockName, legacyID: input.legacyID, legacyData: input.legacyData,
+          variantIdentifier: input.variantIdentifier,
           y: Int32(clamping: y), mode: mode
         )
       }

@@ -602,15 +602,7 @@ extension BedrockChunkStore {
         guard case .compound(let tags) = root else { return nil }
         func number(_ names: Set<String>) -> Int64? {
             guard let value = tags.first(where: { names.contains($0.name.lowercased()) })?.value else { return nil }
-            switch value {
-            case .byte(let number): return Int64(number)
-            case .short(let number): return Int64(number)
-            case .int(let number): return Int64(number)
-            case .long(let number): return number
-            case .float(let number): return Int64(number)
-            case .double(let number): return Int64(number)
-            default: return nil
-            }
+            return value.integerValue()
         }
         guard let x = number(["x", "pairx"]), let z = number(["z", "pairz"]) else { return nil }
         return (x, z)

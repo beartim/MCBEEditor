@@ -57,13 +57,12 @@ enum BedrockBlockMapColorCatalog {
         if isWater(name) { return 0x337CCB }
         if BedrockBlockIdentifier.isLava(name) { return 0xF05A19 }
 
-        if let dyed = dyedFamilyRGB(name) { return dyed }
-
         // Exact/special semantic colours are intentionally evaluated before broad material
         // families.  Many block identifiers contain a misleading material token: for example
         // `ender_chest` is obsidian/teal rather than oak-brown, `flower_pot` is terracotta rather
         // than a flower, and `end_stone_bricks` must not be swallowed by generic stone bricks.
         if let special = specialSemanticRGB(name) { return special }
+        if let dyed = dyedFamilyRGB(name) { return dyed }
 
         // Legacy/functional blocks whose identifiers do not carry their material in the name.
         if name == "minecraft:bed" { return 0xB02E26 }
@@ -93,21 +92,20 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("netherreactor") { return 0x455267 }
         if name.contains("item_frame") || name == "minecraft:frame" { return 0x835432 }
         if name.contains("info_update") { return 0xB06DA8 }
-        if name.lowercased().contains("movingblock") || name.contains("moving_block") { return 0x777777 }
+        if name.contains("movingblock") || name.contains("moving_block") { return 0x777777 }
         if name.contains("monster_egg") || name.contains("infested_") {
             // Infested blocks should visually follow the host block rather than collapsing to one
             // generic gray.  This is especially noticeable for deepslate and mossy variants.
             if name.contains("deepslate") { return 0x3F4245 }
             if name.contains("mossy") { return 0x5E7157 }
             if name.contains("cobblestone") { return 0x686868 }
-            if name.contains("stone_brick") || name.contains("stonebrick") { return 0x777777 }
             return 0x777777
         }
         if name.contains(":element_") { return 0x8B8B8B }
 
         // Transparent/invisible technical blocks.
         if name.hasSuffix(":structure_void") { return airRGB }
-        if name.contains("glass") || name.hasSuffix(":glass_pane") { return 0xD6E9EC }
+        if name.contains("glass") { return 0xD6E9EC }
 
         // Highly specific natural blocks must precede broad plant/stone/sand families.
         if name.contains("mossy_cobblestone") || name.contains("mossy_stone_brick") { return 0x5E7157 }
@@ -164,11 +162,10 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("podzol") { return 0x6B4B2A }
         if name.contains("mud_brick") { return 0x77645A }
         if name.hasSuffix(":mud") || name.contains(":packed_mud") { return 0x4B4648 }
-        if name.contains("rooted_dirt") || name.contains("coarse_dirt") || name.contains("dirt")
-            || name.contains("farmland") || name.contains("grass_path") || name.contains("dirt_path") {
+        if name.contains("dirt") || name.contains("farmland") || name.contains("grass_path") {
             return 0x76502B
         }
-        if name == "minecraft:clay" || name.hasSuffix(":clay") { return 0x9AA6B1 }
+        if name.hasSuffix(":clay") { return 0x9AA6B1 }
         if name.contains("gravel") { return 0x77716D }
 
         // Snow and ice.
@@ -194,7 +191,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("diorite") { return 0xC9C9C5 }
         if name.contains("andesite") { return 0x7D7D7D }
         if name.contains("tuff") { return 0x59645D }
-        if name.contains("deepslate") { return 0x3F4245 }
+        if name.contains("deepslate") { return name.contains("_ore") ? 0x535557 : 0x3F4245 }
         if name.contains("blackstone") { return 0x2F292F }
         if name.contains("basalt") { return 0x4D4A4A }
         if name.contains("prismarine") {
@@ -208,7 +205,6 @@ enum BedrockBlockMapColorCatalog {
         // Ores should resemble their host block in normal surface mode.  X-ray mode has a
         // separate vivid ore palette, so making exposed ore cyan/yellow here is misleading.
         if name.contains("_ore") {
-            if name.contains("deepslate") { return 0x535557 }
             if name.contains("nether") || name.contains("quartz") { return 0x773333 }
             if name.contains("copper") { return 0x88766D }
             if name.contains("iron") { return 0x85807A }
@@ -243,6 +239,7 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("glowstone") { return 0xD89B4B }
         if name.contains("shroomlight") || name.contains("froglight") { return 0xE2B86A }
         if name.contains("nether_wart") { return 0x7A2530 }
+        if name.contains("red_nether_brick") { return 0x672934 }
         if name.contains("nether_brick") { return 0x4A1E25 }
         if name.hasSuffix(":portal") { return 0x6E3A8F }
         if name.contains("end_stone") || name.contains("end_brick") { return 0xD5D69A }
@@ -383,7 +380,6 @@ enum BedrockBlockMapColorCatalog {
         // Legacy aliases whose old identifiers pre-date modern snake_case.
         case "minecraft:sealantern": return 0xC8DED2
         case "minecraft:invisiblebedrock": return 0x3A3A3A
-        case "minecraft:silver_glazed_terracotta": return dyeRGB[8]
 
         // Crop stems and small vegetation should not inherit the fruit/wood colour.
         case "minecraft:pumpkin_stem", "minecraft:melon_stem",
@@ -508,7 +504,7 @@ enum BedrockBlockMapColorCatalog {
         let r = UInt32(72 + (hash & 0x5F))
         let g = UInt32(72 + ((hash >> 8) & 0x5F))
         let b = UInt32(72 + ((hash >> 16) & 0x5F))
-        return (min(r, 167) << 16) | (min(g, 167) << 8) | min(b, 167)
+        return (r << 16) | (g << 8) | b
     }
 
     private static func normalized(_ identifier: String) -> String {
@@ -527,7 +523,7 @@ enum BedrockBlockMapColorCatalog {
             }
         case 3: // dirt / coarse dirt / podzol
             return meta == 2 ? 0x6B4B2A : 0x76502B
-        case 5: return woodRGB(speciesIndex: meta & 0x07)
+        case 5, 157, 158: return woodRGB(speciesIndex: meta & 0x07)
         case 12: return meta == 1 ? 0xB65A27 : 0xDEC98A
         case 17: return woodRGB(speciesIndex: meta & 0x03)
         case 18: return leafRGB(speciesIndex: meta & 0x03)
@@ -538,7 +534,7 @@ enum BedrockBlockMapColorCatalog {
         case 204: return (meta & 0x01) == 0 ? 0x4B73D1 : 0x9B5BC2 // blue / purple torch
         case 35, 160, 171, 218, 236, 237, 241, 254:
             let base = dyeRGB[meta]
-            if id == 95 || id == 160 || id == 241 || id == 254 { return blend(base, with: 0xE8F1F2, percentSecond: 24) }
+            if id == 160 || id == 241 || id == 254 { return blend(base, with: 0xE8F1F2, percentSecond: 24) }
             if id == 237 { return blend(base, with: 0xC8C8C8, percentSecond: 10) }
             return base
         case 43, 44:
@@ -553,6 +549,13 @@ enum BedrockBlockMapColorCatalog {
             default: return 0x777777
             }
         case 159: return terracottaRGB[meta]
+        case 168:
+            switch meta {
+            case 1: return 0x335B51 // dark prismarine
+            case 2: return 0x63A89A // prismarine bricks
+            default: return 0x5E9B8B
+            }
+        case 19: return meta == 1 ? 0x9E9B3F : 0xC9BC3B
         case 161: return leafRGB(speciesIndex: (meta & 0x01) + 4)
         case 162: return woodRGB(speciesIndex: (meta & 0x01) + 4)
         default: return nil
@@ -574,7 +577,6 @@ enum BedrockBlockMapColorCatalog {
         case "minecraft:pink_tulip", "minecraft:peony": return 0xE58FA8
         case "minecraft:cornflower": return 0x5579C6
         case "minecraft:wither_rose": return 0x3B2B3E
-        case "minecraft:sunflower", "minecraft:sun_flower": return 0xE2B93B
         case "minecraft:lilac": return 0xB57AB8
         default: return nil
         }
@@ -609,12 +611,14 @@ enum BedrockBlockMapColorCatalog {
     }
 
     private static func dyedFamilyRGB(_ name: String) -> UInt32? {
-        let dyeIndex = dyeIndex(in: name)
+        // Moss carpets are living vegetation, not the undyed wool default.
+        if name == "minecraft:moss_carpet" { return 0x5E9B3B }
 
         // Straw beds are a naturally yellow/tan block, not an undyed white bed.
         if name == "minecraft:straw_bed" { return 0xC7A84A }
 
         if name.contains("terracotta") || name.contains("hardened_clay") {
+            let dyeIndex = dyeIndex(in: name)
             if name.contains("glazed_terracotta") {
                 return dyeIndex.map { dyeRGB[$0] } ?? 0x985E4B
             }
@@ -625,6 +629,7 @@ enum BedrockBlockMapColorCatalog {
             || name.contains("stained_glass") || name.contains("shulker_box") || name.contains("candle")
             || name.contains("_bed") || name.contains("banner")
         guard usesDye else { return nil }
+        let dyeIndex = dyeIndex(in: name)
         if name.contains("shulker_box"), dyeIndex == nil { return 0x8B5C8F }
         if name.contains("candle"), dyeIndex == nil { return 0xD6C28B }
 
@@ -635,19 +640,86 @@ enum BedrockBlockMapColorCatalog {
     }
 
     private static func dyeIndex(in name: String) -> Int? {
-        for (token, index) in dyeNames where name.contains(token) { return index }
+        // Match a complete leading colour token, never a namespace or part of
+        // another word (for example "colored", "grayish" or "inspired").
+        let path = String(name.split(separator: ":", maxSplits: 1).last ?? "")
+        let material = path.hasPrefix("hard_") ? String(path.dropFirst(5)) : path
+        for (token, index) in dyeNames where material.hasPrefix(token + "_") { return index }
         return nil
     }
 
     private static func isGenericWood(_ name: String) -> Bool {
         if name.contains(":wooden_") { return true }
-        let exact: Set<String> = [
-            "minecraft:planks", "minecraft:log", "minecraft:log2",
-            "minecraft:fence", "minecraft:fence_gate", "minecraft:trapdoor",
-            "minecraft:standing_sign", "minecraft:wall_sign", "minecraft:ladder",
-            "minecraft:wooden_slab", "minecraft:double_wooden_slab"
-        ]
-        return exact.contains(name)
+        switch name {
+        case "minecraft:planks", "minecraft:log", "minecraft:log2",
+             "minecraft:fence", "minecraft:fence_gate", "minecraft:trapdoor",
+             "minecraft:standing_sign", "minecraft:wall_sign", "minecraft:ladder",
+             "minecraft:double_wooden_slab": return true
+        default: return false
+        }
+    }
+
+    /// A render-only name for historical NBT palettes that kept variants in
+    /// `states`. Never write these synthetic names back to the world. Restrict
+    /// interpretation to known vanilla families so custom state keys stay inert.
+    static func variantIdentifier(for identifier: String, properties: [String: String]) -> String {
+        let name = normalized(identifier)
+        guard name.hasPrefix("minecraft:"), !properties.isEmpty else { return name }
+        let path = String(name.dropFirst("minecraft:".count))
+        func value(_ key: String) -> String? { properties[key]?.lowercased() }
+        func block(_ path: String) -> String { "minecraft:" + path }
+
+        switch path {
+        case "wool", "carpet", "concrete", "concretepowder", "concrete_powder",
+             "stained_glass", "stained_glass_pane", "hard_stained_glass",
+             "hard_stained_glass_pane", "stained_hardened_clay", "shulker_box":
+            if let color = value("color"), dyeNames.contains(where: { $0.0 == color }) {
+                let dye = color == "silver" ? "light_gray" : color
+                switch path {
+                case "stained_hardened_clay": return block(dye + "_terracotta")
+                case "concretepowder": return block(dye + "_concrete_powder")
+                case "hard_stained_glass", "hard_stained_glass_pane":
+                    return block("hard_" + dye + "_" + String(path.dropFirst(5)))
+                default: return block(dye + "_" + path)
+                }
+            }
+        case "planks", "wooden_slab", "double_wooden_slab", "log", "log2", "wood", "leaves", "leaves2":
+            let species = value("wood_type") ?? value("old_log_type") ?? value("new_log_type")
+                ?? value("old_leaf_type") ?? value("new_leaf_type")
+            if let species, ["oak", "spruce", "birch", "jungle", "acacia", "dark_oak"].contains(species) {
+                let family: String
+                switch path {
+                case "wooden_slab", "double_wooden_slab": family = "slab"
+                case "log2": family = "log"
+                case "leaves2": family = "leaves"
+                default: family = path
+                }
+                return block(species + "_" + family)
+            }
+        case "stone":
+            if let type = value("stone_type"), ["stone", "granite", "granite_smooth", "diorite", "diorite_smooth", "andesite", "andesite_smooth"].contains(type) {
+                return block(type)
+            }
+        case "stonebrick":
+            if value("stone_brick_type") == "mossy" { return block("mossy_stone_bricks") }
+        case "sand":
+            if value("sand_type") == "red" { return block("red_sand") }
+        case "dirt":
+            if value("dirt_type") == "coarse" { return block("coarse_dirt") }
+        case "prismarine":
+            if value("prismarine_block_type") == "dark" { return block("dark_prismarine") }
+            if value("prismarine_block_type") == "bricks" { return block("prismarine_bricks") }
+        case "sponge":
+            if value("sponge_type") == "wet" { return block("wet_sponge") }
+        case "red_flower":
+            if let type = value("flower_type"), flowerRGB(block(type)) != nil { return block(type) }
+        case "double_plant":
+            let plants = ["sunflower": "sunflower", "syringa": "lilac", "grass": "tall_grass",
+                          "fern": "large_fern", "rose": "rose_bush", "paeonia": "peony"]
+            if let type = value("double_plant_type"), let plant = plants[type] { return block(plant) }
+        default: break
+        }
+        return name
     }
 
     private static func woodRGB(speciesIndex: Int) -> UInt32 {

@@ -136,15 +136,7 @@ extension NBTValue {
     }
 
     var numericInt64Value: Int64? {
-        switch self {
-        case .byte(let value): return Int64(value)
-        case .short(let value): return Int64(value)
-        case .int(let value): return Int64(value)
-        case .long(let value): return value
-        case .float(let value): return Int64(value)
-        case .double(let value): return Int64(value)
-        default: return nil
-        }
+        integerValue()
     }
 
     var listValues: [NBTValue]? {

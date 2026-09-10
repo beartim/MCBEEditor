@@ -105,6 +105,7 @@ final class WorldDetailTabBarController: UITabBarController, UITabBarControllerD
     }
 
     private func validateAndExecuteSharedCommands(_ lines: [SharedCommandFileLine]) {
+        setSharedCommandBatchNavigationLocked(true)
         let validationOverlay = showBusy("正在检查 Command.txt 语法…")
         view.isUserInteractionEnabled = false
 
@@ -135,6 +136,7 @@ final class WorldDetailTabBarController: UITabBarController, UITabBarControllerD
                 validationOverlay.removeFromSuperview()
 
                 if !syntaxErrors.isEmpty {
+                    self.setSharedCommandBatchNavigationLocked(false)
                     self.view.isUserInteractionEnabled = true
                     let maximumDisplayedErrors = 12
                     let details = syntaxErrors.prefix(maximumDisplayedErrors).map { item in
@@ -155,6 +157,7 @@ final class WorldDetailTabBarController: UITabBarController, UITabBarControllerD
                 }
 
                 guard let commandController = self.commandController else {
+                    self.setSharedCommandBatchNavigationLocked(false)
                     self.view.isUserInteractionEnabled = true
                     self.showError(
                         MCBEEditorError.unsupported("命令栏目尚未准备完成"),

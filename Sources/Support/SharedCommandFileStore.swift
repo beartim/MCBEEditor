@@ -58,11 +58,22 @@ enum SharedCommandFileStore {
             throw MCBEEditorError.malformedData("Commands/Command.txt 必须使用 UTF-8 文本格式")
         }
 
-        return text.components(separatedBy: .newlines).enumerated().compactMap { offset, raw in
+        return parseCommandLines(text)
+    }
+
+    static func parseCommandLines(_ text: String) -> [SharedCommandFileLine] {
+        // Windows CRLF counts as one source line. A UTF-8 BOM is a file marker,
+        // not part of the first command name.
+        let source = text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text
+        var lines = [SharedCommandFileLine]()
+        var lineNumber = 0
+        source.enumerateLines { raw, _ in
+            lineNumber += 1
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
-            return SharedCommandFileLine(lineNumber: offset + 1, text: trimmed)
+            guard !trimmed.isEmpty else { return }
+            lines.append(SharedCommandFileLine(lineNumber: lineNumber, text: trimmed))
         }
+        return lines
     }
 
     private static let readMeText = """

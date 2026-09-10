@@ -94,6 +94,20 @@ indirect enum NBTValue {
     case intArray([Int32])
     case longArray([Int64])
 
+    /// Preserve each caller's rounding convention while refusing NaN,
+    /// infinities and numbers outside Int64 instead of trapping in Int64(...).
+    func integerValue(rounding rule: FloatingPointRoundingRule = .towardZero) -> Int64? {
+        switch self {
+        case .byte(let value): return Int64(value)
+        case .short(let value): return Int64(value)
+        case .int(let value): return Int64(value)
+        case .long(let value): return value
+        case .float(let value): return Int64(exactly: value.rounded(rule))
+        case .double(let value): return Int64(exactly: value.rounded(rule))
+        default: return nil
+        }
+    }
+
     var type: NBTTagType {
         switch self {
         case .byte: return .byte

@@ -262,13 +262,14 @@ final class ChunkSurfaceRenderer {
         for blockName: String,
         legacyID: UInt16? = nil,
         legacyData: UInt8? = nil,
+        variantIdentifier: String? = nil,
         y: Int32,
         mode: MapRenderMode
     ) -> UIColor {
         if BedrockBlockMapColorCatalog.isAir(blockName), mode != .xray { return .systemGray5 }
         switch mode {
         case .surface:
-            return surfaceColor(for: blockName, legacyID: legacyID, legacyData: legacyData)
+            return surfaceColor(for: blockName, legacyID: legacyID, legacyData: legacyData, variantIdentifier: variantIdentifier)
         case .height:
             if BedrockBlockMapColorCatalog.isWater(blockName) {
                 let value = normalizedHeight(Int16(clamping: y))
@@ -278,7 +279,7 @@ final class ChunkSurfaceRenderer {
         case .xray:
             return oreColor(for: blockName)
         case .biome, .tickingAreas, .slime:
-            return surfaceColor(for: blockName, legacyID: legacyID, legacyData: legacyData)
+            return surfaceColor(for: blockName, legacyID: legacyID, legacyData: legacyData, variantIdentifier: variantIdentifier)
         }
     }
 
@@ -286,7 +287,9 @@ final class ChunkSurfaceRenderer {
         let blockName = state?.name ?? "minecraft:air"
         switch mode {
         case .surface:
-            return surfaceColor(for: blockName, legacyID: state?.legacyID, legacyData: state?.legacyData)
+            let input = BedrockBlockMapColorInput(state: state)
+            return surfaceColor(for: input.identifier, legacyID: input.legacyID, legacyData: input.legacyData,
+                                variantIdentifier: input.variantIdentifier)
         case .height:
             guard height != Int16.min else { return .systemGray5 }
             if BedrockBlockMapColorCatalog.isWater(blockName) {
@@ -401,12 +404,17 @@ final class ChunkSurfaceRenderer {
         )
     }
 
-    private func surfaceColor(for blockName: String, legacyID: UInt16? = nil, legacyData: UInt8? = nil) -> UIColor {
-        let key = "\(blockName.lowercased())|\(legacyID.map(String.init) ?? "-")|\(legacyData.map(String.init) ?? "-")|textures=\(BlockTextureOverrideStore.revision)" as NSString
+    private func surfaceColor(
+        for blockName: String, legacyID: UInt16? = nil, legacyData: UInt8? = nil,
+        variantIdentifier: String? = nil
+    ) -> UIColor {
+        let name = BedrockBlockIdentifier.normalized(blockName)
+        let variant = variantIdentifier ?? name
+        let key = "\(name)|\(variant)|\(legacyID.map(String.init) ?? "-")|\(legacyData.map(String.init) ?? "-")|textures=\(BlockTextureOverrideStore.revision)" as NSString
         if let cached = blockColorCache.object(forKey: key) { return cached }
         let hex = BlockTextureOverrideStore.rgbHex(for: blockName)
             ?? BedrockBlockMapColorCatalog.rgbHex(
-                for: blockName, legacyID: legacyID, legacyData: legacyData
+                for: variant, legacyID: legacyID, legacyData: legacyData
             )
             ?? BedrockBlockMapColorCatalog.fallbackRGB(for: blockName)
         let color = rgb(hex)

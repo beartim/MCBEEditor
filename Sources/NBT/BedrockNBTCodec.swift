@@ -3,8 +3,7 @@ import Foundation
 enum BedrockNBTCodec {
     static func decode(_ data: Data, encoding: NBTEncoding = .littleEndian, maximumDepth: Int = 256) throws -> NBTDocument {
         var cursor = BinaryCursor(data: data)
-        let document = try decodeDocument(cursor: &cursor, encoding: encoding, maximumDepth: maximumDepth)
-        return document
+        return try decodeDocument(cursor: &cursor, encoding: encoding, maximumDepth: maximumDepth)
     }
 
     static func decodeDocument(cursor: inout BinaryCursor, encoding: NBTEncoding = .littleEndian, maximumDepth: Int = 256) throws -> NBTDocument {
@@ -64,8 +63,9 @@ enum BedrockNBTCodec {
             if count > 0 && elementType == .end {
                 throw MCBEEditorError.malformedData("非空 List 不能使用 End 元素类型")
             }
+            try validateCollectionLength(count, elementType: elementType, cursor: cursor, encoding: encoding)
             var values = [NBTValue]()
-            values.reserveCapacity(count)
+            values.reserveCapacity(min(count, 4_096))
             for _ in 0..<count {
                 values.append(try readPayload(type: elementType, cursor: &cursor, encoding: encoding, depth: depth + 1, maximumDepth: maximumDepth))
             }
@@ -85,8 +85,9 @@ enum BedrockNBTCodec {
             return .compound(tags)
         case .intArray:
             let count = try readLength(cursor: &cursor, encoding: encoding)
+            try validateCollectionLength(count, elementType: .int, cursor: cursor, encoding: encoding)
             var values = [Int32]()
-            values.reserveCapacity(count)
+            values.reserveCapacity(min(count, 4_096))
             for _ in 0..<count {
                 switch encoding {
                 case .bigEndian: values.append(try cursor.readInt32BE())
@@ -97,8 +98,9 @@ enum BedrockNBTCodec {
             return .intArray(values)
         case .longArray:
             let count = try readLength(cursor: &cursor, encoding: encoding)
+            try validateCollectionLength(count, elementType: .long, cursor: cursor, encoding: encoding)
             var values = [Int64]()
-            values.reserveCapacity(count)
+            values.reserveCapacity(min(count, 4_096))
             for _ in 0..<count {
                 switch encoding {
                 case .bigEndian: values.append(try cursor.readInt64BE())
@@ -107,6 +109,29 @@ enum BedrockNBTCodec {
                 }
             }
             return .longArray(values)
+        }
+    }
+
+    /// Reject impossible counts before allocating. A truncated or incorrectly
+    /// detected file must not reserve millions of elements from a length alone.
+    private static func validateCollectionLength(
+        _ count: Int, elementType: NBTTagType, cursor: BinaryCursor, encoding: NBTEncoding
+    ) throws {
+        let minimumBytes: Int
+        switch elementType {
+        case .end, .byte, .compound: minimumBytes = 1
+        case .short: minimumBytes = 2
+        case .int: minimumBytes = encoding == .littleEndianVarInt ? 1 : 4
+        case .long: minimumBytes = encoding == .littleEndianVarInt ? 1 : 8
+        case .float: minimumBytes = 4
+        case .double: minimumBytes = 8
+        case .string: minimumBytes = encoding == .littleEndianVarInt ? 1 : 2
+        case .byteArray, .intArray, .longArray:
+            minimumBytes = encoding == .littleEndianVarInt ? 1 : 4
+        case .list: minimumBytes = encoding == .littleEndianVarInt ? 2 : 5
+        }
+        guard count <= cursor.remaining / minimumBytes else {
+            throw MCBEEditorError.malformedData("NBT 集合长度超过剩余数据")
         }
     }
 

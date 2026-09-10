@@ -3344,15 +3344,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func mapNBTInteger(_ value: NBTValue) -> Int64? {
-    switch value {
-    case .byte(let number): return Int64(number)
-    case .short(let number): return Int64(number)
-    case .int(let number): return Int64(number)
-    case .long(let number): return number
-    case .float(let number): return Int64(number.rounded())
-    case .double(let number): return Int64(number.rounded())
-    default: return nil
-    }
+    value.integerValue(rounding: .toNearestOrAwayFromZero)
   }
 
   private func normalizedNBTName(_ value: String) -> String {

@@ -92,7 +92,9 @@ enum BedrockLegacyBlockStateConverter {
             "silver", "cyan", "purple", "blue", "brown", "green", "red", "black"
         ]
         let normalized = identifier.lowercased()
-        if [35, 159, 160, 171, 251, 252].contains(Int(legacyID)), value < colors.count {
+        // Bedrock IDs differ from Java: 236/237 are concrete/powder;
+        // 251/252 are observer/structure_block and must preserve their val.
+        if [35, 159, 160, 171, 218, 236, 237, 241, 254].contains(Int(legacyID)), value < colors.count {
             return [NBTNamedTag(name: "color", value: .string(colors[value]))]
         }
         if legacyID == 5 {
