@@ -60,7 +60,10 @@ swiftc -parse-as-library \
 # Renderer must preserve legacy metadata long enough for the color catalogue to distinguish
 # old wool/sand/wood variants.  It must not regress to the old name-only substring cascade.
 grep -Fq 'var visibleStates = Array<BedrockBlockState?>' "$ROOT/Sources/Chunk/ChunkSurfaceRenderer.swift"
-grep -Fq 'legacyID: primary?.legacyID' "$ROOT/Sources/Chunk/BedrockCrossSection.swift"
+grep -Fq 'let input = BedrockBlockMapColorInput(state: value.state)' "$ROOT/Sources/Chunk/BedrockCrossSection.swift"
+grep -Fq 'legacyID: input.legacyID' "$ROOT/Sources/Chunk/BedrockCrossSection.swift"
+grep -Fq 'legacyData: input.legacyData' "$ROOT/Sources/Chunk/BedrockCrossSection.swift"
+grep -Fq 'variantIdentifier: input.variantIdentifier' "$ROOT/Sources/Chunk/BedrockCrossSection.swift"
 grep -Fq 'BedrockBlockMapColorCatalog.rgbHex' "$ROOT/Sources/Chunk/ChunkSurfaceRenderer.swift"
 if grep -Fq 'private func dyedBlockColor' "$ROOT/Sources/Chunk/ChunkSurfaceRenderer.swift"; then
   echo 'error: obsolete renderer-local dyedBlockColor cascade returned' >&2
