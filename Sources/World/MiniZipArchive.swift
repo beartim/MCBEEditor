@@ -104,6 +104,10 @@ enum MiniZipArchive {
       guard standardized.hasPrefix(rootPath + "/") else { continue }
       var relative = String(standardized.dropFirst(rootPath.count + 1)).replacingOccurrences(
         of: "\\", with: "/")
+      if isEditorPrivatePath(relative) {
+        if values.isDirectory == true { enumerator.skipDescendants() }
+        continue
+      }
       let isDirectory = values.isDirectory == true
       if isDirectory && !relative.hasSuffix("/") { relative.append("/") }
       guard let pathData = relative.data(using: .utf8), pathData.count <= Int(UInt16.max) else {
@@ -183,6 +187,27 @@ enum MiniZipArchive {
     output.appendLE(centralOffset)
     output.appendLE(UInt16(0))
     try AtomicFile.write(output, to: archiveURL)
+  }
+
+  /// Editor-owned metadata must never leak into exported .mcworld archives.
+  /// Known editor-private filenames are filtered alongside private directories.
+  private static func isEditorPrivatePath(_ relativePath: String) -> Bool {
+    let components = relativePath
+      .replacingOccurrences(of: "\\", with: "/")
+      .split(separator: "/", omittingEmptySubsequences: true)
+      .map { $0.lowercased() }
+    if let first = components.first,
+      first == ".mcbeeditor" || first.hasPrefix(".mcbeeditor-")
+        || first == "mcbeeditor" || first.hasPrefix("mcbeeditor.")
+        || first.hasPrefix("mcbeeditor-")
+    {
+      return true
+    }
+    return components.contains { component in
+      component == "map-display-preferences.json"
+        || component == "editor-settings.json"
+        || component == "editor-preferences.json"
+    }
   }
 
   private static func parseCentralDirectory(_ archive: Data) throws -> [Entry] {

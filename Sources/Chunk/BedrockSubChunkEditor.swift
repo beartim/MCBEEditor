@@ -351,20 +351,8 @@ extension BedrockSubChunk {
         }
 
         if isLegacyNumeric {
-            // Legacy v0/v2...v7 use 0x2F for layer 0 and the chunk-level
-            // LegacyBlockExtraData (0x34) record for layer 1. Keep both layers
-            // numeric and let BedrockChunkSubChunkAccess split/merge the two
-            // physical records during persistence. Only a genuinely modern NBT
-            // state forces a whole-chunk upgrade.
-            if newState.nbt != nil {
-                let upgraded = try upgradedToModern(paletteVersion: newState.paletteVersion)
-                return try upgraded.replacingBlockState(
-                    x: x,
-                    y: y,
-                    z: z,
-                    storageIndex: storageIndex,
-                    with: newState
-                )
+            guard newState.nbt == nil else {
+                throw MCBEEditorError.unsupported("旧版 SubChunk 只能写入数字 ID 与数据值")
             }
             guard newState.legacyID != nil else {
                 throw MCBEEditorError.unsupported("旧版 SubChunk 只能写入数字 ID 与数据值")
@@ -905,144 +893,38 @@ final class BedrockBlockNBTStore {
         let localX = Int(block.x - MapCoordinate.blockOrigin(ofChunk: chunkX))
         let localZ = Int(block.z - MapCoordinate.blockOrigin(ofChunk: chunkZ))
         let localY = Int(block.y) - Int(subChunkY) * 16
-        let key = BedrockDBKey.subChunk(
-            x: chunkX,
-            z: chunkZ,
-            dimension: block.dimension,
-            index: subChunkY
-        )
         let database = try session.database()
-        let currentState = currentBlockState(for: block, storageIndex: storageIndex)
         let position = ChunkPosition(x: chunkX, z: chunkZ, dimension: block.dimension)
         let storedRecord = try BedrockChunkSubChunkAccess.record(
             database: database, position: position, yIndex: subChunkY
         )
-        var decoded: BedrockSubChunk
-        var replacement: BedrockBlockState
-        var metadataPuts = [(key: Data, value: Data)]()
-        var metadataDeletes = [Data]()
-        var upgradedSubChunkPuts = [(key: Data, value: Data)]()
-        var upgradedWholeChunk = false
-        var preferLegacyTerrainIfMissing = false
-
-        // Editing a block that currently lives in a numeric-ID SubChunk must
-        // stay numeric. The map NBT editor exposes `name` only as the linked
-        // textual counterpart of `legacy_id`; it is not an implicit chunk
-        // upgrade switch. A name without a legacy numeric mapping is rejected.
-        let initiallyRequested: BedrockBlockState = currentState.legacyID != nil
-            ? try legacyBlockState(from: document.root, storageIndex: storageIndex)
-            : BedrockBlockState(nbt: document.root, legacyID: nil, legacyData: nil)
-
-        if let storedRecord = storedRecord {
-            let existing = storedRecord.subChunk
-            if existing.isLegacyNumeric && initiallyRequested.nbt != nil {
-                let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position, preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database))
-                upgradedWholeChunk = true
-                metadataPuts = plan.metadataPuts
-                metadataDeletes = plan.metadataDeletes
-                upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
-                decoded = try existing.upgradedToModern(paletteVersion: plan.paletteVersion)
-                replacement = try adaptedReplacement(
-                    initiallyRequested,
-                    legacy: false,
-                    paletteVersion: plan.paletteVersion
-                )
-            } else {
-                decoded = existing
-                replacement = try adaptedReplacement(
-                    initiallyRequested,
-                    legacy: existing.isLegacyNumeric,
-                    paletteVersion: nil
-                )
-            }
+        let records = try storedRecord.map { [$0] }
+            ?? BedrockChunkSubChunkAccess.records(database: database, position: position)
+        let knownPalette = storedRecord.flatMap { BedrockPaletteFormat.detect($0.subChunk.storages.flatMap(\.palette)) }
+        let profile = try storedRecord != nil && (storedRecord!.subChunk.isLegacyNumeric || knownPalette != nil)
+            ? nil : BedrockEmptyChunk.profile(database: database, dimension: block.dimension)
+        let targetVersion = try storedRecord?.subChunk.version ?? BedrockEmptyChunk.preferredSubChunkVersion(
+            database: database, at: position, fallback: profile?.subChunkVersion ?? 9)
+        let targetIsNumeric = storedRecord?.subChunk.isLegacyNumeric
+            ?? [UInt8(0), 2, 3, 4, 5, 6, 7].contains(targetVersion)
+        let air = try BedrockEmptyChunk.airForMissingSubChunk(
+            database: database, at: position, records: records, fallbackProfile: profile)
+        let decoded: BedrockSubChunk
+        if let storedRecord {
+            decoded = storedRecord.subChunk
+        } else if targetIsNumeric {
+            decoded = try BedrockSubChunk.emptyLegacy(version: targetVersion, yIndex: subChunkY)
         } else {
-            let legacyTerrainKey = BedrockDBKey(
-                position: position, recordType: .legacyTerrain, subChunkIndex: nil
-            ).encoded()
-            if try database.get(legacyTerrainKey) != nil, !(0...7).contains(Int(subChunkY)) {
-                throw MCBEEditorError.unsupported("LegacyTerrain 世界只保存 Y=0…127；不能在不升级区块格式的情况下写入 Y=\(block.y)")
-            }
-            let profile = try BedrockEmptyChunk.profile(
-                database: database,
-                dimension: block.dimension,
-                preferLegacy: false,
-                preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database)
-            )
-            preferLegacyTerrainIfMissing = profile.usesLegacyTerrain
-            let targetVersion = try BedrockEmptyChunk.preferredSubChunkVersion(
-                database: database,
-                at: position,
-                fallback: profile.subChunkVersion
-            )
-            let targetIsNumeric = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(targetVersion)
-            let hasMetadata = try BedrockEmptyChunk.hasChunkMetadata(database: database, at: position)
-
-            if targetIsNumeric && initiallyRequested.nbt != nil {
-                // Only numeric-ID SubChunks require a whole-chunk format upgrade.
-                // LegacyVersion/Data2D paired with paletted v8 is already a valid
-                // native format and must not be rewritten as v9.
-                let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: position, preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database))
-                upgradedWholeChunk = true
-                let modernProfile = BedrockEmptyChunkProfile(
-                    versionRecordType: .version,
-                    versionValue: plan.metadataPuts.first(where: {
-                        BedrockDBKey.parse($0.key)?.recordType == .version
-                    })?.value ?? Data([40]),
-                    blockPaletteVersion: plan.paletteVersion,
-                    subChunkVersion: 9,
-                    usesLegacyTerrain: false,
-                    terrainRecordType: .data3D,
-                    terrainValue: plan.metadataPuts.first(where: {
-                        BedrockDBKey.parse($0.key)?.recordType == .data3D
-                    })?.value
-                )
-                metadataPuts = plan.metadataPuts
-                metadataDeletes = plan.metadataDeletes
-                upgradedSubChunkPuts = plan.subChunkPuts.filter { $0.key != key }
-                replacement = try adaptedReplacement(
-                    initiallyRequested,
-                    legacy: false,
-                    paletteVersion: modernProfile.blockPaletteVersion
-                )
-                decoded = BedrockSubChunk(
-                    version: modernProfile.subChunkVersion,
-                    yIndex: subChunkY,
-                    storages: [.airFilled(with: .editableAir(version: modernProfile.blockPaletteVersion))],
-                    trailingData: Data()
-                )
-            } else if targetIsNumeric {
-                replacement = try adaptedReplacement(
-                    initiallyRequested,
-                    legacy: true,
-                    paletteVersion: profile.blockPaletteVersion
-                )
-                if !hasMetadata && !profile.usesLegacyTerrain {
-                    // In pre-Anvil worlds the 0x30 value is the terrain itself,
-                    // not separate metadata. persistentPuts() below creates the
-                    // edited 83,200-byte LegacyTerrain record atomically; adding
-                    // an empty 0x30 here would duplicate the same WriteBatch key
-                    // and make the post-write metadata verification compare the
-                    // edited terrain against the empty template.
-                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
-                }
-                decoded = try BedrockSubChunk.emptyLegacy(version: targetVersion, yIndex: subChunkY)
-            } else {
-                replacement = try adaptedReplacement(
-                    initiallyRequested,
-                    legacy: false,
-                    paletteVersion: profile.blockPaletteVersion
-                )
-                if !hasMetadata {
-                    metadataPuts = BedrockEmptyChunk.metadataRecords(at: position, profile: profile).map { ($0.key, $0.value) }
-                }
-                let persistentVersion: UInt8 = [UInt8(1), 8, 9].contains(targetVersion) ? targetVersion : 9
-                decoded = BedrockSubChunk(
-                    version: persistentVersion,
-                    yIndex: subChunkY,
-                    storages: [.airFilled(with: .editableAir(version: profile.blockPaletteVersion))],
-                    trailingData: Data()
-                )
-            }
+            decoded = BedrockSubChunk(version: targetVersion, yIndex: subChunkY,
+                                      storages: [.airFilled(with: air)], trailingData: Data())
+        }
+        var replacement: BedrockBlockState
+        if targetIsNumeric {
+            replacement = try legacyBlockState(from: document.root, storageIndex: storageIndex)
+        } else {
+            replacement = try normalizedPaletteState(document.root, paletteVersion: air.paletteVersion)
+            replacement = try BedrockLegacyBlockStateConverter.forPalette(replacement,
+                format: BedrockPaletteFormat.detect(decoded.storages.flatMap(\.palette)))
         }
         let updated = try decoded.replacingBlockState(
             x: localX,
@@ -1051,59 +933,14 @@ final class BedrockBlockNBTStore {
             storageIndex: storageIndex,
             with: replacement
         )
-        let targetPuts: [(key: Data, value: Data)]
-        if upgradedWholeChunk {
-            let encoded = try updated.encodePersistent()
-            // The upgrade plan deletes LegacyTerrain / old numeric storage and
-            // creates v9 SubChunkPrefix records, so the edited target must be
-            // written to its normal logical-Y 0x2F key.
-            targetPuts = [(key: key, value: encoded)]
-        } else {
-            // For normal v0...v9 records this preserves the original physical
-            // key; for 0x30 LegacyTerrain it merges the edited virtual slice
-            // back into the original 83,200-byte value.
-            targetPuts = try BedrockChunkSubChunkAccess.persistentPuts(
-                database: database,
-                position: position,
-                edited: [subChunkY: updated],
-                preferLegacyTerrainIfMissing: preferLegacyTerrainIfMissing
-            )
-        }
-        let allPuts = metadataPuts + upgradedSubChunkPuts + targetPuts
-        try database.applyBatch(
-            puts: allPuts,
-            deletes: metadataDeletes,
-            sync: true
-        )
-        for metadata in metadataPuts {
-            guard try database.get(metadata.key) == metadata.value else {
-                throw MCBEEditorError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
-            }
-        }
-        for upgraded in upgradedSubChunkPuts {
-            guard let stored = try database.get(upgraded.key) else {
-                throw MCBEEditorError.malformedData("升级后的 SubChunk 写入后未能从 LevelDB 读回")
-            }
-            _ = try BedrockSubChunk.decode(stored, keyYIndex: BedrockDBKey.parse(upgraded.key)?.subChunkIndex)
-        }
-        for deleted in metadataDeletes where metadataPuts.allSatisfy({ $0.key != deleted }) {
-            guard try database.get(deleted) == nil else {
-                throw MCBEEditorError.malformedData("旧版区块元数据删除后仍然存在")
-            }
-        }
-        guard let persisted = try BedrockChunkSubChunkAccess.record(
-            database: database, position: position, yIndex: subChunkY
-        ) else {
+        let targetPuts = try BedrockChunkSubChunkAccess.persistentPuts(
+            database: database, position: position, edited: [subChunkY: updated],
+            preferLegacyTerrainIfMissing: profile?.usesLegacyTerrain ?? false, metadataProfile: profile)
+        try database.applyBatch(puts: targetPuts, deletes: [], sync: true)
+        guard let persisted = try BedrockChunkSubChunkAccess.record(database: database, position: position, yIndex: subChunkY) else {
             throw MCBEEditorError.malformedData("方块地形写入后未能从 LevelDB 读回")
         }
-        _ = persisted.subChunk
-
-        var layers = block.layers
-        let fallbackVersion = layers.compactMap(\.paletteVersion).first ?? replacement.paletteVersion
-        while layers.count <= storageIndex {
-            layers.append(.editableAir(version: fallbackVersion))
-        }
-        layers[storageIndex] = replacement
+        let layers = persisted.subChunk.storages.compactMap { $0.blockState(x: localX, y: localY, z: localZ) }
         return BedrockBlockSaveResult(
             block: BedrockBlockRecord(
                 x: block.x,
@@ -1116,51 +953,25 @@ final class BedrockBlockNBTStore {
         )
     }
 
-    private func adaptedReplacement(
-        _ state: BedrockBlockState,
-        legacy: Bool,
-        paletteVersion: Int32?
-    ) throws -> BedrockBlockState {
-        if legacy {
-            if state.nbt == nil { return state }
-            guard state.stateProperties.isEmpty,
-                  let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) else {
-                throw MCBEEditorError.unsupported("方块 \(state.name) 的现代 states 无法写入旧版数字 ID SubChunk")
-            }
-            return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
+    private func normalizedPaletteState(_ root: NBTValue, paletteVersion: Int32?) throws -> BedrockBlockState {
+        guard case .compound(var tags) = root,
+              let name = root.stringValue(named: "name") ?? root.stringValue(named: "Name"),
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MCBEEditorError.malformedData("方块状态必须包含非空 string name")
         }
-        if state.nbt != nil {
-            let version = state.paletteVersion ?? paletteVersion ?? BedrockBlockState.defaultPaletteVersion
-            guard case .compound(var tags) = state.nbt else { return state }
-            let hasVal = tags.contains { $0.name.caseInsensitiveCompare("val") == .orderedSame }
-            let hasStates = tags.contains { $0.name.caseInsensitiveCompare("states") == .orderedSame }
-            if hasVal && hasStates {
-                throw MCBEEditorError.malformedData("旧式 palette 不能同时包含 val 与 states")
-            }
-            if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame }) {
-                tags[index] = NBTNamedTag(name: tags[index].name, value: .int(version))
-            } else {
-                tags.append(NBTNamedTag(name: "version", value: .int(version)))
-            }
-            return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
+        let val = tags.firstIndex { $0.name.caseInsensitiveCompare("val") == .orderedSame }
+        let states = tags.firstIndex { $0.name.caseInsensitiveCompare("states") == .orderedSame }
+        if val != nil && states != nil { throw MCBEEditorError.malformedData("方块状态不能同时包含 val 与 states") }
+        if let states, tags[states].value.type != .compound { throw MCBEEditorError.malformedData("方块 states 必须是 Compound") }
+        if val == nil && states == nil { tags.append(NBTNamedTag(name: "states", value: .compound([]))) }
+        let version = root.intValue(named: "version") ?? root.intValue(named: "Version")
+            ?? paletteVersion ?? BedrockBlockState.defaultPaletteVersion
+        if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame }) {
+            tags[index] = NBTNamedTag(name: tags[index].name, value: .int(version))
+        } else if val == nil {
+            tags.append(NBTNamedTag(name: "version", value: .int(version)))
         }
-        // Numeric -> paletted conversion must carry legacyData instead of
-        // silently replacing every non-zero metadata value with states:{}.
-        return BedrockLegacyBlockStateConverter.stateForNumeric(state)
-    }
-
-    /// Resolves the editable state without depending on UI-side extensions of
-    /// `BedrockBlockRecord`. Keeping this logic in the store also lets the
-    /// portable core test compile this file with its lightweight record stub.
-    private func currentBlockState(
-        for block: BedrockBlockRecord,
-        storageIndex: Int
-    ) -> BedrockBlockState {
-        if block.layers.indices.contains(storageIndex) {
-            return block.layers[storageIndex]
-        }
-        let version = block.layers.compactMap(\.paletteVersion).first
-        return .editableAir(version: version)
+        return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
     }
 
     private func legacyBlockState(from root: NBTValue, storageIndex: Int) throws -> BedrockBlockState {

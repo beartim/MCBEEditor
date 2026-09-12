@@ -198,9 +198,7 @@ struct BedrockTickingAreaRecord {
 final class TickingAreaStore {
     /// Minecraft stores one ordinary NBT document in each LevelDB entry whose key begins with `tickingarea_`.
     static let databaseKeyPrefix = Data("tickingarea_".utf8)
-    /// v1.1.0/v1.1.1 incorrectly stored all records consecutively under this single key.
-    static let legacyDatabaseKey = Data("tickingarea".utf8)
-    private static let databaseScanPrefix = Data("tickingarea".utf8)
+    private static let databaseScanPrefix = databaseKeyPrefix
 
     static let maximumAreaCount = 10
     static let maximumChunksPerArea = 100
@@ -212,36 +210,26 @@ final class TickingAreaStore {
         self.session = session
     }
 
-    func records(migratingLegacy: Bool = false) throws -> [BedrockTickingAreaRecord] {
+    func records() throws -> [BedrockTickingAreaRecord] {
         let entries = try session.database().entries(
             prefix: Self.databaseScanPrefix,
             includeValues: true
         )
         var result = [BedrockTickingAreaRecord]()
-        var needsMigration = false
         for entry in entries {
             guard let raw = entry.value, !raw.isEmpty else { continue }
             let roots = try ConsecutiveNBTCodec.decode(raw)
-            guard !roots.isEmpty else { continue }
-
-            let hasNativeKey = entry.key.starts(with: Self.databaseKeyPrefix)
-            let isLegacyContainer = !hasNativeKey || roots.count > 1
-            needsMigration = needsMigration || isLegacyContainer
-            for (index, source) in roots.enumerated() {
-                let area = try Self.decodeArea(from: source.document)
-                let keyText = String(data: entry.key, encoding: .utf8) ?? entry.key.hexString
-                result.append(BedrockTickingAreaRecord(
-                    stableID: roots.count == 1 ? keyText : "\(keyText)#\(index)",
-                    area: area,
-                    source: source,
-                    databaseKey: isLegacyContainer ? nil : entry.key
-                ))
+            guard roots.count == 1, let source = roots.first else {
+                throw MCBEEditorError.malformedData("tickingarea_ 记录必须只包含一个 NBT 根")
             }
-        }
-
-        if migratingLegacy, needsMigration {
-            try save(result)
-            return try records(migratingLegacy: false)
+            let area = try Self.decodeArea(from: source.document)
+            let keyText = String(data: entry.key, encoding: .utf8) ?? entry.key.hexString
+            result.append(BedrockTickingAreaRecord(
+                stableID: keyText,
+                area: area,
+                source: source,
+                databaseKey: entry.key
+            ))
         }
         return result
     }

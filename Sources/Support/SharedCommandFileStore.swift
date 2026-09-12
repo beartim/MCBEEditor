@@ -117,7 +117,7 @@ clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3
 chunk query [维度 [区块X 区块Z]]
 chunk empty 维度 区块X 区块Z
 chunk regenerate 维度 区块X 区块Z
-维度必须为 overworld、nether 或 the_end。query 无参数时按 overworld、nether、the_end 顺序逐行以蓝色显示全部已加载区块的信息与生成情况；只给维度时仅显示该维度；再给区块坐标时返回指定区块信息与生成情况。empty 清空指定区块并写入最小空气区块与 FinalizedState=2；regenerate 删除指定区块记录，使游戏按世界种子重新生成。
+维度必须为 overworld、nether 或 the_end。query 无参数时按 overworld、nether、the_end 顺序逐行以蓝色显示全部已加载区块的信息与生成情况；只给维度时仅显示该维度；再给区块坐标时返回指定区块信息。所有 query 输出行都会追加 IsSlimeChunk=True/False 和 Ticking=True/False。empty 清空指定区块并写入最小空气区块与 FinalizedState=2；regenerate 删除指定区块记录，使游戏按世界种子重新生成。
 示例：chunk query
 示例：chunk query overworld
 示例：chunk query overworld 0 0

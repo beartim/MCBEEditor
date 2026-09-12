@@ -1,0 +1,102 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Release metadata passed: version=1.0.0 build=100
+Xcode version Broken-pipe regression check passed
+iOS 13-only project configuration passed
+LevelDB bridge header configuration passed
+Enhanced feature configuration passed
+MCBEEditor core tests passed
+iOS 13 document import compatibility passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+WorldStore interrupted-deletion recovery tests passed
+World list management enhancements passed
+Code-audit shared implementation and safety checks passed
+LevelDB optional read regression passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Adaptive map sampling tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Shared NBT tree traversal tests passed
+Infinite map panning, cache and layer enhancements passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Entity and block-entity scanner tests passed
+Pinch zoom and entity/block-entity enhancements passed
+Minimum-zoom panning and pixel-sharp overlay fixes passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Player NBT read/write tests passed
+Vine color, player NBT editing, map selection and blinking focus passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Structure NBT discovery, endian conversion, rename and delete tests passed
+Editable structure NBT and restored block inspector passed
+Six-tab navigation, command terminal, peer NBT menu and structure NBT browser passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Entity/block-entity create, atomic multi-delete, UniqueID, storage mode and position migration tests passed
+Editable entity and block-entity NBT with index-safe migration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Editable block NBT, linked legacy ID validation and bulk layer operations passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+LegacyTerrain and SubChunk v0-v9 persistence tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+SubChunk v0-v9 compatibility extension tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Persistence compatibility matrix passed: numeric/v1/v8/v9, val/states, missing chunks/slices and empty layers
+End missing-SubChunk fixture tests passed: actual map templates, v1/v8 creation, layer 1 and byte-preserved neighbors
+Compact map layout and NBT-style per-layer search/replace passed
+Numeric entity ID mapping, selected-position filters and chunk batch processing passed
+Zoom-driven chunk expansion and coordinated layered replacement passed
+Session-only map viewport, radius layout and spread output colors passed
+No-backup policy and bulk layer replacement passed
+Chunk clear and seed-based regeneration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Raw chunk key deletion coverage passed
+Crash-safe chunk clear and complete seed regeneration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Biome and HardcodedSpawners codec tests passed
+Biome map, HardcodedSpawners overlay and ID/name lookup passed
+Editable village NBT and map long-press chunk menu passed
+NBT icons, per-village grouping and editable village/spawner map overlays passed
+Village X0/Z0 boundary, Dwellers-based resident resolution, overlap chooser and POI arrows passed
+Interactive map-region selection, editing, copy, biome, spawner, clear and regeneration passed
+Improved selection gestures, region bulk replacement, chunk tab and world-wide entity range filters passed
+Unified NBT mutation, editable block layers, chunk management and com.wzn bundle identity passed
+Native tickingarea_ storage and map/chunk contextual editing passed
+Tickingarea chunk-radius conversion and batch NBT conflict paste passed
+Atomic multi-tag clipboard and NBT/mcstructure/json tag import passed
+Canonical actor digest repair, orphan filtering and numeric block ID correspondence passed
+World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed
+Local-player map center, integrated terminal, target selectors and Y-safe clone passed
+Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed
+Recursive command NBT and give item tags passed
+World spawn, setblock, structure, tickingarea, teleport, spread, daylock, time, experience and weather command support passed
+Status-effect give/clear/ALL command support passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Command persistence tests passed: atomic legacy rejection and explicit empty v8 val storages
+Effect, entity-import and world command executor tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Viewed badges, exact chunk-coordinate search, NBT search filtering, unsaved exit guards and command refresh hooks passed
+Legacy zlib write compatibility, physical chunk summary, and selection export checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Modern actor binary TAG_String regression tests passed
+iPhone compact layout and linked legacy block ID checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Metadata CRUD and batch store regression passed
+Metadata UI create/delete/rename and batch actions passed
+Running photo export / tab title / keyboard regression checks...
+Single-PNG direct share, static bottom tab titles and keyboard toggle regression checks passed
+Running NBT tree / X-Y-Z cross-section regression checks...
+NBT tree horizontal reveal / hierarchy guide and X-Y-Z cross-section regression checks passed
+Running fillbiome / info / X-Z selection regression checks...
+fillbiome / info / X-Z selection regression checks passed
+Running block-color / project-audit regression checks...
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Block map color catalogue tests passed (256 legacy identifiers, 254 semantic colors)
+Block-color and source-audit regression checks passed
+Running full block-color semantic audit...
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Full block-color audit passed (256 legacy IDs + representative modern families)
+Full block-color regression checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+export UI / iOS-safe PNG names / Colors.txt priority / ReadMe reset checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+shared Commands folder / Command.txt preflight / batch terminal checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Source audit regression tests passed (98 checks)

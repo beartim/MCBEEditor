@@ -20,8 +20,7 @@ digp + chunkX + chunkZ
 
 - 主世界始终使用 12 字节 `digp + X + Z` 键；
 - 下界、末地等非零维度继续使用 `digp + X + Z + DimensionID`；
-- 打开实体栏目或创建新实体时，自动扫描并迁移 v1.1.3–v1.1.5 产生的错误主世界摘要键；
-- 迁移时合并标准键中已有的 ActorUniqueID，并通过 LevelDB WriteBatch 原子写入和删除旧键；
+- 当时曾包含针对旧 MCBEEditor 错误主世界摘要键的自动修复；当前源码已移除此版本迁移，只认标准 Bedrock `digp` 键；
 - 删除现代实体时扫描并移除所有摘要引用，包括旧版错误键；
 - 实体总览只显示被有效 `digp` 引用的现代实体；孤立 `actorprefix` 仅产生诊断，不再作为存活实体出现。
 

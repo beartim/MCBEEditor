@@ -188,13 +188,6 @@ final class BedrockWorldObjectNBTStore {
     return deletedCount
   }
 
-  /// Migrates the non-canonical overworld digest keys written by v1.1.3-v1.1.5.
-  /// Bedrock uses `digp + chunkX + chunkZ` in the overworld; appending a zero
-  /// dimension makes the record visible to this editor but invisible to the game.
-  @discardableResult
-  func repairAppCreatedOverworldActorDigests() throws -> Int {
-    try repairAppCreatedOverworldActorDigests(database: session.database())
-  }
 
   /// Prepares an imported entity without synthesizing any common/default tags.
   /// Import intentionally changes only Pos and UniqueID; every other source tag,
@@ -299,7 +292,6 @@ final class BedrockWorldObjectNBTStore {
       )
 
     case .modernActor:
-      _ = try repairAppCreatedOverworldActorDigests(database: database)
       let actorKey = makeActorKey(id: uniqueID)
       guard try database.get(actorKey) == nil else {
         throw MCBEEditorError.unsupported(
@@ -432,8 +424,7 @@ final class BedrockWorldObjectNBTStore {
         )
 
       case .modernActor:
-        _ = try repairAppCreatedOverworldActorDigests(database: database)
-        let encoding = template?.storage.encoding ?? .littleEndian
+          let encoding = template?.storage.encoding ?? .littleEndian
         let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
         let actorKey = makeActorKey(id: actorID)
         guard try database.get(actorKey) == nil else {
@@ -842,10 +833,8 @@ final class BedrockWorldObjectNBTStore {
 
     let entries = try database.entries(includeValues: false, limit: 0)
 
-    // ActorDigestVersion is the authoritative marker for a world that has
-    // completed the modern actor-storage migration. A bare digp/actorprefix
-    // pair is not sufficient because older MCBEEditor builds may have
-    // created those records inside an otherwise legacy world.
+    // ActorDigestVersion is the authoritative Bedrock marker for modern actor storage.
+    // A bare digp/actorprefix pair alone does not define the world's entity storage family.
     if entries.contains(where: { entry in
       BedrockDBKey.parse(entry.key)?.recordType == .actorDigestVersion
     }) {
@@ -1244,44 +1233,6 @@ final class BedrockWorldObjectNBTStore {
     return key
   }
 
-  private func repairAppCreatedOverworldActorDigests(database: MojangLevelDB) throws -> Int {
-    let prefix = Data("digp".utf8)
-    var mergedByCanonicalKey = [Data: [Int64]]()
-    var invalidKeys = [Data]()
-
-    for entry in try database.entries(prefix: prefix, includeValues: true) {
-      let key = entry.key
-      guard key.count == 16, littleEndianInt32(key, at: 12) == 0 else { continue }
-      guard let invalidValue = entry.value else { continue }
-      let canonicalKey = Data(key.prefix(12))
-      var ids: [Int64]
-      if let cached = mergedByCanonicalKey[canonicalKey] {
-        ids = cached
-      } else {
-        let canonicalValue = try database.get(canonicalKey)
-        ids = try canonicalValue.map(decodeActorIDs) ?? []
-      }
-      for actorID in try decodeActorIDs(invalidValue) where !ids.contains(actorID) {
-        ids.append(actorID)
-      }
-      mergedByCanonicalKey[canonicalKey] = ids
-      invalidKeys.append(key)
-    }
-
-    guard !invalidKeys.isEmpty else { return 0 }
-    let puts = mergedByCanonicalKey.map { (key: $0.key, value: encodeActorIDs($0.value)) }
-    try database.applyBatch(puts: puts, deletes: invalidKeys, sync: true)
-    return invalidKeys.count
-  }
-
-  private func littleEndianInt32(_ data: Data, at offset: Int) -> Int32? {
-    guard offset >= 0, offset + 4 <= data.count else { return nil }
-    var bits: UInt32 = 0
-    for index in 0..<4 {
-      bits |= UInt32(data[offset + index]) << UInt32(index * 8)
-    }
-    return Int32(bitPattern: bits)
-  }
 
   private func ensureEntityDefinition(
     in root: NBTValue,

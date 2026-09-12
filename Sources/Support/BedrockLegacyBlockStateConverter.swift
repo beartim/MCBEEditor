@@ -7,6 +7,36 @@ import Foundation
 /// MCBEEditor therefore never silently turns a non-zero legacy data value into
 /// `states: {}`.
 enum BedrockLegacyBlockStateConverter {
+    static func numericData(for state: BedrockBlockState) -> UInt8? {
+        if state.nbt == nil { return state.legacyData ?? 0 }
+        if let value = paletteValue(in: state) { return value }
+        guard case .compound(let properties)? = state.nbt?.compoundValue(named: "states") else { return nil }
+        if properties.isEmpty { return 0 }
+        guard let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name),
+              let id = UInt16(exactly: block.id) else { return nil }
+        func encoded(_ tags: [NBTNamedTag]) -> Data? {
+            try? BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags.sorted { $0.name < $1.name })), encoding: .littleEndian)
+        }
+        guard let expected = encoded(properties) else { return nil }
+        for data in UInt8.min...UInt8.max {
+            if let candidate = exactStates(identifier: state.name, legacyID: id, data: data),
+               encoded(candidate) == expected { return data }
+        }
+        return nil
+    }
+
+    static func forPalette(_ state: BedrockBlockState, format: BedrockPaletteFormat?) throws -> BedrockBlockState {
+        guard let format, format.usesLegacyVal else { return state }
+        if state.nbt?.compoundValue(named: "val") != nil && state.nbt?.compoundValue(named: "states") == nil { return state }
+        guard let data = numericData(for: state) else {
+            throw MCBEEditorError.unsupported("当前存档使用旧式 val 调色板，无法无损表示 \(state.name) 的 states")
+        }
+        var tags = [NBTNamedTag(name: "name", value: .string(state.name)),
+                    NBTNamedTag(name: "val", value: .short(Int16(data)))]
+        if let version = format.version { tags.append(NBTNamedTag(name: "version", value: .int(version))) }
+        return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
+    }
+
     /// Historical block-state version used for the 1.12-era ID/meta -> NBT
     /// bridge. It is old enough to retain `val` semantics and carries an
     /// explicit version so Bedrock's normal block-state upgrader can advance it.

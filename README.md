@@ -483,7 +483,7 @@ build/output/MCBEEditor-iOS13-unsigned.ipa
 
 - 修复旧版把多个区域合并写入单个 `tickingarea` 键、导致 Minecraft 与 `/tickingarea` 无法识别的问题。
 - 现在每个区域使用独立的 `tickingarea_<UUID>` LevelDB 键，值为单个 Little-Endian NBT Compound。
-- 兼容读取 v1.1.0/v1.1.1 创建的单键连续 NBT；保存时自动迁移为游戏格式。
+- 只读写游戏原生的 `tickingarea_*` 独立记录，不再对旧编辑器私有布局执行自动迁移。
 - 地图框选菜单新增“常加载区域编辑”，可查看、增加、修改和删除与选区相交的区域。
 - 单个区块菜单和批量区块菜单新增同样的上下文编辑入口。
 - 版本更新为 1.1.2（构建号 112）。
@@ -504,7 +504,6 @@ build/output/MCBEEditor-iOS13-unsigned.ipa
 ## v1.1.6：现代实体索引与数字方块 ID 支持
 
 - 修复主世界新建/复制现代实体使用错误 `digp + X + Z + DimensionID(0)` 摘要键的问题；主世界现在写入游戏使用的 `digp + X + Z`，下界和末地继续附加维度 ID。
-- 打开实体栏目或创建实体时自动迁移 v1.1.3–v1.1.5 写入的错误主世界摘要键，并合并到标准摘要中。
 - 删除现代实体时会清理所有 `digp` 引用；实体总览不再把没有任何 `digp` 引用的孤立 `actorprefix` 当作存活实体显示。
 - 新建实体基础模板补充 `definitions`、持久化及移动相关基础标签；复制并修改实体 ID 时同步替换对应的实体类型 definition。
 - 增加旧版方块数字 ID 0–255 与数据值表字符串 ID 的对应表，并接受现代常用别名反查；旧版 SubChunk 中的数字方块显示为 `minecraft:*` 名称，并保留数字 ID/数据值说明。
@@ -530,3 +529,7 @@ build/output/MCBEEditor-iOS13-unsigned.ipa
 - Compound 出现同名标签时只提示“覆盖、保留、取消”；“保留”跳过冲突并继续粘贴其他标签，“覆盖”原位替换同名标签。
 - 单个标签与多个标签粘贴均不再弹出修改标签名称的输入框。
 - 版本更新为 1.1.4（构建号 114）。
+
+## Windows 版
+
+Windows 10/11 x64 版本位于 `Windows/`，使用 WPF + .NET 10 与 `leveldb-mcpe` 原生数据库桥。Windows 最终发布为单一绿色 `MCBEEditor.exe`：来源世界只读，编辑发生在 EXE 同级 `Cache` 临时副本，主页“导出 .mcworld”是唯一持久化出口；`Textures`/`Commands` 也位于 EXE 同级。当前已经同步世界/NBT、SubChunk/LegacyTerrain、Y/X/Z 地图、对象与村庄图层、区块与区域编辑、实体、结构、独立 NBT/mcstructure 工具以及主要命令系统。`chunk query` 在 iOS 与 Windows 均输出 `IsSlimeChunk=True/False` 和 `Ticking=True/False`。Windows 构建入口见 `Windows/README.md` 与 `Windows/build.cmd`；当前同步差异见 `WINDOWS_PARITY_AUDIT.md`。

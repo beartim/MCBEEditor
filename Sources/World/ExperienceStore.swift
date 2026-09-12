@@ -136,9 +136,6 @@ final class ExperienceStore {
             throw MCBEEditorError.malformedData("玩家 NBT 根必须是 Compound")
         }
 
-        // Remove fields written by older MCBEEditor builds. Bedrock does
-        // not use them for player XP and leaving them behind is misleading.
-        remove(names: ["XpTotal", "XpLevel", "XpP"], from: &tags)
         set(name: "PlayerLevel", value: .int(experience.level), in: &tags)
         set(name: "PlayerLevelProgress", value: .float(experience.progress), in: &tags)
         return NBTDocument(rootName: source.rootName, root: .compound(tags))
@@ -197,10 +194,6 @@ final class ExperienceStore {
         }
     }
 
-    private static func remove(names: Set<String>, from tags: inout [NBTNamedTag]) {
-        let lowered = Set(names.map { $0.lowercased() })
-        tags.removeAll { lowered.contains($0.name.lowercased()) }
-    }
 
     private static func set(name: String, value: NBTValue, in tags: inout [NBTNamedTag]) {
         let matches = tags.indices.filter { tags[$0].name.caseInsensitiveCompare(name) == .orderedSame }

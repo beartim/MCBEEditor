@@ -45,6 +45,28 @@ struct BedrockBlockState {
     }
 }
 
+/// The palette schema is independent of the SubChunk header version.
+struct BedrockPaletteFormat: Equatable {
+    let usesLegacyVal: Bool
+    let version: Int32?
+
+    static func detect(_ palette: [BedrockBlockState]) -> BedrockPaletteFormat? {
+        let states = palette.filter { $0.nbt != nil }
+        guard !states.isEmpty else { return nil }
+        let usesVal = states.contains { $0.nbt?.compoundValue(named: "val") != nil }
+            && !states.contains { $0.nbt?.compoundValue(named: "states") != nil }
+        return BedrockPaletteFormat(usesLegacyVal: usesVal, version: states.compactMap(\.paletteVersion).max())
+    }
+
+    var air: BedrockBlockState {
+        guard usesLegacyVal else { return .editableAir(version: version) }
+        var tags = [NBTNamedTag(name: "name", value: .string("minecraft:air")),
+                    NBTNamedTag(name: "val", value: .short(0))]
+        if let version { tags.append(NBTNamedTag(name: "version", value: .int(version))) }
+        return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
+    }
+}
+
 extension BedrockSubChunk {
     /// Creates a format-complete numeric-ID SubChunk for v0/v2...v7.
     /// The 4,096-byte tail reserves the two legacy light nibble arrays.
@@ -367,7 +389,11 @@ extension BedrockSubChunk {
             writer.writeByte(UInt8(bitPattern: yIndex ?? 0))
         }
         for storage in storages {
-            try Self.encode(storage: storage, writer: &writer)
+            // Original v1/v8 games do not understand the later BPB=0 form.
+            let persistent = (version == 1 || version == 8) && storage.bitsPerBlock == 0
+                ? SubChunkStorage(bitsPerBlock: 1, palette: storage.palette, indices: storage.indices,
+                                  persistentKind: storage.persistentKind) : storage
+            try Self.encode(storage: persistent, writer: &writer)
         }
         writer.writeData(trailingData)
         return writer.data

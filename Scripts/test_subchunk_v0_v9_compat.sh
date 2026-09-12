@@ -164,17 +164,6 @@ enum Tests {
         precondition(decodedExtraOut.entries.first { $0.location == location }?.blockID == 79)
         precondition(decodedExtraOut.entries.first { $0.location == location }?.blockData == 201)
 
-        // Whole-chunk modernisation consumes 0x34 and migrates it to v9 storage1.
-        let plan = try BedrockLegacyChunkUpgrade.plan(database: db, position: pos, preferredPaletteVersion: 18_168_865)
-        precondition(plan.metadataDeletes.contains(extraKey))
-        guard let upgradedPut = plan.subChunkPuts.first(where: { BedrockDBKey.parse($0.key)?.subChunkIndex == 4 }) else {
-            preconditionFailure("v7 -> v9 upgraded subchunk missing")
-        }
-        let upgraded = try BedrockSubChunk.decode(upgradedPut.value, keyYIndex: 4)
-        precondition(upgraded.version == 9 && upgraded.storages.count >= 2)
-        let migratedExtra = upgraded.storages[1].blockState(x: 3, y: 6, z: 5)
-        precondition(BedrockLegacyBlockStateConverter.paletteValue(in: migratedExtra!) == 200)
-
         // Unknown raw v10 must not win preferred-version inference over a known
         // v9 record in the same chunk.
         let knownKey = BedrockDBKey.subChunk(x: 99, z: 99, dimension: 0, index: 0)
@@ -208,7 +197,6 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
-  "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
   -parse-as-library "$TMP/Tests.swift" -o "$TMP/tests"
 
 "$TMP/tests"

@@ -381,12 +381,13 @@ extension BedrockChunkStore {
                     let version: UInt8 = [UInt8(1), 8, 9].contains(targetProfile.subChunkVersion)
                         ? targetProfile.subChunkVersion
                         : 9
-                    let paletteVersion = replacementStates.compactMap(\.paletteVersion).first
-                        ?? targetProfile.blockPaletteVersion
+                    let air = try BedrockEmptyChunk.airForMissingSubChunk(database: database, at: targetPosition,
+                        records: try BedrockChunkSubChunkAccess.records(database: database, position: targetPosition),
+                        fallbackProfile: targetProfile)
                     decoded = BedrockSubChunk(
                         version: version,
                         yIndex: target.y,
-                        storages: [.airFilled(with: .editableAir(version: paletteVersion))],
+                        storages: [.airFilled(with: air)],
                         trailingData: Data()
                     )
                 }
@@ -409,7 +410,8 @@ extension BedrockChunkStore {
                 database: database,
                 position: position,
                 edited: editedSubChunks,
-                preferLegacyTerrainIfMissing: targetProfile.usesLegacyTerrain
+                preferLegacyTerrainIfMissing: targetProfile.usesLegacyTerrain,
+                metadataProfile: targetProfile
             ))
         }
 

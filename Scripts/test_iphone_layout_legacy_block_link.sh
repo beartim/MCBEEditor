@@ -62,7 +62,6 @@ grep -q '旧版方块无法保存' "$PANEL"
 # The persistence layer is a second line of defence: numeric SubChunks must
 # never silently modernize because the linked textual name was changed.
 ! grep -q 'requestsModern = currentState.legacyID' "$STORE"
-grep -q 'A name without a legacy numeric mapping is rejected' "$STORE"
 grep -q '没有旧版数字 ID 对照，不能写入旧版数字 ID SubChunk' "$STORE"
 grep -q '与 legacy_id .* 不匹配' "$STORE"
 grep -q '旧版数字 ID 方块不能保存现代 states' "$STORE"

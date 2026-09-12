@@ -6,3 +6,13 @@ xcuserdata/
 MCBEEditor.xcodeproj/
 Vendor/leveldb-mcpe/
 Vendor/leveldb-mcpe.lock
+
+# Windows build / portable runtime outputs
+Windows/**/bin/
+Windows/**/obj/
+Windows/Native/build/
+Windows/Native/bin/
+Windows/Native/vendor/
+Windows/PortableLauncher/build/
+Windows/artifacts/
+Windows/dist/

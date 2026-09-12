@@ -224,8 +224,9 @@ final class WorldCommandExecutor {
                     }
             }
 
+            let tickingAreas = (try? TickingAreaStore(session: session).records().map(\.area)) ?? []
             let lines = try summaries.map { summary in
-                WorldCommandOutputLine(text: try chunkQueryText(summary), style: .block)
+                WorldCommandOutputLine(text: try chunkQueryText(summary, tickingAreas: tickingAreas), style: .block)
             }
             let message = lines.isEmpty
                 ? "chunk query：没有匹配的已加载区块。"
@@ -254,11 +255,16 @@ final class WorldCommandExecutor {
         }
     }
 
-    private func chunkQueryText(_ summary: BedrockChunkSummary) throws -> String {
+    private func chunkQueryText(_ summary: BedrockChunkSummary, tickingAreas: [BedrockTickingArea]) throws -> String {
         let dimension = WorldCommandParser.dimensionName(for: summary.position.dimension)
         let detail = summary.recordCount == 0 ? "无区块记录" : summary.detailText
         let generation = try chunkGenerationDescription(summary)
-        return "\(dimension) \(summary.coordinateText) · \(detail) · 生成情况：\(generation)"
+        let isSlime = BedrockSlimeChunk.isSlimeChunk(x: summary.position.x, z: summary.position.z)
+        let isTicking = tickingAreas.contains { area in
+            area.dimension == summary.position.dimension
+                && area.contains(chunkX: summary.position.x, chunkZ: summary.position.z)
+        }
+        return "\(dimension) \(summary.coordinateText) · \(detail) · 生成情况：\(generation) · IsSlimeChunk=\(isSlime ? "True" : "False") · Ticking=\(isTicking ? "True" : "False")"
     }
 
     private func chunkGenerationDescription(_ summary: BedrockChunkSummary) throws -> String {
@@ -303,17 +309,17 @@ final class WorldCommandExecutor {
         case .set(let dimension, let position, let layer, let block):
             let message = try CommandBlockStore(session: session, dimension: dimension)
                 .setStorage(at: position, layer: layer, block: block)
-            return WorldCommandExecutionResult(message: message, changedWorld: true)
+            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
 
         case .delete(let dimension, let position, let layer):
             let message = try CommandBlockStore(session: session, dimension: dimension)
                 .deleteStorage(at: position, layer: layer)
-            return WorldCommandExecutionResult(message: message, changedWorld: true)
+            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
 
         case .clear(let dimension, let position, let keepThroughLayer):
             let message = try CommandBlockStore(session: session, dimension: dimension)
                 .clearStorages(at: position, keepThroughLayer: keepThroughLayer)
-            return WorldCommandExecutionResult(message: message, changedWorld: true)
+            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
         }
     }
 
@@ -893,7 +899,7 @@ final class WorldCommandExecutor {
 
     private func executeTickingArea(_ operation: CommandTickingAreaOperation) throws -> (message: String, changed: Bool) {
         let store = TickingAreaStore(session: session)
-        var records = try store.records(migratingLegacy: true)
+        var records = try store.records()
         switch operation {
         case .add(let spec):
             let area = BedrockTickingArea(
@@ -1967,12 +1973,9 @@ private final class CommandBlockStore {
     private var cache = [SubKey: CachedSubChunk]()
     private var changedKeys = Set<SubKey>()
     private var globalPaletteVersion: Int32?
-    private var chunkLegacyFormat = [ChunkPosition: Bool]()
     private var chunkSubChunkVersion = [ChunkPosition: UInt8]()
     private var emptyChunkProfiles = [Bool: BedrockEmptyChunkProfile]()
     private var pendingMetadataPuts = [Data: Data]()
-    private var pendingMetadataDeletes = Set<Data>()
-    private var modernizedChunks = Set<ChunkPosition>()
 
     init(session: WorldSession, dimension: Int32) throws {
         self.session = session
@@ -2000,17 +2003,10 @@ private final class CommandBlockStore {
         }) {
             let profile = try emptyChunkProfile(preferLegacy: false)
             let version = profile.subChunkVersion
-            let legacy = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
             puts.append(contentsOf: BedrockEmptyChunk.metadataRecords(at: chunk, profile: profile).map { ($0.key, $0.value) })
-            chunkLegacyFormat[chunk] = legacy
             chunkSubChunkVersion[chunk] = version
         }
-        try database.applyBatch(puts: puts, deletes: [], sync: true)
-        for put in puts {
-            guard try database.get(put.key) == put.value else {
-                throw MCBEEditorError.malformedData("空气区块元数据写入后未能从 LevelDB 读回")
-            }
-        }
+        for put in puts { pendingMetadataPuts[put.key] = put.value }
         availableChunks.formUnion(missing)
         return missing.count
     }
@@ -2061,7 +2057,7 @@ private final class CommandBlockStore {
             return StorageQueryResult(states: [], isNotGenerated: true)
         }
         guard case .value(let subChunk) = try load(key) else {
-            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+            return StorageQueryResult(states: [], isNotGenerated: true)
         }
         try requireV8OrNewerStructured(subChunk)
         return StorageQueryResult(states: subChunk.allStates(linearIndex: localIndex(for: coordinate)), isNotGenerated: false)
@@ -2091,7 +2087,7 @@ private final class CommandBlockStore {
     func deleteStorage(at coordinate: CommandBlockCoordinate, layer: Int) throws -> String {
         let key = try subKey(for: coordinate)
         guard case .value(var subChunk) = try load(key) else {
-            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+            return "Block not generated"
         }
         try requireV8OrNewerStructured(subChunk)
         guard subChunk.storages.indices.contains(layer) else {
@@ -2108,7 +2104,7 @@ private final class CommandBlockStore {
     func clearStorages(at coordinate: CommandBlockCoordinate, keepThroughLayer: UInt8) throws -> String {
         let key = try subKey(for: coordinate)
         guard case .value(var subChunk) = try load(key) else {
-            throw MCBEEditorError.unsupported("该坐标没有已存在的 SubChunk")
+            return "Block not generated"
         }
         try requireV8OrNewerStructured(subChunk)
         let before = subChunk.storages.count
@@ -2152,7 +2148,7 @@ private final class CommandBlockStore {
             let key = try store.subKey(for: coordinate)
             let modern = state.nbt != nil
                 ? store.normalizedModernState(state, version: try store.paletteVersion(for: key))
-                : store.modernState(from: state, version: try store.paletteVersion(for: key))
+                : store.modernState(from: state)
             guard let nbt = modern.nbt else {
                 throw MCBEEditorError.malformedData("结构调色板方块缺少现代 NBT 状态")
             }
@@ -2458,7 +2454,7 @@ private final class CommandBlockStore {
                     var changedAtPosition = false
                     for (layer, spec) in storageSpecs.enumerated() {
                         let state = try keepLegacy ? spec.legacyState() : spec.modernState(version: version)
-                        if try setState(state, layer: layer, at: coordinate, createWhenAir: false) {
+                        if try setState(state, layer: layer, at: coordinate, createWhenAir: true, trimTrailingAir: false) {
                             changedAtPosition = true
                         }
                     }
@@ -2609,7 +2605,8 @@ private final class CommandBlockStore {
             changedChunks: changedEntityChunks,
             originalKeys: targetEntityState.keysByChunk
         )
-        let written = try commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
+        let sourceMetadata = sourceStore.pendingMetadataPuts.map { (key: $0.key, value: $0.value) }
+        let written = try commit(extraPuts: sourceMetadata + entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty
                 || generatedSourceChunks > 0 || generatedTargetChunks > 0 else {
             throw MCBEEditorError.unsupported("源区域内没有可复制的方块变化")
@@ -2713,8 +2710,6 @@ private final class CommandBlockStore {
             let cached = CachedSubChunk.value(mutable)
             cache[key] = cached
             if globalPaletteVersion == nil { globalPaletteVersion = mutable.paletteVersion }
-            chunkLegacyFormat[key.chunk] = mutable.isLegacy
-            chunkSubChunkVersion[key.chunk] = mutable.version
             return cached
         }
         cache[key] = .missing
@@ -2791,45 +2786,26 @@ private final class CommandBlockStore {
     ) throws -> Bool {
         let key = try subKey(for: coordinate)
         let index = localIndex(for: coordinate)
-        let existing = try load(key)
-        let legacyTarget: Bool
-        switch existing {
-        case .value(let value): legacyTarget = value.isLegacy
-        case .missing: legacyTarget = try isLegacyTarget(key)
-        }
-        // v0/v2...v7 layer 1 is persisted in LegacyBlockExtraData (0x34),
-        // so a numeric extra block no longer forces a v9 chunk upgrade.
-        let requiresUpgrade = legacyTarget && state.nbt != nil
-        if requiresUpgrade { try upgradeChunkToModern(key.chunk) }
-
+        var writable = try adaptedState(state, layer: layer, for: key)
         var mutable: MutableCommandSubChunk
         switch try load(key) {
         case .value(let value):
             mutable = value
         case .missing:
-            if state.isAir && !createWhenAir { return false }
+            if writable.isAir && !createWhenAir { return false }
             let persistentVersion = try preferredSubChunkVersion(for: key)
             if try isLegacyTarget(key) {
                 mutable = try MutableCommandSubChunk.emptyLegacy(y: key.y, subChunkVersion: persistentVersion)
             } else {
-                mutable = try MutableCommandSubChunk.emptyModern(
-                    y: key.y,
-                    version: state.paletteVersion ?? paletteVersion(for: key),
-                    subChunkVersion: persistentVersion
-                )
+                let records = try BedrockChunkSubChunkAccess.records(database: database, position: key.chunk)
+                let air = try BedrockEmptyChunk.airForMissingSubChunk(database: database, at: key.chunk,
+                    records: records, fallbackProfile: try emptyChunkProfile(preferLegacy: false))
+                mutable = try MutableCommandSubChunk.emptyModern(y: key.y, air: air, subChunkVersion: persistentVersion)
             }
         }
-
-        var writable = state
-        if mutable.isLegacy, writable.nbt != nil {
-            try upgradeChunkToModern(key.chunk)
-            guard case .value(let upgraded) = try load(key) else {
-                throw MCBEEditorError.malformedData("旧版 SubChunk 升级后未能重新载入")
-            }
-            mutable = upgraded
-        }
-        if !mutable.isLegacy, writable.nbt == nil {
-            writable = modernState(from: writable, version: try paletteVersion(for: key))
+        if !mutable.isLegacy {
+            writable = try BedrockLegacyBlockStateConverter.forPalette(writable,
+                format: BedrockPaletteFormat.detect(mutable.storages.flatMap(\.palette)))
         }
         let changed = try mutable.setState(writable, layer: layer, linearIndex: index, trimTrailingAir: trimTrailingAir)
         if changed {
@@ -2839,41 +2815,7 @@ private final class CommandBlockStore {
         return changed
     }
 
-    private func upgradeChunkToModern(_ chunk: ChunkPosition) throws {
-        guard modernizedChunks.insert(chunk).inserted else { return }
-        let plan = try BedrockLegacyChunkUpgrade.plan(database: database, position: chunk, preferredPaletteVersion: try? BedrockEmptyChunk.persistedBlockPaletteVersion(database: database))
-        for put in plan.metadataPuts { pendingMetadataPuts[put.key] = put.value }
-        pendingMetadataDeletes.formUnion(plan.metadataDeletes)
-        for put in plan.subChunkPuts {
-            guard let parsed = BedrockDBKey.parse(put.key), let y = parsed.subChunkIndex else { continue }
-            let key = SubKey(chunk: chunk, y: y)
-            if case .value(let cached)? = cache[key], cached.isLegacy {
-                cache[key] = .value(try cached.upgradedToModern(version: plan.paletteVersion))
-            } else {
-                switch cache[key] {
-                case .value:
-                    break
-                case .missing, .none:
-                    let decoded = try BedrockSubChunk.decode(put.value, keyYIndex: y)
-                    cache[key] = .value(try MutableCommandSubChunk(decoded))
-                }
-            }
-            changedKeys.insert(key)
-        }
-        // Include legacy SubChunks created only in the command cache and not yet
-        // present in LevelDB when the format upgrade is triggered.
-        let cachedKeys = cache.keys.filter { $0.chunk == chunk }
-        for key in cachedKeys {
-            guard case .value(let value)? = cache[key], value.isLegacy else { continue }
-            cache[key] = .value(try value.upgradedToModern(version: plan.paletteVersion))
-            changedKeys.insert(key)
-        }
-        chunkLegacyFormat[chunk] = false
-        chunkSubChunkVersion[chunk] = 9
-        globalPaletteVersion = plan.paletteVersion
-    }
-
-    private func modernState(from state: BedrockBlockState, version: Int32?) -> BedrockBlockState {
+    private func modernState(from state: BedrockBlockState) -> BedrockBlockState {
         if state.nbt != nil { return state }
         return BedrockLegacyBlockStateConverter.stateForNumeric(state)
     }
@@ -2882,22 +2824,8 @@ private final class CommandBlockStore {
         switch try load(key) {
         case .value(let value): return value.isLegacy
         case .missing:
-            if let cached = chunkLegacyFormat[key.chunk] { return cached }
-            let records = try BedrockChunkSubChunkAccess.records(database: database, position: key.chunk)
-            if let decoded = records.first?.subChunk {
-                let legacy = decoded.isLegacyNumeric
-                chunkLegacyFormat[key.chunk] = legacy
-                chunkSubChunkVersion[key.chunk] = decoded.version
-                if globalPaletteVersion == nil {
-                    globalPaletteVersion = decoded.storages.flatMap(\.palette).compactMap(\.paletteVersion).first
-                }
-                return legacy
-            }
-            let version = try emptyChunkProfile(preferLegacy: false).subChunkVersion
-            let legacy = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
-            chunkLegacyFormat[key.chunk] = legacy
-            chunkSubChunkVersion[key.chunk] = version
-            return legacy
+            let version = try preferredSubChunkVersion(for: key)
+            return [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
         }
     }
 
@@ -2910,7 +2838,6 @@ private final class CommandBlockStore {
             fallback: profile.subChunkVersion
         )
         chunkSubChunkVersion[key.chunk] = version
-        chunkLegacyFormat[key.chunk] = [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version)
         return version
     }
 
@@ -2922,16 +2849,13 @@ private final class CommandBlockStore {
             break
         }
         if let globalPaletteVersion = globalPaletteVersion { return globalPaletteVersion }
-        for chunk in availableChunks.prefix(32) {
-            let records = try BedrockChunkSubChunkAccess.records(database: database, position: chunk)
-            for record in records {
-                if let version = record.subChunk.storages.flatMap(\.palette).compactMap(\.paletteVersion).first {
-                    globalPaletteVersion = version
-                    return version
-                }
-            }
-        }
-        return BedrockEmptyChunk.currentBlockPaletteVersion
+        // A sparse End may have many metadata-only chunks, and v1 palettes
+        // can omit `version`. An arbitrary 32-chunk sample could miss every
+        // persisted version and introduce the app's newer schema into a v8
+        // world. The dimension profile already performs complete inference.
+        let version = try emptyChunkProfile(preferLegacy: false).blockPaletteVersion
+        globalPaletteVersion = version
+        return version
     }
 
 
@@ -2942,40 +2866,19 @@ private final class CommandBlockStore {
     ) throws -> BedrockBlockState {
         let targetLegacy = try isLegacyTarget(targetKey)
         if targetLegacy {
-            // Numeric v0/v2...v7 only have layer0 plus 0x34 layer1. Any
-            // storage2+ copied by clone must first modernise the destination
-            // chunk, even when the value at this coordinate is air.
-            if layer > 1 {
-                return state.nbt != nil
-                    ? normalizedModernState(state, version: try paletteVersion(for: targetKey))
-                    : modernState(from: state, version: try paletteVersion(for: targetKey))
-            }
+            guard layer <= 1 else { throw MCBEEditorError.unsupported("旧版数字 ID 仅支持 storage 0/1") }
             if state.nbt == nil { return state }
-            if state.isAir {
-                return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+            guard let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name),
+                  let id = UInt16(exactly: block.id), id <= 255,
+                  let data = BedrockLegacyBlockStateConverter.numericData(for: state),
+                  layer == 1 || data <= 15 else {
+                throw MCBEEditorError.unsupported("目标存档的旧版数字 ID 无法无损表示 \(state.name) 的 states")
             }
-            if let block = BedrockLegacyBlockCatalog.block(forIdentifier: state.name) {
-                if let val = BedrockLegacyBlockStateConverter.paletteValue(in: state) {
-                    if layer == 0, val > 15 {
-                        // Main numeric SubChunk metadata is a 4-bit nibble; do
-                        // not silently truncate an old `val`. A value that does
-                        // not fit requires modernisation. 0x34 layer 1 stores a
-                        // full UInt8 and can preserve it exactly.
-                        return normalizedModernState(state, version: try paletteVersion(for: targetKey))
-                    }
-                    return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: val)
-                }
-                if state.stateProperties.isEmpty {
-                    return BedrockBlockState(nbt: nil, legacyID: UInt16(block.id), legacyData: 0)
-                }
-            }
-            // A block without a legacy numeric representation or with modern
-            // structured states still requires a modern chunk upgrade.
-            return normalizedModernState(state, version: try paletteVersion(for: targetKey))
+            return BedrockBlockState(nbt: nil, legacyID: id, legacyData: data)
         }
         return state.nbt != nil
             ? normalizedModernState(state, version: try paletteVersion(for: targetKey))
-            : modernState(from: state, version: try paletteVersion(for: targetKey))
+            : modernState(from: state)
     }
 
     private func normalizedModernState(_ state: BedrockBlockState, version: Int32?) -> BedrockBlockState {
@@ -2983,7 +2886,7 @@ private final class CommandBlockStore {
         let resolved = state.paletteVersion ?? version ?? BedrockBlockState.defaultPaletteVersion
         if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare("version") == .orderedSame }) {
             tags[index] = NBTNamedTag(name: tags[index].name, value: .int(resolved))
-        } else {
+        } else if state.nbt?.compoundValue(named: "val") == nil {
             tags.append(NBTNamedTag(name: "version", value: .int(resolved)))
         }
         return BedrockBlockState(nbt: .compound(tags), legacyID: nil, legacyData: nil)
@@ -3005,45 +2908,17 @@ private final class CommandBlockStore {
             editedByChunk[key.chunk, default: [:]][key.y] = try mutable.persistentSubChunk()
         }
         for (chunk, edited) in editedByChunk {
-            if modernizedChunks.contains(chunk) {
-                // The upgrade plan deletes legacy backing and creates modern v9
-                // records, so all edited slices use their logical-Y 0x2F key.
-                for y in edited.keys.sorted() {
-                    guard let subChunk = edited[y] else { continue }
-                    puts.append((
-                        BedrockDBKey.subChunk(x: chunk.x, z: chunk.z, dimension: chunk.dimension, index: y),
-                        try subChunk.encodePersistent()
-                    ))
-                }
-            } else {
-                puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
-                    database: database,
-                    position: chunk,
-                    edited: edited,
-                    preferLegacyTerrainIfMissing: try emptyChunkProfile(preferLegacy: false).usesLegacyTerrain
-                ))
-            }
+            puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+                database: database, position: chunk, edited: edited,
+                preferLegacyTerrainIfMissing: try emptyChunkProfile(preferLegacy: false).usesLegacyTerrain,
+                metadataProfile: try emptyChunkProfile(preferLegacy: false)))
         }
-        let deletes = Array(pendingMetadataDeletes) + extraDeletes
-        try database.applyBatch(puts: puts, deletes: deletes, sync: true)
-        for (key, value) in pendingMetadataPuts {
-            guard try database.get(key) == value else {
-                throw MCBEEditorError.malformedData("升级后的区块元数据写入后未能从 LevelDB 读回")
-            }
-        }
-        for key in pendingMetadataDeletes where pendingMetadataPuts[key] == nil {
-            guard try database.get(key) == nil else {
-                throw MCBEEditorError.malformedData("升级前的旧版区块元数据仍然存在")
-            }
-        }
-        for key in changedKeys {
-            guard let stored = try BedrockChunkSubChunkAccess.record(
-                database: database, position: key.chunk, yIndex: key.y
-            ) else {
-                throw MCBEEditorError.malformedData("SubChunk/LegacyTerrain 写入后未能从 LevelDB 读回")
-            }
-            _ = stored.subChunk
-        }
+        // A LegacyTerrain placeholder and its edited terrain share a key.
+        // Commit each final value once, after every edit has been validated.
+        var finalPuts = [Data: Data]()
+        for put in puts { finalPuts[put.key] = put.value }
+        try database.applyBatch(puts: finalPuts.map { (key: $0.key, value: $0.value) }, deletes: extraDeletes, sync: true)
+        pendingMetadataPuts.removeAll()
         return changedKeys.count
     }
 
@@ -3246,8 +3121,7 @@ private struct MutableCommandSubChunk {
         self.fallbackAir = subChunk.storages.flatMap(\.palette).first(where: { $0.isAir }) ?? .editableAir(version: paletteVersion)
     }
 
-    static func emptyModern(y: Int8, version: Int32?, subChunkVersion: UInt8) throws -> MutableCommandSubChunk {
-        let air = BedrockBlockState.editableAir(version: version)
+    static func emptyModern(y: Int8, air: BedrockBlockState, subChunkVersion: UInt8) throws -> MutableCommandSubChunk {
         let storage = SubChunkStorage(bitsPerBlock: 0, palette: [air], indices: Array(repeating: 0, count: 4096))
         let persistentVersion: UInt8 = [UInt8(1), 8, 9].contains(subChunkVersion) ? subChunkVersion : 9
         return try MutableCommandSubChunk(BedrockSubChunk(version: persistentVersion, yIndex: y, storages: [storage], trailingData: Data()))
@@ -3265,11 +3139,6 @@ private struct MutableCommandSubChunk {
     func allStates(linearIndex: Int) -> [BedrockBlockState] {
         if storages.isEmpty { return [fallbackAir] }
         return storages.map { $0.state(at: linearIndex) ?? fallbackAir }
-    }
-
-    func upgradedToModern(version: Int32?) throws -> MutableCommandSubChunk {
-        let upgraded = try persistentSubChunk().upgradedToModern(paletteVersion: version)
-        return try MutableCommandSubChunk(upgraded)
     }
 
     func state(layer: Int, linearIndex: Int) -> BedrockBlockState {
@@ -3299,7 +3168,8 @@ private struct MutableCommandSubChunk {
         } else if state.nbt == nil {
             throw MCBEEditorError.unsupported("不能把旧版数字 ID 方块写入现代 SubChunk")
         }
-        if layer > 0, storages.count <= layer, state.isAir { return false }
+        if trimTrailingAir, layer > 0, storages.count <= layer, state.isAir { return false }
+        let originalStorageCount = storages.count
         while storages.count <= layer {
             guard storages.count < Int(UInt8.max) else {
                 throw MCBEEditorError.unsupported("SubChunk 已达到 255 个 storage 的持久化上限")
@@ -3310,7 +3180,7 @@ private struct MutableCommandSubChunk {
             let storage = SubChunkStorage(bitsPerBlock: 0, palette: [air], indices: Array(repeating: 0, count: 4096))
             storages.append(try MutableCommandStorage(storage))
         }
-        let changed = try storages[layer].set(state, at: linearIndex)
+        let changed = try storages[layer].set(state, at: linearIndex) || storages.count != originalStorageCount
         if changed, trimTrailingAir, layer == storages.count - 1 {
             while storages.count > 1, storages.last?.isEntirelyAir == true {
                 storages.removeLast()

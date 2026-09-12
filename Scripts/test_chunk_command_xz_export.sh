@@ -7,6 +7,8 @@ require '"chunk"' Sources/Command/WorldCommand.swift
 require 'case "chunk":' Sources/Command/WorldCommand.swift
 require 'case .chunk(let operation):' Sources/Command/WorldCommandExecutor.swift
 require 'style: .block' Sources/Command/WorldCommandExecutor.swift
+require 'IsSlimeChunk=\(isSlime ? "True" : "False") · Ticking=\(isTicking ? "True" : "False")' Sources/Command/WorldCommandExecutor.swift
+require 'tickingAreas.contains' Sources/Command/WorldCommandExecutor.swift
 require 'allowedDimensions: [Int32] = dimension.map { [$0] } ?? [0, 1, 2]' Sources/Command/WorldCommandExecutor.swift
 require 'store.clearChunk(position)' Sources/Command/WorldCommandExecutor.swift
 require 'store.regenerateChunk(position)' Sources/Command/WorldCommandExecutor.swift

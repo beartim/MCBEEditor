@@ -67,4 +67,32 @@ final class SourceAuditTests: XCTestCase {
             XCTAssertThrowsError(try ExperienceStore.read(from: document))
         }
     }
+    func testMcworldArchiveExcludesEditorPrivateSettings() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let output = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mcworld")
+        let extracted = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? manager.removeItem(at: root)
+            try? manager.removeItem(at: output)
+            try? manager.removeItem(at: extracted)
+        }
+        try manager.createDirectory(at: root.appendingPathComponent("db", isDirectory: true), withIntermediateDirectories: true)
+        try Data([1]).write(to: root.appendingPathComponent("level.dat"))
+        try Data("World".utf8).write(to: root.appendingPathComponent("levelname.txt"))
+        try manager.createDirectory(at: root.appendingPathComponent(".mcbeeditor", isDirectory: true), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: root.appendingPathComponent(".mcbeeditor/settings.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("map-display-preferences.json"))
+        try manager.createDirectory(at: root.appendingPathComponent("resource_packs/example", isDirectory: true), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: root.appendingPathComponent("resource_packs/example/manifest.json"))
+
+        try MiniZipArchive.create(from: root, to: output)
+        try MiniZipArchive.extract(archiveURL: output, to: extracted)
+
+        XCTAssertTrue(manager.fileExists(atPath: extracted.appendingPathComponent("level.dat").path))
+        XCTAssertTrue(manager.fileExists(atPath: extracted.appendingPathComponent("resource_packs/example/manifest.json").path))
+        XCTAssertFalse(manager.fileExists(atPath: extracted.appendingPathComponent(".mcbeeditor/settings.json").path))
+        XCTAssertFalse(manager.fileExists(atPath: extracted.appendingPathComponent("map-display-preferences.json").path))
+    }
+
 }

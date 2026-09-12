@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MCBEEditor</AssemblyName>
+    <RootNamespace>MCBEEditor.Desktop</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon Condition="Exists('..\Resources\MCBEEditor.ico')">..\Resources\MCBEEditor.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MCBEEditor.Core\MCBEEditor.Core.csproj" />
+    <EmbeddedResource Include="..\..\Resources\AGPL-3.0.txt" Link="AGPL-3.0.txt" LogicalName="MCBEEditor.AGPL-3.0.txt" />
+    <None Include="..\Native\bin\x64\MCBEEditor.LevelDB.Native.dll"
+          Condition="Exists('..\Native\bin\x64\MCBEEditor.LevelDB.Native.dll')"
+          Link="MCBEEditor.LevelDB.Native.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          ExcludeFromSingleFile="false" />
+  </ItemGroup>
+</Project>

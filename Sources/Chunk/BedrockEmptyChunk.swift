@@ -18,6 +18,7 @@ struct BedrockEmptyChunkProfile: Equatable {
     let usesLegacyTerrain: Bool
     let terrainRecordType: ChunkRecordType?
     let terrainValue: Data?
+    var paletteFormat: BedrockPaletteFormat? = nil
 
     static let modernDefault = BedrockEmptyChunkProfile(
         versionRecordType: .version,
@@ -47,15 +48,45 @@ struct BedrockEmptyChunkProfile: Equatable {
 enum BedrockEmptyChunk {
     static let currentBlockPaletteVersion: Int32 = 18_153_728 // 1.21.1.0
 
+    /// An ungenerated slice has no palette of its own. Its editing template
+    /// must inherit the actual block format, not the app's modern default.
+    /// LegacyVersion metadata alone does not imply numeric-ID blocks: v1/v8
+    /// palettes use it too (including the older End test world).
+    static func airForMissingSubChunk(
+        database: MojangLevelDB,
+        at position: ChunkPosition,
+        records: [BedrockStoredSubChunk],
+        fallbackProfile: BedrockEmptyChunkProfile? = nil
+    ) throws -> BedrockBlockState {
+        let known = records.filter { !$0.subChunk.isRawPreservedUnknownVersion }
+        var counts = [UInt8: Int]()
+        for record in known { counts[record.subChunk.version, default: 0] += 1 }
+        let version = counts.max { lhs, rhs in
+            if lhs.value != rhs.value { return lhs.value < rhs.value }
+            return lhs.key < rhs.key
+        }?.key
+        if let version, [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+            return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+        }
+        if let format = BedrockPaletteFormat.detect(known.flatMap { $0.subChunk.storages }
+            .filter { $0.persistentKind == .normal }.flatMap(\.palette)) { return format.air }
+        let fallback = try fallbackProfile ?? profile(database: database, dimension: position.dimension)
+        if version == nil, [UInt8(0), 2, 3, 4, 5, 6, 7].contains(fallback.subChunkVersion) {
+            return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+        }
+        return (fallback.paletteFormat ?? BedrockPaletteFormat(usesLegacyVal: false, version: fallback.blockPaletteVersion)).air
+    }
+
     static func profile(
         database: MojangLevelDB,
-        dimension: Int32,
+        dimension: Int32?,
         preferLegacy: Bool = false,
         preferredPaletteVersion: Int32? = nil
     ) throws -> BedrockEmptyChunkProfile {
         var legacyVersion: Data?
         var modernVersion: Data?
         var paletteVersions = [Int32]()
+        var paletteFormat: BedrockPaletteFormat?
         var data3D: Data?
         var data2D: Data?
         var data2DLegacy: Data?
@@ -63,7 +94,7 @@ enum BedrockEmptyChunk {
         var legacyTerrainCount = 0
         let entries = try database.entries(includeValues: true, limit: 0)
         for entry in entries {
-            guard let key = BedrockDBKey.parse(entry.key), key.position.dimension == dimension else { continue }
+            guard let key = BedrockDBKey.parse(entry.key), (dimension == nil || key.position.dimension == dimension) else { continue }
             if let value = entry.value, value.count == 1 {
                 if key.recordType == .version, modernVersion == nil { modernVersion = value }
                 if key.recordType == .legacyVersion, legacyVersion == nil { legacyVersion = value }
@@ -82,11 +113,28 @@ enum BedrockEmptyChunk {
                 if !decoded.isRawPreservedUnknownVersion {
                     subChunkVersionCounts[decoded.version, default: 0] += 1
                 }
+                if let observed = BedrockPaletteFormat.detect(decoded.storages
+                    .filter { $0.persistentKind == .normal }.flatMap(\.palette)),
+                   paletteFormat == nil || (paletteFormat!.usesLegacyVal && !observed.usesLegacyVal)
+                    || (paletteFormat!.usesLegacyVal == observed.usesLegacyVal
+                        && (observed.version ?? 0) > (paletteFormat!.version ?? 0)) {
+                    paletteFormat = observed
+                }
                 paletteVersions.append(contentsOf: decoded.storages
                     .filter { $0.persistentKind == .normal }
                     .flatMap(\.palette)
                     .compactMap(\.paletteVersion))
             }
+        }
+        if dimension != nil && legacyVersion == nil && modernVersion == nil
+            && legacyTerrainCount == 0 && subChunkVersionCounts.isEmpty {
+            return try profile(database: database, dimension: nil, preferLegacy: preferLegacy,
+                               preferredPaletteVersion: preferredPaletteVersion)
+        }
+        func withPaletteFormat(_ value: BedrockEmptyChunkProfile) -> BedrockEmptyChunkProfile {
+            var result = value
+            result.paletteFormat = paletteFormat
+            return result
         }
         // Same-dimension persisted palettes take precedence; an optional
         // world-wide persisted palette sample is the next fallback. The
@@ -101,16 +149,13 @@ enum BedrockEmptyChunk {
         // at all. Do not infer a modern empty-chunk profile just because those
         // later metadata families are absent.
         let subChunkRecordCount = subChunkVersionCounts.values.reduce(0, +)
-        // Treat a dimension as pre-Anvil when LegacyTerrain is the dominant
-        // terrain family and there is no modern Version record. Weight each
-        // 0x30 record as eight virtual Y slices so a stray 0x2F written by an
-        // older editor build does not permanently switch a 0.10.x world to the
-        // wrong missing-chunk format.
+        // PE 0.9/0.10 worlds use LegacyTerrain without modern Version/SubChunk records.
+        // Detect the persisted Bedrock format directly; do not repair editor-created hybrids.
         let usesLegacyTerrain = legacyTerrainCount > 0
             && modernVersion == nil
-            && legacyTerrainCount * 8 >= subChunkRecordCount
+            && subChunkRecordCount == 0
         if usesLegacyTerrain {
-            return BedrockEmptyChunkProfile(
+            return withPaletteFormat(BedrockEmptyChunkProfile(
                 versionRecordType: .legacyVersion,
                 versionValue: legacyVersion ?? Data([0]),
                 blockPaletteVersion: blockVersion,
@@ -118,7 +163,7 @@ enum BedrockEmptyChunk {
                 usesLegacyTerrain: true,
                 terrainRecordType: nil,
                 terrainValue: nil
-            )
+            ))
         }
         let legacyTerrain: (ChunkRecordType?, Data?) = {
             if let data2D { return (.data2D, data2D) }
@@ -126,34 +171,34 @@ enum BedrockEmptyChunk {
             return (nil, nil)
         }()
         if preferLegacy, let value = legacyVersion {
-            return BedrockEmptyChunkProfile(
+            return withPaletteFormat(BedrockEmptyChunkProfile(
                 versionRecordType: .legacyVersion, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 7,
                 usesLegacyTerrain: false,
                 terrainRecordType: legacyTerrain.0, terrainValue: legacyTerrain.1
-            )
+            ))
         }
         if let value = modernVersion {
-            return BedrockEmptyChunkProfile(
+            return withPaletteFormat(BedrockEmptyChunkProfile(
                 versionRecordType: .version, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 9,
                 usesLegacyTerrain: false,
-                terrainRecordType: data3D == nil ? nil : .data3D, terrainValue: data3D
-            )
+                terrainRecordType: data3D == nil ? legacyTerrain.0 : .data3D, terrainValue: data3D ?? legacyTerrain.1
+            ))
         }
         // A legacy-only dimension must stay legacy even when the caller has no
         // block-specific preference. Writing a modern Version record beside a
         // v7 numeric SubChunk (or the reverse) creates a chunk this editor can
         // decode but Minecraft ignores.
         if let value = legacyVersion, modernVersion == nil {
-            return BedrockEmptyChunkProfile(
+            return withPaletteFormat(BedrockEmptyChunkProfile(
                 versionRecordType: .legacyVersion, versionValue: value, blockPaletteVersion: blockVersion,
                 subChunkVersion: observedSubChunkVersion ?? 7,
                 usesLegacyTerrain: false,
                 terrainRecordType: legacyTerrain.0, terrainValue: legacyTerrain.1
-            )
+            ))
         }
-        return BedrockEmptyChunkProfile(
+        return withPaletteFormat(BedrockEmptyChunkProfile(
             versionRecordType: .version,
             versionValue: Data([40]),
             blockPaletteVersion: blockVersion,
@@ -161,7 +206,7 @@ enum BedrockEmptyChunk {
             usesLegacyTerrain: false,
             terrainRecordType: data3D == nil ? nil : .data3D,
             terrainValue: data3D
-        )
+        ))
     }
 
     /// Highest block-state version actually persisted in any known v1/v8/v9
@@ -192,7 +237,7 @@ enum BedrockEmptyChunk {
         fallback: UInt8
     ) throws -> UInt8 {
         var counts = [UInt8: Int]()
-        let entries = try database.entries(includeValues: true, limit: 0)
+        let entries = try database.entries(prefix: coordinatePrefix(position), includeValues: true, limit: 0)
         for entry in entries {
             guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position else { continue }
             if parsed.recordType == .legacyTerrain { return 0 }
@@ -208,32 +253,11 @@ enum BedrockEmptyChunk {
         }?.key ?? fallback
     }
 
-    static func preferredBlockPaletteVersion(
-        database: MojangLevelDB,
-        at position: ChunkPosition,
-        fallback: Int32
-    ) throws -> Int32 {
-        var versions = [Int32]()
-        let entries = try database.entries(includeValues: true, limit: 0)
-        for entry in entries {
-            guard let parsed = BedrockDBKey.parse(entry.key), parsed.position == position,
-                  parsed.recordType == .subChunk, let raw = entry.value,
-                  let decoded = try? BedrockSubChunk.decode(raw, keyYIndex: parsed.subChunkIndex),
-                  !decoded.isRawPreservedUnknownVersion else { continue }
-            versions.append(contentsOf: decoded.storages
-                .filter { $0.persistentKind == .normal }
-                .flatMap(\.palette)
-                .compactMap(\.paletteVersion))
-        }
-        return versions.max() ?? fallback
-    }
-
-    static func hasChunkMetadata(database: MojangLevelDB, at position: ChunkPosition) throws -> Bool {
-        let metadataTypes: [ChunkRecordType] = [.version, .legacyVersion, .finalizedState, .data3D, .data2D, .data2DLegacy, .legacyTerrain]
-        return try database.entries(includeValues: false, limit: 0).contains { entry in
-            guard let parsed = BedrockDBKey.parse(entry.key) else { return false }
-            return parsed.position == position && metadataTypes.contains(parsed.recordType)
-        }
+    private static func coordinatePrefix(_ position: ChunkPosition) -> Data {
+        var prefix = Data()
+        prefix.appendLE(position.x)
+        prefix.appendLE(position.z)
+        return prefix
     }
 
     static func metadataRecords(
@@ -269,5 +293,25 @@ enum BedrockEmptyChunk {
             ))
         }
         return records
+    }
+
+    static func missingMetadataRecords(database: MojangLevelDB, at position: ChunkPosition, using metadataProfile: BedrockEmptyChunkProfile? = nil) throws -> [(key: Data, value: Data)] {
+        func value(_ type: ChunkRecordType) throws -> Data? {
+            try database.get(BedrockDBKey(position: position, recordType: type, subChunkIndex: nil).encoded())
+        }
+        if try value(.legacyTerrain) != nil { return [] }
+        let hasVersion = try value(.version) != nil || value(.legacyVersion) != nil
+        let hasFinalized = try value(.finalizedState) != nil
+        let hasBiome = try value(.data3D) != nil || value(.data2D) != nil || value(.data2DLegacy) != nil
+        if hasVersion && hasFinalized && hasBiome { return [] }
+        let detected = try metadataProfile ?? profile(database: database, dimension: position.dimension)
+        if detected.usesLegacyTerrain { return [] }
+        return metadataRecords(at: position, profile: detected).filter { record in
+            switch record.recordType {
+            case .version, .legacyVersion: return !hasVersion
+            case .finalizedState: return !hasFinalized
+            default: return !hasBiome
+            }
+        }.map { (key: $0.key, value: $0.value) }
     }
 }

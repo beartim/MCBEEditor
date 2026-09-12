@@ -1237,7 +1237,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       object: session
     )
     loadSpawn()
-    _ = restoreMapState()
     jumpToDefaultCenter()
   }
 
@@ -2005,7 +2004,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         ? "移动自动渲染已开启：拖动会续载；缩小时会按视口自动扩大区块范围。"
         : "移动自动渲染已关闭；可拖动查看当前区域，使用坐标和“渲染”按钮跳转。"
     }
-    saveMapState()
   }
 
   @objc private func chunkSelectionChanged() {
@@ -2024,7 +2022,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       statusLabel.text = "区块选择已关闭：点击地图恢复方块列和实体选择。"
     }
     updateObjectOverlay()
-    saveMapState()
   }
 
   @objc private func cancelAllSelections() {
@@ -2041,7 +2038,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     session.clearRememberedSelections()
     blockDetailPanel.clearBlock()
     updateObjectOverlay()
-    saveMapState()
     statusLabel.text = "已取消当前全部选择。"
   }
 
@@ -2322,7 +2318,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             self.statusLabel.text =
               "中心区块 (\(centerX), \(centerZ))；动态 \(sideChunks)×\(sideChunks)；\(mode.displayName)；\(layerDetail)\(samplingDetail)；玩家 \(result.playerCount)；实体 \(result.entityCount)；方块实体 \(result.blockEntityCount)；刷怪区域 \(result.hardcodedSpawnerCount)；村庄 \(result.villageCount)；错误 \(result.errors.count) 条\(diagnosticHint)。缩放会按视口持续扩展渲染区块；低倍率自动降低位图像素密度，拖动可持续续载。"
           }
-          self.saveMapState()
           DispatchQueue.main.async { [weak self] in
             self?.refreshForZoomDrivenRadiusIfNeeded()
           }
@@ -2563,7 +2558,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             self.statusLabel.text =
               "\(axis.displayName) 轴剖面；中心方块 (\(fixedX), \(centerY), \(fixedZ))；范围 \(sideBlocks)×\(sideBlocks) 方块；向 \(axis.displayName)- 投影 128 方块；Y 正方向在上；\(mode.displayName)；解码 \(result.decodedSubChunks) 个 SubChunk\(sampling)；\(layerCounts)；错误 \(allErrors.count) 条。"
           }
-          self.saveMapState()
         }
       } catch is MapRenderCancelledBridge {
         DispatchQueue.main.async {
@@ -4107,7 +4101,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       alignContentOffsetToDevicePixels()
       updateObjectOverlay()
       scheduleAutoRender(immediate: true)
-      saveMapState()
     default:
       break
     }
@@ -4158,7 +4151,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       updateObjectOverlay()
       isZooming = false
       showZoomHUD(autoHide: true)
-      saveMapState()
       refreshForZoomDrivenRadiusIfNeeded()
     default:
       break
@@ -5540,7 +5532,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       UIAlertAction(title: ungeneratedTitle, style: .default) { [weak self] _ in
         guard let self = self else { return }
         self.showUngeneratedChunks.toggle()
-        self.saveMapState()
         let anchor = self.currentViewportAnchor()
         let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
         self.render(
@@ -5556,7 +5547,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         UIAlertAction(title: heightLimitTitle, style: .default) { [weak self] _ in
           guard let self = self else { return }
           self.showBuildHeightLimits.toggle()
-          self.saveMapState()
           self.updateObjectOverlay()
         })
     }
@@ -5571,7 +5561,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.showSpawnPoints = true
         self.showUngeneratedChunks = true
         self.showBuildHeightLimits = true
-        self.saveMapState()
         let anchor = self.currentViewportAnchor()
         let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
         self.render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "对象图层", showOverlay: false)
@@ -5590,7 +5579,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         self.selectedSpawnerID = nil
         self.selectedVillageID = nil
         self.selectedVillageEntityIDs.removeAll()
-        self.saveMapState()
         let anchor = self.currentViewportAnchor()
         let center = anchor.map { self.chunkCenter(for: $0) } ?? (self.lastCenterX, self.lastCenterZ)
         self.render(centerX: center.0, centerZ: center.1, anchor: anchor, reason: "对象图层", showOverlay: false)
@@ -5601,7 +5589,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func refreshObjectOverlays(reason: String) {
-    saveMapState()
     let anchor = currentViewportAnchor()
     render(
       centerX: lastCenterX, centerZ: lastCenterZ, anchor: anchor, reason: reason, showOverlay: false
@@ -5712,7 +5699,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let target = pixelAlignedZoomScale(rawFit)
     scrollView.setZoomScale(target, animated: animated)
     showZoomHUD(autoHide: true)
-    saveMapState()
   }
 
   /// Sets the user-visible scale. The raw scroll-view scale is derived from
@@ -5723,7 +5709,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let target = pixelAlignedZoomScale(rawScale)
     scrollView.setZoomScale(target, animated: animated)
     showZoomHUD(autoHide: true)
-    saveMapState()
   }
 
   private func zoom(to scale: CGFloat, around point: CGPoint, animated: Bool) {
@@ -5734,7 +5719,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let rect = CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
     scrollView.zoom(to: rect, animated: animated)
     showZoomHUD(autoHide: true)
-    saveMapState()
   }
 
   private func showZoomHUD(autoHide: Bool = false) {
@@ -7090,73 +7074,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     }
   }
 
-  private var mapStatePrefix: String { "MCBEEditor.Map.\(session.world.id.uuidString)." }
-
-  /// Restores display preferences only. Viewport center, selected dimension
-  /// and zoom are intentionally session-local and are never restored after
-  /// the world workspace is closed.
-  @discardableResult
-  private func restoreMapState() -> Bool {
-    let defaults = UserDefaults.standard
-    modeControl.selectedSegmentIndex = 0
-    defaults.removeObject(forKey: mapStatePrefix + "mode")
-    coordinateModeControl.selectedSegmentIndex = min(
-      1, max(0, defaults.integer(forKey: mapStatePrefix + "coordinateMode")))
-    if defaults.object(forKey: mapStatePrefix + "autoRender") != nil {
-      autoRenderSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "autoRender")
-      gridSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "grid")
-      chunkSelectionSwitch.isOn = defaults.bool(forKey: mapStatePrefix + "chunkSelection")
-    }
-    if defaults.object(forKey: mapStatePrefix + "showPlayers") != nil {
-      showPlayers = defaults.bool(forKey: mapStatePrefix + "showPlayers")
-    } else {
-      showPlayers = true
-    }
-    if defaults.object(forKey: mapStatePrefix + "showEntities") != nil {
-      showEntities = defaults.bool(forKey: mapStatePrefix + "showEntities")
-      showBlockEntities = defaults.bool(forKey: mapStatePrefix + "showBlockEntities")
-      showHardcodedSpawners = defaults.bool(forKey: mapStatePrefix + "showHardcodedSpawners")
-      showVillages = defaults.bool(forKey: mapStatePrefix + "showVillages")
-      if defaults.object(forKey: mapStatePrefix + "showSpawnPoints") != nil {
-        showSpawnPoints = defaults.bool(forKey: mapStatePrefix + "showSpawnPoints")
-      }
-      if defaults.object(forKey: mapStatePrefix + "showUngeneratedChunks") != nil {
-        showUngeneratedChunks = defaults.bool(forKey: mapStatePrefix + "showUngeneratedChunks")
-      }
-      if defaults.object(forKey: mapStatePrefix + "showBuildHeightLimits") != nil {
-        showBuildHeightLimits = defaults.bool(forKey: mapStatePrefix + "showBuildHeightLimits")
-      } else {
-        showBuildHeightLimits = true
-      }
-    } else {
-      showBuildHeightLimits = true
-    }
-    for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
-      defaults.removeObject(forKey: mapStatePrefix + key)
-    }
-    return true
-  }
-
-  private func saveMapState() {
-    let defaults = UserDefaults.standard
-    defaults.removeObject(forKey: mapStatePrefix + "mode")
-    defaults.set(
-      coordinateModeControl.selectedSegmentIndex, forKey: mapStatePrefix + "coordinateMode")
-    defaults.set(autoRenderSwitch.isOn, forKey: mapStatePrefix + "autoRender")
-    defaults.set(gridSwitch.isOn, forKey: mapStatePrefix + "grid")
-    defaults.set(chunkSelectionSwitch.isOn, forKey: mapStatePrefix + "chunkSelection")
-    defaults.set(showPlayers, forKey: mapStatePrefix + "showPlayers")
-    defaults.set(showEntities, forKey: mapStatePrefix + "showEntities")
-    defaults.set(showBlockEntities, forKey: mapStatePrefix + "showBlockEntities")
-    defaults.set(showHardcodedSpawners, forKey: mapStatePrefix + "showHardcodedSpawners")
-    defaults.set(showVillages, forKey: mapStatePrefix + "showVillages")
-    defaults.set(showSpawnPoints, forKey: mapStatePrefix + "showSpawnPoints")
-    defaults.set(showUngeneratedChunks, forKey: mapStatePrefix + "showUngeneratedChunks")
-    defaults.set(showBuildHeightLimits, forKey: mapStatePrefix + "showBuildHeightLimits")
-    for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"] {
-      defaults.removeObject(forKey: mapStatePrefix + key)
-    }
-  }
 
   private func rememberCurrentViewportState(for dimension: Int32) {
     guard currentSliceAxis == .y, lastRenderedImage != nil else { return }
@@ -7233,7 +7150,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     updateObjectOverlay()
     if let region = selectedRegion { updateSelectionOverlay(for: region) }
     isZooming = false
-    saveMapState()
     showZoomHUD(autoHide: true)
     refreshForZoomDrivenRadiusIfNeeded()
   }

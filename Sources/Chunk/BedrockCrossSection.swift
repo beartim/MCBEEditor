@@ -536,6 +536,8 @@ extension ChunkSurfaceRenderer {
     }
 
     var chunkCache = [ChunkPosition: [Int8: BedrockSubChunk]]()
+    var missingAirCache = [ChunkPosition: BedrockBlockState]()
+    var missingAirProfile: BedrockEmptyChunkProfile?
     var blocks = [BedrockBlockRecord]()
     blocks.reserveCapacity(Int(upper - cappedLower + 1))
 
@@ -555,6 +557,14 @@ extension ChunkSurfaceRenderer {
         do {
           let records = try BedrockChunkSubChunkAccess.records(database: database, position: position)
           let mapped = Dictionary(uniqueKeysWithValues: records.map { ($0.yIndex, $0.subChunk) })
+          if subY64 >= Int64(Int8.min), subY64 <= Int64(Int8.max), mapped[Int8(subY64)] == nil {
+            if missingAirProfile == nil {
+              missingAirProfile = try BedrockEmptyChunk.profile(database: database, dimension: dimension)
+            }
+            missingAirCache[position] = try BedrockEmptyChunk.airForMissingSubChunk(
+              database: database, at: position, records: records, fallbackProfile: missingAirProfile
+            )
+          }
           chunkCache[position] = mapped
           byY = mapped
         } catch {
@@ -569,7 +579,7 @@ extension ChunkSurfaceRenderer {
       let localZ = Int(worldZ - MapCoordinate.blockOrigin(ofChunk: chunkZ))
       let layers = subChunk?.storages.compactMap {
         $0.blockState(x: localX, y: localY, z: localZ)
-      } ?? []
+      } ?? missingAirCache[position].map { [$0] } ?? []
       blocks.append(BedrockBlockRecord(
         x: worldX,
         y: fixedY,

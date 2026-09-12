@@ -144,7 +144,8 @@ enum BedrockChunkSubChunkAccess {
         database: MojangLevelDB,
         position: ChunkPosition,
         edited: [Int8: BedrockSubChunk],
-        preferLegacyTerrainIfMissing: Bool = false
+        preferLegacyTerrainIfMissing: Bool = false,
+        metadataProfile: BedrockEmptyChunkProfile? = nil
     ) throws -> [(key: Data, value: Data)] {
         guard !edited.isEmpty else { return [] }
         let existing = try records(database: database, position: position)
@@ -190,7 +191,22 @@ enum BedrockChunkSubChunkAccess {
         var touchedLegacyTerrain = false
 
         for y in edited.keys.sorted() {
-            guard let subChunk = edited[y] else { continue }
+            guard var subChunk = edited[y] else { continue }
+            if !subChunk.isLegacyNumeric && !subChunk.isRawPreservedUnknownVersion {
+                let originalPalette = (byY[y].map { [$0] } ?? existing).flatMap { $0.subChunk.storages }
+                    .filter { $0.persistentKind == .normal }.flatMap(\.palette)
+                let format = BedrockPaletteFormat.detect(originalPalette)
+                    ?? BedrockPaletteFormat.detect(subChunk.storages.flatMap(\.palette))
+                if format?.usesLegacyVal == true {
+                    let storages = try subChunk.storages.map { storage in
+                        SubChunkStorage(bitsPerBlock: storage.bitsPerBlock,
+                            palette: try storage.palette.map { try BedrockLegacyBlockStateConverter.forPalette($0, format: format) },
+                            indices: storage.indices, persistentKind: storage.persistentKind)
+                    }
+                    subChunk = BedrockSubChunk(version: subChunk.version, yIndex: subChunk.yIndex,
+                                              storages: storages, trailingData: subChunk.trailingData)
+                }
+            }
             if let record = byY[y] {
                 switch record.backing {
                 case .subChunk(let key):
@@ -245,6 +261,9 @@ enum BedrockChunkSubChunkAccess {
             // out-of-band delete; whole-chunk modernisation explicitly deletes
             // the legacy key.
             puts.append((extraKey, try extraData.encodePersistent()))
+        }
+        if !hasLegacyTerrainBacking {
+            puts.append(contentsOf: try BedrockEmptyChunk.missingMetadataRecords(database: database, at: position, using: metadataProfile))
         }
         return puts
     }

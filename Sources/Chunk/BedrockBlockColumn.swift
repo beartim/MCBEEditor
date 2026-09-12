@@ -20,8 +20,9 @@ struct BedrockBlockRecord {
 
     func stateForEditing(layer index: Int) -> BedrockBlockState {
         if layers.indices.contains(index) { return layers[index] }
-        let version = layers.compactMap(\.paletteVersion).first
-        return .editableAir(version: version)
+        if layers.first?.legacyID != nil { return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0) }
+        return (BedrockPaletteFormat.detect(layers)
+            ?? BedrockPaletteFormat(usesLegacyVal: false, version: nil)).air
     }
 
     var stateDescription: String {
@@ -81,17 +82,23 @@ extension ChunkSurfaceRenderer {
         let minimumY = min(-4, Int(records.map(\.yIndex).min() ?? -4))
         let maximumY = max(19, Int(records.map(\.yIndex).max() ?? 19))
         blocks.reserveCapacity((maximumY - minimumY + 1) * 16)
+        var missingAir: BedrockBlockState?
 
         for subChunkY in stride(from: maximumY, through: minimumY, by: -1) {
             let yIndex = Int8(clamping: subChunkY)
             guard let subChunk = byY[yIndex] else {
+                if missingAir == nil {
+                    missingAir = try BedrockEmptyChunk.airForMissingSubChunk(
+                        database: database, at: position, records: records
+                    )
+                }
                 for localY in stride(from: 15, through: 0, by: -1) {
                     blocks.append(BedrockBlockRecord(
                         x: blockX,
                         y: Int32(subChunkY * 16 + localY),
                         z: blockZ,
                         dimension: dimension,
-                        layers: [],
+                        layers: missingAir.map { [$0] } ?? [],
                         isGenerated: false
                     ))
                 }

@@ -111,13 +111,8 @@ enum LegacyTerrainTests {
         precondition(BedrockDBKey.parse(mergedPuts[0].key)?.recordType == .legacyTerrain)
         precondition(mergedPuts[0].value.count == 83_200)
 
-        // A stray SubChunkPrefix from an older editor build must not make a
-        // predominantly LegacyTerrain 0.10.x dimension switch formats.
-        let strayPosition = ChunkPosition(x: 99, z: 99, dimension: 0)
-        try db.put(
-            try legacySubChunk(version: 0, y: 4).encodePersistent(),
-            for: BedrockDBKey.subChunk(x: strayPosition.x, z: strayPosition.z, dimension: 0, index: 4)
-        )
+        // A pure PE 0.9/0.10 LegacyTerrain dimension must keep its native
+        // missing-chunk family without relying on editor-version repair heuristics.
         let profile = try BedrockEmptyChunk.profile(database: db, dimension: 0)
         precondition(profile.usesLegacyTerrain)
         precondition(profile.subChunkVersion == 0)

@@ -33,7 +33,8 @@ order=['let playerTitle', 'let entityTitle', 'let blockTitle', 'let spawnTitle',
 pos=[part.index(item) for item in order]
 assert pos == sorted(pos), pos
 assert 'defaults.set(modeControl.selectedSegmentIndex' not in s
-assert 'defaults.removeObject(forKey: mapStatePrefix + "mode")' in s
+assert 'defaults.removeObject(forKey: mapStatePrefix + "mode")' not in s
+assert 'UserDefaults' not in s
 assert 'modeControl.selectedSegmentIndex = 0' in s
 # renderRegion has one declaration and two call sites; all call sites must
 # supply the playerCoordinates argument after the player-map-layer change.

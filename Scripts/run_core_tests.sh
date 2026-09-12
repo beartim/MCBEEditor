@@ -1175,7 +1175,6 @@ struct EntityTest {
         var digestKey = Data("digp".utf8)
         digestKey.appendLE(Int32(0))
         digestKey.appendLE(Int32(-1))
-        digestKey.appendLE(Int32(0))
 
         let blockDocument = NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "id", value: .string("Chest")),
@@ -1748,17 +1747,15 @@ struct WorldObjectNBTTest {
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(1.5), .float(64), .float(1.5)]))
         ]))
         let actorStorageKey = actorKey(actorID)
-        let oldDigestKey = nonCanonicalOverworldDigestKey(0, 0)
+        let sourceDigestKey = digestKey(0, 0, 0)
+        let nonCanonicalDigestKey = nonCanonicalOverworldDigestKey(0, 0)
         let database = MojangLevelDB(values: [
             actorStorageKey: try BedrockNBTCodec.encode(actorDocument),
-            oldDigestKey: digest(actorID)
+            sourceDigestKey: digest(actorID),
+            nonCanonicalDigestKey: digest(actorID)
         ])
         let session = WorldSession(db: database)
         let store = BedrockWorldObjectNBTStore(session: session)
-        let repairedDigestCount = try store.repairAppCreatedOverworldActorDigests()
-        precondition(repairedDigestCount == 1)
-        precondition(database.values[oldDigestKey] == nil)
-        precondition(database.values[digestKey(0, 0, 0)] == digest(actorID))
         let scanner = BedrockWorldObjectScanner(database: database)
         let actor = try scanner.scanRegion(
             centerX: 0, centerZ: 0, dimension: 0, radius: 0,
@@ -1770,8 +1767,9 @@ struct WorldObjectNBTTest {
         )
         let actorResult = try BedrockWorldObjectNBTStore(session: session).save(object: actor, document: editedActor)
         precondition(actorResult.moved && actorResult.destinationChunkX == 2)
-        precondition(database.values[oldDigestKey] == nil)
+        precondition(database.values[sourceDigestKey] == nil)
         precondition(database.values[digestKey(2, 0, 0)] == digest(actorID))
+        precondition(database.values[nonCanonicalDigestKey] == digest(actorID))
 
         let chest = NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "id", value: .string("Chest")),
@@ -2645,13 +2643,13 @@ swiftc \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$TMP/BlockNBTEditorStubs.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
-  "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   -parse-as-library "$TMP/block_nbt_editor_test.swift" -o "$TMP/block-nbt-editor-tests"
 "$TMP/block-nbt-editor-tests"
 
 "$ROOT/Scripts/test_legacy_terrain_subchunks.sh"
 "$ROOT/Scripts/test_subchunk_v0_v9_compat.sh"
+bash "$ROOT/Scripts/test_end_missing_subchunks.sh"
 
 # v0.10.1: compact empty map layout, fixed layer 0/1 editing and no custom markers.
 grep -q 'controls.setContentHuggingPriority(.required, for: .vertical)' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
@@ -2793,7 +2791,6 @@ echo 'Zoom-driven chunk expansion and coordinated layered replacement passed'
 # output exposes the requested player colors.
 grep -qF 'private var dimensionViewportStates = [Int32: MapDimensionViewportState]()' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
 grep -qF 'rememberCurrentViewportState(for: activeDimension)' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
-grep -qF 'for key in ["centerX", "centerZ", "dimension", "radius", "zoomScale"]' "$ROOT/Sources/UI/WorldMapViewController.swift" && \
 grep -qF 'dimensionViewportStates.removeAll()' "$ROOT/Sources/UI/WorldMapViewController.swift" || {
   echo 'error: session-only per-dimension map viewport state is incomplete' >&2; exit 1;
 }
@@ -3034,81 +3031,6 @@ swiftc \
   -o "$TMP/chunk-auxiliary-data-tests"
 "$TMP/chunk-auxiliary-data-tests"
 
-cat > "$TMP/EmptyChunkProfileStubs.swift" <<'SWIFT'
-import Foundation
-
-final class MojangLevelDB {
-    func entries(prefix: Data? = nil, includeValues: Bool = false, limit: Int = 0) throws -> [(key: Data, value: Data?)] { [] }
-}
-struct EmptyChunkPaletteState { let paletteVersion: Int32? }
-enum SubChunkStoragePersistentKind { case normal }
-struct SubChunkStorage {
-    let palette: [EmptyChunkPaletteState]
-    var persistentKind: SubChunkStoragePersistentKind { .normal }
-}
-struct BedrockSubChunk {
-    let version: UInt8
-    let storages: [SubChunkStorage]
-    var isRawPreservedUnknownVersion: Bool { false }
-    static func decode(_ data: Data, keyYIndex: Int8? = nil) throws -> BedrockSubChunk {
-        BedrockSubChunk(version: data.first ?? 9, storages: [])
-    }
-}
-enum BedrockLegacyTerrain {
-    static let emptyPersistentData = Data(repeating: 0, count: 83_200)
-}
-SWIFT
-
-cat > "$TMP/pure_air_chunk_test.swift" <<'SWIFT'
-import Foundation
-
-@main
-enum PureAirChunkTests {
-    static func main() throws {
-        let position = ChunkPosition(x: 4, z: -2, dimension: 0)
-        let terrain = Data(repeating: 0x2a, count: 640)
-        let profile = BedrockEmptyChunkProfile(
-            versionRecordType: .version,
-            versionValue: Data([40]),
-            blockPaletteVersion: 18_153_728,
-            subChunkVersion: 9,
-            usesLegacyTerrain: false,
-            terrainRecordType: .data3D,
-            terrainValue: terrain
-        )
-        let records = BedrockEmptyChunk.metadataRecords(at: position, profile: profile)
-        precondition(records.count == 3)
-
-        let version = records.first(where: { $0.recordType == .version })
-        let finalized = records.first(where: { $0.recordType == .finalizedState })
-        let data3D = records.first(where: { $0.recordType == .data3D })
-        precondition(version?.value == Data([40]))
-        precondition(data3D?.value == terrain)
-        let finalizedValue = try finalized?.value.littleEndianInt32(at: 0)
-        precondition(finalizedValue == 2)
-
-        let parsedVersion = version.flatMap { BedrockDBKey.parse($0.key) }
-        let parsedFinalized = finalized.flatMap { BedrockDBKey.parse($0.key) }
-        precondition(parsedVersion?.position == position)
-        precondition(parsedFinalized?.position == position)
-        precondition(parsedVersion?.recordType == .version)
-        precondition(parsedFinalized?.recordType == .finalizedState)
-        print("Pure-air chunk metadata test passed")
-    }
-}
-SWIFT
-
-swiftc \
-  "$ROOT/Sources/Support/Errors.swift" \
-  "$ROOT/Sources/Support/Hex.swift" \
-  "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
-  "$TMP/EmptyChunkProfileStubs.swift" \
-  "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
-  "$TMP/pure_air_chunk_test.swift" \
-  -o "$TMP/pure-air-chunk-tests"
-"$TMP/pure-air-chunk-tests"
-
-echo 'Pure-air chunk recreation, biome editing and HardcodedSpawners editing passed'
 # v0.11.7: biome map layer, searchable ID/name catalogue and optional
 # HardcodedSpawners map overlay.
 for required in \
@@ -3404,15 +3326,15 @@ CHUNK_UI="$ROOT/Sources/UI/ChunkListViewController.swift"
 grep -q 'databaseKeyPrefix = Data("tickingarea_".utf8)' "$TICKING_STORE" && \
 grep -q 'BedrockNBTCodec.encode(source.document' "$TICKING_STORE" && \
 grep -q 'database.applyBatch(puts: puts, deletes: deletes' "$TICKING_STORE" && \
-grep -q 'records(migratingLegacy: true)' "$TICKING_UI" && \
+grep -q 'let values = try self.store.records()' "$TICKING_UI" && \
 grep -q 'TickingAreaSelectionContext(region: region)' "$MAP_VIEW" && \
 grep -q '常加载区域编辑…' "$CHUNK_UI" && \
 ! grep -q 'ConsecutiveNBTCodec.encode(updated)' "$TICKING_STORE" || {
-  echo 'error: native per-key tickingarea storage, legacy migration or contextual editors are incomplete' >&2
+  echo 'error: native per-key tickingarea storage or contextual editors are incomplete' >&2
   exit 1
 }
 
-echo 'Native tickingarea_ storage, legacy migration and map/chunk contextual editing passed'
+echo 'Native tickingarea_ storage and map/chunk contextual editing passed'
 
 
 # Circular tickingarea bounds are persisted in blocks, but the command/editor
@@ -3465,8 +3387,8 @@ grep -q 'if dimension != 0 { key.appendLE(dimension) }' "$ROOT/Sources/Entity/Be
   echo 'error: overworld actor digest still appends DimensionID 0' >&2
   exit 1
 }
-grep -q 'repairAppCreatedOverworldActorDigests' "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" || {
-  echo 'error: invalid overworld actor digest migration is missing' >&2
+! grep -q 'repairAppCreatedOverworldActorDigests' "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" || {
+  echo 'error: removed MCBEEditor-version actor-digest migration returned' >&2
   exit 1
 }
 grep -q '未被 digp 引用的孤立 actorprefix' "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" || {
@@ -3527,6 +3449,7 @@ echo 'World-aware entity storage, legacy numeric block NBT editing and exact blo
 for required in \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
+  "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Sources/UI/WorldCommandViewController.swift"; do
   [[ -f "$required" ]] || { echo "error: command source is missing: ${required#$ROOT/}" >&2; exit 1; }
 done
@@ -3650,13 +3573,6 @@ grep -qF 'presentEntityFormatChooser' "$ENTITY_BROWSER_UI" || {
   echo 'error: selected-entity format export is incomplete' >&2
   exit 1
 }
-grep -qF 'BedrockEmptyChunk.metadataRecords(at: position, profile: profile)' "$BLOCK_STORE" && \
-grep -qF 'let allPuts = metadataPuts + upgradedSubChunkPuts + targetPuts' "$BLOCK_STORE" && \
-grep -qF 'ensureGenerated(sourceStore.chunks(in: source))' "$COMMAND_EXECUTOR" && \
-grep -qF 'ensureGenerated(chunks(in: targetRegion))' "$COMMAND_EXECUTOR" || {
-  echo 'error: unloaded-chunk air generation is incomplete' >&2
-  exit 1
-}
 grep -qF ': 0' "$MAP_VIEW" && grep -qF 'lastBlockHeights[index] != Int16.min' "$MAP_VIEW" || {
   echo 'error: map tap without rendered Y does not default to Y=0' >&2
   exit 1
@@ -3689,9 +3605,7 @@ for removed in '"LinksTag"' '"FireImmune"' '"HasCollision"' '"HasGravity"' '"Has
 done
 echo 'Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed'
 
-# v1.1.15: recursive command NBT, give item tags and legacy chunk modernization.
-LEGACY_UPGRADE="$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift"
-[[ -f "$LEGACY_UPGRADE" ]] || { echo 'error: legacy chunk upgrade source is missing' >&2; exit 1; }
+# Recursive command NBT and give item tags.
 for expected in \
   'case "ByteArray": return .byteArray' \
   'case "List": return .list' \
@@ -3708,8 +3622,6 @@ for expected in \
   }
 done
 for expected in \
-  'BedrockLegacyChunkUpgrade.plan' \
-  'pendingMetadataDeletes.formUnion' \
   'pendingMetadataPuts' \
   'itemTags: [NBTNamedTag]' \
   'replaceItemTag(named: "Name"' \
@@ -3719,27 +3631,11 @@ for expected in \
     exit 1
   }
 done
-for expected in \
-  'func upgradedToModern(paletteVersion:' \
-  'expandedToData3D' \
-  'recordType: .data3D' \
-  'recordType: .legacyVersion' \
-  'recordType: .data2D'; do
-  grep -qF "$expected" "$LEGACY_UPGRADE" || {
-    echo "error: legacy SubChunk metadata migration is incomplete: $expected" >&2
-    exit 1
-  }
-done
-grep -qF 'existing.isLegacyNumeric && initiallyRequested.nbt != nil' "$BLOCK_STORE" && \
-grep -qF 'upgradedSubChunkPuts' "$BLOCK_STORE" || {
-  echo 'error: block NBT does not trigger whole-chunk legacy upgrade' >&2
-  exit 1
-}
 if grep -qF 'NSRegularExpression(pattern: pattern)' "$COMMAND_PARSER"; then
   echo 'error: command NBT parser still depends on the old flat regular expression' >&2
   exit 1
 fi
-echo 'Recursive command NBT, give item tags and legacy chunk modernization passed'
+echo 'Recursive command NBT and give item tags passed'
 grep -qF 'case "add"' "$COMMAND_PARSER" && \
 grep -qF 'case "addlevel"' "$COMMAND_PARSER" && \
 grep -qF 'case "level"' "$COMMAND_PARSER" && \
@@ -3962,6 +3858,9 @@ struct EffectCommandTest {
             NBTNamedTag(name: "UniqueID", value: .long(1)),
             NBTNamedTag(name: "PlayerLevel", value: .int(2)),
             NBTNamedTag(name: "PlayerLevelProgress", value: .float(0.25)),
+            NBTNamedTag(name: "XpTotal", value: .int(123)),
+            NBTNamedTag(name: "XpLevel", value: .int(7)),
+            NBTNamedTag(name: "XpP", value: .float(0.2)),
             NBTNamedTag(name: "Inventory", value: .list(.compound, (0..<36).map { emptyItem(Int8($0)) })),
             NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)]))
         ])))
@@ -4201,9 +4100,13 @@ struct EffectCommandTest {
         precondition(onlineExperience.level == 13)
         precondition(localExperienceDocument.root.intValue(named: "PlayerLevel") == 13)
         precondition(localExperienceDocument.root.compoundValue(named: "PlayerLevelProgress") != nil)
-        precondition(localExperienceDocument.root.compoundValue(named: "XpTotal") == nil)
-        precondition(localExperienceDocument.root.compoundValue(named: "XpLevel") == nil)
-        precondition(localExperienceDocument.root.compoundValue(named: "XpP") == nil)
+        precondition(localExperienceDocument.root.intValue(named: "XpTotal") == 123)
+        precondition(localExperienceDocument.root.intValue(named: "XpLevel") == 7)
+        if case .float(let xpP)? = localExperienceDocument.root.compoundValue(named: "XpP") {
+            precondition(abs(xpP - 0.2) < 0.0001)
+        } else {
+            preconditionFailure("experience write must preserve unrelated historical tags")
+        }
         let experienceQuery = try executor.execute(try WorldCommandParser.parse("experience query @a"))
         precondition(!experienceQuery.changedWorld && experienceQuery.outputLines.count == 2)
         precondition(experienceQuery.outputLines[0].text.contains("minecraft:player 1 经验总数=") && experienceQuery.outputLines[0].text.contains("经验等级=") && experienceQuery.outputLines[0].text.contains("当前经验条进度="))
@@ -4471,6 +4374,42 @@ struct EffectCommandTest {
                 && object.position?.z == -2.75
         }))
 
+        // Rejected writes must leave no pre-created metadata behind.
+        let legacySession = WorldSession()
+        let legacyPosition = ChunkPosition(x: 0, z: 0, dimension: 0)
+        try legacySession.db.put(Data([19]), for: BedrockDBKey(position: legacyPosition, recordType: .legacyVersion, subChunkIndex: nil).encoded())
+        try legacySession.db.put(try BedrockSubChunk.emptyLegacy(version: 7, yIndex: 0).encodePersistent(),
+                                for: BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0))
+        let beforeRejected = legacySession.db.values
+        do {
+            _ = try WorldCommandExecutor(session: legacySession).execute(try WorldCommandParser.parse(
+                "setblock overworld 64 200 64 minecraft:not_in_old_game NULL"))
+            preconditionFailure("unrepresentable legacy block accepted")
+        } catch { }
+        precondition(legacySession.db.values == beforeRejected)
+
+        // Explicit empty storages are part of fill/setblock's requested array.
+        let valSession = WorldSession()
+        let valAir = BedrockPaletteFormat(usesLegacyVal: true, version: nil).air
+        try valSession.db.put(Data([19]), for: BedrockDBKey(position: legacyPosition, recordType: .legacyVersion, subChunkIndex: nil).encoded())
+        try valSession.db.put(try BedrockSubChunk(version: 8, yIndex: 0, storages: [.airFilled(with: valAir)], trailingData: Data()).encodePersistent(),
+                             for: BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0))
+        let valExecutor = WorldCommandExecutor(session: valSession)
+        let beforeAbsent = valSession.db.values
+        for command in ["storage query overworld 0 200 0", "storage delete overworld 0 200 0 0", "storage clear overworld 0 200 0 0"] {
+            let result = try valExecutor.execute(try WorldCommandParser.parse(command))
+            precondition(result.message == "Block not generated" && !result.changedWorld)
+        }
+        precondition(valSession.db.values == beforeAbsent)
+        _ = try valExecutor.execute(try WorldCommandParser.parse(
+            "setblock overworld 64 200 64 minecraft:diamond_block NULL minecraft:air NULL minecraft:air NULL"))
+        let valRaw = try valSession.db.get(BedrockDBKey.subChunk(x: 4, z: 4, dimension: 0, index: 12))!
+        let valSaved = try BedrockSubChunk.decode(valRaw, keyYIndex: 12)
+        precondition(valSaved.version == 8 && valSaved.storages.count == 3)
+        precondition(valSaved.storages.allSatisfy { $0.bitsPerBlock >= 1 })
+        precondition(valSaved.storages.flatMap(\.palette).allSatisfy { $0.paletteVersion == nil && $0.nbt?.compoundValue(named: "val") != nil })
+        print("Command persistence tests passed: atomic legacy rejection and explicit empty v8 val storages")
+
         print("Effect, entity-import and world command executor tests passed")
     }
 }
@@ -4497,7 +4436,6 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$ROOT/Sources/Chunk/HardcodedSpawners.swift" \
   "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
-  "$ROOT/Sources/Chunk/BedrockLegacyChunkUpgrade.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
   "$ROOT/Sources/Chunk/BedrockChunkStore.swift" \
   "$ROOT/Sources/Chunk/BedrockRegionStore.swift" \
@@ -4517,6 +4455,7 @@ swiftc -j 4 \
   "$ROOT/Sources/World/ExperienceStore.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
+  "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$TMP/EffectCommandStubs.swift" \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"

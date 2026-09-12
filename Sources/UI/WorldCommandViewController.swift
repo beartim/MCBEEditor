@@ -17,7 +17,8 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let inputContainer = UIView()
     private let inputScrollView = UIScrollView()
     private let promptLabel = UILabel()
-    private let typedTextLabel = UILabel()
+    private let typedTextBeforeCursorLabel = UILabel()
+    private let typedTextAfterCursorLabel = UILabel()
     private let cursorView = UIView()
     private let executeButton = UIButton(type: .system)
     private lazy var keyboardButton = UIBarButtonItem(
@@ -26,7 +27,34 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         target: self,
         action: #selector(toggleKeyboard)
     )
+    private lazy var historyUpButton = UIBarButtonItem(
+        image: UIImage(systemName: "arrow.up"),
+        style: .plain,
+        target: self,
+        action: #selector(recallPreviousCommand)
+    )
+    private lazy var historyDownButton = UIBarButtonItem(
+        image: UIImage(systemName: "arrow.down"),
+        style: .plain,
+        target: self,
+        action: #selector(recallNextCommand)
+    )
+    private lazy var caretLeftButton = UIBarButtonItem(
+        image: UIImage(systemName: "arrow.left"),
+        style: .plain,
+        target: self,
+        action: #selector(moveCaretLeft)
+    )
+    private lazy var caretRightButton = UIBarButtonItem(
+        image: UIImage(systemName: "arrow.right"),
+        style: .plain,
+        target: self,
+        action: #selector(moveCaretRight)
+    )
     private var running = false
+    private var commandHistory = [String]()
+    private var commandHistoryIndex = -1
+    private var commandHistoryDraft = ""
 
     init(session: WorldSession) {
         self.session = session
@@ -61,8 +89,15 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         )
         keyboardButton.accessibilityLabel = "呼出或收起键盘"
         keyboardButton.accessibilityHint = "切换命令输入键盘的显示状态"
-        // rightBarButtonItems 的首项位于最右侧，因此键盘按钮位于“清屏”左侧。
-        navigationItem.rightBarButtonItems = [clearButton, keyboardButton]
+        historyUpButton.accessibilityLabel = "上一条命令"
+        historyDownButton.accessibilityLabel = "下一条命令"
+        caretLeftButton.accessibilityLabel = "光标左移"
+        caretRightButton.accessibilityLabel = "光标右移"
+        // rightBarButtonItems 的首项位于最右侧。视觉顺序从左到右为：
+        // ↑ ↓ ← → 键盘 清屏。四个方向键位于键盘按钮左侧。
+        navigationItem.rightBarButtonItems = [
+            clearButton, keyboardButton, caretRightButton, caretLeftButton, historyDownButton, historyUpButton
+        ]
     }
 
     private func configureViews() {
@@ -94,12 +129,14 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         promptLabel.textColor = UIColor(white: 0.58, alpha: 1)
         promptLabel.setContentHuggingPriority(.required, for: .horizontal)
 
-        typedTextLabel.font = font
-        typedTextLabel.textColor = UIColor(white: 0.96, alpha: 1)
-        typedTextLabel.numberOfLines = 1
-        typedTextLabel.lineBreakMode = .byClipping
-        typedTextLabel.text = ""
-        typedTextLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for label in [typedTextBeforeCursorLabel, typedTextAfterCursorLabel] {
+            label.font = font
+            label.textColor = UIColor(white: 0.96, alpha: 1)
+            label.numberOfLines = 1
+            label.lineBreakMode = .byClipping
+            label.text = ""
+            label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        }
 
         cursorView.backgroundColor = UIColor(white: 0.94, alpha: 1)
         cursorView.layer.cornerRadius = 1
@@ -141,7 +178,9 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     private func configureLayout() {
-        let terminalLine = UIStackView(arrangedSubviews: [promptLabel, typedTextLabel, cursorView])
+        let terminalLine = UIStackView(arrangedSubviews: [
+            promptLabel, typedTextBeforeCursorLabel, cursorView, typedTextAfterCursorLabel
+        ])
         terminalLine.axis = .horizontal
         terminalLine.alignment = .center
         terminalLine.spacing = 0
@@ -229,14 +268,29 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func inputChanged() {
-        typedTextLabel.text = visibleTerminalInput(inputField.text ?? "")
+        syncVisibleInput()
+    }
+
+    func textFieldDidChangeSelection(_ textField: UITextField) {
+        syncVisibleInput()
+    }
+
+    private func syncVisibleInput() {
+        let value = inputField.text ?? ""
+        let utf16Text = value as NSString
+        let caretOffset: Int
+        if let selected = inputField.selectedTextRange {
+            caretOffset = inputField.offset(from: inputField.beginningOfDocument, to: selected.start)
+        } else {
+            caretOffset = utf16Text.length
+        }
+        let clampedOffset = min(max(0, caretOffset), utf16Text.length)
+        typedTextBeforeCursorLabel.text = visibleTerminalInput(utf16Text.substring(to: clampedOffset))
+        typedTextAfterCursorLabel.text = visibleTerminalInput(utf16Text.substring(from: clampedOffset))
         executeButton.isEnabled = !running && !currentInput.isEmpty
         view.layoutIfNeeded()
-        let rightEdge = CGPoint(
-            x: max(0, inputScrollView.contentSize.width - inputScrollView.bounds.width),
-            y: 0
-        )
-        inputScrollView.setContentOffset(rightEdge, animated: false)
+        let cursorRect = cursorView.convert(cursorView.bounds, to: inputScrollView).insetBy(dx: -18, dy: 0)
+        inputScrollView.scrollRectToVisible(cursorRect, animated: false)
     }
 
     private func visibleTerminalInput(_ value: String) -> String {
@@ -251,6 +305,67 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    @objc private func recallPreviousCommand() {
+        guard !running, !commandHistory.isEmpty else { return }
+        if commandHistoryIndex < 0 {
+            commandHistoryDraft = inputField.text ?? ""
+            commandHistoryIndex = commandHistory.count - 1
+        } else if commandHistoryIndex > 0 {
+            commandHistoryIndex -= 1
+        }
+        setCommandInputText(commandHistory[commandHistoryIndex])
+    }
+
+    @objc private func recallNextCommand() {
+        guard !running, commandHistoryIndex >= 0 else { return }
+        if commandHistoryIndex < commandHistory.count - 1 {
+            commandHistoryIndex += 1
+            setCommandInputText(commandHistory[commandHistoryIndex])
+            return
+        }
+        commandHistoryIndex = -1
+        setCommandInputText(commandHistoryDraft)
+    }
+
+    private func rememberCommandHistory(_ text: String) {
+        commandHistory.append(text)
+        commandHistoryIndex = -1
+        commandHistoryDraft = ""
+    }
+
+    private func setCommandInputText(_ text: String) {
+        inputField.text = text
+        if let end = inputField.position(from: inputField.beginningOfDocument, offset: (text as NSString).length) {
+            inputField.selectedTextRange = inputField.textRange(from: end, to: end)
+        }
+        syncVisibleInput()
+    }
+
+    @objc private func moveCaretLeft() {
+        moveCaret(by: -1)
+    }
+
+    @objc private func moveCaretRight() {
+        moveCaret(by: 1)
+    }
+
+    private func moveCaret(by delta: Int) {
+        guard !running else { return }
+        let length = ((inputField.text ?? "") as NSString).length
+        let selection = inputField.selectedTextRange
+        let start = selection.map { inputField.offset(from: inputField.beginningOfDocument, to: $0.start) } ?? length
+        let end = selection.map { inputField.offset(from: inputField.beginningOfDocument, to: $0.end) } ?? start
+        let target: Int
+        if start != end {
+            target = delta < 0 ? start : end
+        } else {
+            target = min(max(0, start + delta), length)
+        }
+        guard let position = inputField.position(from: inputField.beginningOfDocument, offset: target) else { return }
+        inputField.selectedTextRange = inputField.textRange(from: position, to: position)
+        syncVisibleInput()
+    }
+
     @objc private func clearTerminal() {
         outputView.textStorage.setAttributedString(NSAttributedString())
     }
@@ -258,8 +373,11 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     @objc private func runCommand() {
         guard !running, !currentInput.isEmpty else { return }
         let raw = currentInput
+        rememberCommandHistory(raw)
         inputField.text = ""
-        typedTextLabel.text = ""
+        commandHistoryIndex = -1
+        commandHistoryDraft = ""
+        syncVisibleInput()
         appendOutput("\n> \(raw)")
         setRunning(true)
 
@@ -361,6 +479,11 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         inputContainer.alpha = value ? 0.62 : 1
         executeButton.setTitle(value ? "运行中…" : "运行", for: .normal)
         executeButton.isEnabled = !value && !currentInput.isEmpty
+        historyUpButton.isEnabled = !value
+        historyDownButton.isEnabled = !value
+        caretLeftButton.isEnabled = !value
+        caretRightButton.isEnabled = !value
+        keyboardButton.isEnabled = !value
         navigationItem.prompt = value ? "正在修改世界，请勿同时打开 Minecraft" : nil
     }
 

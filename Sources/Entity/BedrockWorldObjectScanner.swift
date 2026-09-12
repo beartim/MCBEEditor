@@ -615,17 +615,11 @@ final class BedrockWorldObjectScanner {
   }
 
   private func actorDigestKeys(x: Int32, z: Int32, dimension: Int32) -> [Data] {
-    var canonical = Data("digp".utf8)
-    canonical.appendLE(x)
-    canonical.appendLE(z)
-    if dimension != 0 { canonical.appendLE(dimension) }
-    guard dimension == 0 else { return [canonical] }
-
-    // Compatibility only: v1.1.3-v1.1.5 incorrectly appended a zero
-    // DimensionID in the overworld. Prefer the game-recognized key.
-    var nonCanonical = canonical
-    nonCanonical.appendLE(Int32(0))
-    return [canonical, nonCanonical]
+    var key = Data("digp".utf8)
+    key.appendLE(x)
+    key.appendLE(z)
+    if dimension != 0 { key.appendLE(dimension) }
+    return [key]
   }
 
   private func actorKey(id: Int64) -> Data {

@@ -12,7 +12,7 @@
 - 每个值只编码一个 NBT 文档；
 - 保存使用 LevelDB 原子批处理；
 - 保留已有记录中的 `EntityId`、`IsAlwaysActive`、`MaxDistToPlayers` 等未知扩展标签；
-- 自动把 v1.1.0/v1.1.1 的单键连续 NBT 拆分迁移为独立记录；
+- 当时曾包含旧单键连续 NBT 的自动迁移；当前源码已移除此 MCBEEditor 版本迁移，只读写原生 `tickingarea_*` 记录；
 
 ## 地图框选
 

@@ -1,130 +1,73 @@
-# iOS 移植状态
+# MCBEEditor 当前状态
 
-- 当前版本：1.0.0 (100)，最低 iOS／iPadOS 13.0，Bundle ID `com.wzn.mcbeeditor`。
-- 应用、工程、Target、Scheme、构建产物和导入导出标识统一命名为 `MCBEEditor`；旧版 JSON/剪贴板标识仅用于向后兼容导入。
-- 地图对象图层顺序为“玩家、实体、方块实体、出生点、HardcodedSpawners、村庄”；玩家图层默认开启，本地玩家为黄色五角星，在线玩家为蓝色五角星，点按可打开玩家编辑菜单。
-- 六种地图渲染模式不写入 UserDefaults，退出存档后恢复地表；同一存档会话内切换栏目或维度仍保留当前中心、缩放和各维度视口。
-- 顶层工作区为“地图、实体、区块、NBT、命令、信息”；命令栏支持 help、clear、clearspawnpoint、clone、effect、fill、give、kill、kick、setblock、setworldspawn、spawnpoint、structure、summon、teleport、tickingarea、time、weather。
-- clone/fill 使用命令内的 overworld、nether、the_end 参数；clone 支持跨维度和不同 Y 偏移。命令目标支持 @s、@a、@e、UniqueID 与实体 identifier。
-- 地图打开时默认使用本地玩家所在维度与实际坐标；切换到玩家所在维度时默认回到玩家坐标，另外两个维度默认以方块坐标 (0,0) 为中心；命令输入行位于终端大屏上方并保留空格宽度和闪烁光标。
-- v1.1.14：成功命令结果改为绿色；`kill @e 1` 使用原子批量删除；未加载区块按维度实际 Version/LegacyVersion、Data3D/Data2D 与 SubChunk 格式补写并读回验证；`give`、`summon default` 和实体通用模板规则同步修正。
-- v1.1.15：旧版数字 ID 区块遇到现代方块状态时原子迁移为 Version/Data3D/v9；命令 NBT 支持全部标签类型和任意嵌套；`give` 增加第四个物品标签参数。
-- 固定版 1.0.0：目标选择器支持 identifier/definitions[0]；`teleport Auto` 无地面时使用 Y=63；`tickingarea add circle` 支持区块半径；新增 `time` 与 `weather`，天气栏目加入 `doWeatherCycle` 开关。
-- v1.1.18：新增 `effect give/clear`，支持状态效果数字 ID 映射、`ALL`、完整 ActiveEffects 标签与玩家/实体原子批量写入。
-- v1.1.17：按存档实际格式补建缺失 SubChunk（包括 LegacyVersion/Data2D + v8）；实体导入导出支持选中实体 JSON/多种 NBT 格式；命令终端取消初始提示并圆润化主页 NBT 图标。
-- v1.1.16：修复未加载区块生成回归检查误报；地图按玩家所在维度使用玩家坐标、其他维度使用 (0,0) 作为默认中心。
+## iOS
 
-- 地图框选升级为可编辑矩形区域：四边触控范围加大，支持输入 X0/Z0/X1/Z1；框选键在模式内闪烁，建立选区前后均可移动/缩放地图，已有选区时禁止重新拉框。
-- 区域操作支持查看实体、等大复制、搜索替换、选区内批量层 0/层 1 替换、生物群系与 HardcodedSpawners 修改。
-- 清空区域和重新生成区域会把未对齐的选区向外扩展到完整 16×16 区块，并在执行前显示实际操作范围。
-- 区块列表已移至独立“区块”栏目；实体栏目改为所选维度全世界扫描，并提供“全部维度”、矩形坐标范围及可选 Y 的半径范围筛选。
-## v1.0.0 独立文件工具
+- 版本：1.0.0 (100)，最低 iOS / iPadOS 13.0，Bundle ID `com.wzn.mcbeeditor`。
+- iOS 世界管理保持现有能力；Windows 改为主页直接打开世界文件夹或 `.mcworld`/ZIP，并在临时工作副本中编辑。
+- 地图：Y/X/Z、动态移动缩放、地表/高度/矿物/生物群系/常加载/史莱姆等模式、玩家/实体/方块实体/出生点/HardcodedSpawners/村庄图层、未生成纹理、框选与 PNG 导出。
+- 实体：当前维度/全部维度扫描、范围和半径过滤、玩家/实体/方块实体 NBT 修改、现代 actor/digp 与旧式 Entity 世界格式支持。
+- NBT：世界、玩家、村庄、结构、实体、方块实体、独立 NBT/mcstructure/JSON 编辑与转换。
+- 命令：方块/区域、storage/biome、玩家/实体目标、物品/效果、时间/天气、tickingarea、structure、chunk 等；支持 `Commands/Command.txt` 批处理。
+- `chunk query` 输出包含 `IsSlimeChunk=True/False` 与 `Ticking=True/False`。
+- 地图显示状态不跨世界持久化；导出世界排除 MCBEEditor 私有设置/元数据。
+- 不再保留因 MCBEEditor 自身版本升级而执行的旧编辑器数据迁移；Minecraft 世界格式兼容逻辑继续保留。
 
-- 主页新增“NBT工具”，以“NBT/mcstructure读取修改和转换”统一入口支持普通 NBT、mcstructure、压缩 NBT 与连续多根 NBT。
-- 连续 NBT 根标签从序号 0 开始，支持新建、修改、重命名和删除；编辑页提供保存并返回流程。
-- 固定应用版本为 1.0.0，构建号 100。
+## Windows
 
-## 代码审计状态
+- 平台：Windows 10/11 x64，WPF + .NET 10；最终以单一自包含 `MCBEEditor.exe` 发布，`leveldb-mcpe` 原生桥嵌入单文件载荷。
+- 用户已在 Windows 10 + Visual Studio/MSVC 环境验证原生 DLL、真实 Bedrock 世界读取/写入及核心自测运行。
+- Windows 功能已覆盖：level.dat/NBT、SubChunk v0–v9/LegacyTerrain、区块管理、Y/X/Z 地图、地图图层与动态续载、Textures/Colors.txt、六方向 PNG、玩家/实体/方块实体、村庄/结构、完整 NBT、临时世界工作副本、独立 NBT/mcstructure 工具和大部分命令系统。
+- 地图点击支持方块选择器和同点多对象候选选择；框选支持直接拖边调整。
+- 实体栏目默认扫描当前维度实体与方块实体，并提供全部/矩形/半径/Y/文字过滤。
+- 命令栏目为 iOS 风格黑色终端，支持共享 `Commands/Command.txt` 批处理。
+- `chunk query` 每个区块摘要追加 `IsSlimeChunk=True/False` 与 `Ticking=True/False`。
+- 地图显示状态仅存在于当前会话，不写入世界或编辑器持久化设置。
+- `.mcworld` 导出过滤 MCBEEditor 私有设置/元数据。
+- Windows 不再写原始世界：打开后先复制/解压到 EXE 同级 `Cache`，所有编辑仅修改工作副本；主页“导出 .mcworld”是唯一持久化出口。最终 Windows 发布物为单一 `MCBEEditor.exe`，运行时 `Textures`/`Commands` 位于同级，`Cache` 在退出后自动清空。
+- 已移除 Windows 源码、测试、文档和 CI 中用于开发阶段标识的编号命名；核心测试改用功能语义名称。
+- 已移除因 MCBEEditor 自身历史版本产生的偏好、错误 digp 键和旧编辑器 tickingarea 布局迁移；Minecraft Bedrock 自身的旧/新存档格式兼容不受影响。
 
-- 已完成地图超大范围内存/溢出审计、数据库扫描合并与有限画布优化。
-- 已统一 NBT 树遍历/搜索实现，并删除确认无调用的旧私有代码。
-- 已为世界删除和重命名加入文件事务、回滚和中断恢复。
-- 已为 ZIP 导入加入路径和解压资源安全限制。
-- 应用源码已清除 `try!`、`as!`、`first!`、`last!` 等可避免强制操作。
-- Swift 语法、格式、静态审计与分段核心回归测试通过；Linux 环境无法替代 Xcode 15.4 的最终 iOS 链接和真机验证。
+## 仍需同步
 
-## 当前版本
+当前已知的 iOS→Windows 功能同步缺口已清零；后续主要是少量桌面交互细节与大数据量性能收尾。Windows 的 NBT Compound 粘贴/导入现已与 iOS 一致支持“覆盖 / 保留 / 取消”。
 
-- 版本：1.0.0 (100)
-- Bundle ID：`com.wzn.mcbeeditor`
-- 最低系统：iOS / iPadOS 13.0
-- 工具链：Xcode 15.4
-- v0.5.0 地图移动续载与 v0.6.1 缩放清晰度已由用户真机验证。
+Windows PNG 已支持独立导出图层和“透明 / 空气 / 纹理”未生成区域模式；统一 NBT 编辑器也已支持多节点批量选择、复制、导出和删除。当前 iOS 玩家编辑器本身仍是通用 NBT 树，因此专用背包/装备槽位 UI 不属于现有 iOS→Windows 同步缺口。
 
-## v0.11.7 新增与修复
+详见 `WINDOWS_PARITY_AUDIT.md`。
+- Windows 顶部操作区和地图工具区已改为响应式多行布局；主页“重新读取源存档”会从原始来源重建 Cache 工作副本。
+- Windows 命令页已改为 CMD 式 RichTextBox 输出 + 底部 `>` 输入，支持文本选择/右键复制、细粒度滚轮、↑/↓ 历史与 ←/→ 原生光标移动；help/Commands ReadMe 使用同一份逐命令 iOS 帮助目录。
 
-- 地图新增“生物群系”渲染模式，与地表、高度、矿物并列；Data3D 依据地表高度选取对应 16 高度层，2D 格式使用平面 biome 值。
-- 地图对象图层新增 HardcodedSpawners 显示开关，以粉色虚线矩形显示刷怪区域并支持 PNG 导出。
-- 生物群系编辑器加入可搜索的数字 ID、中文名称和 namespaced identifier 对照表；单点与整层修改均可边搜索边选择。
-- 未知或自定义 biome ID 仍可直接输入、显示和写回，并使用确定性地图颜色。
-- 保留 Data3D/Data2D/Data2DLegacy 与 HardcodedSpawners 原有结构化修改功能。
-- NBT 栏目新增可编辑村庄 NBT，兼容旧版 `mVillages` 和新版 `VILLAGE_*` 信息、POI、居民及玩家声望记录。
-- NBT 栏目内所有可解析记录统一支持标量/数组修改、增加、重命名、删除与保存。
-- 地图选中区块后支持长按，直接打开与区块列表共用的完整区块操作菜单。
+## Current Windows fixes
 
-## v0.11.5 修复
+- X/Z normal projection now continues through missing front SubChunks when the ungenerated layer is hidden, preserving the full 128-block negative-direction projection. Showing ungenerated SubChunks still limits projection to the current 16-block chunk.
+- Windows header/map controls use a more compact vertical layout.
+- Command history recall uses Up/Down before TextBox default handling; completed manual commands always jump to the latest output.
+- Generic parser usage errors are rewritten to the exact single-command iOS help entry, and unknown/leading-slash errors match iOS text.
 
-- 清空区块时同步删除方块实体、旧实体、现代 Actor、计划刻、随机刻、刷怪、校验和元数据哈希等依赖记录，修复加载空气区块时 Minecraft 闪退。
-- 重新生成不再依赖 `ChunkRecordType` 白名单，而是按安卓版 `removeFullChunk` 的原始区块前缀和键长度规则删除全部记录。
-- 补充现代官方 `LevelChunkTag`：ConversionData、GenerationSeed、混合/元数据、ActorDigestVersion 和 LegacyVersion。
-- 同时删除 `digp` 与其引用的 `actorprefix`，并兼容旧式主世界键及现代维度键。
+## Latest synchronization
 
-## v0.11.4 新增与变更
+- iOS 命令页右上角在键盘按钮左侧增加 ↑/↓/←/→：上下键调用本次运行的命令历史，左右键移动真实输入光标；终端镜像行会显示光标前后文本，因此光标位置可见。
+- Windows PNG 导出改为两组 `(x,z)` + 四个 ±∞ + 六方向；无穷边界使用当前维度已加载区块边界，X/Z 使用指定范围作为投影深度，Y± 使用同一矩形范围。
+- Windows 大范围 PNG 自动降低 px/方块，最长输出边不超过 4096 像素；单次精确 X/Z 坐标跨度限制为 4096 方块以保持 1:1 方块采样。
 
-- 移除批量替换页底部的“删除所有层0内容”“删除所有层1内容”按钮。
-- 区块列表原“删除区块”改为“清空区块”：层 0 全空气，层 1 优先移除或填充空气；v0.11.5 起同步清理失效实体/tick 记录。
-- 区块操作菜单新增第五项“重新生成区块”，删除标准区块记录和 `digp` 索引，使 Minecraft 下次按世界种子重新生成。
-- 清空与重新生成均不创建自动备份。
 
-## v0.11.3 新增与变更
+## Latest NBT / PNG synchronization
 
-- 删除整世界快照、`level.dat_old` 以及玩家、结构、实体、方块 SubChunk、区块操作的全部持久化自动备份。
-- 信息页保留世界信息、基岩版数据值、数据库浏览器和手动 `.mcworld` 导出；选择世界主界面也可直接查询四类基岩版数字 ID。
-- 区块搜索替换页新增“批量层0层1替换”独立页面；目标层默认层 1，双层皆为空气的位置默认不参与。
-- 批量替换会覆盖当前区块所有现有现代 SubChunk 中的目标层；缺失层 1 会自动创建。
+- Windows NBT 树增加批量选择、全选、复制所选、导出所选和删除所选；批量删除会规范化父子重复选择并继续遵守受保护根标签限制。
+- Windows PNG 导出增加独立对象图层选项与“透明 / 空气 / 纹理”未生成显示；透明输出使用真实 Alpha，且不会改变实时地图的未生成投影规则。
 
-## v0.11.2 新增与修复
 
-- 地图渲染范围随缩放动态扩展，3×3～9×9 仅作为最小预载窗口；缩小后可自动扩展到更大的 N×N 区域。
-- 动态区域始终覆盖当前视口并预载两圈区块，拖动后继续以新中心续载，因此世界坐标可持续浏览。
-- 搜索替换新增“查找范围”三选框；单列条件可搜索层 0、层 1 或两层，双列条件自动锁定为同坐标联合匹配。
-- 搜索匹配改为坐标级操作，命中后统一执行层 0 替换，并由“是否改变层 1”开关控制第二层。
-- 层 1 开关默认关闭并保留原数据；开启且替换栏留空时删除匹配坐标的层 1，必要时移除完全为空的第二 storage。
+## Latest parity / icon / cleanup
 
-## v0.11.1 新增与修复
+- Windows NBT Compound 粘贴/导入已同步 iOS 冲突语义：空名称才自动生成唯一名；同名标签统一提示“覆盖 / 保留 / 取消”，并覆盖批量内部冲突。
+- Windows WPF 载荷与最终 PortableLauncher 单 EXE 共同使用 iOS AppIcon 图案；只移除原图边缘连通白色背景并保留透明 Alpha。
+- 纹理重载的重复外层静默 try/catch 已移除；失败处理集中到 `BlockTextureOverrideStore.Reload()`，保持上一次成功载入结果，与 iOS 非致命纹理覆盖行为一致。
+- 再次审计 Windows 源码，没有保留 MCBEEditor 旧版本迁移 shim/Step 编号实现；Minecraft 世界格式自身的 LegacyTerrain、旧 Entity、actor/digp、SubChunk/biome 兼容路径继续保留。
 
-- 地图顶部控制区改为固定四行紧凑布局，消除未选择/已选择方块时的异常空白；
-- 渲染按钮改为蓝色圆角按钮，自动渲染、网格、区块选择三个开关并入同一行；
-- 方块 NBT 的 XYZ 输入框并排显示，跳转按钮改为蓝色圆角按钮；
-- 区块搜索替换改为层 0 / 层 1 双列 NBT 编辑器；
-- 搜索层由实际填写的列自动确定，替换按层独立执行；
-- replacement states 默认清空后写入，并支持保留用户选择的 NBT 标量类型。
+## 2026-09 Windows 全量同步再审计
 
-## v0.11.0 新增
-
-- 修复地图未选中方块时顶部控制区被拉伸产生的大面积空白；
-- 方块 NBT 固定显示层 0 和层 1，缺失的层 1 可创建并写回；
-- SubChunk v1 增加第二层时自动升级为 v8；
-- 删除自定义地图标记功能及对应存储，保留出生点定位。
-
-## v0.10.0 新增
-
-- 世界、玩家、结构、实体、方块实体 NBT 编辑器统一支持标签增加、删除、重命名和标量/数组修改；
-- 已解析实体不再提供独立只读编辑入口，统一进入可写 NBT 编辑器；
-- 地图右侧方块详情升级为 NBT 树，支持图标、展开、增加、删除、重命名和修改；
-- 支持对现代调色板 SubChunk v1/v8/v9 的单方块状态写回；
-- 修改方块时复用或追加调色板项，并只更新目标方块的 palette index；
-- Bundle ID 从旧命名空间迁移为 `com.wzn.mcbeeditor`。
-
-## 已有能力
-
-- iOS 13 `.mcworld`/ZIP/目录导入与导出；
-- 世界搜索、排序、重命名、复制和手动导出；
-- 地图动态 N×N 移动续载、缓存、预取、双指缩放和清晰矢量对象层；
-- 地表、高度、矿物、生物群系等六种渲染模式；方块列浏览、XYZ 跳转和方块闪烁；
-- 玩家、实体、方块实体地图对象图层；实体扫描、框选、定位、NBT 写回与坐标迁移；
-- 世界、玩家、村庄、结构 NBT 和信息菜单内的 LevelDB 浏览器；
-- 出生点定位、PNG 导出和解析诊断。
-
-## 写回策略
-
-- 程序不再创建任何自动备份；使用修改、复制、删除或批量操作前应由用户自行备份；
-- 现代方块写回只支持持久化调色板格式，网络 runtime palette 与旧数字 ID 格式拒绝写入；
-- `UniqueID` 仍作为现代 Actor 主键受到保护；
-- 建议编辑和保存前完全退出 Minecraft。
-
-## 尚未实现
-
-- 玩家背包槽位等专用结构化编辑界面；
-- 洞穴切片和原版方块纹理；
-- ZIP64 与超大型世界流式压缩。
+- 区块页和框选区域高级页已补齐此前漏掉的 iOS 操作，包括区块/区域复制、搜索替换、HardcodedSpawners、批量 layer/biome、常加载、清空和重新生成。
+- 常加载区域支持 Ctrl/Shift 批量开启/关闭预加载及批量删除；实体页补齐导出 NBT/JSON 与复制坐标；NBT 补齐复制值/路径和值；对象创建补齐“使用当前选中位置”。
+- Windows 主界面增加“说明与许可证”，AGPL 文本嵌入单 EXE payload。
+- 对移植阶段 compatibility wrapper、死代码、重复 try/catch 再次清理；Minecraft Bedrock 自身格式兼容分支不作为冗余删除。
+- 当前源码级 iOS→Windows 世界内部功能审计没有已知缺口；所有 shell 回归通过。最终发布仍需 Windows `build.cmd` 完成 .NET/WPF 真编译和 Core SelfTest。

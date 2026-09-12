@@ -388,7 +388,7 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
       tableView.reloadData()
       return
     }
-    let layerExists = block.layers.indices.contains(selectedLayerIndex)
+    let layerExists = block.isGenerated && block.layers.indices.contains(selectedLayerIndex)
     let state = block.stateForEditing(layer: selectedLayerIndex)
     if let root = state.nbt {
       editingLegacyNumeric = false

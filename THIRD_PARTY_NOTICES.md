@@ -19,10 +19,9 @@ fork of LevelDB with Bedrock zlib compression support. That dependency is
 BSD-3-Clause licensed. Preserve its bundled license when distributing binaries
 or source archives containing the vendored dependency.
 
-## Apple frameworks and zlib
+## Platform frameworks and zlib
 
-UIKit, Foundation, MobileCoreServices and the system zlib
-library are linked as platform/system components and are not redistributed here.
+UIKit, Foundation and MobileCoreServices are linked as Apple platform components. The iOS target uses the system zlib. The Windows native bootstrap retrieves `madler/zlib` and links it into the LevelDB bridge; zlib is distributed under the zlib license and its bundled license must be preserved when vendoring or redistributing its source.
 ## MCBE Essentials Structure Editor conversion format
 
 The Java structure to Bedrock mcstructure compatibility conversion is an independent Swift implementation based on the public structure schema and conversion behavior documented by the MCBE Essentials Structure Editor project. MCBE Essentials is licensed under CC BY-SA 4.0.

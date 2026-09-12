@@ -1,0 +1,632 @@
+<Window x:Class="MCBEEditor.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MCBEEditor 1.0.0 - Windows" Width="1280" Height="820"
+        MinWidth="980" MinHeight="640"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver" Closing="Window_Closing">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" BorderBrush="#D0D0D0" BorderThickness="0,0,0,1" Padding="10,5">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding WorldName}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Margin="12,1,0,0" Text="{Binding WorldPath}" Foreground="#666666" FontSize="11" TextTrimming="CharacterEllipsis" />
+                </Grid>
+                <TextBlock Grid.Row="0" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                           Foreground="#777777" Text="Windows 版" />
+
+                <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Orientation="Horizontal">
+                    <Button Click="OpenWorld_Click" Padding="9,3">打开世界文件夹</Button>
+                    <Button Click="OpenWorldArchive_Click" Margin="5,0,0,0" Padding="9,3">打开 .mcworld / ZIP</Button>
+                    <Button Click="OpenStandaloneNbt_Click" Margin="5,0,0,0" Padding="9,3">NBT/mcstructure 工具</Button>
+                    <Border Width="1" Height="20" Margin="8,0" Background="#D8D8D8" />
+                    <Button Click="ExportMcworld_Click" IsEnabled="{Binding HasWorld}" Padding="9,3">导出 .mcworld</Button>
+                    <Button Click="Reload_Click" IsEnabled="{Binding HasWorld}" Margin="5,0,0,0" Padding="9,3">重新读取源存档</Button>
+                    <Button Click="AboutLicense_Click" Margin="5,0,0,0" Padding="9,3">说明与许可证</Button>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusText}" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <TabControl x:Name="MainTabs" SelectedIndex="0" SelectionChanged="MainTabs_SelectionChanged">
+            <TabItem Header="地图">
+                <Grid Margin="7">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border BorderBrush="#D8D8D8" BorderThickness="1" CornerRadius="4" Padding="7,5" Margin="0,0,0,5">
+                        <StackPanel>
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" Text="轴" />
+                                <ComboBox x:Name="MapAxis" Width="80" Margin="6,0,14,0" SelectedIndex="1" SelectionChanged="MapAxis_SelectionChanged">
+                                    <ComboBoxItem Content="X" Tag="X" />
+                                    <ComboBoxItem Content="Y" Tag="Y" />
+                                    <ComboBoxItem Content="Z" Tag="Z" />
+                                </ComboBox>
+
+                                <TextBlock VerticalAlignment="Center" Text="模式" />
+                                <ComboBox x:Name="MapRenderMode" Width="102" Margin="6,0,14,0" SelectedIndex="0" SelectionChanged="MapRenderMode_SelectionChanged">
+                                    <ComboBoxItem Content="地表/方块" Tag="Surface" />
+                                    <ComboBoxItem Content="高度" Tag="Height" />
+                                    <ComboBoxItem Content="矿物" Tag="Minerals" />
+                                    <ComboBoxItem Content="生物群系" Tag="Biome" />
+                                    <ComboBoxItem Content="常加载区块" Tag="TickingAreas" />
+                                    <ComboBoxItem Content="史莱姆区块" Tag="Slime" />
+                                </ComboBox>
+
+                                <TextBlock VerticalAlignment="Center" Text="维度" />
+                                <ComboBox x:Name="MapDimension" Width="118" Margin="6,0,18,0" SelectedIndex="0" SelectionChanged="MapDimension_SelectionChanged">
+                                    <ComboBoxItem Content="主世界" Tag="0" />
+                                    <ComboBoxItem Content="下界" Tag="1" />
+                                    <ComboBoxItem Content="末地" Tag="2" />
+                                </ComboBox>
+
+                                <TextBlock VerticalAlignment="Center" Text="中心 X" />
+                                <TextBox x:Name="MapCenterX" Width="82" Margin="6,0,12,0" Text="0" VerticalContentAlignment="Center" />
+                                <TextBlock VerticalAlignment="Center" Text="中心 Z" />
+                                <TextBox x:Name="MapCenterZ" Width="82" Margin="6,0,12,0" Text="0" VerticalContentAlignment="Center" />
+                                <TextBlock x:Name="MapCenterYLabel" VerticalAlignment="Center" Text="中心 Y" Opacity="0.45" />
+                                <TextBox x:Name="MapCenterY" Width="76" Margin="6,0,0,0" Text="63" IsEnabled="False" VerticalContentAlignment="Center" />
+                            </WrapPanel>
+
+                            <TextBlock Margin="0,4,0,0" VerticalAlignment="Center" FontSize="11"
+                                       Text="X/Z 剖面固定当前 X 或 Z，并向负方向投影"
+                                       Foreground="#666666" TextWrapping="Wrap" />
+
+                            <WrapPanel Margin="0,5,0,0" Orientation="Horizontal">
+                                <CheckBox x:Name="MapChunkGrid" VerticalAlignment="Center" Margin="0,0,12,0" Content="区块网格" Click="MapOverlayOption_Click" />
+                                <Button Padding="11,3" Click="RenderMap_Click">渲染</Button>
+                                <Button Margin="5,0,0,0" Padding="10,3" Click="MapSpawn_Click">出生点</Button>
+                                <Button Margin="5,0,0,0" Padding="10,3" Click="MapExport_Click">导出 PNG</Button>
+                                <Button Margin="10,0,0,0" Padding="9,3" Click="OpenTextures_Click">Textures</Button>
+                                <Button Margin="5,0,0,0" Padding="9,3" Click="ReloadTextures_Click">重新加载纹理</Button>
+                            </WrapPanel>
+
+                            <TextBlock Margin="0,4,0,0" VerticalAlignment="Center" FontSize="11"
+                                       Text="{Binding MapStatusText}" Foreground="#666666" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <WrapPanel Grid.Row="0" Orientation="Horizontal">
+                            <Button Padding="10,3" Click="MapZoomOut_Click">−</Button>
+                            <Button Margin="4,0" Padding="10,3" Click="MapZoomIn_Click">＋</Button>
+                            <Button Padding="10,3" Click="MapFit_Click">适合窗口</Button>
+                            <Border Width="1" Height="20" Margin="9,0" Background="#D8D8D8" />
+                            <Button x:Name="MapRegionSelectButton" Padding="9,3" Click="SelectMapRegion_Click">框选</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="ClearMapRegion_Click">清除</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="AlignMapRegionToChunkBounds_Click">对齐区块边界</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="FillMapRegion_Click">Fill</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="CloneMapRegion_Click">Clone</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="RegionAdvanced_Click">区域高级…</Button>
+                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding MapZoomText}" />
+                            <Border Width="1" Height="20" Margin="9,0" Background="#D8D8D8" />
+                            <Button Padding="9,3" Click="MapSpawner_Click">编辑刷怪区域</Button>
+                            <Button Margin="4,0,0,0" Padding="9,3" Click="MapTickingAreas_Click">常加载区域…</Button>
+                        </WrapPanel>
+                        <TextBlock Grid.Row="1" Margin="0,3,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#666666"
+                                   Text="滚轮缩放 · 左键拖动/单击选择方块 · 右键区块上下文 · Y 顶视图可两点框选 X/Z"
+                                   TextWrapping="Wrap" />
+                    </Grid>
+
+                    <Border Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,4">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="地图对象图层" />
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                                <Button Padding="8,2" Click="MapObjectLayersShowAll_Click">全部显示</Button>
+                                <Button Margin="4,0,0,0" Padding="8,2" Click="MapObjectLayersHideAll_Click">全部隐藏</Button>
+                            </StackPanel>
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <CheckBox x:Name="MapShowPlayers" Margin="0,0,12,0" VerticalAlignment="Center" Content="玩家" IsChecked="True" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowEntities" Margin="0,0,12,0" VerticalAlignment="Center" Content="实体" IsChecked="True" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowBlockEntities" Margin="0,0,12,0" VerticalAlignment="Center" Content="方块实体" IsChecked="True" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowSpawnPoints" Margin="0,0,12,0" VerticalAlignment="Center" Content="出生点" IsChecked="True" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowHardcodedSpawners" Margin="0,0,12,0" VerticalAlignment="Center" Content="HardcodedSpawners" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowVillages" Margin="0,0,12,0" VerticalAlignment="Center" Content="村庄" Checked="MapObjectLayerOption_Changed" Unchecked="MapObjectLayerOption_Changed" />
+                                <CheckBox x:Name="MapShowUngenerated" Margin="0,0,12,0" VerticalAlignment="Center" Content="未生成区块" Checked="MapUngeneratedLayerOption_Changed" Unchecked="MapUngeneratedLayerOption_Changed" />
+                                <CheckBox x:Name="MapBuildHeightLimits" VerticalAlignment="Center" Content="建筑高度红虚线" IsChecked="True" IsEnabled="False" Opacity="0.45" Click="MapOverlayOption_Click" />
+                            </WrapPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Grid x:Name="MapViewportLayout" Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" BorderBrush="#BDBDBD" BorderThickness="1" Background="#EEEEEE" ClipToBounds="True">
+                            <ScrollViewer x:Name="MapScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                          CanContentScroll="False" PanningMode="Both" PreviewMouseWheel="MapScrollViewer_PreviewMouseWheel"
+                                          ScrollChanged="MapScrollViewer_ScrollChanged">
+                                <Grid x:Name="MapSurfaceHost" HorizontalAlignment="Left" VerticalAlignment="Top" SnapsToDevicePixels="True">
+                                    <Image x:Name="MapImage" Stretch="Fill" SnapsToDevicePixels="True"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                           MouseLeftButtonDown="MapImage_MouseLeftButtonDown"
+                                           MouseMove="MapImage_MouseMove"
+                                           MouseLeftButtonUp="MapImage_MouseLeftButtonUp"
+                                           MouseRightButtonUp="MapImage_MouseRightButtonUp"
+                                           LostMouseCapture="MapImage_LostMouseCapture" />
+                                    <Canvas x:Name="MapOverlayCanvas" IsHitTestVisible="True" SnapsToDevicePixels="True"
+                                            MouseMove="MapOverlayCanvas_MouseMove" MouseLeftButtonUp="MapOverlayCanvas_MouseLeftButtonUp"
+                                            LostMouseCapture="MapOverlayCanvas_LostMouseCapture" />
+                                </Grid>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Border x:Name="MapBlockDetailPanel" Grid.Column="1" Width="38" Margin="8,0,0,0"
+                                BorderBrush="#BDBDBD" BorderThickness="1" Background="#FAFAFA" ClipToBounds="True">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <DockPanel Margin="4">
+                                    <Button x:Name="MapBlockDetailCollapseButton" DockPanel.Dock="Left" Width="28" Height="28"
+                                            Padding="0" Content="◀" ToolTip="展开方块 NBT" Click="MapBlockDetailCollapse_Click" />
+                                    <TextBlock x:Name="MapBlockDetailTitle" Margin="8,0,0,0" VerticalAlignment="Center"
+                                               FontWeight="SemiBold" Text="方块 NBT" Visibility="Collapsed" />
+                                </DockPanel>
+
+                                <Grid x:Name="MapBlockDetailBody" Grid.Row="1" Margin="8,4,8,8" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="MapBlockDetailCoordinateText" TextWrapping="Wrap" FontFamily="Consolas"
+                                               Foreground="#555555" Text="选择地图中的方块后显示详情。" />
+                                    <DockPanel Grid.Row="1" Margin="0,8,0,6">
+                                        <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Text="Storage" />
+                                        <ComboBox x:Name="MapBlockDetailStorage" Margin="8,0,0,0" MinWidth="90"
+                                                  SelectionChanged="MapBlockDetailStorage_SelectionChanged" />
+                                    </DockPanel>
+                                    <TextBlock x:Name="MapBlockDetailSummaryText" Grid.Row="2" Margin="0,0,0,6"
+                                               TextWrapping="Wrap" Foreground="#666666" />
+                                    <TreeView x:Name="MapBlockDetailTree" Grid.Row="3" BorderBrush="#D8D8D8" BorderThickness="1"
+                                              Background="White" Padding="4" />
+                                    <Button Grid.Row="4" Margin="0,8,0,0" Padding="10,5" HorizontalAlignment="Stretch"
+                                            Content="编辑所选方块" Click="EditSelectedMapBlock_Click" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4" Margin="2,7,2,0" Text="{Binding MapDetailText}" TextWrapping="Wrap" Foreground="#444444" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="实体">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock TextWrapping="Wrap" Foreground="#555555"
+                               Text="进入本栏目后默认扫描当前地图维度的全部实体和方块实体；实体优先显示。范围和搜索只过滤已扫描结果，切换维度或类型后可重新扫描。" />
+
+                    <WrapPanel Grid.Row="1" Margin="0,10,0,8" VerticalAlignment="Center">
+                        <TextBlock VerticalAlignment="Center" Text="维度" />
+                        <ComboBox x:Name="EntityDimension" Width="125" Margin="6,0,12,0" SelectedIndex="0">
+                            <ComboBoxItem Content="当前地图维度" Tag="map" />
+                            <ComboBoxItem Content="主世界" Tag="0" />
+                            <ComboBoxItem Content="下界" Tag="1" />
+                            <ComboBoxItem Content="末地" Tag="2" />
+                            <ComboBoxItem Content="全部" Tag="all" />
+                        </ComboBox>
+                        <CheckBox x:Name="EntityIncludePlayers" Margin="0,0,10,0" VerticalAlignment="Center" Content="玩家" />
+                        <CheckBox x:Name="EntityIncludeEntities" Margin="0,0,10,0" VerticalAlignment="Center" Content="实体" IsChecked="True" />
+                        <CheckBox x:Name="EntityIncludeBlockEntities" Margin="0,0,14,0" VerticalAlignment="Center" Content="方块实体" IsChecked="True" />
+
+                        <TextBlock VerticalAlignment="Center" Text="范围" />
+                        <ComboBox x:Name="EntitySpatialMode" Width="110" Margin="6,0,12,0" SelectedIndex="0"
+                                  SelectionChanged="EntitySpatialMode_SelectionChanged">
+                            <ComboBoxItem Content="全部" Tag="all" />
+                            <ComboBoxItem Content="坐标区域" Tag="box" />
+                            <ComboBoxItem Content="半径" Tag="radius" />
+                        </ComboBox>
+                        <TextBlock VerticalAlignment="Center" Text="搜索" />
+                        <TextBox x:Name="EntitySearch" Width="185" Margin="6,0,12,0" VerticalContentAlignment="Center"
+                                 ToolTip="名称、identifier、坐标、来源、UniqueID" TextChanged="EntitySearch_TextChanged" />
+                        <Button Padding="14,5" Click="ScanEntities_Click">重新扫描世界</Button>
+                        <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Foreground="#666666"
+                                   Text="{Binding ObjectStatusText}" TextTrimming="CharacterEllipsis" />
+                    </WrapPanel>
+
+                    <Border Grid.Row="2" x:Name="EntityBoxPanel" Visibility="Collapsed" BorderBrush="#D8D8D8"
+                            BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                        <WrapPanel VerticalAlignment="Center">
+                            <TextBlock VerticalAlignment="Center" Text="起点 X0" />
+                            <TextBox x:Name="EntityBoxX0" Width="76" Margin="6,0,10,0" Text="-16" HorizontalContentAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" Text="Z0" />
+                            <TextBox x:Name="EntityBoxZ0" Width="76" Margin="6,0,14,0" Text="-16" HorizontalContentAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" Text="终点 X1" />
+                            <TextBox x:Name="EntityBoxX1" Width="76" Margin="6,0,10,0" Text="16" HorizontalContentAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" Text="Z1" />
+                            <TextBox x:Name="EntityBoxZ1" Width="76" Margin="6,0,14,0" Text="16" HorizontalContentAlignment="Center" />
+                            <CheckBox x:Name="EntityBoxUseY" VerticalAlignment="Center" Margin="0,0,8,0" Content="指定 Y 范围"
+                                      Checked="EntityYFilterChanged" Unchecked="EntityYFilterChanged" />
+                            <StackPanel x:Name="EntityBoxYPanel" Orientation="Horizontal" Visibility="Collapsed">
+                                <TextBlock VerticalAlignment="Center" Text="Y0" />
+                                <TextBox x:Name="EntityBoxY0" Width="68" Margin="6,0,8,0" Text="-64" HorizontalContentAlignment="Center" />
+                                <TextBlock VerticalAlignment="Center" Text="Y1" />
+                                <TextBox x:Name="EntityBoxY1" Width="68" Margin="6,0,12,0" Text="320" HorizontalContentAlignment="Center" />
+                            </StackPanel>
+                            <Button Padding="10,4" Click="UseSelectedBlockForEntityRange_Click">使用选中方块位置</Button>
+                            <Button Margin="6,0,0,0" Padding="10,4" Click="UseSelectedObjectForEntityRange_Click">使用选中对象位置</Button>
+                            <Button Margin="6,0,0,0" Padding="10,4" Click="ApplyEntityRange_Click">应用范围</Button>
+                        </WrapPanel>
+                    </Border>
+
+                    <Border Grid.Row="2" x:Name="EntityRadiusPanel" Visibility="Collapsed" BorderBrush="#D8D8D8"
+                            BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                        <WrapPanel VerticalAlignment="Center">
+                            <TextBlock VerticalAlignment="Center" Text="中心 X" />
+                            <TextBox x:Name="EntityRadiusX" Width="76" Margin="6,0,10,0" Text="0" HorizontalContentAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" Text="Z" />
+                            <TextBox x:Name="EntityRadiusZ" Width="76" Margin="6,0,10,0" Text="0" HorizontalContentAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" Text="半径" />
+                            <TextBox x:Name="EntityRadiusValue" Width="76" Margin="6,0,14,0" Text="64" HorizontalContentAlignment="Center" />
+                            <CheckBox x:Name="EntityRadiusUseY" VerticalAlignment="Center" Margin="0,0,8,0" Content="计算包含 Y"
+                                      Checked="EntityYFilterChanged" Unchecked="EntityYFilterChanged" />
+                            <StackPanel x:Name="EntityRadiusYPanel" Orientation="Horizontal" Visibility="Collapsed">
+                                <TextBlock VerticalAlignment="Center" Text="中心 Y" />
+                                <TextBox x:Name="EntityRadiusY" Width="68" Margin="6,0,12,0" Text="64" HorizontalContentAlignment="Center" />
+                            </StackPanel>
+                            <Button Padding="10,4" Click="UseSelectedBlockForEntityRange_Click">使用选中方块位置</Button>
+                            <Button Margin="6,0,0,0" Padding="10,4" Click="UseSelectedObjectForEntityRange_Click">使用选中对象位置</Button>
+                            <Button Margin="6,0,0,0" Padding="10,4" Click="ApplyEntityRange_Click">应用范围</Button>
+                        </WrapPanel>
+                    </Border>
+
+                    <DataGrid x:Name="ObjectGrid" Grid.Row="3" ItemsSource="{Binding ObjectRows}" SelectedItem="{Binding SelectedObjectRow, Mode=TwoWay}"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" RowHeaderWidth="0" EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              MouseDoubleClick="ObjectGrid_MouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="类型" Binding="{Binding KindText}" Width="90" />
+                            <DataGridTextColumn Header="名称" Binding="{Binding DisplayName}" Width="160" />
+                            <DataGridTextColumn Header="ID" Binding="{Binding Identifier}" Width="220" />
+                            <DataGridTextColumn Header="维度" Binding="{Binding DimensionText}" Width="90" />
+                            <DataGridTextColumn Header="X" Binding="{Binding XText}" Width="80" />
+                            <DataGridTextColumn Header="Y" Binding="{Binding YText}" Width="80" />
+                            <DataGridTextColumn Header="Z" Binding="{Binding ZText}" Width="80" />
+                            <DataGridTextColumn Header="来源" Binding="{Binding SourceText}" Width="165" />
+                            <DataGridTextColumn Header="UniqueID" Binding="{Binding UniqueIdText}" Width="135" />
+                            <DataGridTextColumn Header="物品" Binding="{Binding ItemCountText}" Width="70" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="4" Margin="0,8,0,0">
+                        <TextBlock Foreground="#666666" Text="可 Ctrl/Shift 多选后批量删除。玩家记录不参与通用删除；新建方块实体仍只创建 NBT，请确保目标方块类型匹配。已有方块实体使用“移动方块实体”或直接修改 NBT 坐标时会联动迁移实际方块。" />
+                        <WrapPanel HorizontalAlignment="Right" Margin="0,6,0,0">
+                            <Button Padding="12,5" Click="CreateEntity_Click">新建实体</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="CreateBlockEntity_Click">新建方块实体</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="ImportEntities_Click">导入实体 NBT/JSON</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="DuplicateObject_Click">复制所选</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="ExportSelectedEntity_Click">导出实体 NBT</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="CopySelectedObjectCoordinates_Click">复制坐标</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="DeleteSelectedObjects_Click">删除所选</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="MoveSelectedBlockEntity_Click">移动方块实体</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="LocateObjectOnMap_Click">定位到地图</Button>
+                            <Button Margin="6,0,0,0" Padding="12,5" Click="EditSelectedObjectNbt_Click">查看/编辑 NBT</Button>
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="区块">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border BorderBrush="#D8D8D8" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Bedrock LevelDB / Chunk" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#555555"
+                                       Text="支持 SubChunk v0–v9 / LegacyTerrain；empty 会完整移除原区块及 Actor 后写入最小空气元数据，regenerate 会完整删除区块使游戏按种子重生成。所有修改只写入程序同级 Cache 的临时工作副本；源世界保持不变。" />
+                            <TextBlock Margin="0,6,0,0" Text="{Binding DatabaseStatus}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock VerticalAlignment="Center" Text="维度" />
+                        <ComboBox x:Name="DimensionFilter" Grid.Column="1" Margin="6,0,12,0" SelectedIndex="0">
+                            <ComboBoxItem Content="全部" Tag="all" />
+                            <ComboBoxItem Content="主世界" Tag="0" />
+                            <ComboBoxItem Content="下界" Tag="1" />
+                            <ComboBoxItem Content="末地" Tag="2" />
+                        </ComboBox>
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="区块 X" />
+                        <TextBox x:Name="ChunkXFilter" Grid.Column="3" Margin="6,0,12,0" VerticalContentAlignment="Center" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="区块 Z" />
+                        <TextBox x:Name="ChunkZFilter" Grid.Column="5" Margin="6,0,12,0" VerticalContentAlignment="Center" />
+                        <Button Grid.Column="6" Click="ApplyChunkFilter_Click" Padding="12,4">查询</Button>
+                        <Button Grid.Column="7" Click="ResetChunkFilter_Click" Margin="6,0,0,0" Padding="12,4">清除筛选</Button>
+                        <TextBlock Grid.Column="8" Margin="12,0" VerticalAlignment="Center" Foreground="#666666" Text="{Binding ChunkCountText}" />
+                        <Button Grid.Column="9" Click="ReloadDatabase_Click" IsEnabled="{Binding HasWorld}" Padding="12,4">重新扫描 DB</Button>
+                    </Grid>
+
+                    <DataGrid x:Name="ChunkGrid" Grid.Row="2" ItemsSource="{Binding ChunkRows}"
+                              SelectedItem="{Binding SelectedChunk, Mode=TwoWay}"
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
+                              EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                              MouseDoubleClick="ChunkGrid_MouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="维度" Binding="{Binding DimensionText}" Width="105" />
+                            <DataGridTextColumn Header="X" Binding="{Binding X}" Width="90" />
+                            <DataGridTextColumn Header="Z" Binding="{Binding Z}" Width="90" />
+                            <DataGridTextColumn Header="生成情况" Binding="{Binding GenerationText}" Width="105" />
+                            <DataGridTextColumn Header="SubChunk" Binding="{Binding SubChunkCount}" Width="90" />
+                            <DataGridTextColumn Header="详情" Binding="{Binding DetailText}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Grid Grid.Row="3" Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Foreground="#666666" TextWrapping="Wrap"
+                                   Text="Ctrl/Shift 可多选区块后使用“批量处理”。写入前请完全退出 Minecraft；所有修改只写 Cache 工作副本。" />
+                        <WrapPanel Grid.Row="1" HorizontalAlignment="Right" Margin="0,6,0,0">
+                            <Button Click="InspectChunk_Click" Padding="12,5">查看记录</Button>
+                            <Button Click="CopyChunk_Click" Margin="6,0,0,0" Padding="12,5">复制区块…</Button>
+                            <Button Click="SearchReplaceChunk_Click" Margin="6,0,0,0" Padding="12,5">搜索替换…</Button>
+                            <Button Click="EditChunkBiome_Click" Margin="6,0,0,0" Padding="12,5">生物群系…</Button>
+                            <Button Click="EditChunkTickingArea_Click" Margin="6,0,0,0" Padding="12,5">常加载…</Button>
+                            <Button Click="EditChunkHardcodedSpawners_Click" Margin="6,0,0,0" Padding="12,5">HardcodedSpawners…</Button>
+                            <Button Click="LocateChunkOnMap_Click" Margin="6,0,0,0" Padding="12,5">定位地图</Button>
+                            <Button Click="BatchChunkOperations_Click" Margin="6,0,0,0" Padding="12,5">批量处理…</Button>
+                            <Button Click="ClearChunk_Click" Margin="6,0,0,0" Padding="12,5">清空</Button>
+                            <Button Click="RegenerateChunk_Click" Margin="6,0,0,0" Padding="12,5">重新生成</Button>
+                        </WrapPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="NBT">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border BorderBrush="#D8D8D8" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock FontSize="17" FontWeight="SemiBold" Text="NBT 工作区" />
+                            <TextBlock Margin="0,4,0,9" TextWrapping="Wrap" Foreground="#555555"
+                                       Text="与 iOS NBT 栏目同步：世界、玩家、村庄、结构、元数据均可进入完整树形编辑器；下方还能按 LevelDB 键搜索并自动识别连续 NBT。" />
+                            <WrapPanel>
+                                <Button Padding="12,5" Click="EditLevelDatNbt_Click">世界 NBT</Button>
+                                <Button Margin="6,0,0,0" Padding="12,5" Click="OpenPlayerNbtWorkspace_Click">玩家 NBT</Button>
+                                <Button Margin="6,0,0,0" Padding="12,5" Click="OpenVillageNbtWorkspace_Click">村庄 NBT</Button>
+                                <Button Margin="6,0,0,0" Padding="12,5" Click="OpenStructureNbtWorkspace_Click">结构 NBT</Button>
+                                <Button Margin="6,0,0,0" Padding="12,5" Click="OpenMetadataNbtWorkspace_Click">元数据</Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center" Text="搜索 NBT / LevelDB 键" Margin="0,0,8,0" />
+                        <TextBox x:Name="NbtKeySearchText" Grid.Column="1" VerticalContentAlignment="Center"
+                                 ToolTip="普通文本匹配 UTF-8 键；以 0x 开头时也匹配十六进制键" KeyDown="NbtKeySearchText_KeyDown" />
+                        <Button Grid.Column="2" Margin="8,0,0,0" Padding="12,4" Click="SearchNbtKeys_Click">搜索</Button>
+                        <Button Grid.Column="3" Margin="6,0,0,0" Padding="12,4" Click="OpenSelectedNbtKey_Click">打开所选</Button>
+                    </Grid>
+
+                    <DataGrid x:Name="NbtKeyGrid" Grid.Row="2" ItemsSource="{Binding NbtKeyRows}" SelectedItem="{Binding SelectedNbtKeyRow}"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" RowHeaderWidth="0"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" MouseDoubleClick="NbtKeyGrid_MouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="" Binding="{Binding ViewedText}" Width="70" />
+                            <DataGridTextColumn Header="键" Binding="{Binding KeyText}" Width="320" />
+                            <DataGridTextColumn Header="识别" Binding="{Binding Description}" Width="*" />
+                            <DataGridTextColumn Header="长度" Binding="{Binding ValueLengthText}" Width="110" />
+                            <DataGridTextColumn Header="键 Hex" Binding="{Binding KeyHex}" Width="300" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="3" Margin="0,7,0,0" Foreground="#666666" TextWrapping="Wrap" Text="{Binding NbtKeyStatusText}" />
+                </Grid>
+            </TabItem>
+            <TabItem Header="命令">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border x:Name="CommandTerminal" Grid.Row="0" Background="#0C0C0C" CornerRadius="8"
+                            BorderBrush="#2A2A2A" BorderThickness="1" ClipToBounds="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <RichTextBox x:Name="CommandOutputBox" Grid.Row="0"
+                                         IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True"
+                                         Background="Transparent" Foreground="#F2F2F2"
+                                         BorderThickness="0" Padding="0"
+                                         FontFamily="Consolas" FontSize="13"
+                                         VerticalScrollBarVisibility="Auto"
+                                         HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.CanContentScroll="False"
+                                         PreviewMouseWheel="CommandOutput_PreviewMouseWheel">
+                                <RichTextBox.Document>
+                                    <FlowDocument PagePadding="10,7,10,7" />
+                                </RichTextBox.Document>
+                                <RichTextBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="复制" Command="Copy" />
+                                        <Separator />
+                                        <MenuItem Header="全选" Command="SelectAll" />
+                                    </ContextMenu>
+                                </RichTextBox.ContextMenu>
+                            </RichTextBox>
+
+                            <Border Grid.Row="1" BorderBrush="#303030" BorderThickness="0,1,0,0" Padding="10,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Margin="0,0,7,0" VerticalAlignment="Center"
+                                               FontFamily="Consolas" FontSize="14" Foreground="#F2F2F2" Text="&gt;" />
+                                    <TextBox x:Name="CommandInput" Grid.Column="1"
+                                             MinHeight="27" VerticalContentAlignment="Center"
+                                             Background="Transparent" Foreground="#F2F2F2" CaretBrush="#F2F2F2"
+                                             BorderThickness="0" Padding="0,2"
+                                             FontFamily="Consolas" FontSize="14" Text=""
+                                             PreviewKeyDown="CommandInput_KeyDown">
+                                        <TextBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="剪切" Command="Cut" />
+                                                <MenuItem Header="复制" Command="Copy" />
+                                                <MenuItem Header="粘贴" Command="Paste" />
+                                                <Separator />
+                                                <MenuItem Header="全选" Command="SelectAll" />
+                                            </ContextMenu>
+                                        </TextBox.ContextMenu>
+                                    </TextBox>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="CommandRunButton" Padding="14,4" Click="ExecuteCommand_Click">运行</Button>
+                        <Button x:Name="CommandClearButton" Margin="6,0,0,0" Padding="14,4" Click="ClearCommandOutput_Click">清屏</Button>
+                        <Button x:Name="CommandFolderButton" Margin="6,0,0,0" Padding="14,4" Click="OpenCommands_Click">Commands</Button>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="世界信息">
+                <Grid Margin="14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="当前世界在程序同级 Cache 中使用临时工作副本编辑，源世界/源 .mcworld 永远不会被修改；只有主页“导出 .mcworld”会产生可长期保存的新世界文件。" />
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+                        <Button Click="OpenDataValues_Click" IsEnabled="{Binding HasWorld}" Padding="12,5" Margin="0,0,8,0">数据值</Button>
+                        <Button Click="OpenWeatherEditor_Click" IsEnabled="{Binding HasWorld}" Padding="12,5" Margin="0,0,8,0">天气</Button>
+                        <Button Click="OpenTimeEditor_Click" IsEnabled="{Binding HasWorld}" Padding="12,5" Margin="0,0,8,0">时间</Button>
+                        <Button Click="OpenExperienceEditor_Click" IsEnabled="{Binding HasWorld}" Padding="12,5">经验</Button>
+                    </WrapPanel>
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding InfoRows}" AutoGenerateColumns="False"
+                              IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" RowHeaderWidth="0" EnableRowVirtualization="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="项目" Binding="{Binding Title}" Width="230" />
+                            <DataGridTextColumn Header="值" Binding="{Binding Value}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="数据库">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock TextWrapping="Wrap" Foreground="#555555"
+                               Text="基础 LevelDB 浏览器：可按原始 Key 的十六进制前缀过滤。这里只读展示，避免直接编辑未知记录。" />
+                    <Grid Grid.Row="1" Margin="0,10,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center" Text="Key 前缀(hex)" />
+                        <TextBox x:Name="DatabasePrefixFilter" Grid.Column="1" Margin="8,0,14,0" FontFamily="Consolas" />
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="上限" />
+                        <TextBox x:Name="DatabaseLimit" Grid.Column="3" Margin="8,0,14,0" Text="500" VerticalContentAlignment="Center" />
+                        <Button Grid.Column="4" Padding="14,5" Click="RefreshDatabaseBrowser_Click">读取</Button>
+                        <Button Grid.Column="5" Margin="6,0,0,0" Padding="14,5" Click="ResetDatabaseBrowser_Click">清除</Button>
+                        <TextBlock Grid.Column="6" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="#666666" Text="{Binding DatabaseRowCountText}" />
+                    </Grid>
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding DatabaseRows}" AutoGenerateColumns="False"
+                              IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column"
+                              RowHeaderWidth="0" GridLinesVisibility="Horizontal" EnableRowVirtualization="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Key" Binding="{Binding KeyHex}" Width="310" />
+                            <DataGridTextColumn Header="解析" Binding="{Binding KeyDescription}" Width="300" />
+                            <DataGridTextColumn Header="大小" Binding="{Binding ValueLength}" Width="90" />
+                            <DataGridTextColumn Header="Value 预览(hex)" Binding="{Binding ValuePreview}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+                    </TabControl>
+    </DockPanel>
+</Window>

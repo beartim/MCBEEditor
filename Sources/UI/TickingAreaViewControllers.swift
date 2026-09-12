@@ -371,7 +371,7 @@ final class TickingAreaListViewController: UITableViewController, UISearchResult
         workQueue.async { [weak self] in
             guard let self = self else { return }
             do {
-                let values = try self.store.records(migratingLegacy: true)
+                let values = try self.store.records()
                 DispatchQueue.main.async {
                     overlay.removeFromSuperview()
                     self.records = values
