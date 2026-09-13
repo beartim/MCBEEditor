@@ -115,18 +115,20 @@ final class StructureNBTStore {
         return try records().first(where: { $0.key == target })
     }
 
-    func save(document: NBTDocument, named name: String, overwrite: Bool = true) throws {
+    @discardableResult
+    func save(document: NBTDocument, named name: String, overwrite: Bool = true) throws -> StructureImportResult {
         let key = try key(forStructureName: name)
         let database = try session.database()
         if !overwrite, try database.get(key) != nil {
             throw MCBEEditorError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
         }
-        let normalized = try JavaStructureConverter.convertIfNeeded(document).document
-        let encoded = try BedrockNBTCodec.encode(normalized, encoding: .littleEndian)
+        let conversion = try JavaStructureConverter.convertIfNeeded(document)
+        let encoded = try BedrockNBTCodec.encode(conversion.document, encoding: .littleEndian)
         try database.put(encoded, for: key, sync: true)
         guard try database.get(key) == encoded else {
             throw MCBEEditorError.malformedData("结构写入后未能从 LevelDB 读回")
         }
+        return conversion.result
     }
 
     @discardableResult
@@ -167,15 +169,7 @@ final class StructureNBTStore {
                 "文件不是可识别的 NBT／mcstructure（支持 Big Endian、Little Endian、Little Endian VarInt、GZip 和 Zlib）：\(decoded.error ?? "未知 NBT 编码")"
             )
         }
-        let conversion = try JavaStructureConverter.convertIfNeeded(document)
-        let converted = try BedrockNBTCodec.encode(conversion.document, encoding: .littleEndian)
-        let key = try key(forStructureName: name)
-        let database = try session.database()
-        if !overwrite, try database.get(key) != nil {
-            throw MCBEEditorError.malformedData("已存在同名结构：\(normalizedStructureName(name))")
-        }
-        try database.put(converted, for: key, sync: true)
-        return conversion.result
+        return try save(document: document, named: name, overwrite: overwrite)
     }
 
     func rename(record: StructureNBTRecord, to name: String, overwrite: Bool) throws {

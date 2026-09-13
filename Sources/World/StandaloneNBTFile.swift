@@ -119,6 +119,14 @@ enum StandaloneNBTFileCodec {
         )
     }
 
+    static func encodeStructure(_ document: NBTDocument, format: StructureFileFormat) throws -> Data {
+        switch format {
+        case .mcstructure: return try encodeAsMCStructure([document]).data
+        case .nbt: return try encode([document], encoding: .bigEndian)
+        case .json: return try encodeJSON([document])
+        }
+    }
+
     static func encodeJSON(_ documents: [NBTDocument]) throws -> Data {
         try NBTJSONCodec.encode(documents)
     }

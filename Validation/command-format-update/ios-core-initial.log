@@ -1,0 +1,86 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Release metadata passed: version=1.0.0 build=100
+Xcode version Broken-pipe regression check passed
+iOS 13-only project configuration passed
+LevelDB bridge header configuration passed
+Enhanced feature configuration passed
+MCBEEditor core tests passed
+iOS 13 document import compatibility passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+WorldStore interrupted-deletion recovery tests passed
+World list management enhancements passed
+Code-audit shared implementation and safety checks passed
+LevelDB optional read regression passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Adaptive map sampling tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Shared NBT tree traversal tests passed
+Infinite map panning, cache and layer enhancements passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Entity and block-entity scanner tests passed
+Pinch zoom and entity/block-entity enhancements passed
+Minimum-zoom panning and pixel-sharp overlay fixes passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Player NBT read/write tests passed
+Vine color, player NBT editing, map selection and blinking focus passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Windows JSON structure imported successfully by iOS codec
+Structure mcstructure/Big Endian NBT/typed JSON export and reimport passed
+Structure NBT discovery, endian conversion, rename and delete tests passed
+Editable structure NBT and restored block inspector passed
+Six-tab navigation, command terminal, peer NBT menu and structure NBT browser passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Entity/block-entity create, atomic multi-delete, UniqueID, storage mode and position migration tests passed
+Editable entity and block-entity NBT with index-safe migration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Editable block NBT, linked legacy ID validation and bulk layer operations passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+LegacyTerrain and SubChunk v0-v9 persistence tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+SubChunk v0-v9 compatibility extension tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Persistence compatibility matrix passed: numeric/v1/v8/v9, val/states, missing chunks/slices and empty layers
+End missing-SubChunk fixture tests passed: actual map templates, v1/v8 creation, layer 1 and byte-preserved neighbors
+Compact map layout and NBT-style per-layer search/replace passed
+Numeric entity ID mapping, selected-position filters and chunk batch processing passed
+Zoom-driven chunk expansion and coordinated layered replacement passed
+Session-only map viewport, radius layout and spread output colors passed
+No-backup policy and bulk layer replacement passed
+Chunk clear and seed-based regeneration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Raw chunk key deletion coverage passed
+Crash-safe chunk clear and complete seed regeneration passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Biome and HardcodedSpawners codec tests passed
+Biome map, HardcodedSpawners overlay and ID/name lookup passed
+Editable village NBT and map long-press chunk menu passed
+NBT icons, per-village grouping and editable village/spawner map overlays passed
+Village X0/Z0 boundary, Dwellers-based resident resolution, overlap chooser and POI arrows passed
+Interactive map-region selection, editing, copy, biome, spawner, clear and regeneration passed
+Improved selection gestures, region bulk replacement, chunk tab and world-wide entity range filters passed
+Unified NBT mutation, editable block layers, chunk management and com.wzn bundle identity passed
+Native tickingarea_ storage and map/chunk contextual editing passed
+Tickingarea chunk-radius conversion and batch NBT conflict paste passed
+Atomic multi-tag clipboard and NBT/mcstructure/json tag import passed
+Canonical actor digest repair, orphan filtering and numeric block ID correspondence passed
+World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed
+Local-player map center, integrated terminal, target selectors and Y-safe clone passed
+Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed
+Recursive command NBT and give item tags passed
+World spawn, setblock, structure, tickingarea, teleport, spread, daylock, time, experience and weather command support passed
+Status-effect give/clear/ALL command support passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+/tmp/mcbeeditor-core-test/effect_command_test.swift:499:13: error: invalid redeclaration of 'chunkQuery'
+ 98 |         try seedChunk(ChunkPosition(x: 21, z: 21, dimension: 1))
+ 99 |         try seedChunk(ChunkPosition(x: 22, z: 22, dimension: 2))
+100 |         let chunkQuery = try executor.execute(try WorldCommandParser.parse("chunk query"))
+    |             `- note: 'chunkQuery' previously declared here
+101 |         precondition(!chunkQuery.changedWorld)
+102 |         precondition(chunkQuery.outputLines.count >= 3)
+    :
+497 |         let specific = try versionStore.summary(at: ChunkPosition(x: -3, z: 2, dimension: 2))
+498 |         precondition(listed[0].detailText.contains("SubChunk v8/v9") && specific.detailText.contains("Y0-Y4"))
+499 |         let chunkQuery = try WorldCommandExecutor(session: versionSession).execute(try WorldCommandParser.parse("chunk query the_end -3 2"))
+    |             `- error: invalid redeclaration of 'chunkQuery'
+500 |         precondition(chunkQuery.message.contains("SubChunk v8/v9") && chunkQuery.message.contains("Y0-Y4"))
+501 |         versionSession.db.values[BedrockDBKey.subChunk(x: -3, z: 2, dimension: 2, index: 5)] = Data()

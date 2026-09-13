@@ -2,6 +2,7 @@ import UIKit
 
 final class StructureNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
   private var record: StructureNBTRecord
+  private lazy var structureFiles = StructureFileCoordinator(presenter: self, session: store.worldSession)
   private let store: StructureNBTStore
   private let onSave: () -> Void
   private var document: NBTDocument
@@ -366,21 +367,14 @@ final class StructureNBTEditorViewController: UITableViewController, UISearchRes
   }
 
   @objc private func exportCurrentNBT() {
-    NBTExportUI.presentFormatChooser(
-      from: self,
-      documents: [document],
-      baseFilename: safeFilename(record.displayName),
-      allowMCStructure: true,
-      barButtonItem: navigationItem.rightBarButtonItems?.dropLast().last
-    )
+    structureFiles.chooseExportFormat(document: document, name: record.displayName) { [weak self] result in
+      switch result {
+      case .success(let value): self?.navigationItem.prompt = value.message
+      case .failure(let error): self?.showError(error, title: "导出结构失败")
+      }
+    }
   }
 
-  private func safeFilename(_ value: String) -> String {
-    let forbidden = CharacterSet(charactersIn: "/\\?%*|\"<>:")
-    let cleaned = value.components(separatedBy: forbidden).joined(separator: "_")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    return cleaned.isEmpty ? "structure" : String(cleaned.prefix(120))
-  }
 }
 
 extension StructureNBTEditorViewController: NBTBatchTreeSelectionDelegate {

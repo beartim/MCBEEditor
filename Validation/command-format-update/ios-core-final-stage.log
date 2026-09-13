@@ -1,0 +1,33 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Command persistence tests passed: atomic legacy rejection and explicit empty v8 val storages
+Effect, entity-import and world command executor tests passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Viewed badges, exact chunk-coordinate search, NBT search filtering, unsaved exit guards and command refresh hooks passed
+Legacy zlib write compatibility, physical chunk summary, and selection export checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Modern actor binary TAG_String regression tests passed
+iPhone compact layout and linked legacy block ID checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Metadata CRUD and batch store regression passed
+Metadata UI create/delete/rename and batch actions passed
+Running photo export / tab title / keyboard regression checks...
+Single-PNG direct share, static bottom tab titles and keyboard toggle regression checks passed
+Running NBT tree / X-Y-Z cross-section regression checks...
+NBT tree horizontal reveal / hierarchy guide and X-Y-Z cross-section regression checks passed
+Running fillbiome / info / X-Z selection regression checks...
+fillbiome / info / X-Z selection regression checks passed
+Running block-color / project-audit regression checks...
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Block map color catalogue tests passed (256 legacy identifiers, 254 semantic colors)
+Block-color and source-audit regression checks passed
+Running full block-color semantic audit...
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Full block-color audit passed (256 legacy IDs + representative modern families)
+Full block-color regression checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+export UI / iOS-safe PNG names / Colors.txt priority / ReadMe reset checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+shared Commands folder / Command.txt preflight / batch terminal checks passed
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Source audit regression tests passed (98 checks)

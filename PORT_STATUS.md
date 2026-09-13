@@ -34,7 +34,7 @@
 Windows PNG 已支持独立导出图层和“透明 / 空气 / 纹理”未生成区域模式；统一 NBT 编辑器也已支持多节点批量选择、复制、导出和删除。当前 iOS 玩家编辑器本身仍是通用 NBT 树，因此专用背包/装备槽位 UI 不属于现有 iOS→Windows 同步缺口。
 
 详见 `WINDOWS_PARITY_AUDIT.md`。
-- Windows 顶部操作区和地图工具区已改为响应式多行布局；主页“重新读取源存档”会从原始来源重建 Cache 工作副本。
+- Windows 顶部操作区和地图工具区已改为响应式多行布局；已移除重新读取源存档操作，保留打开和导出入口。
 - Windows 命令页已改为 CMD 式 RichTextBox 输出 + 底部 `>` 输入，支持文本选择/右键复制、细粒度滚轮、↑/↓ 历史与 ←/→ 原生光标移动；help/Commands ReadMe 使用同一份逐命令 iOS 帮助目录。
 
 ## Current Windows fixes

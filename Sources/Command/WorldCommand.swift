@@ -266,6 +266,7 @@ enum ParsedWorldCommand {
     case teleport(target: CommandTarget, dimension: Int32, x: Double, y: CommandTeleportY, z: Double)
     case spread(target: CommandTarget)
     case dayLock(locked: Bool)
+    case weatherQuery
     case weather(settings: CommandWeatherSettings)
     case time(operation: CommandTimeOperation)
     case experience(operation: CommandExperienceOperation)
@@ -288,6 +289,9 @@ enum CommandStorageOperation {
 }
 
 enum CommandStructureOperation {
+    case query
+    case importFile(name: String?)
+    case exportFile(format: StructureFileFormat, name: String?)
     case save(name: String, dimension: Int32, region: CommandBlockBox)
     case load(name: String, dimension: Int32, destination: CommandBlockCoordinate)
     case delete(name: String?)
@@ -480,12 +484,12 @@ enum WorldCommandParser {
         "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度必须为 overworld、nether 或 the_end。\n示例：spawnpoint @a the_end 0 100 0",
         "spread": "spread 目标\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier。每个匹配对象会独立随机选择一个有已加载区块的维度、一个已加载区块及其中一列非全空气的 X/Z，再按 teleport Auto 逻辑传送。输出格式为 identifier UniqueID 维度 X Y Z，并优先显示玩家。\n示例：spread @e\n示例：spread minecraft:cow",
-        "structure": "structure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\n名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50",
+        "structure": "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json [名称]\nquery 每行显示一个结构；import 打开文件选择器，export 打开保存窗口；省略名称时通过窗口选择或输入；nbt 为 Big Endian，mcstructure 为 Little Endian。\nstructure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\nsave/load/delete 的名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50",
         "summon": "summon 实体类型 实体维度 x y z NBT标签或default\n实体维度必须为 overworld、nether 或 the_end；x/y/z 均接受整数或浮点数并直接写入 Pos。最后一个参数输入 default 时不额外覆盖实体通用 NBT，否则可输入任意类型、可多重嵌套的非空 NBT 标签，且不能为 NULL。\n示例：summon minecraft:pig overworld 0 64 0 default\n示例：summon minecraft:pig overworld 10.5 64.25 -3.75 default\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"",
         "teleport": "teleport 目标 维度 x y或Auto z\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier；维度必须为 overworld、nether 或 the_end。x/z 接受整数或浮点数，Y 接受整数、浮点数或 Auto。实体缺少 identifier 标签时会读取 definitions[0]（例如 +minecraft:cow）。Y 输入 Auto 时，主世界和末地使用最高非空气方块上方；下界会越过最上层非空气方块与其下方空气层，优先落在更低一层非空气方块上方。回退规则为最高非空气方块上方，整列无非空气方块时使用 Y=63。玩家目标在 Y 参数为整数或 Auto 时，实际写入 Pos 的 Y 会在落脚点基础上增加 1.62；若 Y 参数以浮点数形式输入（例如 70.0），则不增加 1.62。\n示例：teleport -4294967270 the_end 10.5 70.25 10\n示例：teleport @a overworld -10.0 64 5\n示例：teleport @a overworld 100.0 70.0 100.0\n示例：teleport @a overworld 0 Auto 0",
         "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 x1 z1 半径 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形 add 的 x1/z1 是中心区块坐标，半径单位为区块，允许 0～4；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 4 Spawn 1\n示例：tickingarea list overworld",
         "time": "time query daytime|gametime|day\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nday=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201；24000 等价于下一天的 0。query daytime 同时显示当前时段进度和全天进度。\n示例：time query daytime\n示例：time add -1000\n示例：time ceil sunset\n示例：time floor midnight",
-        "weather": "weather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0"
+        "weather": "weather query\nquery 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻，缺失标签显示 NULL。\nweather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0"
     ]
 
     static func parse(_ line: String) throws -> ParsedWorldCommand {
@@ -811,6 +815,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "weather":
+            if arguments.count == 1, arguments[0].lowercased() == "query" { return .weatherQuery }
             guard let condition = arguments.first.flatMap(CommandWeatherCondition.init(rawValue:)) else {
                 throw usageError(command)
             }
@@ -833,8 +838,18 @@ enum WorldCommandParser {
                 ))
             }
         case "structure":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
+            case "query":
+                guard arguments.count == 1 else { throw usageError(command) }
+                return .structure(operation: .query)
+            case "import":
+                guard (1...2).contains(arguments.count) else { throw usageError(command) }
+                return .structure(operation: .importFile(name: arguments.count == 2 ? arguments[1] : nil))
+            case "export":
+                guard (2...3).contains(arguments.count),
+                      let format = StructureFileFormat(rawValue: arguments[1].lowercased()) else { throw usageError(command) }
+                return .structure(operation: .exportFile(format: format, name: arguments.count == 3 ? arguments[2] : nil))
             case "save":
                 guard arguments.count == 9 else { throw usageError(command) }
                 let name = try parseNamespacedIdentifier(arguments[1], kind: "结构名称")

@@ -6,7 +6,7 @@ using MCBEEditor.Core.World;
 
 namespace MCBEEditor.Core.Chunk;
 
-public enum StructureTemplateStructureOperationKind { Save, Load, Delete }
+public enum StructureTemplateStructureOperationKind { Save, Load, Delete, Query, Import, Export }
 
 public sealed record StructureTemplateStructureCommandRequest(
     StructureTemplateStructureOperationKind Operation,
@@ -14,9 +14,10 @@ public sealed record StructureTemplateStructureCommandRequest(
     int? Dimension = null,
     BedrockBlockBox? Region = null,
     BedrockBlockCoordinate? Destination = null,
-    bool DeleteAll = false)
+    bool DeleteAll = false,
+    StructureFileFormat? Format = null)
 {
-    public bool IsDestructive => true;
+    public bool IsDestructive => Operation is StructureTemplateStructureOperationKind.Save or StructureTemplateStructureOperationKind.Load or StructureTemplateStructureOperationKind.Delete or StructureTemplateStructureOperationKind.Import;
 }
 
 public static class StructureTemplateCommandParser
@@ -26,6 +27,7 @@ public static class StructureTemplateCommandParser
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public const string Usage =
+        "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json [名称]\n" +
         "structure save 名称 维度 x1 y1 z1 x2 y2 z2\n" +
         "structure load 名称 维度 x y z\n" +
         "structure delete 名称或ALL\n" +
@@ -39,6 +41,21 @@ public static class StructureTemplateCommandParser
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count < 2 || !tokens[0].Equals("structure", StringComparison.OrdinalIgnoreCase)) throw UsageError();
         var action = tokens[1].ToLowerInvariant();
+        if (action == "query" && tokens.Count == 2)
+            return new(StructureTemplateStructureOperationKind.Query);
+        if (action == "import" && tokens.Count is 2 or 3)
+            return new(StructureTemplateStructureOperationKind.Import, tokens.Count == 3 ? tokens[2] : null);
+        if (action == "export" && tokens.Count is 3 or 4)
+        {
+            var format = tokens[2].ToLowerInvariant() switch
+            {
+                "mcstructure" => StructureFileFormat.Mcstructure,
+                "nbt" => StructureFileFormat.Nbt,
+                "json" => StructureFileFormat.Json,
+                _ => throw UsageError()
+            };
+            return new(StructureTemplateStructureOperationKind.Export, tokens.Count == 4 ? tokens[3] : null, Format: format);
+        }
         if (action == "save" && tokens.Count == 10)
         {
             var name = ParseName(tokens[2]);
@@ -101,11 +118,21 @@ public sealed class StructureTemplateCommandStore
     {
         return request.Operation switch
         {
+            StructureTemplateStructureOperationKind.Query => Query(),
             StructureTemplateStructureOperationKind.Save => Save(request),
             StructureTemplateStructureOperationKind.Load => Load(request),
             StructureTemplateStructureOperationKind.Delete => Delete(request),
             _ => throw new InvalidDataException("未知 structure 操作。")
         };
+    }
+
+    public TargetingCommandExecutionResult Query()
+    {
+        var records = new StructureNbtStore(_database).Records();
+        var lines = records.Select(record => $"{record.DisplayName.Replace("\n", "\\n").Replace("\r", "\\r")} · {record.DetailText}");
+        var output = lines.Select(line => new TargetingOutputLine(line, TargetingOutputStyle.Success)).ToArray();
+        return output.Length == 0 ? TargetingCommandExecutionResult.Success("没有已保存的结构。", false)
+            : new TargetingCommandExecutionResult(string.Join("\n", output.Select(line => line.Text)), false, output);
     }
 
     private TargetingCommandExecutionResult Save(StructureTemplateStructureCommandRequest request)

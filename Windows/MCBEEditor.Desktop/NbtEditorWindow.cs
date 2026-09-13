@@ -17,6 +17,7 @@ public sealed class NbtEditorWindow : Window
     private readonly Func<NbtDocument, Task>? _saveAsync;
     private readonly HashSet<string> _protectedRootNames;
     private readonly NbtEncoding _fileEncoding;
+    private readonly string? _structureName;
     private readonly TreeView _tree = new();
     private readonly TextBox _searchText = new();
     private readonly TextBlock _searchStatus = new();
@@ -43,7 +44,7 @@ public sealed class NbtEditorWindow : Window
     public bool DidSave { get; private set; }
 
     public NbtEditorWindow(string title, NbtDocument document, Func<NbtDocument, Task>? saveAsync = null,
-        IEnumerable<string>? protectedRootNames = null, NbtEncoding fileEncoding = NbtEncoding.LittleEndian)
+        IEnumerable<string>? protectedRootNames = null, NbtEncoding fileEncoding = NbtEncoding.LittleEndian, string? structureName = null)
     {
         Title = title;
         Width = 1040;
@@ -54,6 +55,7 @@ public sealed class NbtEditorWindow : Window
         _rootName = document.RootName;
         _saveAsync = saveAsync;
         _fileEncoding = fileEncoding;
+        _structureName = structureName;
         _protectedRootNames = new HashSet<string>(protectedRootNames ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         _root = NbtEditorNode.Create(document.RootName.Length == 0 ? "<root>" : document.RootName, NbtDocumentTools.DeepClone(document.Root), null, true);
         Content = BuildUi();
@@ -142,7 +144,7 @@ public sealed class NbtEditorWindow : Window
         _normalActions.Children.Add(ActionButton("复制路径和值", CopyPathAndValue_Click));
         _normalActions.Children.Add(ActionButton("粘贴", Paste_Click));
         _normalActions.Children.Add(ActionButton("导入 NBT", Import_Click));
-        _normalActions.Children.Add(ActionButton("导出 NBT", Export_Click));
+        _normalActions.Children.Add(ActionButton(_structureName is null ? "导出 NBT" : "导出结构…", Export_Click));
         _normalActions.Children.Add(ActionButton("选择", BeginBatchSelection_Click));
 
         _batchActions.Margin = new Thickness(0, 10, 0, 0);
@@ -710,6 +712,12 @@ public sealed class NbtEditorWindow : Window
 
     private void Export_Click(object sender, RoutedEventArgs e)
     {
+        if (_structureName is not null)
+        {
+            try { _hintText.Text = StructureFileDialogs.ExportSingle(this, new NbtDocument(_rootName, _root.BuildValue()), _structureName).Message; }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "导出结构失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+            return;
+        }
         if (_selected is null) return;
         var safeName = string.Join('_', (_selected.IsRoot ? "root" : _selected.Name).Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
         if (string.IsNullOrWhiteSpace(safeName)) safeName = "nbt";

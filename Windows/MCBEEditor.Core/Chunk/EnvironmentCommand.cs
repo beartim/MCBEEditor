@@ -100,6 +100,10 @@ public sealed record TimeEnvironmentCommandRequest(
 {
     public override bool IsDestructive => Operation != EnvironmentTimeOperationKind.Query;
 }
+public sealed record WeatherQueryEnvironmentCommandRequest : EnvironmentCommandRequest
+{
+    public override bool IsDestructive => false;
+}
 public sealed record WeatherEnvironmentCommandRequest(
     EnvironmentWeatherCondition Condition,
     int? Duration,
@@ -125,6 +129,7 @@ public static class EnvironmentCommandParser
         "time set 非负整数\n" +
         "time ceil day|sunset|night|sunrise|noon|midnight\n" +
         "time floor day|sunset|night|sunrise|noon|midnight\n" +
+        "weather query\n" +
         "weather clear 0或1\n" +
         "weather rain 持续游戏刻 强度 0或1\n" +
         "weather thunder 持续游戏刻 强度 0或1\n" +
@@ -179,6 +184,8 @@ public static class EnvironmentCommandParser
 
     private static EnvironmentCommandRequest ParseWeather(string[] args)
     {
+        if (args.Length == 1 && args[0].Equals("query", StringComparison.OrdinalIgnoreCase))
+            return new WeatherQueryEnvironmentCommandRequest();
         if (args.Length == 2 && args[0].Equals("clear", StringComparison.OrdinalIgnoreCase))
             return new WeatherEnvironmentCommandRequest(EnvironmentWeatherCondition.Clear, null, null, ParseBooleanFlag(args[1], "天气是否自动变化"));
         if (args.Length == 4 && args[0].Equals("rain", StringComparison.OrdinalIgnoreCase))
@@ -348,6 +355,7 @@ public sealed class EnvironmentCommandStore
     {
         DayLockEnvironmentCommandRequest dayLock => DayLock(dayLock),
         TimeEnvironmentCommandRequest time => Time(time),
+        WeatherQueryEnvironmentCommandRequest => QueryWeather(),
         WeatherEnvironmentCommandRequest weather => Weather(weather),
         TickingAreaEnvironmentCommandRequest tickingArea => TickingArea(tickingArea),
         _ => throw new InvalidOperationException("无法执行未知命令。")
@@ -403,6 +411,15 @@ public sealed class EnvironmentCommandStore
             default:
                 throw new InvalidOperationException("未知 time 操作。");
         }
+    }
+
+    public TargetingCommandExecutionResult QueryWeather()
+    {
+        var root = _document.ReadLevelDat().Document.Root;
+        if (root is not NbtCompoundValue) throw new InvalidDataException("level.dat 根标签不是 Compound。");
+        var lines = new[] { "rainLevel", "rainTime", "lightningLevel", "lightningTime", "doWeatherCycle" }
+            .Select(name => $"{name}={(root.CompoundValue(name) is { } value ? NbtDocumentTools.SearchValueText(value) : "NULL")}");
+        return TargetingCommandExecutionResult.Success(string.Join("\n", lines), false);
     }
 
     public TargetingCommandExecutionResult Weather(WeatherEnvironmentCommandRequest request)

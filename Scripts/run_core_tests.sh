@@ -309,6 +309,18 @@ struct Main {
         _ = try WorldCommandParser.parse("time set 12013000")
         _ = try WorldCommandParser.parse("time ceil sunset")
         _ = try WorldCommandParser.parse("time floor midnight")
+        _ = try WorldCommandParser.parse("weather query")
+        _ = try WorldCommandParser.parse("structure query")
+        _ = try WorldCommandParser.parse("structure import")
+        _ = try WorldCommandParser.parse("structure import demo:house")
+        for format in ["nbt", "mcstructure", "json"] {
+            _ = try WorldCommandParser.parse("structure export \(format)")
+            _ = try WorldCommandParser.parse("structure export \(format) demo:house")
+        }
+        for invalid in ["weather query 1", "structure query x", "structure import a b", "structure export", "structure export zip", "structure export nbt a b"] {
+            do { _ = try WorldCommandParser.parse(invalid); preconditionFailure("invalid extension command accepted: \(invalid)") }
+            catch { }
+        }
         _ = try WorldCommandParser.parse("weather clear 1")
         _ = try WorldCommandParser.parse("weather rain 6000 0.5 1")
         _ = try WorldCommandParser.parse("weather thunder 12000 1.0 0")
@@ -793,7 +805,7 @@ if grep -q 'kUTTypeZipArchive as String, kUTTypeFolder as String' "$ROOT/Sources
   echo "error: file and folder UTIs must not be mixed in one iOS 13 picker" >&2
   exit 1
 fi
-grep -q 'in: .import' "$ROOT/Sources/UI/StructureNBTListViewController.swift" || {
+grep -q 'in: .import' "$ROOT/Sources/UI/StructureFileCoordinator.swift" || {
   echo "error: structure file picker must use import mode on iOS 13" >&2
   exit 1
 }
@@ -1579,6 +1591,46 @@ struct StructureNBTTest {
         try store.delete(record: renamed!)
         let existsAfterDelete = try store.containsStructure(named: "demo:renamed")
         precondition(!existsAfterDelete)
+        for format in StructureFileFormat.allCases {
+            let bytes = try StandaloneNBTFileCodec.encodeStructure(document, format: format)
+            if format == .nbt {
+                let expected = try BedrockNBTCodec.encode(document, encoding: .bigEndian)
+                precondition(bytes == expected)
+            }
+            let decoded = try StandaloneNBTFileCodec.decode(data: bytes, filename: "test." + format.rawValue)
+            precondition(decoded.documents.count == 1)
+            precondition(decoded.documents[0].root.intValue(named: "format_version") == 1)
+            if format == .mcstructure { precondition(decoded.originalEncoding == .littleEndian) }
+            if format == .nbt { precondition(decoded.originalEncoding == .bigEndian) }
+            try store.save(document: decoded.documents[0], named: "test:" + format.rawValue, overwrite: false)
+        }
+        let allFormats = try store.records()
+        precondition(allFormats.count == 4)
+        let legacyNestedJSON = Data(#"{"documents":[{"name":"lists","type":"list","value":{"type":"list","value":[{"type":"int","value":[1,2]},{"type":"int","value":[]}]}}]}"#.utf8)
+        let legacyNested = try NBTJSONCodec.decode(legacyNestedJSON)
+        if case .list(.list, let lists) = legacyNested[0].root {
+            precondition(lists.count == 2)
+            if case .list(.int, let ints) = lists[0] { precondition(ints.count == 2) }
+            else { preconditionFailure("legacy nested list element type") }
+        } else { preconditionFailure("legacy nested list root") }
+        let explicitList = try NBTJSONCodec.decode(Data(#"{"documents":[{"name":"lists","type":"list","value":{"type":"list","value":[{"type":"list","value":[{"type":"int","value":1}]}]}}]}"#.utf8))
+        if case .list(.list, let nested) = explicitList[0].root {
+            if case .list(.int, let values) = nested[0] { precondition(values.count == 1) }
+            else { preconditionFailure("explicit nested-list tags") }
+        } else { preconditionFailure("explicit nested-list root") }
+        if let directory = ProcessInfo.processInfo.environment["MCBE_STRUCTURE_VECTORS"] {
+            let folder = URL(fileURLWithPath: directory, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try StandaloneNBTFileCodec.encodeStructure(document, format: .json).write(to: folder.appendingPathComponent("ios.json"))
+            let peer = folder.appendingPathComponent("windows.json")
+            if FileManager.default.fileExists(atPath: peer.path) {
+                let importedWindows = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: peer), filename: "windows.json")
+                let normalizedWindows = try JavaStructureConverter.convertIfNeeded(importedWindows.documents[0])
+                precondition(normalizedWindows.document.root.intValue(named: "format_version") == 1)
+                print("Windows JSON structure imported successfully by iOS codec")
+            }
+        }
+        print("Structure mcstructure/Big Endian NBT/typed JSON export and reimport passed")
         print("Structure NBT discovery, endian conversion, rename and delete tests passed")
     }
 }
@@ -1593,6 +1645,8 @@ swiftc \
   "$TMP/StructureNBTStoreStubs.swift" \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
+  "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
+  "$ROOT/Sources/World/StandaloneNBTFile.swift" \
   -parse-as-library "$TMP/structure_nbt_test.swift" -o "$TMP/structure-nbt-tests"
 "$TMP/structure-nbt-tests"
 
@@ -4058,6 +4112,14 @@ struct EffectCommandTest {
         precondition(weatherRoot.intValue(named: "rainTime") == 12000)
         precondition(weatherRoot.intValue(named: "lightningTime") == 12000)
         precondition(weatherRoot.intValue(named: "doWeatherCycle") == 0)
+        let weatherBefore = try Data(contentsOf: session.document.levelDatURL)
+        let weatherQuery = try executor.execute(try WorldCommandParser.parse("weather query"))
+        precondition(!weatherQuery.changedWorld)
+        precondition(weatherQuery.message.components(separatedBy: "\n").count == 5)
+        precondition(weatherQuery.message.contains("rainTime=12000") && weatherQuery.message.contains("doWeatherCycle=0"))
+        let weatherAfter = try Data(contentsOf: session.document.levelDatURL)
+        precondition(weatherBefore == weatherAfter)
+
 
         let daylock = try executor.execute(try WorldCommandParser.parse("daylock 0"))
         precondition(daylock.changedWorld)
@@ -4279,6 +4341,27 @@ struct EffectCommandTest {
         precondition(saved.changedWorld)
         let savedStructureValue = try session.db.get(Data("structuretemplate_test:one".utf8))
         precondition(savedStructureValue != nil)
+        let structuresBeforeQuery = session.db.values
+        let structureQuery = try executor.execute(try WorldCommandParser.parse("structure query"))
+        precondition(!structureQuery.changedWorld && structureQuery.message.contains("test:one"))
+        precondition(structureQuery.outputLines.count == 1 && structureQuery.message.contains("尺寸 1×1×1"))
+        precondition(session.db.values == structuresBeforeQuery)
+
+        let versionSession = WorldSession()
+        for pair: (Int8, UInt8) in [(0, 8), (4, 9)] {
+            let sub = BedrockSubChunk(version: pair.1, yIndex: pair.0, storages: [], trailingData: Data())
+            versionSession.db.values[BedrockDBKey.subChunk(x: -3, z: 2, dimension: 2, index: pair.0)] = try sub.encodePersistent()
+        }
+        let versionStore = BedrockChunkStore(session: versionSession)
+        let listed = try versionStore.listChunks()
+        let specific = try versionStore.summary(at: ChunkPosition(x: -3, z: 2, dimension: 2))
+        precondition(listed[0].detailText.contains("SubChunk v8/v9") && specific.detailText.contains("Y0-Y4"))
+        let versionChunkQuery = try WorldCommandExecutor(session: versionSession).execute(try WorldCommandParser.parse("chunk query the_end -3 2"))
+        precondition(versionChunkQuery.message.contains("SubChunk v8/v9") && versionChunkQuery.message.contains("Y0-Y4"))
+        versionSession.db.values[BedrockDBKey.subChunk(x: -3, z: 2, dimension: 2, index: 5)] = Data()
+        let unknownVersion = try versionStore.summary(at: ChunkPosition(x: -3, z: 2, dimension: 2))
+        precondition(unknownVersion.subChunkVersionText == "v8/v9/未知版本")
+
         let loaded = try executor.execute(try WorldCommandParser.parse("structure load test:one overworld 1 0 0"))
         precondition(loaded.changedWorld)
         let loadedSub = try BedrockSubChunk.decode(try session.db.get(sourceKey)!, keyYIndex: 0)

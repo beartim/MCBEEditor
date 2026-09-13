@@ -43,7 +43,7 @@ Windows\dist\MCBEEditor.exe
 - 实体与世界命令：目标选择器、传送/分散/经验、物品、效果、实体创建删除、时间、天气、常加载区域、structure 等。
 - `chunk query` 每行输出生成情况以及 `IsSlimeChunk=True/False` 与 `Ticking=True/False`。
 - EXE 同级 `Commands\Command.txt` 批处理与黑色 CMD 风格命令终端；输出可选择/复制，底部 `>` 输入支持方向键历史和标准文本编辑，`help` 内容逐命令与 iOS 同步；启动时自动创建 `Commands\ReadMe.txt`。
-- 主页直接打开世界文件夹或 `.mcworld`/ZIP。程序先复制/解压到 EXE 同级 `Cache` 临时工作副本，所有编辑只作用于工作副本；“重新读取源存档”会丢弃当前工作副本并从原始来源重新复制/解压；源世界始终不修改，主页“导出 .mcworld”是唯一持久化出口。
+- 主页直接打开世界文件夹或 `.mcworld`/ZIP。程序先复制/解压到 EXE 同级 `Cache` 临时工作副本，所有编辑只作用于工作副本；源世界始终不修改，主页“导出 .mcworld”是唯一持久化出口。
 - EXE 同级自动创建 `Textures` 与 `Commands`，不再创建或读取用户 Documents 下的 MCBEEditor 目录。主界面“说明与许可证”内置 AGPL-3.0 文本。
 
 ## 数据兼容原则

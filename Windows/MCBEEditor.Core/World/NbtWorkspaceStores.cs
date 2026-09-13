@@ -293,16 +293,6 @@ public sealed class StructureNbtStore
 
     public void Delete(StructureNbtRecord record) => _database.Delete(record.Key, sync: true);
 
-    private static IReadOnlyList<long>? IntegerVector(NbtValue? value) => value switch
-    {
-        NbtIntArrayValue ints => ints.Values.Select(item => (long)item).ToArray(),
-        NbtLongArrayValue longs => longs.Values.ToArray(),
-        NbtListValue list => list.Values.Select(item => item.IntegerValue()).All(item => item.HasValue)
-            ? list.Values.Select(item => item.IntegerValue()!.Value).ToArray()
-            : null,
-        _ => null
-    };
-
     public static string NormalizeName(string name)
     {
         var clean = name?.Trim() ?? string.Empty;

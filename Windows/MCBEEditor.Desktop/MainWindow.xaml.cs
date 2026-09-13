@@ -340,39 +340,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         new AboutLicenseWindow { Owner = this }.ShowDialog();
     }
 
-    private async void Reload_Click(object sender, RoutedEventArgs e)
-    {
-        if (_commandBatchRunning || _databaseBusy || _workspace is null || string.IsNullOrWhiteSpace(_sourceWorldPath)) return;
-        if (!ConfirmDiscardWorkingCopy("重新读取源存档")) return;
-
-        PortableWorldWorkspace? replacement = null;
-        try
-        {
-            StatusText = "正在从源存档重新建立临时工作副本…";
-            var sourcePath = _sourceWorldPath;
-            replacement = await Task.Run(() => PortableWorldWorkspace.Create(PortablePaths.WorldCachePath, sourcePath));
-            var document = new WorldDocument(replacement.WorkingRootPath, MarkWorkingCopyDirty);
-
-            var oldWorkspace = _workspace;
-            _workspace = replacement;
-            replacement = null;
-            _document = document;
-            _worldPath = document.RootPath;
-            _sourceWorldPath = _workspace.SourcePath;
-            _workingCopyDirty = false;
-            oldWorkspace?.Dispose();
-
-            await LoadWorkingDocumentAsync(document, handleSharedCommands: false);
-            StatusText = $"已重新读取源存档：{WorldName}。当前编辑基于新的临时工作副本。";
-        }
-        catch (Exception ex)
-        {
-            replacement?.Dispose();
-            StatusText = "重新读取源存档失败。";
-            MessageBox.Show(this, ex.Message, "重新读取源存档", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
     private void Window_DragOver(object sender, DragEventArgs e)
     {
         e.Effects = TryGetDroppedWorld(e.Data, out _) ? DragDropEffects.Copy : DragDropEffects.None;
@@ -460,7 +427,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _sourceWorldPath = _workspace.SourcePath;
             _workingCopyDirty = false;
             oldWorkspace?.Dispose();
-            await LoadWorkingDocumentAsync(document, handleSharedCommands: true);
+            await LoadWorkingDocumentAsync(document);
         }
         catch (Exception ex)
         {
@@ -470,7 +437,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private async Task LoadWorkingDocumentAsync(WorldDocument document, bool handleSharedCommands)
+    private async Task LoadWorkingDocumentAsync(WorldDocument document)
     {
         StatusText = "正在读取临时工作副本的 level.dat 与世界信息…";
         var rows = await Task.Run(() => new WorldInfoService().Inspect(document));
@@ -513,7 +480,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StatusText = $"已打开：{WorldName}。源文件保持只读，正在扫描临时工作副本 LevelDB…";
         await LoadDatabaseAsync();
         await InitializeLocalPlayerCenterAsync();
-        if (handleSharedCommands) await HandleSharedCommandFileAsync();
+        await HandleSharedCommandFileAsync();
         MapViewportLayout.UpdateLayout();
         MapScrollViewer.UpdateLayout();
         if (!_databaseBusy)
@@ -1997,7 +1964,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _databaseBusy = true;
             try
             {
-                StatusText = request is TimeEnvironmentCommandRequest ? "正在执行 time query…" : "正在执行 tickingarea list…";
+                StatusText = "正在读取世界状态…";
                 var readResult = await Task.Run(() =>
                 {
                     using var database = document.OpenDatabase(readOnly: true);
@@ -2005,7 +1972,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 });
                 foreach (var line in readResult.OutputLines)
                     CommandOutputRows.Add(new CommandOutputLine(line.Text, Brushes.ForestGreen));
-                StatusText = request is TimeEnvironmentCommandRequest ? "time query 完成。" : $"tickingarea list 完成：{readResult.OutputLines.Count:N0} 行。";
+                StatusText = "世界状态查询完成。";
             }
             finally
             {
@@ -2078,6 +2045,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
         var request = StructureTemplateCommandParser.Parse(text);
         var document = _document;
+        if (request.Operation is StructureTemplateStructureOperationKind.Query or StructureTemplateStructureOperationKind.Import or StructureTemplateStructureOperationKind.Export)
+        {
+            _databaseBusy = true;
+            TargetingCommandExecutionResult result;
+            try
+            {
+                result = request.Operation switch
+                {
+                    StructureTemplateStructureOperationKind.Import => await StructureFileDialogs.ImportAsync(this, document, () => PrepareWorldMutationAsync(document), request.Name),
+                    StructureTemplateStructureOperationKind.Export => await StructureFileDialogs.ExportAsync(this, document, request.Format!.Value, request.Name),
+                    _ => await Task.Run(() =>
+                    {
+                        using var database = document.OpenDatabase(readOnly: true);
+                        return new StructureTemplateCommandStore(database).Query();
+                    })
+                };
+            }
+            finally { _databaseBusy = false; }
+            foreach (var line in result.OutputLines) CommandOutputRows.Add(new CommandOutputLine(line.Text, Brushes.ForestGreen));
+            StatusText = request.Operation == StructureTemplateStructureOperationKind.Query ? "结构查询完成。" : result.Message;
+            if (result.ChangedWorld) await LoadDatabaseAsync();
+            return;
+        }
         var actionText = request.Operation switch
         {
             StructureTemplateStructureOperationKind.Save => $"structure save {request.Name} {CommandDimensionToken(request.Dimension!.Value)}",

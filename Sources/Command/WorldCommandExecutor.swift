@@ -155,6 +155,13 @@ final class WorldCommandExecutor {
             return try spread(target: target)
         case .dayLock(let locked):
             return WorldCommandExecutionResult(message: try setDayLock(locked), changedWorld: true)
+        case .weatherQuery:
+            let root = try session.document.readLevelDat().document.root
+            guard case .compound = root else { throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound") }
+            let lines = ["rainLevel", "rainTime", "lightningLevel", "lightningTime", "doWeatherCycle"].map { name in
+                "\(name)=\(root.compoundValue(named: name).map(CommandNBTOutputFormatter.root) ?? "NULL")"
+            }
+            return WorldCommandExecutionResult(message: lines.joined(separator: "\n"), changedWorld: false)
         case .weather(let settings):
             return WorldCommandExecutionResult(message: try setWeather(settings), changedWorld: true)
         case .time(let operation):
@@ -164,7 +171,8 @@ final class WorldCommandExecutor {
             return try executeExperience(operation)
         case .structure(let operation):
             let result = try executeStructure(operation)
-            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed,
+                outputLines: result.message.components(separatedBy: "\n").map { WorldCommandOutputLine(text: $0, style: .success) })
         case .tickingArea(let operation):
             let result = try executeTickingArea(operation)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
@@ -861,6 +869,14 @@ final class WorldCommandExecutor {
     private func executeStructure(_ operation: CommandStructureOperation) throws -> (message: String, changed: Bool) {
         let store = StructureNBTStore(session: session)
         switch operation {
+        case .query:
+            let records = try store.records()
+            let lines = records.map { record in
+                "\(record.displayName.replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\r", with: "\\r")) · \(record.detailDescription)"
+            }
+            return (lines.isEmpty ? "没有已保存的结构。" : lines.joined(separator: "\n"), false)
+        case .importFile, .exportFile:
+            throw MCBEEditorError.unsupported("结构文件操作需要在命令窗口中执行。")
         case .save(let name, let dimension, let region):
             let document = try CommandBlockStore.makeStructureDocument(
                 session: session,

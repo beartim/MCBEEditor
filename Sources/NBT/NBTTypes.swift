@@ -1,5 +1,11 @@
 import Foundation
 
+/// File extension and encoding for structure exports; .nbt uses standard Big Endian.
+enum StructureFileFormat: String, CaseIterable {
+    case mcstructure, nbt, json
+}
+
+
 enum NBTEncoding: Equatable {
     case bigEndian
     case littleEndian

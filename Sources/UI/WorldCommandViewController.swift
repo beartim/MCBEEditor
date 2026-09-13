@@ -11,6 +11,8 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
     private let executor: WorldCommandExecutor
     private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.world-command", qos: .userInitiated)
 
+    private lazy var structureFiles = StructureFileCoordinator(presenter: self, session: session)
+
     private let terminalContainer = UIView()
     private let outputView = UITextView()
     private let inputField = UITextField()
@@ -381,96 +383,75 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         appendOutput("\n> \(raw)")
         setRunning(true)
 
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            do {
-                let parsed = try WorldCommandParser.parse(raw)
-                let result = try self.executor.execute(parsed)
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    // WorldSession notifications synchronously update UIKit observers.
-                    // Invalidation must therefore happen on the main thread and only
-                    // after the command store has finished and released its DB work.
-                    if result.changedWorld {
-                        self.session.notifyAfterDatabaseMutation()
-                    }
-                    self.appendResult(result)
-                    self.setRunning(false)
+        do {
+            executeParsedCommand(try WorldCommandParser.parse(raw)) { result in
+                switch result {
+                case .success(let value):
+                    if value.changedWorld { self.session.notifyAfterDatabaseMutation() }
+                    self.appendResult(value)
+                case .failure(let error): self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
                 }
-            } catch {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
-                    self.setRunning(false)
-                }
+                self.setRunning(false)
+            }
+        } catch {
+            appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
+            setRunning(false)
+        }
+    }
+
+    /// File commands await their dialogs before a Command.txt batch advances.
+    private func executeParsedCommand(_ command: ParsedWorldCommand, completion: @escaping StructureFileCoordinator.Completion) {
+        switch command {
+        case .structure(.importFile(let name)):
+            inputField.resignFirstResponder()
+            structureFiles.importFile(named: name, completion: completion)
+        case .structure(.exportFile(let format, let name)):
+            inputField.resignFirstResponder()
+            structureFiles.exportFile(format: format, named: name, completion: completion)
+        default:
+            queue.async {
+                let result = Result { try self.executor.execute(command) }
+                DispatchQueue.main.async { completion(result) }
             }
         }
     }
 
-    /// Executes a Command.txt batch that has already passed the parser for every
-    /// non-empty source line. Each command and its result are appended to the
-    /// terminal immediately before the next command starts, so Command.txt is a
-    /// live audit trail rather than a report printed only after the whole batch.
-    /// Runtime failures do not stop later commands.
-    func executeValidatedSharedCommands(
-        _ commands: [ValidatedSharedWorldCommand],
-        completion: @escaping () -> Void
-    ) {
-        guard !commands.isEmpty else {
-            completion()
-            return
-        }
+    /// Executes validated lines serially; runtime errors do not stop later lines.
+    func executeValidatedSharedCommands(_ commands: [ValidatedSharedWorldCommand], completion: @escaping () -> Void) {
+        guard !commands.isEmpty else { completion(); return }
         loadViewIfNeeded()
-        guard !running else {
-            completion()
-            return
-        }
-
+        guard !running else { completion(); return }
         inputField.resignFirstResponder()
         setRunning(true)
         appendOutput("[Command.txt] 开始执行，共 \(commands.count) 条命令。", color: .systemBlue)
-
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            var changedWorld = false
-            var failureCount = 0
-
-            for item in commands {
-                DispatchQueue.main.sync {
-                    self.appendOutput("[第 \(item.lineNumber) 行] > \(item.rawText)")
-                }
-
-                do {
-                    let result = try self.executor.execute(item.command)
-                    changedWorld = changedWorld || result.changedWorld
-                    DispatchQueue.main.sync {
-                        self.appendResult(result)
-                    }
-                } catch {
-                    failureCount += 1
-                    let message = error.localizedDescription
-                    DispatchQueue.main.sync {
-                        self.appendOutput("错误：\(message)", color: .systemRed)
-                    }
-                }
-            }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                if changedWorld {
-                    // A single invalidation after the serial batch avoids
-                    // refreshing other tabs between commands while retaining
-                    // normal post-write behavior once the batch is complete.
-                    self.session.notifyAfterDatabaseMutation()
-                }
+        var changedWorld = false
+        var failureCount = 0
+        func next(_ index: Int) {
+            guard index < commands.count else {
+                if changedWorld { self.session.notifyAfterDatabaseMutation() }
                 let summary = failureCount == 0
                     ? "[Command.txt] 全部命令执行完成。"
                     : "[Command.txt] 执行完成：\(failureCount) 条命令发生运行时错误，其余命令已继续执行。"
                 self.appendOutput(summary, color: failureCount == 0 ? .systemGreen : .systemRed)
                 self.setRunning(false)
                 completion()
+                return
+            }
+            let item = commands[index]
+            self.appendOutput("[第 \(item.lineNumber) 行] > \(item.rawText)")
+            self.executeParsedCommand(item.command) { result in
+                switch result {
+                case .success(let value):
+                    changedWorld = changedWorld || value.changedWorld
+                    self.appendResult(value)
+                case .failure(let error):
+                    failureCount += 1
+                    self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
+                }
+                DispatchQueue.main.async { next(index + 1) }
             }
         }
+        next(0)
     }
 
     private func setRunning(_ value: Bool) {
@@ -484,7 +465,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         caretLeftButton.isEnabled = !value
         caretRightButton.isEnabled = !value
         keyboardButton.isEnabled = !value
-        navigationItem.prompt = value ? "正在修改世界，请勿同时打开 Minecraft" : nil
+        navigationItem.prompt = value ? "正在执行命令…" : nil
     }
 
     private func outputColor(for style: WorldCommandOutputStyle) -> UIColor {

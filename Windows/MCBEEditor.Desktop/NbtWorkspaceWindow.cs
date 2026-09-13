@@ -184,7 +184,7 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
         copyKey.Margin = new Thickness(6, 0, 0, 0);
         buttons.Children.Add(copyKey);
 
-        var export = Button("导出原始 NBT", (_, _) => ExportSelected());
+        var export = Button(_kind == NbtWorkspaceKind.Structures ? "导出结构…" : "导出原始 NBT", (_, _) => ExportSelected());
         export.Margin = new Thickness(6, 0, 0, 0);
         buttons.Children.Add(export);
 
@@ -386,7 +386,7 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
                     using var database = _world.OpenDatabase(readOnly: false);
                     new StructureNbtStore(database).Save(structure, edited);
                     _status.Text = $"已应用结构 NBT 到工作副本：{structure.DisplayName}";
-                }, Array.Empty<string>(), structure.Encoding ?? NbtEncoding.LittleEndian) { Owner = this };
+                }, Array.Empty<string>(), structure.Encoding ?? NbtEncoding.LittleEndian, structureName: structure.DisplayName) { Owner = this };
                 editor.ShowDialog();
                 if (editor.DidSave) await ReloadAsync();
                 break;
@@ -436,44 +436,13 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
         }
 
         if (_kind != NbtWorkspaceKind.Structures) return;
-        var dialog = new OpenFileDialog
-        {
-            Title = "选择 NBT / mcstructure / JSON",
-            Filter = "结构文件|*.nbt;*.mcstructure;*.json|NBT / mcstructure|*.nbt;*.mcstructure|JSON|*.json|所有文件|*.*"
-        };
-        if (dialog.ShowDialog(this) != true) return;
         try
         {
-            var bytes = File.ReadAllBytes(dialog.FileName);
-            var standalone = StandaloneNbtFileCodec.Decode(bytes, dialog.FileName);
-            if (standalone.Documents.Count != 1) throw new InvalidDataException("结构文件必须只包含一个 NBT 根标签。");
-            var document = standalone.Documents[0];
-
-            var suggested = Path.GetFileNameWithoutExtension(dialog.FileName);
-            var name = NbtTextPromptWindow.Show(this, "指定结构名称", "名称将写入 structuretemplate_<名称>：", suggested);
-            if (name is null) return;
-            name = StructureNbtStore.NormalizeName(name);
-            if (name.Length == 0) throw new InvalidDataException("结构名称不能为空。");
-
-            bool exists;
-            using (var database = _world.OpenDatabase(readOnly: true)) exists = new StructureNbtStore(database).Contains(name);
-            if (exists && MessageBox.Show(this, $"世界中已存在“{name}”。继续会覆盖原结构。", "替换同名结构？", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
-                return;
-
-            await _prepareMutation();
-            StructureImportResult importResult;
-            using (var database = _world.OpenDatabase(readOnly: false)) importResult = new StructureNbtStore(database).SaveNew(document, name, overwrite: exists);
-            await ReloadAsync();
-            if (importResult.ConvertedFromJava)
-            {
-                var loss = importResult.LossyPaletteEntryCount == 0 ? string.Empty : $"；{importResult.LossyPaletteEntryCount} 个调色板条目进行了兼容降级";
-                MessageBox.Show(this, $"Java 结构已转换为 Bedrock mcstructure。写入 {importResult.PlacedBlockCount:N0} 个方块、{importResult.PaletteEntryCount:N0} 个调色板条目{loss}。\n\n与 iOS 版一致，实体、水层和高级 BlockEntity 数据不会由兼容转换器带入。", "结构转换完成", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
+            var result = await StructureFileDialogs.ImportAsync(this, _world, _prepareMutation);
+            if (result.ChangedWorld) await ReloadAsync();
+            _status.Text = result.Message;
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, "导入结构失败", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "导入结构失败", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private async Task RenameSelectedAsync()
@@ -596,6 +565,17 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
         if (selectedRows.Length == 0) return;
         try
         {
+            if (_kind == NbtWorkspaceKind.Structures)
+            {
+                var records = selectedRows.Select(row => (StructureNbtRecord)row.Payload).ToArray();
+                if (records.Length == 1)
+                {
+                    var record = records[0];
+                    _status.Text = StructureFileDialogs.ExportSingle(this, record.Document ?? throw new InvalidDataException("结构 NBT 无法解析。"), record.DisplayName).Message;
+                }
+                else StructureFileDialogs.ExportMany(this, records);
+                return;
+            }
             if (selectedRows.Length > 1)
             {
                 var folder = new OpenFolderDialog { Title = $"选择目录以导出 {selectedRows.Length} 个原始 NBT", Multiselect = false };
@@ -634,7 +614,6 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
         {
             PlayerNbtRecord player => (player.RawData, SafeFileName(player.DisplayName) + ".nbt"),
             VillageNbtRecord village => (BedrockNbtCodec.Encode(village.Document, village.Encoding), SafeFileName(village.VillageDisplayName + "-" + village.DisplayName) + ".nbt"),
-            StructureNbtRecord structure => (structure.RawData, SafeFileName(structure.DisplayName) + ".mcstructure"),
             MetadataNbtRecord metadata => (metadata.RawData, SafeFileName(metadata.KeyText) + ".nbt"),
             _ => throw new InvalidDataException("无法导出所选记录。")
         };

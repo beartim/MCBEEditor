@@ -1,7 +1,6 @@
 import UIKit
-import MobileCoreServices
 
-final class StructureNBTListViewController: UITableViewController, UISearchResultsUpdating, UIDocumentPickerDelegate {
+final class StructureNBTListViewController: UITableViewController, UISearchResultsUpdating {
     private let session: WorldSession
     private let store: StructureNBTStore
     private let queue = DispatchQueue(label: "com.wzn.mcbeeditor.structure-nbt", qos: .userInitiated)
@@ -9,6 +8,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     private var allRecords = [StructureNBTRecord]()
     private var shownRecords = [StructureNBTRecord]()
     private var loadGeneration = 0
+    private lazy var structureFiles = StructureFileCoordinator(presenter: self, session: session)
     private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession) {
@@ -74,132 +74,20 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     }
 
     @objc private func importStructure() {
-        let picker = UIDocumentPickerViewController(
-            documentTypes: [kUTTypeItem as String],
-            in: .import
-        )
-        picker.delegate = self
-        picker.allowsMultipleSelection = false
-        present(picker, animated: true)
+        structureFiles.importFile(named: nil) { [weak self] result in self?.handleFileResult(result) }
     }
 
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard let url = urls.first else { return }
-        let ext = url.pathExtension.lowercased()
-        guard ext == "nbt" || ext == "mcstructure" || ext == "json" else {
-            showError(
-                MCBEEditorError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
-                title: "无法导入结构"
-            )
-            return
-        }
-
-        let accessed = url.startAccessingSecurityScopedResource()
-        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let sourceData = try Data(contentsOf: url)
-            let data: Data
-            if ext == "json" {
-                let documents = try NBTJSONCodec.decode(sourceData)
-                guard documents.count == 1, let document = documents.first else {
-                    throw MCBEEditorError.unsupported("结构 JSON 必须只包含一个 NBT 根标签")
-                }
-                data = try BedrockNBTCodec.encode(document, encoding: .bigEndian)
-            } else {
-                data = sourceData
+    private func handleFileResult(_ result: Result<WorldCommandExecutionResult, Error>) {
+        switch result {
+        case .success(let value):
+            navigationItem.prompt = value.message
+            if value.changedWorld {
+                session.notifyAfterDatabaseMutation()
+                let alert = UIAlertController(title: "结构导入完成", message: value.message, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "确定", style: .default))
+                present(alert, animated: true)
             }
-            promptForStructureName(data: data, suggestedName: url.deletingPathExtension().lastPathComponent)
-        } catch {
-            showError(error, title: "读取结构文件失败")
-        }
-    }
-
-    private func promptForStructureName(data: Data, suggestedName: String) {
-        let alert = UIAlertController(
-            title: "指定结构名称",
-            message: "名称将用于世界 LevelDB 的 structuretemplate 记录。可使用 namespace:name 格式。",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.text = suggestedName
-            field.placeholder = "结构名称"
-            field.clearButtonMode = .whileEditing
-            field.autocapitalizationType = .none
-            field.autocorrectionType = .no
-        }
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-        alert.addAction(UIAlertAction(title: "导入", style: .default) { [weak self, weak alert] _ in
-            guard let self = self else { return }
-            let name = alert?.textFields?.first?.text ?? ""
-            self.checkAndImportStructure(data: data, name: name)
-        })
-        present(alert, animated: true)
-    }
-
-    private func checkAndImportStructure(data: Data, name: String) {
-        let cleanName = store.normalizedStructureName(name)
-        guard !cleanName.isEmpty else {
-            showError(MCBEEditorError.malformedData("结构名称不能为空"), title: "无法导入结构")
-            return
-        }
-        navigationItem.prompt = "正在检查结构文件…"
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            do {
-                let exists = try self.store.containsStructure(named: cleanName)
-                DispatchQueue.main.async {
-                    if exists {
-                        let alert = UIAlertController(
-                            title: "替换同名结构？",
-                            message: "世界中已存在“\(cleanName)”。继续将覆盖原结构。",
-                            preferredStyle: .alert
-                        )
-                        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-                        alert.addAction(UIAlertAction(title: "替换", style: .destructive) { [weak self] _ in
-                            self?.performImport(data: data, name: cleanName, overwrite: true)
-                        })
-                        self.present(alert, animated: true)
-                    } else {
-                        self.performImport(data: data, name: cleanName, overwrite: false)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.navigationItem.prompt = nil
-                    self.showError(error, title: "无法检查结构名称")
-                }
-            }
-        }
-    }
-
-    private func performImport(data: Data, name: String, overwrite: Bool) {
-        navigationItem.prompt = "正在导入结构…"
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            do {
-                let result = try self.store.importStructure(data: data, named: name, overwrite: overwrite)
-                DispatchQueue.main.async {
-                    self.navigationItem.prompt = "结构“\(name)”已导入"
-                    self.loadRecords()
-                    if result.convertedFromJava {
-                        let lossyText = result.lossyPaletteEntryCount > 0
-                            ? "；\(result.lossyPaletteEntryCount) 个调色板条目存在状态降级或按参考转换为空气"
-                            : ""
-                        let alert = UIAlertController(
-                            title: "Java 结构转换完成",
-                            message: "已转换为游戏可读取的 Bedrock mcstructure。写入 \(result.placedBlockCount) 个方块、\(result.paletteEntryCount) 个调色板条目\(lossyText)。按照参考转换方案，实体、水层和高级方块实体数据不会被带入。",
-                            preferredStyle: .alert
-                        )
-                        alert.addAction(UIAlertAction(title: "确定", style: .default))
-                        self.present(alert, animated: true)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.navigationItem.prompt = nil
-                    self.showError(error, title: "导入结构失败")
-                }
-            }
+        case .failure(let error): showError(error, title: "结构文件操作失败")
         }
     }
 
@@ -282,8 +170,8 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
             self?.promptRename(record, completion: completion)
         }
         rename.backgroundColor = .systemOrange
-        let export = UIContextualAction(style: .normal, title: "导出") { [weak self] _, sourceView, completion in
-            self?.export(record, sourceView: sourceView)
+        let export = UIContextualAction(style: .normal, title: "导出") { [weak self] _, _, completion in
+            self?.export(record)
             completion(true)
         }
         export.backgroundColor = .systemGreen
@@ -413,24 +301,13 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
         present(alert, animated: true)
     }
 
-    private func export(_ record: StructureNBTRecord, sourceView: UIView) {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(safeFilename(record.displayName) + ".mcstructure")
-        do {
-            try record.rawData.write(to: url, options: .atomic)
-            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            activity.popoverPresentationController?.sourceView = sourceView
-            activity.popoverPresentationController?.sourceRect = sourceView.bounds
-            present(activity, animated: true)
-        } catch {
-            showError(error, title: "导出结构失败")
+    private func export(_ record: StructureNBTRecord) {
+        guard let document = record.document else {
+            showError(MCBEEditorError.malformedData("结构 NBT 无法解析"), title: "导出失败")
+            return
         }
-    }
-
-    private func safeFilename(_ value: String) -> String {
-        let forbidden = CharacterSet(charactersIn: "/\\?%*|\"<>:")
-        let cleaned = value.components(separatedBy: forbidden).joined(separator: "_")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? "structure" : String(cleaned.prefix(120))
+        structureFiles.chooseExportFormat(document: document, name: record.displayName) { [weak self] result in
+            self?.handleFileResult(result)
+        }
     }
 }

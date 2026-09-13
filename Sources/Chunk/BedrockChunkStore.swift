@@ -13,15 +13,24 @@ struct BedrockChunkSummary: Hashable {
     let biomeRecordType: ChunkRecordType?
     let hasHardcodedSpawners: Bool
 
+    var subChunkVersions: [UInt8] = []
+    var hasUnknownSubChunkVersion = false
+
+    var subChunkVersionText: String {
+        var values = subChunkVersions.sorted().map { "v\($0)" }
+        if hasUnknownSubChunkVersion || values.isEmpty { values.append("未知版本") }
+        return values.joined(separator: "/")
+    }
+
     var coordinateText: String { "(\(position.x), \(position.z))" }
     var hasTerrain: Bool { subChunkCount > 0 || hasLegacyTerrain }
 
     var detailText: String {
         var parts = ["记录 \(recordCount)"]
         if subChunkCount > 0 {
-            parts.append("SubChunk \(subChunkCount)")
+            parts.append("SubChunk \(subChunkVersionText)")
             if let minimumSubChunkY = minimumSubChunkY, let maximumSubChunkY = maximumSubChunkY {
-                parts.append("Y \(minimumSubChunkY)…\(maximumSubChunkY)")
+                parts.append("Y\(minimumSubChunkY)-Y\(maximumSubChunkY)")
             }
         }
         if hasLegacyTerrain { parts.append("LegacyTerrain 1（8 虚拟切片）") }
@@ -78,6 +87,8 @@ final class BedrockChunkStore {
         struct Accumulator {
             var records = 0
             var subChunkYs = Set<Int8>()
+            var subChunkVersions = Set<UInt8>()
+            var hasUnknownSubChunkVersion = false
             var hasLegacyTerrain = false
             var hasBlockEntities = false
             var hasLegacyEntities = false
@@ -92,7 +103,12 @@ final class BedrockChunkStore {
             if let key = BedrockDBKey.parse(entry.key) {
                 var value = chunks[key.position] ?? Accumulator()
                 value.records += 1
-                if key.recordType == .subChunk, let y = key.subChunkIndex { value.subChunkYs.insert(y) }
+                if key.recordType == .subChunk, let y = key.subChunkIndex {
+                    value.subChunkYs.insert(y)
+                    if let version = try session.database().get(entry.key)?.first {
+                        value.subChunkVersions.insert(version)
+                    } else { value.hasUnknownSubChunkVersion = true }
+                }
                 if key.recordType == .legacyTerrain { value.hasLegacyTerrain = true }
                 if key.recordType == .blockEntity { value.hasBlockEntities = true }
                 if key.recordType == .entity { value.hasLegacyEntities = true }
@@ -122,7 +138,9 @@ final class BedrockChunkStore {
                 hasLegacyEntities: accumulator.hasLegacyEntities,
                 hasActorDigest: accumulator.hasActorDigest,
                 biomeRecordType: accumulator.biomeRecordType,
-                hasHardcodedSpawners: accumulator.hasHardcodedSpawners
+                hasHardcodedSpawners: accumulator.hasHardcodedSpawners,
+                subChunkVersions: accumulator.subChunkVersions.sorted(),
+                hasUnknownSubChunkVersion: accumulator.hasUnknownSubChunkVersion
             )
         }.sorted {
             if $0.position.dimension != $1.position.dimension { return $0.position.dimension < $1.position.dimension }
@@ -134,6 +152,8 @@ final class BedrockChunkStore {
     func summary(at position: ChunkPosition) throws -> BedrockChunkSummary {
         let records = try rawChunkRecords(at: position, includeValues: false)
         var subChunkYs = Set<Int8>()
+        var subChunkVersions = Set<UInt8>()
+        var hasUnknownSubChunkVersion = false
         var hasLegacyTerrain = false
         var hasBlockEntities = false
         var hasLegacyEntities = false
@@ -142,7 +162,12 @@ final class BedrockChunkStore {
 
         for record in records {
             guard let parsed = BedrockDBKey.parse(record.key), parsed.position == position else { continue }
-            if parsed.recordType == .subChunk, let y = parsed.subChunkIndex { subChunkYs.insert(y) }
+            if parsed.recordType == .subChunk, let y = parsed.subChunkIndex {
+                subChunkYs.insert(y)
+                if let version = try session.database().get(record.key)?.first {
+                    subChunkVersions.insert(version)
+                } else { hasUnknownSubChunkVersion = true }
+            }
             if parsed.recordType == .legacyTerrain { hasLegacyTerrain = true }
             if parsed.recordType == .blockEntity { hasBlockEntities = true }
             if parsed.recordType == .entity { hasLegacyEntities = true }
@@ -168,7 +193,9 @@ final class BedrockChunkStore {
             hasLegacyEntities: hasLegacyEntities,
             hasActorDigest: digestCount > 0,
             biomeRecordType: biomeRecordType,
-            hasHardcodedSpawners: hasHardcodedSpawners
+            hasHardcodedSpawners: hasHardcodedSpawners,
+            subChunkVersions: subChunkVersions.sorted(),
+            hasUnknownSubChunkVersion: hasUnknownSubChunkVersion
         )
     }
 

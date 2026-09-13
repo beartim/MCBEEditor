@@ -16,8 +16,20 @@ public sealed record BedrockChunkSummary(
     bool HasLegacyEntities,
     bool HasActorDigest,
     ChunkRecordType? BiomeRecordType,
-    bool HasHardcodedSpawners)
+    bool HasHardcodedSpawners,
+    IReadOnlyList<byte>? SubChunkVersions = null,
+    bool HasUnknownSubChunkVersion = false)
 {
+    public string SubChunkVersionText
+    {
+        get
+        {
+            if (SubChunkCount == 0) return "—";
+            var versions = (SubChunkVersions ?? []).Order().Select(v => $"v{v}").ToList();
+            if (HasUnknownSubChunkVersion || versions.Count == 0) versions.Add("未知版本");
+            return string.Join("/", versions);
+        }
+    }
     public bool HasTerrain => SubChunkCount > 0 || HasLegacyTerrain;
     public string DimensionText => Position.DimensionName;
     public int X => Position.X;
@@ -31,9 +43,9 @@ public sealed record BedrockChunkSummary(
             var parts = new List<string> { $"记录 {RecordCount}" };
             if (SubChunkCount > 0)
             {
-                parts.Add($"SubChunk {SubChunkCount}");
+                parts.Add($"SubChunk {SubChunkVersionText}");
                 if (MinimumSubChunkY.HasValue && MaximumSubChunkY.HasValue)
-                    parts.Add($"Y {MinimumSubChunkY.Value}…{MaximumSubChunkY.Value}");
+                    parts.Add($"Y{MinimumSubChunkY.Value}-Y{MaximumSubChunkY.Value}");
             }
             if (HasLegacyTerrain) parts.Add("LegacyTerrain 1（8 虚拟切片）");
             if (BiomeRecordType is { } biome) parts.Add($"生物群系 {biome.DisplayName()}");
@@ -96,7 +108,12 @@ public sealed class BedrockChunkStore
                 if (!chunks.TryGetValue(key.Position, out var value)) value = new Accumulator();
                 value.Records++;
                 if (key.RecordType == ChunkRecordType.SubChunk && key.SubChunkIndex is sbyte y)
+                {
                     value.SubChunkYs.Add(y);
+                    var bytes = _database.Get(entry.Key);
+                    if (bytes is { Length: > 0 }) value.SubChunkVersions.Add(bytes[0]);
+                    else value.HasUnknownSubChunkVersion = true;
+                }
                 if (key.RecordType == ChunkRecordType.LegacyTerrain) value.HasLegacyTerrain = true;
                 if (key.RecordType == ChunkRecordType.BlockEntity) value.HasBlockEntities = true;
                 if (key.RecordType == ChunkRecordType.Entity) value.HasLegacyEntities = true;
@@ -133,7 +150,13 @@ public sealed class BedrockChunkStore
         {
             if (!BedrockDbKey.TryParse(entry.Key, out var key) || key.Position != position) continue;
             acc.Records++;
-            if (key.RecordType == ChunkRecordType.SubChunk && key.SubChunkIndex is sbyte y) acc.SubChunkYs.Add(y);
+            if (key.RecordType == ChunkRecordType.SubChunk && key.SubChunkIndex is sbyte y)
+            {
+                acc.SubChunkYs.Add(y);
+                var bytes = _database.Get(entry.Key);
+                if (bytes is { Length: > 0 }) acc.SubChunkVersions.Add(bytes[0]);
+                else acc.HasUnknownSubChunkVersion = true;
+            }
             if (key.RecordType == ChunkRecordType.LegacyTerrain) acc.HasLegacyTerrain = true;
             if (key.RecordType == ChunkRecordType.BlockEntity) acc.HasBlockEntities = true;
             if (key.RecordType == ChunkRecordType.Entity) acc.HasLegacyEntities = true;
@@ -496,12 +519,16 @@ public sealed class BedrockChunkStore
             value.HasLegacyEntities,
             value.HasActorDigest,
             value.BiomeRecordType,
-            value.HasHardcodedSpawners);
+            value.HasHardcodedSpawners,
+            value.SubChunkVersions.Order().ToArray(),
+            value.HasUnknownSubChunkVersion);
 
     private sealed class Accumulator
     {
         public int Records;
         public HashSet<sbyte> SubChunkYs { get; } = [];
+        public HashSet<byte> SubChunkVersions { get; } = [];
+        public bool HasUnknownSubChunkVersion;
         public bool HasLegacyTerrain;
         public bool HasBlockEntities;
         public bool HasLegacyEntities;

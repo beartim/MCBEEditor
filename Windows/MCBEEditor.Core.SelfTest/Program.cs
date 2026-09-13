@@ -2615,6 +2615,8 @@ Console.WriteLine("MCBEEditor.Core self-test passed; external colour override ro
 EndMissingSubChunkTests.Run();
 PersistenceCompatibilityTests.Run();
 
+CommandExtensionTests.Run();
+
 sealed class SelfTestWorldDatabase : MCBEEditor.Core.World.IWorldDatabase
 {
     private readonly Dictionary<string, (byte[] Key, byte[] Value)> _values = new(StringComparer.Ordinal);

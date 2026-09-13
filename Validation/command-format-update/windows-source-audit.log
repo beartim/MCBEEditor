@@ -1,0 +1,4 @@
+NBT visible-node scope audit passed
+XAML handler audit passed: 95 handlers
+Windows full parity/dead-code audit regression checks passed
+Windows NBT parity, portable icon and cleanup regression checks passed

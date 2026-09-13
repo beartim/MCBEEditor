@@ -1,0 +1,4 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Windows JSON structure imported successfully by iOS codec
+Structure mcstructure/Big Endian NBT/typed JSON export and reimport passed
+Structure NBT discovery, endian conversion, rename and delete tests passed

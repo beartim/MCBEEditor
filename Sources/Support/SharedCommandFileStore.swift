@@ -206,10 +206,14 @@ storage clear 维度 x y z 保留到的层数
 示例：storage delete overworld 0 64 0 8
 示例：storage clear overworld 0 64 0 1
 
+structure query
+structure import [名称]
+structure export mcstructure|nbt|json [名称]
+query 每行显示一个结构；import 打开文件选择器，export 打开保存窗口；省略名称时通过窗口选择或输入；nbt 为 Big Endian，mcstructure 为 Little Endian。
 structure save 名称 维度 x1 y1 z1 x2 y2 z2
 structure load 名称 维度 x y z
 structure delete 名称或ALL
-名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。
+save/load/delete 的名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。
 示例：structure save mystructure:1 overworld 0 0 0 50 50 50
 
 summon 实体类型 实体维度 x y z NBT标签或default
@@ -245,6 +249,8 @@ day=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201�
 示例：time ceil sunset
 示例：time floor midnight
 
+weather query
+query 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻，缺失标签显示 NULL。
 weather clear 0或1
 weather rain 持续游戏刻 强度 0或1
 weather thunder 持续游戏刻 强度 0或1

@@ -157,7 +157,7 @@ enum NBTJSONCodec {
     case .list(let type, let values):
       return [
         "type": typeName(type),
-        "value": values.map(encodePayload),
+        "value": values.map(encodeTag),
       ] as [String: Any]
     case .compound(let tags):
       var dictionary = [String: Any]()
@@ -260,7 +260,13 @@ enum NBTJSONCodec {
           return .list(.end, [])
         }
         let values = try items.enumerated().map { index, item in
-          if let tagged = item as? [String: Any], tagged["type"] != nil {
+          // Older iOS exports stored child List payloads without their outer tag.
+          if elementType == .list, let nested = item as? [String: Any],
+             nested["type"] is String, nested["value"] is [Any],
+             let legacy = try? decodePayload(type: .list, payload: nested, path: "\(path)[\(index)]") {
+            return legacy
+          }
+          if let tagged = item as? [String: Any], tagged["type"] is String {
             let value = try decodeTag(tagged, path: "\(path)[\(index)]")
             guard value.type == elementType else {
               throw MCBEEditorError.malformedData("\(path)[\(index)] 类型与 List 元素类型不一致")

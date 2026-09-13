@@ -1,0 +1,30 @@
+MCBEEditor.Core self-test passed; all Swift parity vectors matched.
+MCBEEditor.Core self-test passed; write safety, raw chunk deletion, actor cleanup, commands and DB browser behavior matched expectations.
+MCBEEditor.Core self-test passed; Y-surface rendering, negative coordinates, multi-storage selection, ungenerated texture and core block colours matched expectations.
+MCBEEditor.Core self-test passed; players, modern actor digp/actorprefix, block entities and safe in-place NBT saving matched expectations.
+MCBEEditor.Core self-test passed; NBT search/file tools and modern/legacy entity ownership relocation matched expectations.
+MCBEEditor.Core self-test passed; entity creation/import, legacy-modern storage selection, batch deletion and block-entity NBT creation matched expectations.
+MCBEEditor.Core self-test passed; modern palette edits, legacy 0x34 storage, and atomic block-entity/block relocation matched expectations.
+MCBEEditor.Core self-test passed; selectors, spawn points, Auto teleport/spread, actor relocation and XP storage matched iOS command semantics.
+MCBEEditor.Core self-test passed; clear/give/effect/kill/kick/summon matched current iOS command semantics.
+MCBEEditor.Core self-test passed; daylock/time/weather and tickingarea persistence matched current iOS command semantics.
+MCBEEditor.Core self-test passed; structuretemplate save/load/delete, palette blocks and BlockEntity offsets matched current iOS semantics.
+MCBEEditor.Core self-test passed; metadata/structure/village NBT workspace stores and legacy nested writes matched current iOS semantics.
+MCBEEditor.Core self-test passed; height/biome/ticking/slime map modes matched current iOS semantics.
+MCBEEditor.Core self-test passed; LegacyTerrain mapping and source-isolated portable working copies matched expectations.
+MCBEEditor.Core self-test passed; standalone/compressed NBT and Java-to-Bedrock mcstructure conversion matched current iOS semantics.
+MCBEEditor.Core self-test passed; per-chunk biome editing, contextual ticking-area management and village resident shortcuts matched current iOS semantics.
+MCBEEditor.Core self-test passed; dynamic-map sampling, exact coordinate mapping and village POI relationship references matched current iOS semantics.
+MCBEEditor.Core self-test passed; desktop edge-preload and detail-first map sampling policies matched the Windows parity target.
+MCBEEditor.Core self-test passed; block pickers and ungenerated map textures matched the iOS parity target.
+MCBEEditor.Core self-test passed; X/Z current-chunk and 128-block projection rules matched iOS.
+MCBEEditor.Core self-test passed; data-value catalogs, weather/time/experience tools and .mcworld export matched current iOS semantics.
+MCBEEditor.Core self-test passed; map overlay stores and selected-region search/replace matched the Windows parity layer.
+MCBEEditor.Core self-test passed; storage array mutation, biome codecs/fill and command parsing matched the iOS semantics.
+MCBEEditor.Core self-test passed; typed state parsing, bulk fill, legacy promotion, overlap-safe clone, BlockEntity snapshot replacement and missing-source generation matched expectations.
+MCBEEditor.Core self-test passed; X/Y/Z modes, 129-block mineral projection, missing-section air fallback, projected selection coordinates and height limits matched expectations.
+MCBEEditor.Core self-test passed; external colour override routing and bidirectional x/y/z projection matched expectations.
+End missing-SubChunk fixture tests passed: editing templates, v1/v8 creation, 255 storages and clone.
+Persistence compatibility matrix passed: numeric/v1/v8/v9, val/states, missing chunks/slices, empty layers and atomic rejection.
+iOS JSON structure imported successfully by Windows codec.
+Command extensions passed: parsing, readonly queries, mixed SubChunk versions, all structure export/import formats.

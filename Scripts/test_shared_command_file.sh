@@ -69,12 +69,12 @@ require 'return index == commandTabIndex' "$DETAIL"
 # command is appended immediately, then each result is synchronously appended
 # on main before the next command starts. Runtime failures do not stop later
 # commands, and world invalidation happens once after the batch.
-require 'for item in commands {' "$COMMAND_UI"
-require 'DispatchQueue.main.sync {' "$COMMAND_UI"
+require 'func next(_ index: Int) {' "$COMMAND_UI"
+require 'DispatchQueue.main.async { next(index + 1) }' "$COMMAND_UI"
 require 'self.appendOutput("[第 \(item.lineNumber) 行] > \(item.rawText)")' "$COMMAND_UI"
-require 'let result = try self.executor.execute(item.command)' "$COMMAND_UI"
-require 'self.appendResult(result)' "$COMMAND_UI"
-require 'self.appendOutput("错误：\(message)", color: .systemRed)' "$COMMAND_UI"
+require 'self.executeParsedCommand(item.command) { result in' "$COMMAND_UI"
+require 'self.appendResult(value)' "$COMMAND_UI"
+require 'self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)' "$COMMAND_UI"
 require '其余命令已继续执行' "$COMMAND_UI"
 require 'self.session.notifyAfterDatabaseMutation()' "$COMMAND_UI"
 

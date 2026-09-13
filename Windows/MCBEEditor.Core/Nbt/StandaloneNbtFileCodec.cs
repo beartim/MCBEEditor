@@ -6,6 +6,8 @@ using MCBEEditor.Core.World;
 
 namespace MCBEEditor.Core.Nbt;
 
+public enum StructureFileFormat { Mcstructure, Nbt, Json }
+
 public enum StandaloneNbtStorageKind { Single, Consecutive }
 
 public sealed record StandaloneNbtFile(
@@ -99,6 +101,14 @@ public static class StandaloneNbtFileCodec
         }
         return stream.ToArray();
     }
+
+    public static byte[] EncodeStructure(NbtDocument document, StructureFileFormat format) => format switch
+    {
+        StructureFileFormat.Mcstructure => EncodeAsMcStructure([document]).Data,
+        StructureFileFormat.Nbt => Encode([document], NbtEncoding.BigEndian),
+        StructureFileFormat.Json => EncodeJson([document]),
+        _ => throw new InvalidDataException("未知结构导出格式。")
+    };
 
     public static byte[] EncodeJson(IReadOnlyList<NbtDocument> documents)
     {

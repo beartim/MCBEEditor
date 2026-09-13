@@ -27,15 +27,14 @@
                 <TextBlock Grid.Row="0" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                            Foreground="#777777" Text="Windows 版" />
 
-                <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,5,0,0" Orientation="Horizontal">
+                <WrapPanel Grid.Row="1" Grid.Column="0" Margin="0,4,0,0" Orientation="Horizontal">
                     <Button Click="OpenWorld_Click" Padding="9,3">打开世界文件夹</Button>
                     <Button Click="OpenWorldArchive_Click" Margin="5,0,0,0" Padding="9,3">打开 .mcworld / ZIP</Button>
                     <Button Click="OpenStandaloneNbt_Click" Margin="5,0,0,0" Padding="9,3">NBT/mcstructure 工具</Button>
                     <Border Width="1" Height="20" Margin="8,0" Background="#D8D8D8" />
                     <Button Click="ExportMcworld_Click" IsEnabled="{Binding HasWorld}" Padding="9,3">导出 .mcworld</Button>
-                    <Button Click="Reload_Click" IsEnabled="{Binding HasWorld}" Margin="5,0,0,0" Padding="9,3">重新读取源存档</Button>
-                    <Button Click="AboutLicense_Click" Margin="5,0,0,0" Padding="9,3">说明与许可证</Button>
                 </WrapPanel>
+                <Button Grid.Row="1" Grid.Column="1" Click="AboutLicense_Click" Margin="10,4,0,0" Padding="9,3">说明与许可证</Button>
             </Grid>
         </Border>
 
@@ -407,7 +406,7 @@
                             <DataGridTextColumn Header="X" Binding="{Binding X}" Width="90" />
                             <DataGridTextColumn Header="Z" Binding="{Binding Z}" Width="90" />
                             <DataGridTextColumn Header="生成情况" Binding="{Binding GenerationText}" Width="105" />
-                            <DataGridTextColumn Header="SubChunk" Binding="{Binding SubChunkCount}" Width="90" />
+                            <DataGridTextColumn Header="SubChunk" Binding="{Binding SubChunkVersionText}" Width="110" />
                             <DataGridTextColumn Header="详情" Binding="{Binding DetailText}" Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>

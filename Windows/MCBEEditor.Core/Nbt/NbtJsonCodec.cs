@@ -166,8 +166,19 @@ public static class NbtJsonCodec
             }
             var decoded = items.Select((item, index) =>
             {
-                var value = item.ValueKind == JsonValueKind.Object && item.TryGetProperty("type", out _)
-                    ? DecodeTag(item, $"{path}[{index}]")
+                // Legacy iOS JSON omits the outer tag around nested List payloads.
+                var legacyList = elementType == NbtTagType.List && item.ValueKind == JsonValueKind.Object
+                    && item.TryGetProperty("value", out var inner) && inner.ValueKind == JsonValueKind.Array;
+                var tagged = item.ValueKind == JsonValueKind.Object && item.TryGetProperty("type", out var tagType)
+                    && tagType.ValueKind == JsonValueKind.String;
+                NbtValue value;
+                if (legacyList)
+                {
+                    try { value = DecodePayload(NbtTagType.List, item, $"{path}[{index}]"); }
+                    catch (InvalidDataException) when (tagged)
+                    { value = DecodeTag(item, $"{path}[{index}]"); }
+                }
+                else value = tagged ? DecodeTag(item, $"{path}[{index}]")
                     : DecodePayload(elementType, item, $"{path}[{index}]");
                 if (value.Type != elementType) throw new InvalidDataException($"{path}[{index}] 类型与 List 元素类型不一致。");
                 return value;
@@ -176,7 +187,7 @@ public static class NbtJsonCodec
         }
 
         if (payload.ValueKind != JsonValueKind.Array) throw TypeError(path, "List 对象或数组");
-        var inferred = payload.EnumerateArray().Select((item, index) => InferValue(item, $"{path}[{index}]")).ToArray();
+        var inferred = payload.EnumerateArray().Select((item, index) => DecodeTag(item, $"{path}[{index}]")).ToArray();
         if (inferred.Length == 0) return new NbtListValue(NbtTagType.End, []);
         var type = inferred[0].Type;
         if (inferred.Any(value => value.Type != type)) throw new InvalidDataException($"{path} 的 List 元素类型不一致。");
