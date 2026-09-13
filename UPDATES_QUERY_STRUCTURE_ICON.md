@@ -5,7 +5,7 @@
 ## 本次修改
 
 - 区块列表与 `chunk query` 读取实际 SubChunk 数据头的版本。例如 `SubChunk v8 · Y0-Y4`。同一区块存在多种版本时显示 `SubChunk v8/v9`；空数据头明确显示“未知版本”，不会冒充 v0。负高度显示如 `Y-4-Y4`。
-- `weather query` 读取并打印 `rainLevel`、`rainTime`、`lightningLevel`、`lightningTime`、`doWeatherCycle`。时间单位为游戏刻，原始标签缺失时打印 `NULL`。查询不修改 level.dat 或数据库。
+- `weather query` 读取并打印 `rainLevel`、`rainTime`、`lightningLevel`、`lightningTime`、`doWeatherCycle`。时间单位为游戏刻；`doWeatherCycle` 缺失时打印 `1`（与天气界面默认开关一致），其他原始标签缺失时打印 `NULL`。查询不修改 level.dat 或数据库。
 - `structure query` 每行输出一个已保存结构的名称、尺寸、原点、格式版本和数据大小（按实际存在的字段显示）。无法解析的结构也列出并标记。无结构时明确提示。
 - 新增结构文件导入／导出命令，使用系统文件选择／保存窗口。同名导入确认替换；取消不修改存档。Command.txt 会等待文件窗口完成或取消，再继续下一条命令。
 - 结构 NBT 列表及编辑器均可选择 mcstructure、NBT、JSON 导出格式；Windows 多选结构导出也可以统一选择格式。编辑器导出包含当前已应用到树中的未保存编辑。

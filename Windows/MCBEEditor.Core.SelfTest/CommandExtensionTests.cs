@@ -52,6 +52,20 @@ internal static class CommandExtensionTests
             foreach (var field in new[] { "rainLevel=0.25", "rainTime=123", "lightningLevel=0.5", "lightningTime=456", "doWeatherCycle=0" })
                 Check(result.Message.Contains(field), "query weather field " + field);
             Check(File.ReadAllBytes(Path.Combine(root, "level.dat")).SequenceEqual(before), "query leaves level.dat identical");
+
+            foreach (sbyte? cycle in new sbyte?[] { null, 0, 1 })
+            {
+                var tags = new List<NbtNamedTag>();
+                if (cycle.HasValue) tags.Add(new("doWeatherCycle", new NbtByteValue(cycle.Value)));
+                world.WriteLevelDat(new LevelDatFile(10, new NbtDocument("", new NbtCompoundValue(tags))));
+                before = File.ReadAllBytes(Path.Combine(root, "level.dat"));
+                result = new EnvironmentCommandStore(world, db).Execute(weather);
+                Check(result.Message == $"rainLevel=NULL\nrainTime=NULL\nlightningLevel=NULL\nlightningTime=NULL\ndoWeatherCycle={cycle ?? 1}",
+                    "only missing doWeatherCycle defaults to 1; explicit values are retained");
+                Check(WorldWeatherStore.Read(world).AutomaticChange == (cycle != 0), "query agrees with weather UI switch");
+                Check(!result.ChangedWorld && File.ReadAllBytes(Path.Combine(root, "level.dat")).SequenceEqual(before),
+                    "defaulted query does not write missing tags");
+            }
         }
         finally { Directory.Delete(root, true); }
 

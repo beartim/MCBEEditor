@@ -11,8 +11,8 @@ namespace MCBEEditor.Core.Entity;
 /// by atomically migrating their 8-byte actor reference between digp records.
 /// Legacy Entity(0x32) records are migrated between chunk records. BlockEntity
 /// coordinate moves are now coupled to their complete block storage layers in
-/// the same LevelDB WriteBatch. Entity UniqueID remains immutable when editing
-/// existing objects.
+/// the same LevelDB WriteBatch. Entity UniqueID edits change only the NBT value;
+/// actorprefix keys and their raw digp references retain their storage identity.
 /// </summary>
 public sealed class BedrockWorldObjectNbtStore
 {
@@ -45,7 +45,6 @@ public sealed class BedrockWorldObjectNbtStore
         var editedDimension = parsedDimension ?? item.Dimension;
         var editedChunkX = editedPosition is null ? item.ChunkX : BedrockWorldObjectScanner.FloorDiv(editedPosition.BlockX, 16);
         var editedChunkZ = editedPosition is null ? item.ChunkZ : BedrockWorldObjectScanner.FloorDiv(editedPosition.BlockZ, 16);
-        var moving = editedDimension != item.Dimension || editedChunkX != item.ChunkX || editedChunkZ != item.ChunkZ;
         var blockEntityLocationChanged = item.Kind == BedrockWorldObjectKind.BlockEntity
             && item.Position is { } originalBlockPosition
             && editedPosition is { } newBlockPosition
@@ -56,10 +55,14 @@ public sealed class BedrockWorldObjectNbtStore
 
         if (item.Kind == BedrockWorldObjectKind.Entity)
         {
-            var originalId = item.Document.Root.CompoundValueIgnoreCase("UniqueID", "UniqueId", "uniqueID", "uniqueId")?.IntegerValue();
-            var editedId = edited.Root.CompoundValueIgnoreCase("UniqueID", "UniqueId", "uniqueID", "uniqueId")?.IntegerValue();
-            if (originalId != editedId)
-                throw new InvalidOperationException("暂不允许修改实体 UniqueID；该值与世界内其他引用有关。");
+            var originalId = BedrockEntityCommonNbt.UniqueId(item.Document.Root);
+            var editedId = BedrockEntityCommonNbt.UniqueId(edited.Root);
+            if (originalId is not null && editedId is null)
+                throw new InvalidOperationException("UniqueID 可以修改，但不能删除、重命名或改为无效值。");
+            if (editedId == 0)
+                throw new InvalidDataException("实体 UniqueID 不能为 0。");
+            if (editedId is long newId && newId != originalId)
+                EnsureUniqueIdAvailable(newId);
         }
         else if (editedPosition is { } blockPosition)
         {
@@ -306,8 +309,8 @@ public sealed class BedrockWorldObjectNbtStore
         sourceRecords.RemoveAt(sourceIndex);
         var destinationRaw = _database.Get(destinationKey);
         var destinationRecords = destinationRaw is null ? new List<ConsecutiveNbtRecord>() : ConsecutiveNbtCodec.Decode(destinationRaw).ToList();
-        if (item.UniqueId is long uniqueId && destinationRecords.Any(record =>
-                record.Document.Root.CompoundValueIgnoreCase("UniqueID", "UniqueId", "uniqueID", "uniqueId")?.IntegerValue() == uniqueId))
+        if (BedrockEntityCommonNbt.UniqueId(edited.Root) is long uniqueId && destinationRecords.Any(record =>
+                BedrockEntityCommonNbt.UniqueId(record.Document.Root) == uniqueId))
             throw new InvalidOperationException("目标区块已经存在相同 UniqueID 的旧式实体，拒绝重复迁移。");
         var destinationEncoding = destinationRecords.Count > 0 ? destinationRecords[0].Encoding : originalRecord.Encoding;
         if (destinationRecords.Any(record => record.Encoding != destinationEncoding))

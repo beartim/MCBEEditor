@@ -159,7 +159,8 @@ final class WorldCommandExecutor {
             let root = try session.document.readLevelDat().document.root
             guard case .compound = root else { throw MCBEEditorError.malformedData("level.dat 根标签不是 Compound") }
             let lines = ["rainLevel", "rainTime", "lightningLevel", "lightningTime", "doWeatherCycle"].map { name in
-                "\(name)=\(root.compoundValue(named: name).map(CommandNBTOutputFormatter.root) ?? "NULL")"
+                let fallback = name == "doWeatherCycle" ? "1" : "NULL"
+                return "\(name)=\(root.compoundValue(named: name).map(CommandNBTOutputFormatter.root) ?? fallback)"
             }
             return WorldCommandExecutionResult(message: lines.joined(separator: "\n"), changedWorld: false)
         case .weather(let settings):

@@ -4120,6 +4120,24 @@ struct EffectCommandTest {
         let weatherAfter = try Data(contentsOf: session.document.levelDatURL)
         precondition(weatherBefore == weatherAfter)
 
+        for cycle: Int8? in [nil, 0, 1] {
+            var queryFile = try session.document.readLevelDat()
+            guard case .compound(var queryTags) = queryFile.document.root else { preconditionFailure("weather fixture root") }
+            queryTags.removeAll { $0.name == "doWeatherCycle" || $0.name == "rainTime" }
+            if let cycle = cycle { queryTags.append(NBTNamedTag(name: "doWeatherCycle", value: .byte(cycle))) }
+            queryFile.document.root = .compound(queryTags)
+            try session.document.writeLevelDat(queryFile)
+            let beforeQuery = try Data(contentsOf: session.document.levelDatURL)
+            let result = try executor.execute(try WorldCommandParser.parse("weather query"))
+            let lines = result.message.components(separatedBy: "\n")
+            precondition(lines.count == 5 && lines.contains("doWeatherCycle=\(cycle ?? 1)"))
+            precondition(lines.contains("rainTime=NULL"))
+            let uiWeather = try WeatherStore(session: session).read()
+            precondition(uiWeather.automaticChange == (cycle != 0))
+            let afterQuery = try Data(contentsOf: session.document.levelDatURL)
+            precondition(!result.changedWorld && beforeQuery == afterQuery)
+        }
+
 
         let daylock = try executor.execute(try WorldCommandParser.parse("daylock 0"))
         precondition(daylock.changedWorld)

@@ -2,6 +2,8 @@
 
 MCBEEditor Windows 版面向 **Windows 10/11 x64**，使用 C# / WPF、.NET 10 和 Bedrock `leveldb-mcpe` 原生数据库桥。应用版本保持 **1.0.0**，功能语义以当前 iOS 版为基准同步。
 
+最新更新：实体 NBT 的 `UniqueID` 数值可编辑，原始 Actor 存储引用保持不变；`weather query` 缺失 `doWeatherCycle` 时显示 `1`。详见 [更新与验证说明](../UPDATES_UNIQUEID_WEATHER_DEFAULT.md)。
+
 ## 构建
 
 需要：

@@ -1,5 +1,7 @@
 # MCBEEditor iOS 13 rewrite
 
+最新更新：Windows 实体 `UniqueID` 可修改；双端 `weather query` 缺失 `doWeatherCycle` 时显示 `1`。修改细节及实际验证范围见 [UPDATES_UNIQUEID_WEATHER_DEFAULT.md](UPDATES_UNIQUEID_WEATHER_DEFAULT.md)。
+
 2026-09-10 源码审查版：修正 NBT 状态配色、旧版数字编号转换、异常数据边界与命令文件读取，合并重复转换和解压逻辑。详细修改及验证范围见 [CHANGES_SOURCE_AUDIT_20260910.md](CHANGES_SOURCE_AUDIT_20260910.md)。版本仍为 1.0.0（100）；本次仅完成静态验证，Swift/Xcode 行为测试尚未运行。
 
 ## 1.0.0 命令层全 storage、getblock 与 storage 命令

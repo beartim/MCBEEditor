@@ -250,7 +250,7 @@ day=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201�
 示例：time floor midnight
 
 weather query
-query 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻，缺失标签显示 NULL。
+query 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻；doWeatherCycle 缺失时显示 1，与天气界面默认开关一致，其他缺失标签显示 NULL。
 weather clear 0或1
 weather rain 持续游戏刻 强度 0或1
 weather thunder 持续游戏刻 强度 0或1

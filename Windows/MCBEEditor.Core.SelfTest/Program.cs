@@ -475,10 +475,10 @@ using (var entityMoveDb = new SelfTestWorldDatabase())
         new NbtNamedTag("DimensionId", new NbtIntValue(1)),
         new NbtNamedTag("Pos", new NbtListValue(NbtTagType.Float, [new NbtFloatValue(40f), new NbtFloatValue(70f), new NbtFloatValue(1f)]))
     ]));
-    var uniqueIdRejected = false;
-    try { new BedrockWorldObjectNbtStore(entityMoveDb).Save(movedScan.Objects[0], changedId); }
-    catch (InvalidOperationException) { uniqueIdRejected = true; }
-    Assert(uniqueIdRejected, " still protects entity UniqueID");
+    new BedrockWorldObjectNbtStore(entityMoveDb).Save(movedScan.Objects[0], changedId);
+    Assert(BedrockNbtCodec.Decode(entityMoveDb.Get(actorKey)!).Root.CompoundValue("UniqueID")?.IntegerValue() == 456790,
+        " entity UniqueID edits preserve the actor key");
+    Assert(entityMoveDb.Get(newDigestKey)!.SequenceEqual(actorReference), " UniqueID edits preserve raw digp references");
 }
 
 using (var legacyMoveDb = new SelfTestWorldDatabase())
@@ -2616,6 +2616,7 @@ EndMissingSubChunkTests.Run();
 PersistenceCompatibilityTests.Run();
 
 CommandExtensionTests.Run();
+EntityUniqueIdEditTests.Run();
 
 sealed class SelfTestWorldDatabase : MCBEEditor.Core.World.IWorldDatabase
 {

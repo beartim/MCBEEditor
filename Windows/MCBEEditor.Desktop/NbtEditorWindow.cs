@@ -16,6 +16,7 @@ public sealed class NbtEditorWindow : Window
     private readonly string _rootName;
     private readonly Func<NbtDocument, Task>? _saveAsync;
     private readonly HashSet<string> _protectedRootNames;
+    private readonly bool _allowProtectedValueEdits;
     private readonly NbtEncoding _fileEncoding;
     private readonly string? _structureName;
     private readonly TreeView _tree = new();
@@ -44,7 +45,8 @@ public sealed class NbtEditorWindow : Window
     public bool DidSave { get; private set; }
 
     public NbtEditorWindow(string title, NbtDocument document, Func<NbtDocument, Task>? saveAsync = null,
-        IEnumerable<string>? protectedRootNames = null, NbtEncoding fileEncoding = NbtEncoding.LittleEndian, string? structureName = null)
+        IEnumerable<string>? protectedRootNames = null, NbtEncoding fileEncoding = NbtEncoding.LittleEndian, string? structureName = null,
+        bool allowProtectedValueEdits = false)
     {
         Title = title;
         Width = 1040;
@@ -57,6 +59,7 @@ public sealed class NbtEditorWindow : Window
         _fileEncoding = fileEncoding;
         _structureName = structureName;
         _protectedRootNames = new HashSet<string>(protectedRootNames ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        _allowProtectedValueEdits = allowProtectedValueEdits;
         _root = NbtEditorNode.Create(document.RootName.Length == 0 ? "<root>" : document.RootName, NbtDocumentTools.DeepClone(document.Root), null, true);
         Content = BuildUi();
         PopulateTree();
@@ -247,11 +250,13 @@ public sealed class NbtEditorWindow : Window
         _typeText.Text = node.Value.Type.ToString();
         _valueText.Text = ScalarText(node.Value);
 
-        var editable = IsEditableScalar(node.Value) && _saveAsync is not null && !IsProtected(node);
+        var editable = CanEditValue(node);
         _valueText.IsReadOnly = !editable;
         _applyButton.IsEnabled = editable;
         if (IsProtected(node))
-            _hintText.Text = "此字段会影响实体身份或受保护的存储属性，当前保持只读。";
+            _hintText.Text = editable
+                ? "UniqueID 数值可修改，标签不能删除或重命名；保存时检查是否已被其他实体占用，Actor 存储引用保持不变。"
+                : "此字段会影响实体身份或受保护的存储属性，当前保持只读。";
         else if (_saveAsync is null)
             _hintText.Text = "此 NBT 以只读方式打开。搜索、复制和导出仍可使用。";
         else if (!IsEditableScalar(node.Value))
@@ -272,6 +277,10 @@ public sealed class NbtEditorWindow : Window
             if (cursor.Parent.IsRoot && _protectedRootNames.Contains(cursor.Name)) return true;
         return false;
     }
+
+    private bool CanEditValue(NbtEditorNode node)
+        => _saveAsync is not null && IsEditableScalar(node.Value)
+            && (!IsProtected(node) || (_allowProtectedValueEdits && node.Parent?.IsRoot == true));
 
     private static bool IsEditableScalar(NbtValue value) => value switch
     {
@@ -305,7 +314,7 @@ public sealed class NbtEditorWindow : Window
     private bool TryApplyCurrent(bool showErrors)
     {
         var node = _selected;
-        if (node is null || !IsEditableScalar(node.Value) || IsProtected(node) || _saveAsync is null) return true;
+        if (node is null || !CanEditValue(node)) return true;
         try
         {
             node.Value = ParseEditableValue(node.Value.Type, _valueText.Text);

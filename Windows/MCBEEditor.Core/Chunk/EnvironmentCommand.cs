@@ -418,7 +418,11 @@ public sealed class EnvironmentCommandStore
         var root = _document.ReadLevelDat().Document.Root;
         if (root is not NbtCompoundValue) throw new InvalidDataException("level.dat 根标签不是 Compound。");
         var lines = new[] { "rainLevel", "rainTime", "lightningLevel", "lightningTime", "doWeatherCycle" }
-            .Select(name => $"{name}={(root.CompoundValue(name) is { } value ? NbtDocumentTools.SearchValueText(value) : "NULL")}");
+            .Select(name =>
+            {
+                var fallback = name == "doWeatherCycle" ? "1" : "NULL";
+                return $"{name}={(root.CompoundValue(name) is { } value ? NbtDocumentTools.SearchValueText(value) : fallback)}";
+            });
         return TargetingCommandExecutionResult.Success(string.Join("\n", lines), false);
     }
 
