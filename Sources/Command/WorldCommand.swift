@@ -817,7 +817,8 @@ enum WorldCommandParser {
             }
         case "weather":
             if arguments.count == 1, arguments[0].lowercased() == "query" { return .weatherQuery }
-            guard let condition = arguments.first.map { $0.lowercased() }.flatMap(CommandWeatherCondition.init(rawValue:)) else {
+            guard let rawCondition = arguments.first?.lowercased(),
+                  let condition = CommandWeatherCondition(rawValue: rawCondition) else {
                 throw usageError(command)
             }
             switch condition {

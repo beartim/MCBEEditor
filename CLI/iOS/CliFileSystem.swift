@@ -25,12 +25,31 @@ enum CliFileSystem {
         return manager.fileExists(atPath: path.path, isDirectory: &directory) && directory.boolValue
     }
 
+    private static func relativePath(of entry: URL, under root: URL) throws -> String {
+        let rootURL = root.standardizedFileURL.resolvingSymlinksInPath()
+        let entryURL = entry.standardizedFileURL.resolvingSymlinksInPath()
+        let rootComponents = rootURL.pathComponents
+        let entryComponents = entryURL.pathComponents
+
+        guard entryComponents.count > rootComponents.count else {
+            throw CliError.file("世界目录条目无法转换为相对路径：\(entry.path)")
+        }
+        for index in rootComponents.indices {
+            let lhs = rootComponents[index].precomposedStringWithCanonicalMapping
+            let rhs = entryComponents[index].precomposedStringWithCanonicalMapping
+            guard lhs.caseInsensitiveCompare(rhs) == .orderedSame else {
+                throw CliError.file("世界目录条目不属于源目录：\(entry.path)")
+            }
+        }
+        return entryComponents.dropFirst(rootComponents.count).joined(separator: "/")
+    }
+
     static func copyWorld(_ source: URL, to destination: URL) throws {
         if CliWorldPaths.sameOrInside(destination, source) { throw CliError.file("工作副本不能位于源世界内部。") }
         let items = try entries(source)
         try manager.createDirectory(at: destination, withIntermediateDirectories: false)
         for entry in items {
-            let relative = String(entry.path.dropFirst(source.path.count + 1))
+            let relative = try relativePath(of: entry, under: source)
             if relative.lowercased() == "db/lock" { continue }
             let target = destination.appendingPathComponent(relative)
             if isDirectory(entry) {
@@ -51,7 +70,7 @@ enum CliFileSystem {
         var hash = SHA256()
         for entry in try entries(source) {
             let directory = isDirectory(entry)
-            let relative = String(entry.path.dropFirst(source.path.count + 1))
+            let relative = try relativePath(of: entry, under: source)
             hash.update(data: Data(((directory ? "D:" : "F:") + relative + "\0").utf8))
             if !directory { hash.update(data: try fileHash(entry)) }
         }

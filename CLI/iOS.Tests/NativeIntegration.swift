@@ -239,7 +239,7 @@ enum NativeIntegration {
         }
         let interactiveArchive = root.appendingPathComponent("interactive.mcworld")
         try manager.copyItem(at: saved, to: interactiveArchive)
-        var interactiveLines = [
+        let interactiveLines = [
             ":open \"\(interactiveArchive.path)\" --in-place",
             "time set 1111", ":save", "time set 2222", ":save", ":quit"
         ]
@@ -257,7 +257,7 @@ enum NativeIntegration {
         }
 
         // Stage04c: callback/redirected sessions must stay plain text while :history/:clear remain usable.
-        var plainLines = [":history", ":clear", ":quit"]
+        let plainLines = [":history", ":clear", ":quit"]
         var plainIndex = 0, plainOutput = [String](), plainError = [String]()
         let plainExit = MCBEEditorCli.run(["--interactive"], output: { plainOutput.append($0) }, error: { plainError.append($0) },
             input: { defer { plainIndex += 1 }; return plainIndex < plainLines.count ? plainLines[plainIndex] : nil }, terminalFeatures: false)
@@ -280,7 +280,7 @@ enum NativeIntegration {
         // Runtime failures continue later Command.txt lines. A user may save successful edits, but final session status remains failed.
         let commandBatchArchive = root.appendingPathComponent("command-batch.mcworld")
         try manager.copyItem(at: saved, to: commandBatchArchive)
-        var batchLines = [":open \"\(commandBatchArchive.path)\" --in-place", "y", ":save", ":quit"]
+        let batchLines = [":open \"\(commandBatchArchive.path)\" --in-place", "y", ":save", ":quit"]
         var batchIndex = 0, batchOutput = [String](), batchError = [String]()
         let batchExit = MCBEEditorCli.run(["--interactive"], output: { batchOutput.append($0) }, error: { batchError.append($0) },
             input: { defer { batchIndex += 1 }; return batchIndex < batchLines.count ? batchLines[batchIndex] : nil },
@@ -302,7 +302,7 @@ enum NativeIntegration {
         try Data("time set 5555\nweather nope\ntime set 6666\n".utf8).write(to: commandFile)
         let commandPreflightArchive = root.appendingPathComponent("command-preflight.mcworld")
         try manager.copyItem(at: saved, to: commandPreflightArchive)
-        var preflightLines = [":open \"\(commandPreflightArchive.path)\" --in-place", "y", ":quit"]
+        let preflightLines = [":open \"\(commandPreflightArchive.path)\" --in-place", "y", ":quit"]
         var preflightIndex = 0, preflightOutput = [String](), preflightError = [String]()
         let preflightExit = MCBEEditorCli.run(["--interactive"], output: { preflightOutput.append($0) }, error: { preflightError.append($0) },
             input: { defer { preflightIndex += 1 }; return preflightIndex < preflightLines.count ? preflightLines[preflightIndex] : nil },

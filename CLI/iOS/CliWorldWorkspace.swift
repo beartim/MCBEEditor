@@ -29,7 +29,7 @@ final class CliWorldWorkspace {
             if paths.isDirectory {
                 world = root.appendingPathComponent("World", isDirectory: true)
                 container = nil
-                try validateWorld(paths.source)
+                try validateWorld(paths.source, context: "源世界")
                 try CliFileSystem.copyWorld(paths.source, to: world)
             } else {
                 let extracted = root.appendingPathComponent("Container", isDirectory: true)
@@ -37,7 +37,7 @@ final class CliWorldWorkspace {
                 world = try locateWorld(extracted)
                 container = extracted
             }
-            try validateWorld(world)
+            try validateWorld(world, context: "工作副本")
             let workspace = CliWorldWorkspace(paths: paths, root: root, world: world, container: container, stamp: stamp)
             _ = try workspace.session.document.readLevelDat()
             if inPlace { try workspace.requireUnchangedSource() }
@@ -48,10 +48,16 @@ final class CliWorldWorkspace {
         }
     }
 
-    private static func validateWorld(_ root: URL) throws {
-        guard FileManager.default.fileExists(atPath: root.appendingPathComponent("level.dat").path),
-              CliFileSystem.isDirectory(root.appendingPathComponent("db")) else {
-            throw CliError.file("所选世界缺少 level.dat 或 db 文件夹。")
+    private static func validateWorld(_ root: URL, context: String = "所选世界") throws {
+        let levelDat = root.appendingPathComponent("level.dat")
+        let database = root.appendingPathComponent("db", isDirectory: true)
+        let hasLevelDat = FileManager.default.fileExists(atPath: levelDat.path)
+        let hasDatabase = CliFileSystem.isDirectory(database)
+        guard hasLevelDat && hasDatabase else {
+            var missing = [String]()
+            if !hasLevelDat { missing.append("level.dat") }
+            if !hasDatabase { missing.append("db") }
+            throw CliError.file("\(context)缺少 \(missing.joined(separator: "、"))；路径：\(root.path)")
         }
     }
 
