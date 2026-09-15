@@ -1,0 +1,73 @@
+{
+  "generated_utc": "2026-09-14T00:43:59.437035+00:00",
+  "stage": 1,
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "CLI/Tests/source_audit.py"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage01/01-source-audit.log"
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "CLI/Tests/source_audit.py",
+        "CLI/Tests/smoke.py"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage01/02-python-syntax.log"
+    },
+    {
+      "command": [
+        "bash",
+        "-n",
+        "CLI/Scripts/build-swift-host.sh",
+        "CLI/Scripts/build-ios-parser.sh"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage01/03-shell-syntax.log"
+    },
+    {
+      "gate": "GitHub Actions YAML structure",
+      "status": "passed",
+      "log": "CLI/Validation/Stage01/04-workflow-structure.log"
+    },
+    {
+      "gate": "Original source file integrity",
+      "status": "passed",
+      "log": "CLI/Validation/Stage01/05-baseline-integrity.log"
+    },
+    {
+      "gate": "dotnet build CLI/Windows/MCBEEditor.Cli.csproj",
+      "status": "not_run",
+      "reason": "dotnet is not installed; official toolchain endpoint did not connect"
+    },
+    {
+      "gate": "Swift host compile and smoke tests",
+      "status": "not_run",
+      "reason": "swiftc is not installed"
+    },
+    {
+      "gate": "iOS arm64 cross-compile",
+      "status": "not_run",
+      "reason": "Linux host has no Xcode or iPhoneOS SDK"
+    },
+    {
+      "gate": "GitHub Actions workflow",
+      "status": "not_run",
+      "reason": "Workflow added for user execution; no repository or remote run was requested"
+    },
+    {
+      "gate": "World read/write and device compatibility",
+      "status": "not_run",
+      "reason": "Scheduled for stages 02 through 05; stage 01 only provides parser preflight"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "generated_utc": "2026-09-14T07:03:45.245049+00:00",
+  "stage": 2,
+  "scope": "Stage 02 source checks only; not a final audit or runtime certification",
+  "toolchain_log": "CLI/Validation/Stage02/06-toolchain-availability.log",
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "CLI/Tests/source_audit.py"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage02/01-source-audit.log"
+    },
+    {
+      "command": [
+        "python3",
+        "CLI/Tests/stage02_source_audit.py"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage02/02-execution-wiring.log"
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "CLI/Tests/source_audit.py",
+        "CLI/Tests/stage02_source_audit.py",
+        "CLI/Tests/smoke.py"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "log": "CLI/Validation/Stage02/03-python-syntax.log"
+    },
+    {
+      "gate": "GitHub Actions YAML structure",
+      "status": "passed",
+      "log": "CLI/Validation/Stage02/04-workflow-structure.log"
+    },
+    {
+      "gate": "Original source retention and bounded stage changes",
+      "status": "passed",
+      "log": "CLI/Validation/Stage02/05-baseline-integrity.log"
+    },
+    {
+      "gate": "Windows CLI and native LevelDB compilation",
+      "status": "not_run",
+      "reason": "No dotnet, CMake or Windows C++ toolchain in this Linux environment"
+    },
+    {
+      "gate": "PowerShell/CMD build execution",
+      "status": "not_run",
+      "reason": "No PowerShell/Windows runtime in this environment"
+    },
+    {
+      "gate": "Real CLI process/parser tests (135 fixtures plus process/file cases)",
+      "status": "not_run",
+      "reason": "Requires the compiled CLI; compilation unavailable"
+    },
+    {
+      "gate": "EndMissingSubChunkTests, PersistenceCompatibilityTests, CommandExtensionTests",
+      "status": "not_run",
+      "reason": "Requires .NET compilation; no dotnet installed"
+    },
+    {
+      "gate": "Native synthetic-world integration tests",
+      "status": "not_run",
+      "reason": "Requires native fixture executable and compiled Windows CLI"
+    },
+    {
+      "gate": "Swift host/iOS compilation",
+      "status": "not_run",
+      "reason": "No swiftc or Xcode; unchanged backend scheduled for stage 03"
+    },
+    {
+      "gate": "GitHub Actions remote checks",
+      "status": "not_run",
+      "reason": "Workflow source supplied; no remote workflow run was performed"
+    },
+    {
+      "gate": "Game/device compatibility and final exe/deb packages",
+      "status": "not_run",
+      "reason": "Requires later stages and real device/game validation"
+    }
+  ]
+}

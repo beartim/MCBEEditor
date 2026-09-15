@@ -1,0 +1,17 @@
+{
+  "stage": "04d",
+  "status": "source_complete_native_runtime_unverified",
+  "passed": [
+    "stage04d_source_audit.py",
+    "final integrated Swift frontend parse (see ../Stage04e/swift_parse.log)"
+  ],
+  "native_regression_source": [
+    "ReadMe rewrite preserves Command.txt bytes",
+    "runtime Command.txt failure continues later lines and keeps final failure status",
+    "syntax error rejects the whole Command.txt before mutation"
+  ],
+  "not_run": [
+    "Windows native integration test executable",
+    "Apple host native integration test executable"
+  ]
+}

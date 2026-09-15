@@ -1,0 +1,230 @@
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/.github/workflows/build-ios.yml /mnt/data/mcbe_stage05c/MCBEEditor-CLI/.github/workflows/build-ios.yml
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/.github/workflows/build-ios.yml	2026-09-14 02:31:38.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/.github/workflows/build-ios.yml	2026-09-15 07:14:53.909628676 +0000
+@@ -27,13 +27,6 @@
+       - name: Normalize script permissions
+         run: chmod +x Scripts/*.sh
+ 
+-      # A previous ZIP overlay could not delete these tracked files. They are
+-      # obsolete and must not affect the single iOS 13 build configuration.
+-      - name: Remove obsolete files
+-        run: |
+-          rm -f project-ios13-legacy.yml Scripts/bootstrap_ios13_legacy.sh
+-          rm -f Sources/Chunk/MapMarker.swift Sources/UI/MapMarkerListViewController.swift
+-          rm -f Sources/World/WorldBackupService.swift
+ 
+       - name: Select Xcode 15.4
+         run: |
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/.gitignore /mnt/data/mcbe_stage05c/MCBEEditor-CLI/.gitignore
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/.gitignore	2026-09-14 02:31:38.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/.gitignore	2026-09-15 07:14:53.457284472 +0000
+@@ -16,3 +16,12 @@
+ Windows/PortableLauncher/build/
+ Windows/artifacts/
+ Windows/dist/
++
++# CLI build / release / audit outputs
++CLI/**/bin/
++CLI/**/obj/
++CLI/Windows/PortableLauncher/build/
++CLI/Windows/artifacts/
++CLI/Windows/dist/
++__pycache__/
++*.pyc
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Docs/COMMAND_PARITY.md /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Docs/COMMAND_PARITY.md
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Docs/COMMAND_PARITY.md	2026-09-15 04:42:03.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Docs/COMMAND_PARITY.md	2026-09-15 07:16:48.547319607 +0000
+@@ -1,6 +1,6 @@
+ # MCBEEditor CLI 命令覆盖对照
+ 
+-以下清单以上传源码为准，共 26 个顶级命令。Windows 与 Swift 的世界执行已接入；stage04a 已补 structure import/export 的 CLI 文件路径接口，stage04b～04d 已补持续会话、终端行编辑与 Command.txt 流程，stage04e 已处理此前明确记录的解析边界差异。两端支持 --in-place 原位更新与 --output 另存为。stage05a/05b 只增加 Windows 单 exe 与 iOS arm64 裸二进制发布层，没有改变命令语义。源码覆盖检查通过，平台发布构建和实际原生运行仍需 Windows/macOS runner 验证；“接入”指源码状态。
++以下清单以上传源码为准，共 26 个顶级命令。Windows 与 Swift 的世界执行已接入；stage04a 已补 structure import/export 的 CLI 文件路径接口，stage04b～04d 已补持续会话、终端行编辑与 Command.txt 流程，stage04e 已处理此前明确记录的解析边界差异。两端支持 --in-place 原位更新与 --output 另存为。stage05a/05b 只增加 Windows 单 exe 与 iOS arm64 裸二进制发布层，没有改变命令语义；stage05c 已完成最终全量源码审计与冗余清理。源码覆盖检查通过，平台发布构建和实际原生运行仍需 Windows/macOS runner 验证；“接入”指源码状态。
+ 
+ | 命令 | 必须保留的范围 | Windows 原始解析器 |
+ | --- | --- | --- |
+@@ -88,3 +88,8 @@
+ structure 文件接口现为 CLI 专用扩展：`structure import 名称 --file 路径 [--overwrite]` 与 `structure export mcstructure|nbt|json 名称 --file 路径 [--overwrite]`。两端复用原结构 NBT 编解码/Java 转换/结构数据库存储；非交互批处理缺少名称或 `--file` 时在整批执行前失败，交互会话可省略名称后提示输入。路径 tokenizer 支持带空格的引号路径。
+ 
+ 持续会话通过 `--interactive` 启动。04c 已补历史方向键、左右/Home/End/删除编辑、`:history`、`:clear` 和 TTY ANSI 映射；stdin/stdout 不是 TTY 时禁用 raw editor，stdout/stderr 各自按自身重定向状态禁用 ANSI，避免控制序列污染管道或文件。04d 已补 Commands 固定 ReadMe 和 Command.txt 检测：交互打开世界后提示，整批预检，运行时错误继续后续命令并保留最终失败状态；无人值守继续使用显式 `--script`。04e 已完成上述共享解析边界对齐。平台原生编译/运行仍待对应工具链验证。
++
++
++## stage05c 最终审计
++
++stage05c 复核 26 个根命令、9 项终端功能、保存/structure/Commands/parser 对齐和两条发布链；未修改命令执行、NBT、Chunk、World 或 LevelDB 持久化算法。最终审计新增独立门禁，清理失效的 ZIP-overlay CI 删除步骤，并补齐 CLI 生成物忽略规则。平台原生发布、设备运行和 Minecraft 实际读档仍按 `WORK_FINAL_REPORT.md` 明确保留为未验证。
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Docs/STAGES.md /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Docs/STAGES.md
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Docs/STAGES.md	2026-09-15 04:41:19.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Docs/STAGES.md	2026-09-15 07:15:24.747736763 +0000
+@@ -18,9 +18,9 @@
+ | 04e | 已记录的两端解析边界和命令结果对齐 | 已完成源码；语法关键字大小写与方块 Int32 坐标边界统一，共享 fixtures 无平台特判，原生运行待做 |
+ | 05a | Windows 单 exe 发布与 Actions | 已完成源码；console launcher 嵌入 self-contained payload、程序旁 Commands/Cache、最终 EXE 启动探针，Windows runner 待实际运行 |
+ | 05b | iOS arm64 裸二进制发布与 Actions | 已完成源码；iOS 13 arm64、ad-hoc 签名、Mach-O/最低系统检查并直接上传 mcbe-cli，macOS runner 待实际运行 |
+-| 05c | 一次全量最终审计和最终报告 | 待做；检查需求/回退/冗余及实际验证状态 |
++| 05c | 一次全量最终审计和最终报告 | 已完成；需求/回退/冗余/发布链/验证边界已复核，见 `WORK_FINAL_REPORT.md` |
+ 
+-stage04e 之后，用户明确要求本轮连续完成 **05a、05b**；随后又把 05b 范围收窄为 iOS arm64 裸二进制，不要求 deb。因此当前快照同时完成两条发布源码链，下一轮只进入 **05c 最终全量审计**。当前环境仍不能运行 Windows/.NET 或 macOS/Xcode 发布构建；后续若获得 Actions/实机失败日志，应优先修复明确失败。任何阶段都不猜测剩余额度。
++stage04e 之后，用户明确要求连续完成 **05a、05b**，并把 05b 范围收窄为 iOS arm64 裸二进制；随后继续完成 **05c 最终全量审计**。当前源码阶段已经收口，后续不再新增计划内 CLI 功能。当前环境仍不能运行 Windows/.NET 或 macOS/Xcode 发布构建；若后续获得 Actions/实机失败日志，应按真实日志修复并重新执行最终门禁。
+ 
+ ## 阶段 01 命令清单和 CLI 基础工程
+ 
+@@ -62,8 +62,8 @@
+ 
+ 05b 按用户 2026-09-15 的明确调整只发布 **iOS 13 arm64 裸二进制**，不制作 deb，也不再划分 rootful/rootless 安装布局。`build-apple.sh ios` 继续直接链接 Apple 原生 LevelDB bridge，检查 Mach-O 只有 arm64 且最低系统为 iOS 13.0，然后使用 Apple `codesign -s -` 做 ad-hoc 结构签名并验证。GitHub Actions 直接上传 `CLI/build/apple-ios/mcbe-cli`；下载后是否放入 `/usr/bin`、`/var/jb/usr/bin` 或其他路径由用户的越狱/部署环境决定，不在 05b 构建产物中硬编码。
+ 
+-05c 才进行一次全量最终审计：覆盖原始需求、检查临时代码和多余缓解、检查重复实现、核对所有构建和回归结果、检查阶段间功能回退、清理仅用于移植对照的无用打包内容。生成 WORK_FINAL_REPORT.md 后交付最终源码包。真实 Windows/macOS runner、iOS 设备和 Minecraft 内未完成的检查仍应明确保留为未验证。
++05c 已完成一次全量最终审计：覆盖原始需求、临时代码和多余缓解、重复实现、构建/回归结果及阶段间功能回退；移除失效的 ZIP-overlay CI 清理步骤，补齐 CLI 构建产物忽略规则，并生成 `WORK_FINAL_REPORT.md`。真实 Windows/macOS runner、iOS 设备和 Minecraft 内未完成的检查继续明确保留为未验证。
+ 
+ ## 断点纪律
+ 
+-每次主要修改或验证里程碑后更新 WORK_CHECKPOINT.md，WORK_PROGRESS.md 只追加历史。开始大型重构或构建前先落盘。每轮 ZIP 包含可恢复的完整状态，不只打包差异，不删除上一轮唯一有效产物。当前无法可靠读取 Work 剩余额度，因此不猜测额度或使用比例，以阶段和里程碑主动保存。stage04e 之后用户明确要求连续完成 05a 与 05b，并说明 iOS 可以只提供裸二进制，因此本快照不再把 deb/rootful/rootless 作为 05b 未完成项。下一轮进入 05c 最终审计；若先收到平台编译/原生失败日志，优先修复失败。
++每次主要修改或验证里程碑后更新 WORK_CHECKPOINT.md，WORK_PROGRESS.md 只追加历史。开始大型重构或构建前先落盘。每轮 ZIP 包含可恢复的完整状态，不只打包差异，不删除上一轮唯一有效产物。当前无法可靠读取 Work 剩余额度，因此不猜测额度或使用比例，以阶段和里程碑主动保存。stage04e 之后用户明确要求连续完成 05a 与 05b，并说明 iOS 可以只提供裸二进制；05c 也已完成。最终快照不把 deb/rootful/rootless 作为缺口。后续若收到平台编译/原生失败日志，以 stage05c 为基线修复并重新验证。
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/README.md /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/README.md
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/README.md	2026-09-15 04:38:14.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/README.md	2026-09-15 07:15:24.748050947 +0000
+@@ -1,6 +1,6 @@
+ # MCBEEditor CLI
+ 
+-当前快照为 **stage05b**，程序版本 `0.5.0-stage05b`。本轮按用户明确要求连续完成 **05a、05b**：Windows x64 绿色单 `mcbe-cli.exe` 发布链与 GitHub Actions，以及最低 iOS 13 的 arm64 裸二进制发布。用户已明确 iOS 可以只提供裸二进制，因此本阶段不制作 deb，也不把 rootful/rootless 包布局列为缺口。下一断点为 **05c 最终全量审计**。
++当前快照为 **stage05c**，运行时程序版本仍为 `0.5.0-stage05b`：05c 只做最终全量审计、冗余清理和发布门禁收口，没有修改命令/存档运行时语义，因此不人为再改版本字符串。05a/05b 已提供 Windows x64 绿色单 `mcbe-cli.exe` 发布链与最低 iOS 13 的 arm64 裸二进制发布链；按用户要求不制作 deb。最终审计结论见仓库根目录 `WORK_FINAL_REPORT.md`。
+ 
+ 源码审计与 Linux Swift 前端语法解析可在当前环境运行；当前环境没有 .NET/PowerShell，也不是 macOS/Xcode，因此新 Windows 单 exe 的真实发布/启动、Apple Objective-C++/LevelDB 链接、iOS arm64 裸二进制、GitHub Actions 和 Minecraft 实际读档仍是独立的未运行门禁。发布脚本和 Actions 已接线，但不要把静态检查写成平台构建通过。
+ 
+@@ -140,10 +140,8 @@
+ 
+ 独立发布工作流为 `.github/workflows/cli-release.yml`：Windows job 上传 `CLI/Windows/dist/mcbe-cli.exe`，macOS job 先跑 host 原生测试再交叉编译并上传 iOS 裸二进制。
+ 
+-本轮 Linux 环境能够运行源码审计、Python/bash/JSON/YAML 静态检查和 Swift `-frontend -parse`。因为这里不是 Windows/.NET 或 macOS/Xcode 环境，05a 最终 EXE 探针和 05b arm64/codesign 探针只能由相应平台脚本/Actions 执行，当前包必须继续标为平台运行未验证。
++stage05c 在当前 Linux 环境重新运行累计源码审计、Python/bash/JSON/YAML 静态检查和 Swift `-frontend -parse`。因为这里不是 Windows/.NET 或 macOS/Xcode 环境，05a 最终 EXE 探针和 05b arm64/codesign 探针仍只能由相应平台脚本/Actions 执行；最终包继续明确标注这些平台运行门禁未验证。
+ 
+-## 后续
++## 最终状态与后续维护
+ 
+-下一断点只剩 **05c 最终全量审计与最终报告**。
+-
+-续作优先读取 `WORK_CHECKPOINT.md`、`STAGE05A_REPORT.md`、`STAGE05B_REPORT.md`、`CLI/Docs/STAGES.md` 和 `CLI/Validation/Stage05b/results.json`；不要用 stage04e 或更早快照覆盖当前工程。如果用户先提供 Windows/macOS Actions 构建错误日志，应先修复明确的编译/运行失败，再进行最终审计。
++计划内 01～05c 已完成源码阶段收口。后续优先读取 `WORK_FINAL_REPORT.md` 与 `WORK_CHECKPOINT.md`；不要用 stage05b 或更早快照覆盖当前工程。若 Windows/macOS Actions、iOS 设备或 Minecraft 实际读档出现失败，以真实日志为准修复，并重新执行 stage05c 最终门禁与对应平台发布脚本。
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Scripts/build-apple.sh /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Scripts/build-apple.sh
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Scripts/build-apple.sh	2026-09-15 04:37:28.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Scripts/build-apple.sh	2026-09-15 07:14:54.509869064 +0000
+@@ -65,6 +65,7 @@
+   python3 "$ROOT/CLI/Tests/stage04e_source_audit.py"
+   python3 "$ROOT/CLI/Tests/stage05a_source_audit.py"
+   python3 "$ROOT/CLI/Tests/stage05b_source_audit.py"
++  python3 "$ROOT/CLI/Tests/stage05c_final_audit.py"
+   python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$OUT/mcbe-cli"
+   cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
+   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Scripts/build-windows.ps1 /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Scripts/build-windows.ps1
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Scripts/build-windows.ps1	2026-09-15 04:39:34.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Scripts/build-windows.ps1	2026-09-15 07:18:24.340857186 +0000
+@@ -41,6 +41,8 @@
+     if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05a source audit failed.' }
+     & python (Join-Path $root 'CLI\Tests\stage05b_source_audit.py')
+     if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05b source audit failed.' }
++    & python (Join-Path $root 'CLI\Tests\stage05c_final_audit.py')
++    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05c final audit failed.' }
+     & python (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
+     if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
+     & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Shared/command-inventory.json /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Shared/command-inventory.json
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/CLI/Shared/command-inventory.json	2026-09-15 04:42:03.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Shared/command-inventory.json	2026-09-15 07:15:24.748489018 +0000
+@@ -466,16 +466,16 @@
+   ],
+   "known_parser_differences": [],
+   "current_backend_state": {
+-    "windows": "stage04e_interactive_commands_parser_alignment_source_ready_compile_runtime_unverified",
+-    "ios": "stage04e_interactive_commands_parser_alignment_source_ready_compile_runtime_unverified"
++    "windows": "stage05c_final_audited_stage05a_release_source_ready_runtime_unverified",
++    "ios": "stage05c_final_audited_stage05b_release_source_ready_runtime_unverified"
+   },
+   "save_modes": {
+     "in_place": "--in-place: folder or mcworld, commit only if all commands succeed",
+     "save_as": "--output file.mcworld; --overwrite allows replacing an existing different output",
+     "mutating_commands": "require exactly one save mode"
+   },
+-  "checkpoint_tag": "stage04e",
+-  "checkpoint_scope": "04c terminal editing/color/redirection; 04d Commands ReadMe/Command.txt flow; 04e shared parser case/Int32 alignment. Source audits and Linux Swift syntax parse are available; native platform compilation/runtime remains a separate gate.",
++  "checkpoint_tag": "stage05c",
++  "checkpoint_scope": "05c final audit complete: all planned CLI stages reviewed; release wiring retained; redundant ZIP-overlay cleanup removed; generated CLI artifacts ignored. Platform-native release/runtime/device/Minecraft checks remain separate unverified gates until run on matching platforms.",
+   "parser_alignment": {
+     "stage": "04e",
+     "syntactic_case": "根命令、子命令、维度等语法关键字两端均大小写不敏感；不对整条命令做 lowercased。",
+Only in /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Tests: stage05c_final_audit.py
+Only in /mnt/data/mcbe_stage05c/MCBEEditor-CLI/CLI/Validation: Stage05c
+Only in /mnt/data/mcbe_stage05c/MCBEEditor-CLI: STAGE05C_REPORT.md
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/WORK_CHECKPOINT.md /mnt/data/mcbe_stage05c/MCBEEditor-CLI/WORK_CHECKPOINT.md
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/WORK_CHECKPOINT.md	2026-09-15 04:42:03.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/WORK_CHECKPOINT.md	2026-09-15 07:16:23.195678232 +0000
+@@ -1,37 +1,28 @@
+-# MCBEEditor CLI 最新检查点：stage05b
++# MCBEEditor CLI 最新检查点：stage05c（最终源码审计）
+ 
+-日期：2026-09-15。本快照从 stage04e 继续，按用户要求连续完成 **05a Windows 单 exe** 和 **05b iOS arm64 发布**；用户进一步明确 05b 可以只交付裸二进制，因此本快照不制作 deb。下一轮从 **05c 最终全量审计** 开始，不要用 stage04e 或更早快照覆盖当前工程。
++日期：2026-09-15。计划内 CLI 断点 01～05c 已完成源码阶段收口。后续不要用 stage05b 或更早快照覆盖当前工程；优先读取 `WORK_FINAL_REPORT.md`、本文件、`CLI/README.md` 和 `CLI/Docs/STAGES.md`。
+ 
+-## 05a Windows 单 exe
++## 最终发布形态
+ 
+-- 新增 `CLI/Windows/CliPortablePaths.cs`，让外层 launcher 通过 `MCBEEDITOR_PORTABLE_ROOT` / `MCBEEDITOR_CACHE_ROOT` 固定程序旁 `Commands` 和 `Cache`。
+-- `CliRunOptions`、交互 shell、Commands store 均改用该统一路径；显式 `--cache-dir` 不变。
+-- 新增 `CLI/Windows/PortableLauncher/` console launcher：内嵌 self-contained single-file payload，释放到 `Cache/Runtime/<pid>`，传递 stdio/参数/退出码，退出只清自己的 runtime。
+-- launcher **保留调用者 CWD**。交付前审阅曾发现早期实现会切换到 exe 目录，已先扩充门禁观察失败，再修复；release probe 会从独立 cwd 调相对 `--check-file`。
+-- `CLI/Scripts/build-windows-release.ps1 -Test`：普通累计测试 → win-x64 self-contained payload → launcher → `dist` 恰好一个 `mcbe-cli.exe` → 最终外层 exe 启动/路径/重定向探针。
+-- Windows 原生集成测试源码增加 portable root/cache 默认路径断言。
++- Windows：05a 的 x64 绿色单 `mcbe-cli.exe` 发布链；
++- iOS：05b 的 iOS 13 arm64 裸 `mcbe-cli` Mach-O；
++- 不制作 deb；
++- 运行时版本保持 `MCBEEditor CLI 0.5.0-stage05b`，05c 只做审计/清理/门禁，不改运行时语义。
+ 
+-## 05b iOS arm64 裸二进制
++## 05c 完成内容
+ 
+-- 最终范围：**不做 deb**，不再实现 rootful/rootless 包布局。
+-- `build-apple.sh ios` 继续输出 `CLI/build/apple-ios/mcbe-cli`，目标 `arm64-apple-ios13.0`。
+-- 编译后检查 `lipo` arm64、`vtool` iOS 13.0；再 `codesign -s -` ad-hoc 签名并验证。
+-- `.github/workflows/cli-release.yml` 有 Windows 与 iOS 两个独立 job；iOS job 只上传裸 `mcbe-cli`。
+-- 双端版本为 `0.5.0-stage05b`。
++- 全量复核原始命令、保存、交互、structure、Commands、parser 对齐与发布要求；
++- 新增 `CLI/Tests/stage05c_final_audit.py` 并接入双端累计构建门禁；
++- 清理 GUI iOS workflow 中失效的 ZIP-overlay `rm -f` 旧文件步骤；
++- `.gitignore` 补齐所有新 CLI 生成目录和 Python cache；
++- command inventory / README / STAGES 收口到 stage05c；
++- 生成 `WORK_FINAL_REPORT.md` 与 `STAGE05C_REPORT.md`；
++- 没有修改 CLI 运行时 C#/Swift 或 Bedrock Core/Chunk/NBT/World 算法。
+ 
+-## 当前实际验证状态
++## 当前验证边界
+ 
+-当前环境：Linux x86_64；Python、CMake、Swift 6.2.1 可用；没有 dotnet/pwsh，也不是 macOS/Xcode。
++当前 Linux 环境能够执行累计源码审计、Swift 前端 parse、Python/bash/YAML 检查和归档哈希；不能替代 Windows/.NET/MSVC 或 macOS/Xcode。
+ 
+-实际通过：
+-- source/stage02/stage03/stage04/stage04c/stage04d/stage04e/stage05a/stage05b 共 9 个累计源码门禁；
+-- 61 个 Swift 生产输入 + `CLI/iOS.Tests/NativeIntegration.swift` 前端语法解析；
+-- `python3 -m py_compile CLI/Tests/*.py`；
+-- `bash -n CLI/Scripts/build-apple.sh`；
+-- GitHub Actions YAML 解析。
++因此仍明确**未验证**：Windows 真 publish/launcher/最终 EXE 运行、Windows LevelDB 原生集成、macOS host 原生链接测试、iOS arm64/lipo/vtool/codesign、GitHub Actions、iOS 设备、Minecraft 实际读档。
+ 
+-05a/05b 的新 source audit 均保存了 stage04e 基线红灯与当前绿灯日志。Apple iOS 构建在本 Linux 环境只能命中 `macOS with Xcode is required.` 环境门禁；Windows release 脚本因没有 PowerShell/.NET/MSVC 无法运行。因此**未验证**：Windows 单 exe 真实 publish/launcher/最终启动、Windows 原生 LevelDB；macOS host 原生测试；iOS arm64 链接/lipo/vtool/codesign；GitHub Actions；设备和 Minecraft 读档。
+-
+-## 下一轮 05c
+-
+-只做最终全量审计和最终报告：逐项核对原始 CLI 需求、阶段间回退、临时代码/冗余缓解、重复实现、构建脚本和所有验证状态，生成 `WORK_FINAL_REPORT.md`。不要再新增无关功能。如果用户先提供 `cli-release.yml` 或平台构建失败日志，先修复真实失败，再进入最终审计。
++后续如果这些真实平台门禁给出失败日志，以 **stage05c** 为基线修复；修复后重新运行 `stage05c_final_audit.py` 和对应平台 release 脚本，不再回退到旧阶段实现。
+Only in /mnt/data/mcbe_stage05c/MCBEEditor-CLI: WORK_FINAL_REPORT.md
+diff -ru '--exclude=CLI/Validation/Stage05c' '--exclude=stage05b-files.sha256' /mnt/data/mcbe_base05b/MCBEEditor-CLI/WORK_PROGRESS.md /mnt/data/mcbe_stage05c/MCBEEditor-CLI/WORK_PROGRESS.md
+--- /mnt/data/mcbe_base05b/MCBEEditor-CLI/WORK_PROGRESS.md	2026-09-15 04:42:03.000000000 +0000
++++ /mnt/data/mcbe_stage05c/MCBEEditor-CLI/WORK_PROGRESS.md	2026-09-15 07:18:59.427975445 +0000
+@@ -115,3 +115,11 @@
+ 05b 最终范围调整为 iOS 13 arm64 裸 Mach-O，不做 deb/rootful/rootless。现有 Apple 编译链后增加 lipo/vtool 检查和 `codesign -s -` ad-hoc 签名验证。新增 `cli-release.yml`，Windows job 上传单 `mcbe-cli.exe`，macOS job 先跑 host 原生测试再交叉编译并只上传 iOS 裸 `mcbe-cli`。双端版本更新为 0.5.0-stage05b。
+ 
+ stage05a/stage05b source audit 都先在 stage04e 基线观察到预期失败，再在当前源码转绿；累计 9 个源码门禁、Swift 前端解析、Python/bash/YAML 检查在 Linux 实际通过。当前没有 dotnet/pwsh 且不是 macOS/Xcode，所以最终 Windows exe、Apple 原生链接、iOS arm64/codesign、Actions 和设备运行仍未执行，不用静态结果冒充平台构建。下一轮只做 05c 最终全量审计，除非先收到真实平台失败日志。
++
++## 2026-09-15 stage05c 最终审计
++
++完成计划内最后断点 05c。全量核对 26 个根命令、终端交互、原位/另存为、structure 文件接口、Commands 批处理、stage04e 解析对齐及 05a/05b 发布链；未发现需要改写 Bedrock 持久化核心的证据。
++
++审计发现并清理两个收尾问题：CLI 新构建目录/Python cache 未被 `.gitignore` 覆盖；GUI iOS Actions 仍保留早期 ZIP overlay 无法删除旧文件时的 `rm -f` 过渡步骤。新增 `stage05c_final_audit.py` 固定最终契约并接入 Windows/Apple 累计门禁。运行时版本不变，最终验证边界详见 `WORK_FINAL_REPORT.md`。
++
++05c 差异复核额外发现 Windows 累计脚本初次插入最终审计后，stage05b 的失败可能被 stage05c 成功退出码覆盖；新增最终门禁先观察失败，再修正为逐阶段立即检查并使用独立错误信息。

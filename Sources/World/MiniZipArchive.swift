@@ -72,13 +72,14 @@ enum MiniZipArchive {
     }
   }
 
-  static func create(from directory: URL, to archiveURL: URL) throws {
+  static func create(from directory: URL, to archiveURL: URL,
+                     preserveAllFiles: Bool = false, excludingPaths: Set<String> = []) throws {
     let manager = FileManager.default
     guard
       let enumerator = manager.enumerator(
         at: directory,
         includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-        options: [.skipsHiddenFiles]
+        options: preserveAllFiles ? [] : [.skipsHiddenFiles]
       )
     else {
       throw MCBEEditorError.io("无法枚举 \(directory.path)")
@@ -104,7 +105,8 @@ enum MiniZipArchive {
       guard standardized.hasPrefix(rootPath + "/") else { continue }
       var relative = String(standardized.dropFirst(rootPath.count + 1)).replacingOccurrences(
         of: "\\", with: "/")
-      if isEditorPrivatePath(relative) {
+      if excludingPaths.contains(relative) || (!preserveAllFiles &&
+          (isEditorPrivatePath(relative) || relative.lowercased() == "db/lock")) {
         if values.isDirectory == true { enumerator.skipDescendants() }
         continue
       }

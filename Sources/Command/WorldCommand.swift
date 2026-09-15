@@ -499,15 +499,16 @@ enum WorldCommandParser {
             throw MCBEEditorError.malformedData("命令不需要斜杠，请直接输入命令名称")
         }
         let tokens = try tokenize(trimmed)
-        guard let command = tokens.first else { throw MCBEEditorError.malformedData("请输入命令") }
+        guard let command = tokens.first?.lowercased() else { throw MCBEEditorError.malformedData("请输入命令") }
         let arguments = Array(tokens.dropFirst())
         switch command {
         case "help":
             guard arguments.count <= 1 else { throw usageError(command) }
-            if let target = arguments.first, !commandNames.contains(target) {
-                throw MCBEEditorError.malformedData("不存在的命令：\(target)")
+            let target = arguments.first?.lowercased()
+            if let target = target, !commandNames.contains(target) {
+                throw MCBEEditorError.malformedData("不存在的命令：\(arguments.first ?? target)")
             }
-            return .help(command: arguments.first)
+            return .help(command: target)
         case "info":
             guard arguments.isEmpty else { throw usageError(command) }
             return .info
@@ -521,7 +522,7 @@ enum WorldCommandParser {
             guard arguments.count == 1 else { throw usageError(command) }
             return .dayLock(locked: try parseBooleanFlag(arguments[0], name: "是否锁定时间"))
         case "effect":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "give":
                 guard arguments.count == 5 else { throw usageError(command) }
@@ -544,7 +545,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "experience":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "add":
                 guard arguments.count == 3 else { throw usageError(command) }
@@ -695,7 +696,7 @@ enum WorldCommandParser {
                 position: try parseCoordinates(Array(arguments[1...3]))[0]
             )
         case "chunk":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
                 switch arguments.count {
@@ -732,7 +733,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "storage":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
                 guard arguments.count == 5 else { throw usageError(command) }
@@ -791,11 +792,11 @@ enum WorldCommandParser {
                 z: try parseTeleportCoordinate(arguments[4], name: "Z")
             )
         case "time":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
                 guard arguments.count == 2,
-                      let query = CommandTimeQuery(rawValue: arguments[1]) else { throw usageError(command) }
+                      let query = CommandTimeQuery(rawValue: arguments[1].lowercased()) else { throw usageError(command) }
                 return .time(operation: .query(query))
             case "add":
                 guard arguments.count == 2 else { throw usageError(command) }
@@ -805,18 +806,18 @@ enum WorldCommandParser {
                 return .time(operation: .set(try parseTimeInteger(arguments[1], allowNegative: false)))
             case "ceil":
                 guard arguments.count == 2,
-                      let period = CommandTimePeriod(rawValue: arguments[1]) else { throw usageError(command) }
+                      let period = CommandTimePeriod(rawValue: arguments[1].lowercased()) else { throw usageError(command) }
                 return .time(operation: .ceil(period))
             case "floor":
                 guard arguments.count == 2,
-                      let period = CommandTimePeriod(rawValue: arguments[1]) else { throw usageError(command) }
+                      let period = CommandTimePeriod(rawValue: arguments[1].lowercased()) else { throw usageError(command) }
                 return .time(operation: .floor(period))
             default:
                 throw usageError(command)
             }
         case "weather":
             if arguments.count == 1, arguments[0].lowercased() == "query" { return .weatherQuery }
-            guard let condition = arguments.first.flatMap(CommandWeatherCondition.init(rawValue:)) else {
+            guard let condition = arguments.first.map { $0.lowercased() }.flatMap(CommandWeatherCondition.init(rawValue:)) else {
                 throw usageError(command)
             }
             switch condition {
@@ -877,11 +878,11 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "tickingarea":
-            guard let action = arguments.first else { throw usageError(command) }
+            guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "add":
                 guard arguments.count >= 2 else { throw usageError(command) }
-                let shape = arguments[1]
+                let shape = arguments[1].lowercased()
                 guard shape == "square" || shape == "circle" else { throw usageError(command) }
                 let area: CommandTickingAreaSpec
                 if shape == "square" {
@@ -962,7 +963,7 @@ enum WorldCommandParser {
     }
 
     private static func parseDimension(_ text: String) throws -> Int32 {
-        switch text {
+        switch text.lowercased() {
         case "overworld": return 0
         case "nether": return 1
         case "the_end": return 2
@@ -1185,12 +1186,12 @@ enum WorldCommandParser {
         guard values.count % 3 == 0 else { throw MCBEEditorError.malformedData("坐标必须每组三个整数") }
         var result = [CommandBlockCoordinate]()
         for offset in stride(from: 0, to: values.count, by: 3) {
-            guard let x = Int64(values[offset]),
+            guard let x = Int32(values[offset]),
                   let y = Int32(values[offset + 1]),
-                  let z = Int64(values[offset + 2]) else {
-                throw MCBEEditorError.malformedData("坐标必须是整数：\(values[offset...offset + 2].joined(separator: " "))")
+                  let z = Int32(values[offset + 2]) else {
+                throw MCBEEditorError.malformedData("方块坐标必须是 Int32 整数：\(values[offset...offset + 2].joined(separator: " "))")
             }
-            result.append(CommandBlockCoordinate(x: x, y: y, z: z))
+            result.append(CommandBlockCoordinate(x: Int64(x), y: y, z: Int64(z)))
         }
         return result
     }

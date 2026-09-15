@@ -1,0 +1,2 @@
+$ bash -n CLI/Scripts/build-swift-host.sh CLI/Scripts/build-ios-parser.sh
+exit_code=0

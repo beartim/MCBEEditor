@@ -1,0 +1,50 @@
+{
+  "stage": "05c",
+  "date": "2026-09-15",
+  "source_audits": {
+    "count": 10,
+    "status": "pass"
+  },
+  "stage05b_baseline_manifest": {
+    "entries": 578,
+    "status": "pass",
+    "checked_in_separate_untouched_extraction": true
+  },
+  "swift_frontend_parse": {
+    "production_inputs": 61,
+    "integration_test": "CLI/iOS.Tests/NativeIntegration.swift",
+    "status": "pass"
+  },
+  "python_compile": {
+    "status": "pass"
+  },
+  "bash_syntax": {
+    "status": "pass"
+  },
+  "yaml_json_parse": {
+    "status": "pass"
+  },
+  "structural_scan": {
+    "status": "pass",
+    "issues": 0
+  },
+  "apple_ios_build_attempt": {
+    "status": "environment_gate",
+    "exit_code": 1,
+    "message": "macOS with Xcode is required."
+  },
+  "windows_release_build": {
+    "status": "not_run",
+    "reason": "dotnet/pwsh/MSVC unavailable in current Linux environment"
+  },
+  "platform_native_release_runtime": {
+    "windows": "unverified",
+    "macos_host": "unverified",
+    "ios_arm64": "unverified",
+    "github_actions": "unverified",
+    "ios_device": "unverified",
+    "minecraft_read": "unverified"
+  },
+  "runtime_version": "MCBEEditor CLI 0.5.0-stage05b",
+  "snapshot": "stage05c"
+}

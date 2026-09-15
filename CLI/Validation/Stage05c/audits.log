@@ -1,0 +1,39 @@
+[source_audit.py]
+PASS: 26 GUI names and both help catalogs match the saved inventory
+PASS: all seven Windows parser families are wired to the original implementations
+PASS: Windows console project references Core and the strings-only help file; no WPF dependency
+PASS: 61 Swift build inputs exist and do not import a GUI framework
+PASS: 142 executable parser fixtures cover all commands and storage boundaries
+RESULT: source audit passed; compiler and executable behavior remain separate validation gates
+[stage02_source_audit.py]
+PASS: 22 concrete block/storage/target/entity requests and all other command families are routed
+PASS: console/test project references resolve; native DLL copy entries are declared
+PASS: native fixture creation is isolated from production world-open behavior
+PASS: build entry invokes real parser checks, selected existing regressions and native integration tests
+PASS: native integration inputs include all 26 root commands; structure import is checked as deferred
+RESULT: source wiring checks passed; compilation and runtime remain unverified until the build workflow runs
+[stage03_source_audit.py]
+PASS: 61 Swift input files; declared local type dependencies resolve under MCBE_CLI
+PASS: CLI and GUI share block data reads and NBT mutations without importing the map renderer
+PASS: both backends expose explicit in-place/save-as, source-change checks, rollback reporting and archive layout preservation
+PASS: native bridge, pinned dependencies, existing End regression and real native tests are wired into the Apple build
+PASS: both native test programs include all 26 roots plus in-place, save-as, conflict and recovery cases
+RESULT: source checks passed; C#/Swift/Objective-C++ compilation and runtime remain separate, unverified gates
+[stage04_source_audit.py]
+PASS: stage04a structure file paths reuse existing codecs/stores on both backends
+PASS: stage04b interactive :open/:save/:quit state machines are wired on both backends
+PASS: repeated in-place save refreshes source fingerprints on Windows and Swift
+PASS: batch preflight and integration sources cover path-with-spaces, missing-name and repeated-save cases
+RESULT: stage04 source audit passed; platform compilation/native execution remain separate gates
+[stage04c_source_audit.py]
+PASS: stage04c interactive history/editor/clear/color source contract present on both backends
+[stage04d_source_audit.py]
+PASS: stage04d Commands directory / fixed ReadMe / Command.txt batch contract present
+[stage04e_source_audit.py]
+PASS: stage04e parser case/bounds parity contract present
+[stage05a_source_audit.py]
+stage05a source audit: PASS
+[stage05b_source_audit.py]
+stage05b source audit: PASS
+[stage05c_final_audit.py]
+stage05c final audit: PASS

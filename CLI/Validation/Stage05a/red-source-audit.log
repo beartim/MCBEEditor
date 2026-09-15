@@ -1,0 +1,27 @@
+stage05a source audit: FAIL
+ - missing CLI/Windows/CliPortablePaths.cs
+ - CLI/Windows/CliSharedCommandStore.cs: missing 'CliPortablePaths.CommandsDirectory'
+ - CLI/Windows/CliRunOptions.cs: missing 'CliPortablePaths.WorldCacheDirectory'
+ - CLI/Windows/CliInteractiveShell.cs: missing 'CliPortablePaths.WorldCacheDirectory'
+ - missing CLI/Windows/PortableLauncher/launcher.cpp
+ - missing CLI/Windows/PortableLauncher/CMakeLists.txt
+ - missing CLI/Windows/PortableLauncher/payload.rc.in
+ - missing CLI/Scripts/build-windows-release.ps1
+ - build-windows-release.ps1 missing '--self-contained'
+ - build-windows-release.ps1 missing 'PublishSingleFile=true'
+ - build-windows-release.ps1 missing 'IncludeNativeLibrariesForSelfExtract=true'
+ - build-windows-release.ps1 missing 'mcbe-cli.exe'
+ - build-windows-release.ps1 missing 'PortableLauncher'
+ - build-windows-release.ps1 missing '--version'
+ - build-windows-release.ps1 missing '--help'
+ - build-windows-release.ps1 missing '--check'
+ - portable launcher missing MCBEEDITOR_PORTABLE_ROOT
+ - portable launcher missing MCBEEDITOR_CACHE_ROOT
+ - portable launcher missing DOTNET_BUNDLE_EXTRACT_BASE_DIR
+ - release script is missing the relative-path/CWD final-EXE probe
+ - missing .github/workflows/cli-release.yml
+ - cli-release workflow missing Windows release token 'windows-latest'
+ - cli-release workflow missing Windows release token 'build-windows-release.ps1'
+ - cli-release workflow missing Windows release token 'CLI/Windows/dist/mcbe-cli.exe'
+ - cli-release workflow missing Windows release token 'upload-artifact'
+ - release script does not enforce one-file dist

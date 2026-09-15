@@ -1,0 +1,35 @@
+name: CLI stage 03 in-place and Apple world checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-world:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and test Windows save-as and in-place writes
+        shell: pwsh
+        run: ./CLI/Scripts/build-windows.ps1 -Test
+  apple-world:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build host CLI, existing End regression and native world tests
+        run: bash CLI/Scripts/build-apple.sh host CLI/build/apple-host --test
+      - name: Cross-compile the complete iOS arm64 CLI and check deployment metadata
+        run: bash CLI/Scripts/build-apple.sh ios CLI/build/apple-ios

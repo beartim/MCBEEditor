@@ -1,0 +1,1 @@
+PASS: swiftc -frontend -parse 61 production inputs + NativeIntegration.swift

@@ -1,0 +1,2 @@
+PASS: parsed 6 workflow YAML files
+release workflow: .github/workflows/cli-release.yml

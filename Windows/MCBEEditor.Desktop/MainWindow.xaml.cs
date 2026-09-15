@@ -5298,10 +5298,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is not FrameworkElement element || element.Tag is not MapSpawnerOverlayTag tag) return;
         e.Handled = true;
-        if (e.ClickCount >= 2 && _document is { } world)
+        if (e.ClickCount >= 2)
         {
-            new HardcodedSpawnersEditorWindow(world, tag.Position, () => PrepareWorldMutationAsync(world),
-                msg => { StatusText = msg; _ = RefreshMapObjectMarkersAsync(); }) { Owner = this }.ShowDialog();
+            OpenMapSpawnerFromChoice(tag);
             return;
         }
         var point = e.GetPosition(MapOverlayCanvas);
@@ -5312,9 +5311,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is not FrameworkElement element || element.Tag is not MapVillageOverlayTag tag) return;
         e.Handled = true;
-        if (e.ClickCount >= 2 && _document is { } world)
+        if (e.ClickCount >= 2)
         {
-            new VillageFeatureNbtWindow(world, tag.Feature.Identifier, () => PrepareWorldMutationAsync(world)) { Owner = this }.ShowDialog();
+            OpenMapVillageFromChoice(tag.Feature, tag.Point);
             return;
         }
         var point = e.GetPosition(MapOverlayCanvas);
@@ -5407,14 +5406,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         e.Handled = true;
         if (e.ClickCount >= 2)
         {
-            await EditObjectNbtAsync(row);
+            await OpenMapObjectNbtFromChoiceAsync(row);
             return;
         }
         var point = e.GetPosition(MapOverlayCanvas);
         if (!TryShowMapPointChoice(point)) SelectMapObjectRow(row);
     }
 
-    private sealed record MapPointChoiceCandidate(string Title, double Distance, int Priority, Action Select);
+    private sealed record MapPointChoiceCandidate(
+        string Title,
+        double Distance,
+        int Priority,
+        Action Select,
+        Func<Task>? OpenFromMenu = null)
+    {
+        public Task OpenFromMenuAsync()
+        {
+            if (OpenFromMenu is not null) return OpenFromMenu();
+            Select();
+            return Task.CompletedTask;
+        }
+    }
 
     private static double Distance2D(double x, double y)
         => Math.Sqrt((x * x) + (y * y));
@@ -5439,7 +5451,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         var capturedCenter = center;
                         candidates.Add(new MapPointChoiceCandidate(
                             $"查看村庄中心 · {feature.DisplayName}", distance, 0,
-                            () => SelectMapVillageFeature(capturedFeature, capturedCenter)));
+                            () => SelectMapVillageFeature(capturedFeature, capturedCenter),
+                            () =>
+                            {
+                                OpenMapVillageFromChoice(capturedFeature, capturedCenter);
+                                return Task.CompletedTask;
+                            }));
                     }
                 }
                 foreach (var poi in feature.PointsOfInterest)
@@ -5481,7 +5498,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var captured = row;
             var priority = row.KindText == "本地玩家" ? 2 : row.KindText == "在线玩家" ? 3 : row.KindText == "实体" ? 5 : 6;
             candidates.Add(new MapPointChoiceCandidate(
-                $"查看{row.KindText} · {row.DisplayName}", distance, priority, () => SelectMapObjectRow(captured)));
+                $"查看{row.KindText} · {row.DisplayName}", distance, priority,
+                () => SelectMapObjectRow(captured),
+                () => OpenMapObjectNbtFromChoiceAsync(captured)));
         }
 
         if (MapShowHardcodedSpawners?.IsChecked == true)
@@ -5492,7 +5511,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!MapSpawnerContainsPoint(area, point)) continue;
                 var captured = new MapSpawnerOverlayTag(record.Position, area);
                 candidates.Add(new MapPointChoiceCandidate(
-                    $"查看刷怪区域 · {area.KindText}", 0, 7, () => SelectMapSpawnerFeature(captured)));
+                    $"查看刷怪区域 · {area.KindText}", 0, 7,
+                    () => SelectMapSpawnerFeature(captured),
+                    () =>
+                    {
+                        OpenMapSpawnerFromChoice(captured);
+                        return Task.CompletedTask;
+                    }));
             }
         }
 
@@ -5514,7 +5539,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var item = new MenuItem { Header = candidate.Title };
             var captured = candidate;
-            item.Click += (_, _) => captured.Select();
+            item.Click += async (_, _) => await captured.OpenFromMenuAsync();
             menu.Items.Add(item);
         }
         menu.Items.Add(new Separator());
@@ -5530,6 +5555,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "方块实体" => MapShowBlockEntities?.IsChecked == true,
             _ => MapShowEntities?.IsChecked == true
         };
+
+    private async Task OpenMapObjectNbtFromChoiceAsync(WorldObjectRow row)
+    {
+        SelectMapObjectRow(row);
+        await EditObjectNbtAsync(row);
+    }
+
+    private void OpenMapVillageFromChoice(VillageMapFeature feature, VillageMapPointFeature? point)
+    {
+        SelectMapVillageFeature(feature, point);
+        if (_document is not { } world) return;
+        new VillageFeatureNbtWindow(world, feature.Identifier, () => PrepareWorldMutationAsync(world)) { Owner = this }.ShowDialog();
+    }
+
+    private void OpenMapSpawnerFromChoice(MapSpawnerOverlayTag tag)
+    {
+        SelectMapSpawnerFeature(tag);
+        if (_document is not { } world) return;
+        new HardcodedSpawnersEditorWindow(world, tag.Position, () => PrepareWorldMutationAsync(world),
+            msg => { StatusText = msg; _ = RefreshMapObjectMarkersAsync(); }) { Owner = this }.ShowDialog();
+    }
 
     private void SelectMapObjectRow(WorldObjectRow row)
     {

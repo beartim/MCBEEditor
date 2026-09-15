@@ -1,0 +1,4 @@
+PASS cli-stage01-check.yml: YAML parses, manual trigger only, contents read permission, jobs have runners and steps
+PASS cli-stage02-check.yml: YAML parses, manual trigger only, contents read permission, jobs have runners and steps
+PASS stage 02 workflow calls the complete Windows build/test entry
+Scope: YAML structure only; GitHub Actions and PowerShell were NOT executed

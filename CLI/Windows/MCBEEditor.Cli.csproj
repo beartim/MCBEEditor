@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>mcbe-cli</AssemblyName>
+    <RootNamespace>MCBEEditor.Cli</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Windows/MCBEEditor.Core/MCBEEditor.Core.csproj" />
+    <!-- This file contains strings only; the WPF project is not referenced. -->
+    <Compile Include="../../Windows/MCBEEditor.Desktop/CommandHelpCatalog.cs" Link="Shared/CommandHelpCatalog.cs" />
+    <None Include="../../Windows/Native/bin/x64/MCBEEditor.LevelDB.Native.dll"
+          Condition="Exists('../../Windows/Native/bin/x64/MCBEEditor.LevelDB.Native.dll')"
+          Link="MCBEEditor.LevelDB.Native.dll" CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <InternalsVisibleTo Include="MCBEEditor.Cli.Tests" />
+  </ItemGroup>
+</Project>

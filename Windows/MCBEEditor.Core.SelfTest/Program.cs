@@ -7,6 +7,15 @@ using MCBEEditor.Core.Nbt;
 using MCBEEditor.Core.LevelDB;
 using MCBEEditor.Core.World;
 
+if (args.SequenceEqual(new[] { "--cli-regression" }))
+{
+    EndMissingSubChunkTests.Run();
+    PersistenceCompatibilityTests.Run();
+    CommandExtensionTests.Run();
+    Console.WriteLine("CLI-related existing core regressions passed.");
+    return;
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new Exception("SELFTEST FAILED: " + message);

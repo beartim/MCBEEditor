@@ -1,0 +1,155 @@
+{
+  "date_utc": "2026-09-15",
+  "checkpoint": "stage03a",
+  "scope": "Recovery integrity and source wiring only; not the final audit or native build validation.",
+  "checks": [
+    {
+      "name": "source-audit",
+      "command": [
+        "CLI/Tests/source_audit.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "stage02-source-audit",
+      "command": [
+        "CLI/Tests/stage02_source_audit.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "stage03-source-audit",
+      "command": [
+        "CLI/Tests/stage03_source_audit.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:CLI/Scripts/bootstrap-apple-native.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:CLI/Scripts/build-apple.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:CLI/Scripts/build-swift-host.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:CLI/Scripts/build-ios-parser.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:Scripts/run_core_tests.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:Scripts/test_end_missing_subchunks.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:Scripts/test_metadata_variant_search.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bash-syntax:Scripts/test_viewed_unsaved_sync.sh",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "python-syntax",
+      "files": [
+        "CLI/Tests/source_audit.py",
+        "CLI/Tests/stage02_source_audit.py",
+        "CLI/Tests/stage03_source_audit.py",
+        "CLI/Tests/smoke.py"
+      ],
+      "status": "PASS"
+    },
+    {
+      "name": "recovery-integrity",
+      "status": "PASS",
+      "stage02_files": 465,
+      "stage02_manifest_entries": 464,
+      "original_files_preserved": 409,
+      "cumulative_original_changes": [
+        "Scripts/Fixtures/PersistenceCompatibility.swift",
+        "Scripts/run_core_tests.sh",
+        "Scripts/test_end_missing_subchunks.sh",
+        "Scripts/test_metadata_variant_search.sh",
+        "Scripts/test_viewed_unsaved_sync.sh",
+        "Sources/Chunk/BedrockBlockColumn.swift",
+        "Sources/Chunk/ChunkSurfaceRenderer.swift",
+        "Sources/Command/WorldCommandExecutor.swift",
+        "Sources/UI/NBTNode.swift",
+        "Sources/World/MiniZipArchive.swift",
+        "Sources/World/WorldInspector.swift",
+        "Sources/World/WorldSession.swift",
+        "Windows/MCBEEditor.Core.SelfTest/Program.cs",
+        "Windows/MCBEEditor.Core/World/PortableWorldWorkspace.cs",
+        "Windows/MCBEEditor.Core/World/WorldToolStores.cs",
+        "Windows/MCBEEditor.Desktop/CommandHelpCatalog.cs",
+        "Windows/Native/CMakeLists.txt"
+      ],
+      "method_bodies_checked": [
+        "BedrockBlockReader",
+        "NBTTreeMutation",
+        "WorldCommandExecutor"
+      ],
+      "selected_unchanged_files": [
+        "Sources/Chunk/BedrockSubChunk.swift",
+        "Sources/Chunk/BedrockSubChunkEditor.swift",
+        "Sources/Chunk/BedrockEmptyChunk.swift",
+        "Sources/Chunk/BedrockChunkSubChunkAccess.swift",
+        "Sources/Command/WorldCommand.swift",
+        "Sources/Bridge/BTLevelDBBridge.mm",
+        "Sources/Bridge/BTCompressionBridge.mm",
+        "Sources/NBT/BedrockNBTCodec.swift",
+        "Sources/NBT/ConsecutiveNBTCodec.swift"
+      ],
+      "historical_files_checked": 17,
+      "recovered_text_files_checked": 47
+    },
+    {
+      "name": "workflow-yaml",
+      "status": "PASS",
+      "files": [
+        ".github/workflows/cli-stage01-check.yml",
+        ".github/workflows/cli-stage02-check.yml",
+        ".github/workflows/cli-stage03-check.yml"
+      ]
+    }
+  ],
+  "toolchain": {
+    "dotnet": null,
+    "swiftc": null,
+    "clang": null,
+    "cmake": null,
+    "pwsh": null,
+    "xcrun": null,
+    "python3": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "g++": "/usr/bin/g++"
+  },
+  "not_run": [
+    "C# compilation",
+    "Swift/Objective-C++ compilation",
+    "Windows native LevelDB integration",
+    "Swift native LevelDB integration",
+    "135 real parser/process smoke inputs",
+    "existing End regression runtime",
+    "iOS arm64 cross-compilation",
+    "GitHub Actions execution",
+    "iOS/Windows/device/game save loading"
+  ]
+}

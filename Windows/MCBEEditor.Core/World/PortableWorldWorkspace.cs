@@ -10,18 +10,20 @@ public sealed class PortableWorldWorkspace : IDisposable
 {
     private bool _disposed;
 
-    private PortableWorldWorkspace(string sourcePath, string sessionPath, string workingRootPath, bool sourceIsArchive)
+    private PortableWorldWorkspace(string sourcePath, string sessionPath, string workingRootPath, bool sourceIsArchive, string archiveWorldPrefix = "")
     {
         SourcePath = sourcePath;
         SessionPath = sessionPath;
         WorkingRootPath = workingRootPath;
         SourceIsArchive = sourceIsArchive;
+        ArchiveWorldPrefix = archiveWorldPrefix;
     }
 
     public string SourcePath { get; }
     public string SessionPath { get; }
     public string WorkingRootPath { get; }
     public bool SourceIsArchive { get; }
+    public string ArchiveWorldPrefix { get; }
 
     public static PortableWorldWorkspace Create(string cacheRoot, string sourcePath)
     {
@@ -30,6 +32,8 @@ public sealed class PortableWorldWorkspace : IDisposable
 
         var source = Path.GetFullPath(sourcePath);
         var worldsRoot = Path.GetFullPath(cacheRoot);
+        // Validate before creating even the cache root; rejected requests must not change the source.
+        if (Directory.Exists(source)) RequireSeparateDestination(source, worldsRoot);
         Directory.CreateDirectory(worldsRoot);
         var session = Path.Combine(worldsRoot, Guid.NewGuid().ToString("N"));
         var working = Path.Combine(session, "World");
@@ -56,11 +60,9 @@ public sealed class PortableWorldWorkspace : IDisposable
             ExtractArchiveSafely(source, staging);
             var root = LocateWorldRoot(staging);
             ValidateWorld(root);
-            if (PathsEqual(root, working))
-            {
-                // Impossible with the current staging layout, retained for defensive clarity.
-            }
-            else if (PathsEqual(root, staging))
+            var relativeRoot = Path.GetRelativePath(staging, root).Replace('\\', '/');
+            var archivePrefix = relativeRoot == "." ? "" : relativeRoot + "/";
+            if (PathsEqual(root, staging))
             {
                 Directory.Move(staging, working);
             }
@@ -70,7 +72,7 @@ public sealed class PortableWorldWorkspace : IDisposable
                 TryDeleteDirectory(staging);
             }
             ValidateWorld(working);
-            return new PortableWorldWorkspace(source, session, working, sourceIsArchive: true);
+            return new PortableWorldWorkspace(source, session, working, sourceIsArchive: true, archiveWorldPrefix: archivePrefix);
         }
         catch
         {
@@ -130,24 +132,45 @@ public sealed class PortableWorldWorkspace : IDisposable
 
     private static void CopyDirectory(string source, string destination)
     {
-        var sourceFull = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var destinationFull = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (destinationFull.StartsWith(sourceFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("缓存工作副本不能位于源世界目录内部。");
+        RequireSeparateDestination(source, destination);
+        var sourceFull = Path.GetFullPath(source);
+        var destinationFull = Path.GetFullPath(destination);
         Directory.CreateDirectory(destinationFull);
-        foreach (var directory in Directory.EnumerateDirectories(sourceFull, "*", SearchOption.AllDirectories))
+        var pending = new Stack<string>();
+        pending.Push(sourceFull);
+        while (pending.Count > 0)
         {
-            var relative = Path.GetRelativePath(sourceFull, directory);
-            Directory.CreateDirectory(Path.Combine(destinationFull, relative));
+            var directory = pending.Pop();
+            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("世界目录包含符号链接或目录联接，请使用普通世界目录。");
+            foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+            {
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidDataException("世界目录包含符号链接或目录联接，请使用普通世界目录。");
+                var relative = Path.GetRelativePath(sourceFull, entry);
+                var target = Path.Combine(destinationFull, relative);
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    Directory.CreateDirectory(target);
+                    pending.Push(entry);
+                    continue;
+                }
+                if (relative.Replace('\\', '/').Equals("db/LOCK", StringComparison.OrdinalIgnoreCase)) continue;
+                File.Copy(entry, target, overwrite: false);
+                // Read-only inputs are valid; only the private copy becomes writable.
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.ReadOnly);
+            }
         }
-        foreach (var file in Directory.EnumerateFiles(sourceFull, "*", SearchOption.AllDirectories))
-        {
-            var relative = Path.GetRelativePath(sourceFull, file);
-            if (relative.Replace('\\', '/').Equals("db/LOCK", StringComparison.OrdinalIgnoreCase)) continue;
-            var target = Path.Combine(destinationFull, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(file, target, overwrite: true);
-        }
+    }
+
+    private static void RequireSeparateDestination(string source, string destination)
+    {
+        var sourceRoot = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var target = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (PathsEqual(destination, source) || target.StartsWith(sourceRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("缓存工作副本不能等于源世界目录或位于源世界目录内部。");
     }
 
     private static bool PathsEqual(string left, string right)
@@ -165,7 +188,7 @@ public sealed class PortableWorldWorkspace : IDisposable
         }
         catch
         {
-            // The native launcher owns final Cache cleanup after the managed process exits.
+            // Leave failed cleanup recoverable; callers can report a remaining session directory.
         }
     }
 }

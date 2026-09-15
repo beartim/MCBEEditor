@@ -1,0 +1,38 @@
+{
+  "base": "stage05b",
+  "target": "stage05c",
+  "changed_count": 10,
+  "added_count": 16,
+  "deleted_count": 0,
+  "changed": [
+    ".github/workflows/build-ios.yml",
+    ".gitignore",
+    "CLI/Docs/COMMAND_PARITY.md",
+    "CLI/Docs/STAGES.md",
+    "CLI/README.md",
+    "CLI/Scripts/build-apple.sh",
+    "CLI/Scripts/build-windows.ps1",
+    "CLI/Shared/command-inventory.json",
+    "WORK_CHECKPOINT.md",
+    "WORK_PROGRESS.md"
+  ],
+  "added": [
+    "CLI/Tests/stage05c_final_audit.py",
+    "CLI/Validation/Stage05c/apple_ios_attempt.exitcode",
+    "CLI/Validation/Stage05c/apple_ios_attempt.log",
+    "CLI/Validation/Stage05c/audits.log",
+    "CLI/Validation/Stage05c/bash_n.log",
+    "CLI/Validation/Stage05c/change-scope.json",
+    "CLI/Validation/Stage05c/functional.diff",
+    "CLI/Validation/Stage05c/metadata_parse.log",
+    "CLI/Validation/Stage05c/python_compile.log",
+    "CLI/Validation/Stage05c/results.json",
+    "CLI/Validation/Stage05c/stage05b_manifest.log",
+    "CLI/Validation/Stage05c/structural_scan.log",
+    "CLI/Validation/Stage05c/swift_parse.log",
+    "CLI/Validation/Stage05c/toolchain.txt",
+    "STAGE05C_REPORT.md",
+    "WORK_FINAL_REPORT.md"
+  ],
+  "deleted": []
+}

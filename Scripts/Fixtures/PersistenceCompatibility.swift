@@ -19,7 +19,7 @@ enum PersistenceCompatibilityChecks {
             db.values[BedrockDBKey(position: seedPosition, recordType: versionType, subChunkIndex: nil).encoded()] = versionRaw
             db.values[BedrockDBKey(position: seedPosition, recordType: .finalizedState, subChunkIndex: nil).encoded()] = Data([2, 0, 0, 0])
             db.values[BedrockDBKey(position: seedPosition, recordType: .data2D, subChunkIndex: nil).encoded()] = Data(repeating: 0, count: 768)
-            let renderer = ChunkSurfaceRenderer(database: db)
+            let renderer = BedrockBlockReader(database: db)
             let store = BedrockBlockNBTStore(session: session)
             for x in [Int64(3), 35] {
                 let block = try renderer.block(blockX: x, y: 200, blockZ: 5, dimension: 2)

@@ -128,7 +128,7 @@ public static class EntityActionCommandParser
     private static EntityActionCommandRequest ParseEffect(string[] args)
     {
         if (args.Length == 0) throw UsageError();
-        return args[0] switch
+        return args[0].ToLowerInvariant() switch
         {
             "give" when args.Length == 5 => new EffectEntityActionCommandRequest(
                 EntityActionEffectOperationKind.Give, TargetingCommandParser.ParseTarget(args[1]), ParseEffectSelection(args[2]),

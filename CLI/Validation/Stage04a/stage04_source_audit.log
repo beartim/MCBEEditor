@@ -1,0 +1,5 @@
+PASS: stage04a structure file paths reuse existing codecs/stores on both backends
+PASS: stage04b interactive :open/:save/:quit state machines are wired on both backends
+PASS: repeated in-place save refreshes source fingerprints on Windows and Swift
+PASS: batch preflight and integration sources cover path-with-spaces, missing-name and repeated-save cases
+RESULT: stage04 source audit passed; platform compilation/native execution remain separate gates

@@ -1,0 +1,6 @@
+help weather
+info
+weather query
+time query daytime
+chunk query
+structure query

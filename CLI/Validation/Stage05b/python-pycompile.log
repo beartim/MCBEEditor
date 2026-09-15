@@ -1,0 +1,1 @@
+PASS: python3 -m py_compile CLI/Tests/*.py

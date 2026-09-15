@@ -58,7 +58,11 @@ struct BedrockBlockColumnResult {
     }
 }
 
-extension ChunkSurfaceRenderer {
+/// Shared block-column reads for commands and the GUI renderer.
+final class BedrockBlockReader {
+    private let database: MojangLevelDB
+    init(database: MojangLevelDB) { self.database = database }
+
     func blockColumn(blockX: Int64, blockZ: Int64, dimension: Int32) throws -> BedrockBlockColumnResult {
         let chunkX = MapCoordinate.chunk(fromBlock: blockX)
         let chunkZ = MapCoordinate.chunk(fromBlock: blockZ)

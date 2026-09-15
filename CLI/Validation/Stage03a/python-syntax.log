@@ -1,0 +1,5 @@
+PASS: compiled Python source to bytecode in memory; no C#/Swift/native execution.
+CLI/Tests/source_audit.py
+CLI/Tests/stage02_source_audit.py
+CLI/Tests/stage03_source_audit.py
+CLI/Tests/smoke.py

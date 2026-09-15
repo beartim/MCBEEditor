@@ -455,7 +455,7 @@ final class WorldCommandExecutor {
     private func automaticTeleportY(x: Double, z: Double, dimension: Int32) throws -> Int32 {
         let blockX = try teleportAutoBlockCoordinate(x, name: "X")
         let blockZ = try teleportAutoBlockCoordinate(z, name: "Z")
-        let renderer = ChunkSurfaceRenderer(database: try session.database())
+        let renderer = BedrockBlockReader(database: try session.database())
         return try nonAirTeleportY(x: blockX, z: blockZ, dimension: dimension, renderer: renderer) ?? 63
     }
 
@@ -474,7 +474,7 @@ final class WorldCommandExecutor {
         x: Int64,
         z: Int64,
         dimension: Int32,
-        renderer: ChunkSurfaceRenderer
+        renderer: BedrockBlockReader
     ) throws -> Int32? {
         let minimum = Int64(Int32.min) * 16
         let maximum = Int64(Int32.max) * 16 + 15
@@ -553,7 +553,7 @@ final class WorldCommandExecutor {
             throw MCBEEditorError.unsupported("世界中没有包含方块数据的已加载区块，无法执行 spread。")
         }
 
-        let renderer = ChunkSurfaceRenderer(database: try session.database())
+        let renderer = BedrockBlockReader(database: try session.database())
         var generator = SystemRandomNumberGenerator()
         var lines = [WorldCommandOutputLine]()
         var playerPuts = [(key: Data, value: Data)]()
@@ -632,7 +632,7 @@ final class WorldCommandExecutor {
     private func randomSpreadDestination<R: RandomNumberGenerator>(
         groupedChunks: [Int32: [ChunkPosition]],
         dimensions: [Int32],
-        renderer: ChunkSurfaceRenderer,
+        renderer: BedrockBlockReader,
         generator: inout R
     ) throws -> SpreadDestination {
         guard let firstDimension = dimensions.randomElement(using: &generator) else {

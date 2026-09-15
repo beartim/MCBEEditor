@@ -1,0 +1,9 @@
+{
+  "stage": "04a",
+  "date": "2026-09-15",
+  "stage04_source_audit": "passed",
+  "swift_frontend_parse": "passed_on_linux_swift_6_2_1",
+  "windows_compile_and_native_tests": "not_run_no_dotnet_or_powershell",
+  "apple_native_tests": "not_run_non_macos_no_xcode",
+  "structure_real_leveldb_scenarios": "wired_but_not_run"
+}

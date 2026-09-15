@@ -1,0 +1,18 @@
+{
+  "stage": "04c",
+  "status": "source_complete_native_runtime_unverified",
+  "passed": [
+    "stage04c_source_audit.py",
+    "Swift CliTerminal isolated Linux typecheck",
+    "final integrated Swift frontend parse (see ../Stage04e/swift_parse.log)"
+  ],
+  "tdd_red_green": [
+    "stdout redirected while stdin is TTY: red audit captured then fixed",
+    "stderr redirected independently from stdout: red audit captured then fixed"
+  ],
+  "not_run": [
+    "Windows console key integration on a real Windows TTY",
+    "macOS/iOS terminal runtime integration",
+    "native world integration suite"
+  ]
+}

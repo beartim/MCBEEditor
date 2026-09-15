@@ -116,3 +116,20 @@ if(MSVC)
     target_compile_options(mcbe_leveldb_core PRIVATE /W3 /wd4244 /wd4267 /wd4996)
     target_compile_options(MCBEEditor.LevelDB.Native PRIVATE /W4 /EHsc)
 endif()
+
+option(MCBE_BUILD_CLI_TEST_TOOLS "Build the CLI native test database fixture tool" OFF)
+if(MCBE_BUILD_CLI_TEST_TOOLS)
+    add_executable(mcbe_cli_create_test_db "${CMAKE_CURRENT_SOURCE_DIR}/../../CLI/Tests/Native/CreateTestDatabase.cpp")
+    target_link_libraries(mcbe_cli_create_test_db PRIVATE mcbe_leveldb_core zlibstatic)
+    target_compile_definitions(mcbe_cli_create_test_db PRIVATE DLLX=)
+    if(WIN32)
+        target_compile_definitions(mcbe_cli_create_test_db PRIVATE WIN32=1 LEVELDB_PLATFORM_WINDOWS=1 NOMINMAX WIN32_LEAN_AND_MEAN)
+    else()
+        target_compile_definitions(mcbe_cli_create_test_db PRIVATE LEVELDB_PLATFORM_POSIX=1)
+    endif()
+    set(CLI_TEST_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/../../CLI/build/native-tests")
+    set_target_properties(mcbe_cli_create_test_db PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CLI_TEST_OUTPUT}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CLI_TEST_OUTPUT}"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CLI_TEST_OUTPUT}")
+endif()

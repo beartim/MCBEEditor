@@ -1,0 +1,47 @@
+{
+  "date_utc": "2026-09-15",
+  "checkpoint": "stage03b",
+  "scope": "Windows saving source review only; not final audit",
+  "checks": [
+    {
+      "name": "source_audit.py",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "stage02_source_audit.py",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "stage03_source_audit.py",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "bounded-code-diff-and-history",
+      "status": "PASS",
+      "details": "change-scope.json"
+    }
+  ],
+  "toolchain": {
+    "dotnet": null,
+    "csc": null,
+    "mono": null,
+    "cmake": null,
+    "pwsh": null,
+    "swiftc": null
+  },
+  "not_run": [
+    "C# compilation",
+    "Windows CLI native integration (including 7 new scenarios)",
+    "existing core/End regressions",
+    "real CLI parser/process tests",
+    "GitHub Actions execution",
+    "game/device save loading"
+  ],
+  "sources_consulted": [
+    "https://learn.microsoft.com/en-us/dotnet/api/system.io.file.move?view=net-10.0",
+    "https://learn.microsoft.com/en-us/dotnet/api/system.io.fileshare?view=net-10.0"
+  ]
+}

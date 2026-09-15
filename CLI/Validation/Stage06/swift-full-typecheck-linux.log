@@ -1,0 +1,8 @@
+CLI/iOS/CliEntry.swift:2:8: error: no such module 'Darwin'
+ 1 | import Foundation
+ 2 | import Darwin
+   |        `- error: no such module 'Darwin'
+ 3 | 
+ 4 | private var interrupted: sig_atomic_t = 0
+
+exit=1

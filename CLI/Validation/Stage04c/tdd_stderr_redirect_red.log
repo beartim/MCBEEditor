@@ -1,0 +1,2 @@
+FAIL: Windows stderr ANSI must have its own redirection gate
+FAIL: Swift stderr ANSI must have its own redirection gate

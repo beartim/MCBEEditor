@@ -85,6 +85,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/nbt_main.swift" \
   -o "$TMP/nbt_test"
 "$TMP/nbt_test"

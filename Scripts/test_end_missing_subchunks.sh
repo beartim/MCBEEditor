@@ -26,10 +26,6 @@ final class WorldSession {
     let db = MojangLevelDB()
     func database() throws -> MojangLevelDB { db }
 }
-final class ChunkSurfaceRenderer {
-    let database: MojangLevelDB
-    init(database: MojangLevelDB) { self.database = database }
-}
 SWIFT
 
 cat > "$END_TEST_TMP/Tests.swift" <<'SWIFT'
@@ -59,7 +55,7 @@ enum Tests {
             let session = load()
             let original = session.db.values
             let position = ChunkPosition(x: coordinates[0], z: coordinates[1], dimension: coordinates[2])
-            let renderer = ChunkSurfaceRenderer(database: session.db)
+            let renderer = BedrockBlockReader(database: session.db)
             let store = BedrockBlockNBTStore(session: session)
             let expectedVersion: UInt8 = coordinates == fixture.v1Chunk ? 1 : 8
             let expectedPaletteVersion: Int32? = expectedVersion == 1 ? nil : fixture.paletteVersion
@@ -96,7 +92,7 @@ enum Tests {
 
         // Creating layer 1 first must retain compatible air in storage 0.
         let session = load()
-        let renderer = ChunkSurfaceRenderer(database: session.db)
+        let renderer = BedrockBlockReader(database: session.db)
         let missing = try renderer.block(blockX: 0, y: 200, blockZ: 0, dimension: 2)
         let air = missing.stateForEditing(layer: 1)
         precondition(air.paletteVersion == fixture.paletteVersion)

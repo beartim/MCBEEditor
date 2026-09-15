@@ -482,6 +482,7 @@ swiftc \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
@@ -1077,6 +1078,7 @@ swiftc \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/nbt_tree_rows_test.swift" \
   -o "$TMP/nbt-tree-rows-tests"
 "$TMP/nbt-tree-rows-tests"
@@ -1430,6 +1432,7 @@ swiftc \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/PlayerNBTStoreStubs.swift" \
   "$ROOT/Sources/World/PlayerNBTStore.swift" \
   -parse-as-library "$TMP/player_nbt_test.swift" -o "$TMP/player-nbt-tests"
@@ -1642,6 +1645,7 @@ swiftc \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/StructureNBTStoreStubs.swift" \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
@@ -2068,6 +2072,7 @@ swiftc \
   "$ROOT/Sources/Chunk/MapCoordinate.swift" \
   "$ROOT/Sources/Chunk/BedrockDBKey.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/WorldObjectNBTStoreStubs.swift" \
   "$ROOT/Sources/Support/BedrockDataValueCatalog.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
@@ -3397,7 +3402,7 @@ echo 'Native tickingarea_ storage and map/chunk contextual editing passed'
 TICKING_STORE="$ROOT/Sources/World/TickingAreaStore.swift"
 TICKING_UI="$ROOT/Sources/UI/TickingAreaViewControllers.swift"
 NBT_EDITING_UI="$ROOT/Sources/UI/NBTEditingUI.swift"
-NBT_NODE="$ROOT/Sources/UI/NBTNode.swift"
+NBT_NODE="$ROOT/Sources/NBT/NBTTreeMutation.swift"
 grep -q 'chunkDistance(fromBlockDistance: halfExtent)' "$TICKING_STORE" && grep -q 'blockDistance(fromChunkDistance: radiusChunks)' "$TICKING_UI" && grep -q 'centerBlockX' "$TICKING_STORE" && grep -q '半径（区块）' "$TICKING_UI" && grep -q 'title: "存在同名标签"' "$NBT_EDITING_UI" && grep -q 'title: "保留"' "$NBT_EDITING_UI" && grep -q 'title: "覆盖"' "$NBT_EDITING_UI" && ! grep -q '可修改粘贴后的标签名称' "$NBT_EDITING_UI" && grep -q 'replacingExisting: Bool = false' "$NBT_NODE" || {
   echo 'error: tickingarea radius conversion or batch NBT conflict paste is incomplete' >&2
   exit 1
@@ -3780,6 +3785,7 @@ enum BTCompressionBridge {
 }
 final class WorldSession {
     let world = ImportedWorld(id: UUID())
+    var displayName: String { world.name }
     let db = MojangLevelDB()
     let document: WorldDocument
     init() {
@@ -3821,7 +3827,7 @@ struct BedrockBlockColumnResult {
     let blocks: [BedrockBlockRecord]
     let diagnostics: [String]
 }
-final class ChunkSurfaceRenderer {
+final class BedrockBlockReader {
     init(database: MojangLevelDB) {}
     func blockColumn(blockX: Int64, blockZ: Int64, dimension: Int32) throws -> BedrockBlockColumnResult {
         if blockX == 999 && blockZ == 999 {
@@ -4541,6 +4547,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockChunkStore.swift" \
   "$ROOT/Sources/Chunk/BedrockRegionStore.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObject.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \
   "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \

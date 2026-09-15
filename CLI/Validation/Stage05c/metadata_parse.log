@@ -1,0 +1,9 @@
+YAML OK .github/workflows/build-ios.yml
+YAML OK .github/workflows/build-windows.yml
+YAML OK .github/workflows/cli-release.yml
+YAML OK .github/workflows/cli-stage01-check.yml
+YAML OK .github/workflows/cli-stage02-check.yml
+YAML OK .github/workflows/cli-stage03-check.yml
+JSON OK CLI/Shared/command-inventory.json
+JSON OK CLI/Shared/parser-cases.json
+workflow_count 6

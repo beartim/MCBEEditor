@@ -1,0 +1,6 @@
+PASS: 57 Swift input files; declared local type dependencies resolve under MCBE_CLI
+PASS: CLI and GUI share block data reads and NBT mutations without importing the map renderer
+PASS: both backends expose explicit in-place/save-as, source-change checks, rollback reporting and archive layout preservation
+PASS: native bridge, pinned dependencies, existing End regression and real native tests are wired into the Apple build
+PASS: both native test programs include all 26 roots plus in-place, save-as, conflict and recovery cases
+RESULT: source checks passed; C#/Swift/Objective-C++ compilation and runtime remain separate, unverified gates

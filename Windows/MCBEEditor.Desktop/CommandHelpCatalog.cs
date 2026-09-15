@@ -62,6 +62,8 @@ internal static class CommandHelpCatalog
         ["weather"] = "weather query\nquery 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻；doWeatherCycle 缺失时显示 1，与天气界面默认开关一致，其他缺失标签显示 NULL。\nweather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0",
     };
 
+    public static IReadOnlyList<string> Names => Array.AsReadOnly(CommandOrder);
+
     public static string AllUsageText => string.Join("\n\n", CommandOrder.Select(command => Usage[command]));
 
     public static bool IsKnownCommand(string command)

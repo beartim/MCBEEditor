@@ -1,0 +1,64 @@
+name: CLI release builds
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'CLI/**'
+      - 'Windows/**'
+      - 'Sources/**'
+      - 'Scripts/**'
+      - 'Tests/**'
+      - '.github/workflows/cli-release.yml'
+  pull_request:
+    paths:
+      - 'CLI/**'
+      - 'Windows/**'
+      - 'Sources/**'
+      - 'Scripts/**'
+      - 'Tests/**'
+      - '.github/workflows/cli-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64-single-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build, test and validate portable single EXE
+        shell: pwsh
+        run: ./CLI/Scripts/build-windows-release.ps1 -Test
+      - name: Upload Windows x64 single EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: MCBEEditor-CLI-Windows-x64
+          path: CLI/Windows/dist/mcbe-cli.exe
+          if-no-files-found: error
+
+  ios-arm64-binary:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and test host implementation
+        run: bash CLI/Scripts/build-apple.sh host CLI/build/apple-host --test
+      - name: Cross-compile iOS 13 arm64 bare binary
+        run: bash CLI/Scripts/build-apple.sh ios CLI/build/apple-ios
+      - name: Upload iOS arm64 bare binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: MCBEEditor-CLI-iOS13-arm64
+          path: CLI/build/apple-ios/mcbe-cli
+          if-no-files-found: error

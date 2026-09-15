@@ -140,7 +140,7 @@ public static class WorldExperienceStore
 
 public static class WorldArchiveService
 {
-    public static void ExportMcworld(WorldDocument world, string destinationPath)
+    public static void ExportMcworld(WorldDocument world, string destinationPath, string? temporaryDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(destinationPath)) throw new ArgumentException("导出路径不能为空。", nameof(destinationPath));
         var root = Path.GetFullPath(world.RootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -150,7 +150,9 @@ public static class WorldArchiveService
         var parent = Path.GetDirectoryName(destination) ?? throw new IOException("导出目标没有父目录。");
         Directory.CreateDirectory(parent);
         var configuredCache = Environment.GetEnvironmentVariable("MCBEEDITOR_CACHE_ROOT");
-        var tempParent = string.IsNullOrWhiteSpace(configuredCache)
+        // CLI callers supply a validated location without changing the GUI process environment.
+        var tempParent = temporaryDirectory is not null ? Path.GetFullPath(temporaryDirectory)
+            : string.IsNullOrWhiteSpace(configuredCache)
             ? parent
             : Path.Combine(Path.GetFullPath(configuredCache), "Export");
         Directory.CreateDirectory(tempParent);

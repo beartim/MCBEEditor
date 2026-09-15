@@ -1,0 +1,34 @@
+{
+  "stage": "05a",
+  "status": "source_complete_platform_release_unverified",
+  "baseline": "stage04e",
+  "baseline_manifest_entries_verified": 549,
+  "implemented": [
+    "portable path resolver for outer exe root/cache",
+    "console portable launcher with embedded self-contained payload",
+    "win-x64 single-file release script",
+    "final outer-exe startup/path/redirection probes",
+    "Windows release GitHub Actions job",
+    "portable root/cache integration test source"
+  ],
+  "tdd": {
+    "baseline_source_audit_failed_as_expected": true,
+    "current_source_audit_passed": true,
+    "cwd_regression_reintroduced_and_rejected": true
+  },
+  "verified_here": [
+    "stage05a source audit",
+    "stage04e baseline sha256 manifest",
+    "workflow YAML parse",
+    "cumulative static source audits"
+  ],
+  "not_run_here": [
+    "PowerShell release script",
+    "dotnet win-x64 publish",
+    "MSVC portable launcher compile/resource embedding",
+    "final Windows mcbe-cli.exe startup probes",
+    "Windows Mojang LevelDB integration tests",
+    "GitHub Actions windows job"
+  ],
+  "reason": "Current runtime is Linux and has no dotnet or pwsh/MSVC toolchain."
+}

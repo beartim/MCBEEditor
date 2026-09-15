@@ -1,0 +1,15 @@
+CLI/Scripts/bootstrap-apple-native.sh: exit=0
+
+CLI/Scripts/build-apple.sh: exit=0
+
+CLI/Scripts/build-swift-host.sh: exit=0
+
+CLI/Scripts/build-ios-parser.sh: exit=0
+
+Scripts/run_core_tests.sh: exit=0
+
+Scripts/test_end_missing_subchunks.sh: exit=0
+
+Scripts/test_metadata_variant_search.sh: exit=0
+
+Scripts/test_viewed_unsaved_sync.sh: exit=0

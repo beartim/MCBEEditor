@@ -1,0 +1,39 @@
+{
+  "stage": "05b",
+  "status": "source_complete_platform_release_unverified",
+  "artifact_contract": "iOS 13 arm64 bare mcbe-cli Mach-O; no deb",
+  "implemented": [
+    "arm64-apple-ios13.0 cross-compile path",
+    "lipo architecture check",
+    "vtool iOS 13 minimum-version check",
+    "ad-hoc codesign and verification",
+    "iOS bare-binary GitHub Actions upload",
+    "combined 0.5.0-stage05b version"
+  ],
+  "tdd": {
+    "baseline_source_audit_failed_as_expected": true,
+    "current_source_audit_passed": true
+  },
+  "verified_here": [
+    "nine cumulative source audits",
+    "Python test-source compilation",
+    "build-apple.sh bash syntax",
+    "61 Swift production inputs plus NativeIntegration.swift frontend parse",
+    "six workflow YAML files parsed"
+  ],
+  "environment_gate": {
+    "command": "bash CLI/Scripts/build-apple.sh ios CLI/build/apple-ios-stage05b-attempt",
+    "exit": 1,
+    "message": "macOS with Xcode is required."
+  },
+  "not_run_here": [
+    "Apple Objective-C++/LevelDB native compile/link",
+    "iOS arm64 Mach-O generation",
+    "lipo/vtool runtime metadata validation",
+    "codesign ad-hoc signing verification",
+    "GitHub Actions macOS job",
+    "iOS device execution",
+    "Minecraft readback"
+  ],
+  "reason": "Current runtime is Linux, not macOS/Xcode."
+}

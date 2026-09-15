@@ -27,13 +27,6 @@ jobs:
       - name: Normalize script permissions
         run: chmod +x Scripts/*.sh
 
-      # A previous ZIP overlay could not delete these tracked files. They are
-      # obsolete and must not affect the single iOS 13 build configuration.
-      - name: Remove obsolete files
-        run: |
-          rm -f project-ios13-legacy.yml Scripts/bootstrap_ios13_legacy.sh
-          rm -f Sources/Chunk/MapMarker.swift Sources/UI/MapMarkerListViewController.swift
-          rm -f Sources/World/WorldBackupService.swift
 
       - name: Select Xcode 15.4
         run: |

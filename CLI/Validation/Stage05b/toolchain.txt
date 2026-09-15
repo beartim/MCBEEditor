@@ -1,0 +1,9 @@
+uname: Linux localhost 6.18.44 #1 SMP Sat Sep 12 15:35:21 UTC 2026 x86_64 GNU/Linux
+python: Python 3.13.5
+cmake: cmake version 3.31.6
+swift: Swift version 6.2.1 (swift-6.2.1-RELEASE)
+dotnet: MISSING
+pwsh: MISSING
+xcodebuild: MISSING
+xcrun: MISSING
+codesign: MISSING

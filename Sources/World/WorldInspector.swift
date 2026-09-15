@@ -34,7 +34,7 @@ final class WorldInspector {
         let villageCount = Set(villageRecords.map(\.villageIdentifier)).count
 
         var rows = [WorldInfoRow]()
-        rows.append(WorldInfoRow(title: "名称", value: root.stringValue(named: "LevelName") ?? session.world.name))
+        rows.append(WorldInfoRow(title: "名称", value: root.stringValue(named: "LevelName") ?? session.displayName))
         rows.append(WorldInfoRow(
             title: "种子",
             value: numericValue(namedAny: ["RandomSeed", "randomSeed", "random_seed"], root: root).map(String.init) ?? "未记录"

@@ -16,3 +16,12 @@ Windows/Native/vendor/
 Windows/PortableLauncher/build/
 Windows/artifacts/
 Windows/dist/
+
+# CLI build / release / audit outputs
+CLI/**/bin/
+CLI/**/obj/
+CLI/Windows/PortableLauncher/build/
+CLI/Windows/artifacts/
+CLI/Windows/dist/
+__pycache__/
+*.pyc

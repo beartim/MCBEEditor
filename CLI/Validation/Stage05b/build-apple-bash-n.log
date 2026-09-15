@@ -1,0 +1,1 @@
+PASS: bash -n CLI/Scripts/build-apple.sh

@@ -1,0 +1,9 @@
+stage05b source audit: FAIL
+ - missing .github/workflows/cli-release.yml
+ - STAGES missing '裸二进制'
+ - STAGES still requires deb packaging for 05b
+ - README missing 'iOS arm64 裸二进制'
+ - cli-release workflow missing iOS token 'macos-15'
+ - cli-release workflow missing iOS token 'build-apple.sh ios'
+ - cli-release workflow missing iOS token 'CLI/build/apple-ios/mcbe-cli'
+ - cli-release workflow missing iOS token 'upload-artifact'

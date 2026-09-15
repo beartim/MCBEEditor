@@ -1,0 +1,6 @@
+PASS: uploaded stage02 archive matches the last delivered SHA256; CRC and all 464 snapshot hashes match; all 465 baseline files remain.
+PASS: block data reads, all NBT mutation methods, and the Swift executor retain their stage02 method bodies; only shared type extraction/reference changes were found.
+PASS: 9 selected command/codec/native-bridge files and 17 historical reports/logs/manifests are byte-identical to stage02.
+PASS: all 409 original GUI source files remain; 17 have cumulative changes.
+PASS: all 47 recovered added/changed files are nonempty UTF-8 without NUL bytes or unresolved merge markers. This is not a C#/Swift grammar check.
+PASS: all 3 CLI check workflows parse as YAML, declare manual dispatch and read-only repository permission; no workflow was run.

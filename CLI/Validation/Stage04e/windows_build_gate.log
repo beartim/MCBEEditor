@@ -1,0 +1,1 @@
+NOT RUN: dotnet and/or pwsh unavailable; build-windows.ps1 -Test cannot execute in this Linux environment.

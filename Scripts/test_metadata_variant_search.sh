@@ -41,6 +41,7 @@ swiftc \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
   "$TMP/main.swift" \
   -o "$TMP/variant-test"
 "$TMP/variant-test"

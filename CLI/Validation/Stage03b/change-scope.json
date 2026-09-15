@@ -1,0 +1,23 @@
+{
+  "stage03a_manifest_verified_on_start": 490,
+  "stage03a_files_retained": 491,
+  "code_changes": [
+    "CLI/Windows.Tests/Program.cs",
+    "CLI/Windows/CliInPlaceArchive.cs",
+    "CLI/Windows/CliWorldRunner.cs"
+  ],
+  "historical_files_unchanged": 27,
+  "swift_source_and_native_algorithms_unchanged": true,
+  "old_invocation_cases": 26,
+  "current_invocation_cases": 33,
+  "new_invocation_cases": [
+    "in-place-archive-cancel",
+    "in-place-archive-normalized-paths",
+    "in-place-archive-publish-blocked",
+    "in-place-archive-source-change",
+    "in-place-folder-cancel",
+    "in-place-folder-move-blocked",
+    "save-as-publish-blocked"
+  ],
+  "runtime_status": "NOT_RUN"
+}

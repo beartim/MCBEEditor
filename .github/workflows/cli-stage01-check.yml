@@ -1,0 +1,41 @@
+name: CLI stage 01 parser checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-parser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit the command inventory and build inputs
+        run: python CLI/Tests/source_audit.py
+      - name: Build console entry
+        run: dotnet build CLI/Windows/MCBEEditor.Cli.csproj --configuration Release
+      - name: Exercise the real Windows parser
+        run: python CLI/Tests/smoke.py --backend windows -- dotnet CLI/Windows/bin/Release/net10.0/mcbe-cli.dll
+
+  swift-parser:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit the command inventory and build inputs
+        run: python3 CLI/Tests/source_audit.py
+      - name: Build a macOS host executable with the iOS parser sources
+        run: bash CLI/Scripts/build-swift-host.sh
+      - name: Exercise the real Swift parser
+        run: python3 CLI/Tests/smoke.py --backend swift -- CLI/build/swift-host/mcbe-cli
+      - name: Cross-compile the iOS arm64 parser executable
+        run: bash CLI/Scripts/build-ios-parser.sh

@@ -1,5 +1,6 @@
 import Foundation
 
+#if !MCBE_CLI
 struct WorldSelectionCoordinate {
   let x: Double
   let y: Double
@@ -48,26 +49,42 @@ enum WorldSessionChangeKind: String {
   case externalReload
 }
 
+#endif
+
 final class WorldSession {
+#if !MCBE_CLI
   static let worldDidChangeNotification = Notification.Name("MCBEEditorWorldSessionDidChange")
   static let mapBlockSelectionNotification = Notification.Name(
     "MCBEEditorMapBlockSelectionRequested")
   static let changeKindUserInfoKey = "MCBEEditorWorldSessionChangeKind"
 
   let world: ImportedWorld
+#endif
   let document: WorldDocument
+  let displayName: String
   private var cachedDatabase: MojangLevelDB?
+#if !MCBE_CLI
   private var selectedBlockCoordinateStorage: WorldSelectionCoordinate?
   private var selectedWorldObjectCoordinateStorage: WorldSelectionCoordinate?
   private var requestedMapBlockCoordinateStorage: WorldSelectionCoordinate?
   private var blockSearchResultStorage: BedrockBlockSearchScanResult?
   private var blockSearchViewedStateStorage: BlockSearchViewedState?
+#endif
   private let lock = NSLock()
 
+#if MCBE_CLI
+  init(rootURL: URL, displayName: String) {
+    self.document = WorldDocument(rootURL: rootURL)
+    self.displayName = displayName
+  }
+#else
   init(world: ImportedWorld, store: WorldStore = .shared) {
     self.world = world
+    self.displayName = world.name
     self.document = WorldDocument(rootURL: store.worldURL(for: world))
   }
+
+#endif
 
   func database() throws -> MojangLevelDB {
     lock.lock()
@@ -78,6 +95,7 @@ final class WorldSession {
     return opened
   }
 
+#if !MCBE_CLI
   var selectedBlockCoordinate: WorldSelectionCoordinate? {
     lock.lock()
     defer { lock.unlock() }
@@ -153,6 +171,8 @@ final class WorldSession {
     lock.unlock()
   }
 
+#endif
+
   func close() {
     lock.lock()
     cachedDatabase?.close()
@@ -160,6 +180,7 @@ final class WorldSession {
     lock.unlock()
   }
 
+#if !MCBE_CLI
   /// Notifies all world-backed screens after this process has completed a
   /// database mutation. The cached LevelDB handle deliberately stays open so an
   /// entity scan already using it cannot race a close and crash.
@@ -201,6 +222,8 @@ final class WorldSession {
     }
     return kind
   }
+
+#endif
 
   deinit { close() }
 }

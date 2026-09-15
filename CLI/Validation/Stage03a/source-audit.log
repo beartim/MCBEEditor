@@ -1,0 +1,6 @@
+PASS: 26 GUI names and both help catalogs match the saved inventory
+PASS: all seven Windows parser families are wired to the original implementations
+PASS: Windows console project references Core and the strings-only help file; no WPF dependency
+PASS: 57 Swift build inputs exist and do not import a GUI framework
+PASS: 135 executable parser fixtures cover all commands and storage boundaries
+RESULT: source audit passed; compiler and executable behavior remain separate validation gates

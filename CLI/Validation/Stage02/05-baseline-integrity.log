@@ -1,0 +1,9 @@
+PASS: all 409 original files retained
+PASS: exactly 5 original files differ (one inherited stage 01 change, four stage 02 changes):
+Windows/MCBEEditor.Core.SelfTest/Program.cs
+Windows/MCBEEditor.Core/World/PortableWorldWorkspace.cs
+Windows/MCBEEditor.Core/World/WorldToolStores.cs
+Windows/MCBEEditor.Desktop/CommandHelpCatalog.cs
+Windows/Native/CMakeLists.txt
+PASS: Swift source/input scripts and historical Stage01 validation logs remain byte-identical to the stage01 snapshot
+Scope: file integrity only; not compilation or functional verification

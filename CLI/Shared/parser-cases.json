@@ -1,0 +1,712 @@
+[
+  {
+    "id": "help-example-001",
+    "command": "help",
+    "valid": true
+  },
+  {
+    "id": "help-example-002",
+    "command": "help give",
+    "valid": true
+  },
+  {
+    "id": "info-example-003",
+    "command": "info",
+    "valid": true
+  },
+  {
+    "id": "clear-example-004",
+    "command": "clear @e",
+    "valid": true
+  },
+  {
+    "id": "clearspawnpoint-example-005",
+    "command": "clearspawnpoint @a",
+    "valid": true
+  },
+  {
+    "id": "clone-example-006",
+    "command": "clone overworld 0 0 0 5 100 46 nether 9 50 9",
+    "valid": true
+  },
+  {
+    "id": "chunk-example-007",
+    "command": "chunk query",
+    "valid": true
+  },
+  {
+    "id": "chunk-example-008",
+    "command": "chunk query overworld",
+    "valid": true
+  },
+  {
+    "id": "chunk-example-009",
+    "command": "chunk query overworld 0 0",
+    "valid": true
+  },
+  {
+    "id": "chunk-example-010",
+    "command": "chunk empty nether -2 5",
+    "valid": true
+  },
+  {
+    "id": "chunk-example-011",
+    "command": "chunk regenerate the_end 0 0",
+    "valid": true
+  },
+  {
+    "id": "daylock-example-012",
+    "command": "daylock 1",
+    "valid": true
+  },
+  {
+    "id": "effect-example-013",
+    "command": "effect give @a strength 12000 50",
+    "valid": true
+  },
+  {
+    "id": "effect-example-014",
+    "command": "effect give @a strength -1 -1",
+    "valid": true
+  },
+  {
+    "id": "effect-example-015",
+    "command": "effect clear @e ALL",
+    "valid": true
+  },
+  {
+    "id": "experience-example-016",
+    "command": "experience add @a 100",
+    "valid": true
+  },
+  {
+    "id": "experience-example-017",
+    "command": "experience addlevel -4294967270 -3",
+    "valid": true
+  },
+  {
+    "id": "experience-example-018",
+    "command": "experience level @s 30",
+    "valid": true
+  },
+  {
+    "id": "experience-example-019",
+    "command": "experience percent @s 0.5",
+    "valid": true
+  },
+  {
+    "id": "experience-example-020",
+    "command": "experience query @a",
+    "valid": true
+  },
+  {
+    "id": "experience-example-021",
+    "command": "experience set @s 2500",
+    "valid": true
+  },
+  {
+    "id": "fill-example-022",
+    "command": "fill overworld 0 64 0 15 64 15 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "fill-example-023",
+    "command": "fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL",
+    "valid": true
+  },
+  {
+    "id": "fillbiome-example-024",
+    "command": "fillbiome overworld 0 -64 0 15 319 15 minecraft:plains",
+    "valid": true
+  },
+  {
+    "id": "fillbiome-example-025",
+    "command": "fillbiome nether -32 0 -32 31 127 31 178",
+    "valid": true
+  },
+  {
+    "id": "getblock-example-026",
+    "command": "getblock overworld -24 64 0",
+    "valid": true
+  },
+  {
+    "id": "give-example-027",
+    "command": "give @s Auto minecraft:stone 64 NULL",
+    "valid": true
+  },
+  {
+    "id": "give-example-028",
+    "command": "give @a 5 minecraft:diamond 3 NULL",
+    "valid": true
+  },
+  {
+    "id": "give-example-029",
+    "command": "give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
+    "valid": true
+  },
+  {
+    "id": "kill-example-030",
+    "command": "kill @a 1",
+    "valid": true
+  },
+  {
+    "id": "kick-example-031",
+    "command": "kick @a",
+    "valid": true
+  },
+  {
+    "id": "kick-example-032",
+    "command": "kick -4294967270",
+    "valid": true
+  },
+  {
+    "id": "setblock-example-033",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "setblock-example-034",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL",
+    "valid": true
+  },
+  {
+    "id": "setworldspawn-example-035",
+    "command": "setworldspawn 0 80 0",
+    "valid": true
+  },
+  {
+    "id": "spawnpoint-example-036",
+    "command": "spawnpoint @a the_end 0 100 0",
+    "valid": true
+  },
+  {
+    "id": "spread-example-037",
+    "command": "spread @e",
+    "valid": true
+  },
+  {
+    "id": "spread-example-038",
+    "command": "spread minecraft:cow",
+    "valid": true
+  },
+  {
+    "id": "storage-example-039",
+    "command": "storage query overworld 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "storage-example-040",
+    "command": "storage set overworld 0 64 0 8 minecraft:water NULL",
+    "valid": true
+  },
+  {
+    "id": "storage-example-041",
+    "command": "storage delete overworld 0 64 0 8",
+    "valid": true
+  },
+  {
+    "id": "storage-example-042",
+    "command": "storage clear overworld 0 64 0 1",
+    "valid": true
+  },
+  {
+    "id": "structure-example-043",
+    "command": "structure save mystructure:1 overworld 0 0 0 50 50 50",
+    "valid": true
+  },
+  {
+    "id": "summon-example-044",
+    "command": "summon minecraft:pig overworld 0 64 0 default",
+    "valid": true
+  },
+  {
+    "id": "summon-example-045",
+    "command": "summon minecraft:pig overworld 10.5 64.25 -3.75 default",
+    "valid": true
+  },
+  {
+    "id": "summon-example-046",
+    "command": "summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\"",
+    "valid": true
+  },
+  {
+    "id": "teleport-example-047",
+    "command": "teleport -4294967270 the_end 10.5 70.25 10",
+    "valid": true
+  },
+  {
+    "id": "teleport-example-048",
+    "command": "teleport @a overworld -10.0 64 5",
+    "valid": true
+  },
+  {
+    "id": "teleport-example-049",
+    "command": "teleport @a overworld 100.0 70.0 100.0",
+    "valid": true
+  },
+  {
+    "id": "teleport-example-050",
+    "command": "teleport @a overworld 0 Auto 0",
+    "valid": true
+  },
+  {
+    "id": "tickingarea-example-051",
+    "command": "tickingarea add square nether 0 0 1 1 Base 1",
+    "valid": true
+  },
+  {
+    "id": "tickingarea-example-052",
+    "command": "tickingarea add circle overworld 0 0 4 Spawn 1",
+    "valid": true
+  },
+  {
+    "id": "tickingarea-example-053",
+    "command": "tickingarea list overworld",
+    "valid": true
+  },
+  {
+    "id": "time-example-054",
+    "command": "time query daytime",
+    "valid": true
+  },
+  {
+    "id": "time-example-055",
+    "command": "time add -1000",
+    "valid": true
+  },
+  {
+    "id": "time-example-056",
+    "command": "time ceil sunset",
+    "valid": true
+  },
+  {
+    "id": "time-example-057",
+    "command": "time floor midnight",
+    "valid": true
+  },
+  {
+    "id": "weather-example-058",
+    "command": "weather clear 1",
+    "valid": true
+  },
+  {
+    "id": "weather-example-059",
+    "command": "weather thunder 12000 1.0 0",
+    "valid": true
+  },
+  {
+    "id": "case-060",
+    "command": "help weather",
+    "valid": true
+  },
+  {
+    "id": "case-061",
+    "command": "help structure",
+    "valid": true
+  },
+  {
+    "id": "case-062",
+    "command": "weather query",
+    "valid": true
+  },
+  {
+    "id": "case-063",
+    "command": "weather rain 12000 0.5 1",
+    "valid": true
+  },
+  {
+    "id": "case-064",
+    "command": "structure query",
+    "valid": true
+  },
+  {
+    "id": "case-065",
+    "command": "structure import",
+    "valid": true
+  },
+  {
+    "id": "case-066",
+    "command": "structure import test:house",
+    "valid": true
+  },
+  {
+    "id": "case-067",
+    "command": "structure export mcstructure",
+    "valid": true
+  },
+  {
+    "id": "case-068",
+    "command": "structure export nbt test:house",
+    "valid": true
+  },
+  {
+    "id": "case-069",
+    "command": "structure export json test:house",
+    "valid": true
+  },
+  {
+    "id": "case-070",
+    "command": "structure load test:house overworld 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "case-071",
+    "command": "structure delete test:house",
+    "valid": true
+  },
+  {
+    "id": "case-072",
+    "command": "structure delete ALL",
+    "valid": true
+  },
+  {
+    "id": "case-073",
+    "command": "experience level @s 24791",
+    "valid": true
+  },
+  {
+    "id": "case-074",
+    "command": "experience percent @s 0",
+    "valid": true
+  },
+  {
+    "id": "case-075",
+    "command": "experience percent @s 1",
+    "valid": true
+  },
+  {
+    "id": "case-076",
+    "command": "effect give @s strength -2147483648 255",
+    "valid": true
+  },
+  {
+    "id": "case-077",
+    "command": "storage set overworld 0 64 0 254 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "case-078",
+    "command": "storage clear overworld 0 64 0 255",
+    "valid": true
+  },
+  {
+    "id": "case-079",
+    "command": "time query gametime",
+    "valid": true
+  },
+  {
+    "id": "case-080",
+    "command": "time query day",
+    "valid": true
+  },
+  {
+    "id": "case-081",
+    "command": "time set 0",
+    "valid": true
+  },
+  {
+    "id": "case-082",
+    "command": "daylock 0",
+    "valid": true
+  },
+  {
+    "id": "case-083",
+    "command": "tickingarea list ALL",
+    "valid": true
+  },
+  {
+    "id": "case-084",
+    "command": "tickingarea delete ALL",
+    "valid": true
+  },
+  {
+    "id": "case-085",
+    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "case-086",
+    "command": "",
+    "valid": false
+  },
+  {
+    "id": "case-087",
+    "command": "/help",
+    "valid": false
+  },
+  {
+    "id": "case-088",
+    "command": "not_a_command",
+    "valid": false
+  },
+  {
+    "id": "case-089",
+    "command": "help not_a_command",
+    "valid": false
+  },
+  {
+    "id": "case-090",
+    "command": "help time query",
+    "valid": false
+  },
+  {
+    "id": "case-091",
+    "command": "info extra",
+    "valid": false
+  },
+  {
+    "id": "case-092",
+    "command": "clear",
+    "valid": false
+  },
+  {
+    "id": "case-093",
+    "command": "clear 0",
+    "valid": false
+  },
+  {
+    "id": "case-094",
+    "command": "clearspawnpoint",
+    "valid": false
+  },
+  {
+    "id": "case-095",
+    "command": "daylock 2",
+    "valid": false
+  },
+  {
+    "id": "case-096",
+    "command": "kick @s",
+    "valid": false
+  },
+  {
+    "id": "case-097",
+    "command": "kick @e",
+    "valid": false
+  },
+  {
+    "id": "case-098",
+    "command": "give @s 36 minecraft:stone 1 NULL",
+    "valid": false
+  },
+  {
+    "id": "case-099",
+    "command": "give @s Auto minecraft:stone 0 NULL",
+    "valid": false
+  },
+  {
+    "id": "case-100",
+    "command": "give @s Auto minecraft:stone 64",
+    "valid": false
+  },
+  {
+    "id": "case-101",
+    "command": "kill @a 2",
+    "valid": false
+  },
+  {
+    "id": "case-102",
+    "command": "effect clear @e all",
+    "valid": false
+  },
+  {
+    "id": "case-103",
+    "command": "effect give @s strength 1 256",
+    "valid": false
+  },
+  {
+    "id": "case-104",
+    "command": "effect give @s strength 1 -129",
+    "valid": false
+  },
+  {
+    "id": "case-105",
+    "command": "experience level @s 24792",
+    "valid": false
+  },
+  {
+    "id": "case-106",
+    "command": "experience percent @s 1.1",
+    "valid": false
+  },
+  {
+    "id": "case-107",
+    "command": "experience set @s -1",
+    "valid": false
+  },
+  {
+    "id": "case-108",
+    "command": "weather query extra",
+    "valid": false
+  },
+  {
+    "id": "case-109",
+    "command": "weather thunder 100 1.1 0",
+    "valid": false
+  },
+  {
+    "id": "case-110",
+    "command": "weather clear 2",
+    "valid": false
+  },
+  {
+    "id": "case-111",
+    "command": "storage add overworld 0 64 0 1",
+    "valid": false
+  },
+  {
+    "id": "case-112",
+    "command": "storage set overworld 0 64 0 255 minecraft:stone NULL",
+    "valid": false
+  },
+  {
+    "id": "case-113",
+    "command": "storage clear overworld 0 64 0 256",
+    "valid": false
+  },
+  {
+    "id": "case-114",
+    "command": "getblock overworld 0 64",
+    "valid": false
+  },
+  {
+    "id": "case-115",
+    "command": "setblock overworld 0 64 0 minecraft:stone",
+    "valid": false
+  },
+  {
+    "id": "case-116",
+    "command": "fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:water",
+    "valid": false
+  },
+  {
+    "id": "case-117",
+    "command": "fillbiome overworld 0 0 0 1 1 1 minecraft:not_a_real_biome",
+    "valid": false
+  },
+  {
+    "id": "case-118",
+    "command": "setworldspawn 0 64.5 0",
+    "valid": false
+  },
+  {
+    "id": "case-119",
+    "command": "spawnpoint @s overworld 0 64",
+    "valid": false
+  },
+  {
+    "id": "case-120",
+    "command": "clone overworld 0 0 0 1 1 1 nether 0 0",
+    "valid": false
+  },
+  {
+    "id": "case-121",
+    "command": "chunk query overworld 0",
+    "valid": false
+  },
+  {
+    "id": "case-122",
+    "command": "chunk empty overworld 0",
+    "valid": false
+  },
+  {
+    "id": "case-123",
+    "command": "structure export yaml test:house",
+    "valid": false
+  },
+  {
+    "id": "case-124",
+    "command": "structure query extra",
+    "valid": false
+  },
+  {
+    "id": "case-125",
+    "command": "structure load test:house overworld 0 0",
+    "valid": false
+  },
+  {
+    "id": "case-126",
+    "command": "summon minecraft:pig overworld 0 64 0 NULL",
+    "valid": false
+  },
+  {
+    "id": "case-127",
+    "command": "summon minecraft:pig overworld nan 64 0 default",
+    "valid": false
+  },
+  {
+    "id": "case-128",
+    "command": "spread",
+    "valid": false
+  },
+  {
+    "id": "case-129",
+    "command": "teleport @s overworld 0 invalid 0",
+    "valid": false
+  },
+  {
+    "id": "case-130",
+    "command": "tickingarea add circle overworld 0 0 5 Spawn 1",
+    "valid": false
+  },
+  {
+    "id": "case-131",
+    "command": "time set -1",
+    "valid": false
+  },
+  {
+    "id": "case-132",
+    "command": "time query invalid",
+    "valid": false
+  },
+  {
+    "id": "case-133",
+    "command": "give @s Auto minecraft:stone 1 'Compound'\"tag\"=\"{'Byte'\"broken\"=\"1\"",
+    "valid": false
+  },
+  {
+    "id": "case-134",
+    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL",
+    "valid": false
+  },
+  {
+    "id": "parity-case-root",
+    "command": "HELP WEATHER",
+    "valid": true
+  },
+  {
+    "id": "parity-case-subcommand",
+    "command": "EfFeCt ClEaR @e ALL",
+    "valid": true
+  },
+  {
+    "id": "parity-case-dimension",
+    "command": "GeTbLoCk OvErWoRlD 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "parity-int32-max",
+    "command": "getblock overworld 2147483647 64 -2147483648",
+    "valid": true
+  },
+  {
+    "id": "parity-int32-overflow",
+    "command": "getblock overworld 2147483648 64 0",
+    "valid": false
+  },
+  {
+    "id": "parity-int32-underflow",
+    "command": "getblock overworld 0 64 -2147483649",
+    "valid": false
+  },
+  {
+    "id": "parity-semantic-all",
+    "command": "effect clear @e all",
+    "valid": false
+  },
+  {
+    "id": "parity-semantic-nbt",
+    "command": "SuMmOn minecraft:pig OVERWORLD 0 64 0 'String'\"CustomName\"=\"MiXeD Value\"",
+    "valid": true
+  }
+]

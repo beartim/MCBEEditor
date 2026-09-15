@@ -1,0 +1,1 @@
+PASS: production Swift converter + real codecs executed JSON/LE/VarInt/BE/JSON, overwrite guard, multi-root handling, and Java NBT -> Bedrock mcstructure

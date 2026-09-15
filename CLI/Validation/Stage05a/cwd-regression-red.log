@@ -1,0 +1,3 @@
+stage05a source audit: FAIL
+ - portable launcher must preserve the caller current directory
+ - release script is missing the relative-path/CWD final-EXE probe

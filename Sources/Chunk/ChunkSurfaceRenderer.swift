@@ -423,3 +423,14 @@ final class ChunkSurfaceRenderer {
     }
 
 }
+
+
+extension ChunkSurfaceRenderer {
+    func blockColumn(blockX: Int64, blockZ: Int64, dimension: Int32) throws -> BedrockBlockColumnResult {
+        try BedrockBlockReader(database: database).blockColumn(blockX: blockX, blockZ: blockZ, dimension: dimension)
+    }
+
+    func block(blockX: Int64, y: Int32, blockZ: Int64, dimension: Int32) throws -> BedrockBlockRecord {
+        try BedrockBlockReader(database: database).block(blockX: blockX, y: y, blockZ: blockZ, dimension: dimension)
+    }
+}
