@@ -8,7 +8,7 @@ def require(cond,msg):
 def text(rel): return (ROOT/rel).read_text(encoding='utf-8')
 
 win_main=text('CLI/Windows/Program.cs'); ios_main=text('CLI/iOS/CliMain.swift')
-require((any(f'0.4.0-stage04{x}' in win_main and f'0.4.0-stage04{x}' in ios_main for x in 'bcde') or (('0.5.0-stage05b' in win_main and '0.5.0-stage05b' in ios_main) or ('0.6.0-stage06' in win_main and '0.6.0-stage06' in ios_main))), 'both backends must advertise stage04b-or-later version')
+require('MCBEEditor CLI 1.0.0' in win_main and 'MCBEEditor CLI 1.0.0' in ios_main, 'both backends must advertise CLI 1.0.0')
 require('--interactive' in win_main and '--interactive' in ios_main, 'interactive entrypoint missing')
 for rel in ['CLI/Windows/CliInteractiveShell.cs','CLI/iOS/CliInteractiveShell.swift','CLI/Windows/CliStructureFileCommand.cs','CLI/iOS/CliStructureFileCommand.swift']:
     require((ROOT/rel).is_file(), f'missing {rel}')

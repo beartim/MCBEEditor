@@ -7,7 +7,7 @@ def req(v,m):
     if not v: fail.append(m)
 def txt(p): return (ROOT/p).read_text(encoding='utf-8')
 win=txt('CLI/Windows/Program.cs'); ios=txt('CLI/iOS/CliMain.swift'); parser=txt('Sources/Command/WorldCommand.swift')
-req((('0.4.0-stage04e' in win and '0.4.0-stage04e' in ios) or ('0.5.0-stage05b' in win and '0.5.0-stage05b' in ios) or ('0.6.0-stage06' in win and '0.6.0-stage06' in ios)), 'stage04e version missing')
+req('MCBEEditor CLI 1.0.0' in win and 'MCBEEditor CLI 1.0.0' in ios, 'CLI 1.0.0 version missing')
 req('tokens.first?.lowercased()' in parser, 'Swift root command is not case-insensitive')
 for marker in ['arguments.first?.lowercased()', 'parseDimension(_ text: String)', 'text.lowercased()']:
     req(marker in parser, f'Swift parser normalization marker missing: {marker}')

@@ -6,7 +6,7 @@ $project = Join-Path $root 'CLI\Windows\MCBEEditor.Cli.csproj'
 $payloadDir = Join-Path $root 'CLI\Windows\artifacts\payload'
 $launcherBuild = Join-Path $root 'CLI\Windows\PortableLauncher\build\x64'
 $dist = Join-Path $root 'CLI\Windows\dist'
-$expectedVersion = 'MCBEEditor CLI 0.6.0-stage06'
+$expectedVersion = 'MCBEEditor CLI 1.0.0'
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw '.NET 10 SDK is required.' }
 if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw 'CMake and the Visual Studio C++ workload are required.' }

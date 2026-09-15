@@ -29,7 +29,7 @@ require('UseAnsi' in win_term and 'useANSI' in ios_term, 'ANSI gating missing')
 require('IsErrorRedirected' in win_term and '_useAnsiError' in win_term, 'Windows stderr ANSI must have its own redirection gate')
 require('STDERR_FILENO' in ios_term and 'useANSIError' in ios_term, 'Swift stderr ANSI must have its own redirection gate')
 require('CliOutputKind' in win_term and 'WorldCommandOutputStyle' in ios_term, 'styled command output mapping missing')
-require((any(f'0.4.0-stage04{x}' in text('CLI/Windows/Program.cs') and f'0.4.0-stage04{x}' in text('CLI/iOS/CliMain.swift') for x in 'cde') or (('0.5.0-stage05b' in text('CLI/Windows/Program.cs') and '0.5.0-stage05b' in text('CLI/iOS/CliMain.swift')) or ('0.6.0-stage06' in text('CLI/Windows/Program.cs') and '0.6.0-stage06' in text('CLI/iOS/CliMain.swift')))), 'stage04c-or-later version missing')
+require('MCBEEditor CLI 1.0.0' in text('CLI/Windows/Program.cs') and 'MCBEEditor CLI 1.0.0' in text('CLI/iOS/CliMain.swift'), 'CLI 1.0.0 version missing')
 require('CLI/iOS/CliTerminal.swift' in text('CLI/iOS/sources.txt'), 'Swift terminal source not wired')
 
 if failures:

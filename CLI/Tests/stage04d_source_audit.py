@@ -21,7 +21,7 @@ for marker in ['Command.txt','语法检查','是否执行']:
     req(marker in ws and marker in ss, f'interactive Command.txt flow missing {marker}')
 req('CliCommandPlan.Parse' in ws and 'CliCommandPlan.parse' in ss, 'Command.txt whole-batch preflight missing')
 req('batchExitStatus' in ws and 'batchExitStatus' in ss, 'runtime/preflight batch failures must affect final exit status')
-req((any(f'0.4.0-stage04{x}' in txt('CLI/Windows/Program.cs') and f'0.4.0-stage04{x}' in txt('CLI/iOS/CliMain.swift') for x in 'de') or (('0.5.0-stage05b' in txt('CLI/Windows/Program.cs') and '0.5.0-stage05b' in txt('CLI/iOS/CliMain.swift')) or ('0.6.0-stage06' in txt('CLI/Windows/Program.cs') and '0.6.0-stage06' in txt('CLI/iOS/CliMain.swift')))), 'stage04d-or-later version missing')
+req('MCBEEditor CLI 1.0.0' in txt('CLI/Windows/Program.cs') and 'MCBEEditor CLI 1.0.0' in txt('CLI/iOS/CliMain.swift'), 'CLI 1.0.0 version missing')
 req('CLI/iOS/CliSharedCommandStore.swift' in txt('CLI/iOS/sources.txt'), 'Swift shared command store not wired')
 if fail:
     for m in fail: print('FAIL:',m)

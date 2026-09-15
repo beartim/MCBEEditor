@@ -40,8 +40,8 @@ for test_source, backend in [(win_tests, "Windows"), (ios_tests, "Swift")]:
             f"{backend} native integration lacks format conversion coverage")
 require("stage06_conversion_audit.py" in win_build, "Windows cumulative test build does not run stage06 audit")
 require("stage06_conversion_audit.py" in apple_build, "Apple cumulative test build does not run stage06 audit")
-require("MCBEEditor CLI 0.6.0-stage06" in win and "MCBEEditor CLI 0.6.0-stage06" in ios, "runtime version is not stage06 on both backends")
-require("MCBEEditor CLI 0.6.0-stage06" in smoke and "--help", "smoke test does not expect stage06 runtime")
+require("MCBEEditor CLI 1.0.0" in win and "MCBEEditor CLI 1.0.0" in ios, "runtime version is not 1.0.0 on both backends")
+require("MCBEEditor CLI 1.0.0" in smoke and "--help", "smoke test does not expect the 1.0.0 runtime")
 require("--convert" in smoke and "little-varint" in smoke and "--overwrite" in smoke, "process smoke test lacks converter chain")
 require("没有引入 NBT 编辑器功能" in final_report or "没有加入 NBT 编辑器功能" in final_report, "final report does not preserve no-editor scope")
 

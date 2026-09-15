@@ -44,7 +44,7 @@ def main():
     out, _ = invoke(["--list-commands"])
     assert out.splitlines() == names, "command list differs from the reviewed GUI inventory"
     out, _ = invoke(["--version"])
-    version = {"windows": "MCBEEditor CLI 0.6.0-stage06", "swift": "MCBEEditor CLI 0.6.0-stage06"}
+    version = {"windows": "MCBEEditor CLI 1.0.0", "swift": "MCBEEditor CLI 1.0.0"}
     assert out.strip() == version[args.backend]
     invoke([])
     invoke(["--help"])

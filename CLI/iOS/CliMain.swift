@@ -1,9 +1,9 @@
 import Foundation
 
 struct MCBEEditorCli {
-    static let version = "MCBEEditor CLI 0.6.0-stage06"
+    static let version = "MCBEEditor CLI 1.0.0"
     private static let usage = """
-MCBEEditor CLI 0.6.0-stage06
+MCBEEditor CLI 1.0.0
 命令执行、原位更新、另存为与 NBT/mcstructure 格式转换。
 
 mcbe-cli --help [命令]
@@ -36,8 +36,8 @@ structure import/export 使用 --file 路径；持续会话使用 --interactive�
     static func writeOutput(_ message: String) { FileHandle.standardOutput.write(Data((message + "\n").utf8)) }
     static func writeError(_ message: String) { FileHandle.standardError.write(Data((message + "\n").utf8)) }
 
-    static func run(_ arguments: [String], output: (String) -> Void = writeOutput,
-                    error: (String) -> Void = writeError, cancelled: () -> Bool = { false },
+    static func run(_ arguments: [String], output: @escaping (String) -> Void = writeOutput,
+                    error: @escaping (String) -> Void = writeError, cancelled: () -> Bool = { false },
                     input: @escaping () -> String? = { readLine() }, terminalFeatures: Bool = false, commandsDirectory: URL? = nil) -> Int32 {
         do {
             guard let option = arguments.first else { output(usage); return 0 }

@@ -86,7 +86,7 @@ target_compile_definitions(mcbe_leveldb_core PRIVATE HAVE_ZLIB=1 DLLX=)
 
 if(WIN32)
     target_compile_definitions(mcbe_leveldb_core PRIVATE
-        WIN32=1 LEVELDB_PLATFORM_WINDOWS=1 _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
+        WIN32=1 LEVELDB_PLATFORM_WINDOWS=1 _WIN32_WINNT=0x0601 NOMINMAX)
 else()
     target_compile_definitions(mcbe_leveldb_core PRIVATE LEVELDB_PLATFORM_POSIX=1)
     set_target_properties(mcbe_leveldb_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -113,8 +113,12 @@ set_target_properties(MCBEEditor.LevelDB.Native PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 if(MSVC)
-    target_compile_options(mcbe_leveldb_core PRIVATE /W3 /wd4244 /wd4267 /wd4996)
+    target_compile_options(mcbe_leveldb_core PRIVATE /W3 /wd4244 /wd4267 /wd4312 /wd4996)
     target_compile_options(MCBEEditor.LevelDB.Native PRIVATE /W4 /EHsc)
+elseif(APPLE)
+    # leveldb-mcpe 0.8.0a8 still uses OSMemoryBarrier in its compatibility layer.
+    # Suppress that upstream deprecation warning only for the third-party target.
+    target_compile_options(mcbe_leveldb_core PRIVATE -Wno-deprecated-declarations)
 endif()
 
 option(MCBE_BUILD_CLI_TEST_TOOLS "Build the CLI native test database fixture tool" OFF)

@@ -5,9 +5,9 @@ namespace MCBEEditor.Cli;
 
 internal static class Program
 {
-    private const string Version = "MCBEEditor CLI 0.6.0-stage06";
+    private const string Version = "MCBEEditor CLI 1.0.0";
     private const string Usage = """
-MCBEEditor CLI 0.6.0-stage06
+MCBEEditor CLI 1.0.0
 Windows 命令执行、原位更新、另存为与 NBT/mcstructure 格式转换。
 
 mcbe-cli --help [命令]

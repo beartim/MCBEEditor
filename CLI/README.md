@@ -1,6 +1,6 @@
 # MCBEEditor CLI
 
-当前快照为 **stage06**，运行时版本为 `0.6.0-stage06`。本阶段以 stage05c 最终审计快照为基线，只新增**独立 NBT/mcstructure 文件格式转换**，不加入 NBT 树编辑、增删标签、搜索、批量修改等编辑器功能，也不改 Bedrock LevelDB/Chunk/World 持久化算法。05a/05b 的 Windows x64 绿色单 `mcbe-cli.exe` 与最低 iOS 13 arm64 裸二进制发布形态保持不变；仍不制作 deb。
+当前 CLI 版本为 **1.0.0**。Windows x64 继续发布绿色单 `mcbe-cli.exe`，iOS 继续发布最低 iOS 13 arm64 裸二进制；独立 NBT/mcstructure 格式转换保持为工具功能，不加入 NBT 编辑器功能。
 
 源码审计与 Linux Swift 前端语法解析可在当前环境运行；当前环境没有 .NET/PowerShell，也不是 macOS/Xcode，因此新 Windows 单 exe 的真实发布/启动、Apple Objective-C++/LevelDB 链接、iOS arm64 裸二进制、GitHub Actions 和 Minecraft 实际读档仍是独立的未运行门禁。发布脚本和 Actions 已接线，但不要把静态检查写成平台构建通过。
 
