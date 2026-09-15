@@ -33,7 +33,7 @@ enum NativeIntegration {
         } catch { MCBEEditorCli.writeError(error.localizedDescription); exit(1) }
     }
 
-    static func createWorld(_ root: URL, tool: String, fixture: EndFixture) throws -> URL {
+    private static func createWorld(_ root: URL, tool: String, fixture: EndFixture) throws -> URL {
         let source = root.appendingPathComponent("源世界", isDirectory: true)
         try manager.createDirectory(at: source, withIntermediateDirectories: false)
         let process = Process()
