@@ -80,11 +80,20 @@ enum CliFileSystem {
     private static func fileHash(_ file: URL) throws -> Data {
         let handle = try FileHandle(forReadingFrom: file)
         defer { handle.closeFile() }
+        let descriptor = handle.fileDescriptor
+        var buffer = [UInt8](repeating: 0, count: 1_048_576)
         var hash = SHA256()
+
         while true {
-            let bytes = try handle.read(upToCount: 1_048_576) ?? Data()
-            if bytes.isEmpty { break }
-            hash.update(data: bytes)
+            let count = buffer.withUnsafeMutableBytes { bytes -> Int in
+                Darwin.read(descriptor, bytes.baseAddress, bytes.count)
+            }
+            if count == 0 { break }
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw CliError.file("读取文件失败：\(String(cString: strerror(errno)))；\(file.path)")
+            }
+            hash.update(data: Data(buffer[0..<count]))
         }
         return Data(hash.finalize())
     }

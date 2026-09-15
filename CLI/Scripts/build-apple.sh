@@ -73,6 +73,7 @@ if [[ "$CHECK" == --test ]]; then
   python3 "$ROOT/CLI/Tests/stage05c_final_audit.py"
   python3 "$ROOT/CLI/Tests/stage06_conversion_audit.py"
   python3 "$ROOT/CLI/Tests/stage06b_build_audit.py"
+  python3 "$ROOT/CLI/Tests/ios13_compat_audit.py"
   python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$OUT/mcbe-cli"
   cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \
