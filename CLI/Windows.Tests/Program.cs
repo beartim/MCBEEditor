@@ -509,7 +509,7 @@ internal static class Program
     }
 
     private sealed record RunResult(string Output, string Error, string Cache);
-    private sealed class ObservedWriter(Action<string?>? observer) : StringWriter(CultureInfo.InvariantCulture)
+    private sealed class ObservedWriter(Action<string?>? observer = null) : StringWriter(CultureInfo.InvariantCulture)
     {
         public override void WriteLine(string? value) { base.WriteLine(value); observer?.Invoke(value); }
     }
