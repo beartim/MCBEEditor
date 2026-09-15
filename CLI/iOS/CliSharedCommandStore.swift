@@ -17,9 +17,9 @@ enum CliSharedCommandStore {
         directory.appendingPathComponent("ReadMe.txt", isDirectory: false)
     }
 
-    static func prepareDefault(error: (String) -> Void) {
+    static func prepareDefault(error reportError: (String) -> Void) {
         do { try prepare(at: defaultDirectory) }
-        catch { error("警告：无法准备 Commands 目录：\(error.localizedDescription)") }
+        catch { reportError("警告：无法准备 Commands 目录：\(error.localizedDescription)") }
     }
 
     static func prepare(at directory: URL) throws {

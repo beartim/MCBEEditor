@@ -67,6 +67,15 @@ enum NativeIntegration {
         for (type, data) in [(ChunkRecordType.legacyVersion, Data([19])), (.finalizedState, Data([2, 0, 0, 0])), (.data2D, Data(repeating: 0, count: 768))] {
             try database.put(data, for: BedrockDBKey(position: position, recordType: type, subChunkIndex: nil).encoded())
         }
+
+        // The native command batch explicitly exercises chunk empty/regenerate on Nether (1, 1).
+        // Seed a real generated chunk there so both operations test their success paths instead of
+        // deterministically failing on a non-existent chunk.
+        try database.put(floor.encodePersistent(), for: BedrockDBKey.subChunk(x: 1, z: 1, dimension: 1, index: 4))
+        let netherPosition = ChunkPosition(x: 1, z: 1, dimension: 1)
+        for (type, data) in [(ChunkRecordType.legacyVersion, Data([19])), (.finalizedState, Data([2, 0, 0, 0])), (.data2D, Data(repeating: 0, count: 768))] {
+            try database.put(data, for: BedrockDBKey(position: netherPosition, recordType: type, subChunkIndex: nil).encoded())
+        }
         try database.put(BedrockNBTCodec.encode(player(1001), encoding: .littleEndian), for: Data("~local_player".utf8))
         try database.put(BedrockNBTCodec.encode(player(2002), encoding: .littleEndian), for: Data("player_server_2002".utf8))
         try database.put(Data([0, 128, 255, 1]), for: Data("cli_unknown_record".utf8))

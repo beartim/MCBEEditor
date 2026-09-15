@@ -38,6 +38,7 @@ internal static class WorldFixture
         using (var database = world.OpenDatabase(readOnly: false))
         {
             SeedFloor(database, 0, 4);
+            SeedFloor(database, 1, 4, 1, 1);
             SeedFloor(database, 2, 0);
             database.Put(Encoding.UTF8.GetBytes("~local_player"), BedrockNbtCodec.Encode(Player(1001), NbtEncoding.LittleEndian));
             database.Put(Encoding.UTF8.GetBytes("player_server_2002"), BedrockNbtCodec.Encode(Player(2002), NbtEncoding.LittleEndian));
@@ -49,14 +50,14 @@ internal static class WorldFixture
         return source;
     }
 
-    private static void SeedFloor(IWorldDatabase database, int dimension, sbyte y)
+    private static void SeedFloor(IWorldDatabase database, int dimension, sbyte y, int chunkX = 0, int chunkZ = 0)
     {
-        var position = new ChunkPosition(0, 0, dimension);
+        var position = new ChunkPosition(chunkX, chunkZ, dimension);
         var indices = new ushort[4096];
         for (var x = 0; x < 16; x++) for (var z = 0; z < 16; z++) indices[(x << 8) | (z << 4)] = 1;
         var air = BedrockBlockState.EditableAir(17825808);
         var stone = new BedrockBlockStorageSpec("minecraft:stone", []).ModernState(17825808);
-        database.Put(BedrockDbKey.SubChunk(0, 0, dimension, y),
+        database.Put(BedrockDbKey.SubChunk(chunkX, chunkZ, dimension, y),
             new BedrockSubChunk(8, y, [new SubChunkStorage(1, [air, stone], indices)], []).EncodePersistent());
         database.Put(new BedrockDbKey(position, ChunkRecordType.LegacyVersion, null).Encode(), [19]);
         database.Put(new BedrockDbKey(position, ChunkRecordType.FinalizedState, null).Encode(), [2, 0, 0, 0]);
