@@ -19,29 +19,34 @@ SDK_NAME=macosx
 ARCH="$(uname -m)"
 MINIMUM=11.0
 TARGET="$ARCH-apple-macosx$MINIMUM"
-PLATFORM_OPTIONS=()
 if [[ "$MODE" == ios ]]; then
   SDK_NAME=iphoneos
   ARCH=arm64
   MINIMUM=13.0
   TARGET=arm64-apple-ios13.0
-  PLATFORM_OPTIONS+=(-DCMAKE_SYSTEM_NAME=iOS)
 fi
 SDK="$(xcrun --sdk "$SDK_NAME" --show-sdk-path)"
 NATIVE="$OUT/native"
 TEST_TOOLS=OFF
 [[ "$CHECK" != --test ]] || TEST_TOOLS=ON
-cmake -S "$ROOT/CLI/Native/Apple" -B "$NATIVE" \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-  "-DLEVELDB_MCPE_ROOT=$ROOT/CLI/build/deps/leveldb-mcpe" \
-  "-DZLIB_SOURCE_ROOT=$ROOT/CLI/build/deps/zlib" \
-  "-DMCBE_BUILD_CLI_TEST_TOOLS=$TEST_TOOLS" \
-  "-DCMAKE_OSX_SYSROOT=$SDK" "-DCMAKE_OSX_ARCHITECTURES=$ARCH" \
-  "-DCMAKE_OSX_DEPLOYMENT_TARGET=$MINIMUM" \
-  "-DCMAKE_C_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang)" \
-  "-DCMAKE_CXX_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang++)" \
-  "-DCMAKE_OBJCXX_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang++)" \
-  "${PLATFORM_OPTIONS[@]}"
+configure_native() {
+  cmake -S "$ROOT/CLI/Native/Apple" -B "$NATIVE" \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    "-DLEVELDB_MCPE_ROOT=$ROOT/CLI/build/deps/leveldb-mcpe" \
+    "-DZLIB_SOURCE_ROOT=$ROOT/CLI/build/deps/zlib" \
+    "-DMCBE_BUILD_CLI_TEST_TOOLS=$TEST_TOOLS" \
+    "-DCMAKE_OSX_SYSROOT=$SDK" "-DCMAKE_OSX_ARCHITECTURES=$ARCH" \
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=$MINIMUM" \
+    "-DCMAKE_C_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang)" \
+    "-DCMAKE_CXX_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang++)" \
+    "-DCMAKE_OBJCXX_COMPILER=$(xcrun --sdk "$SDK_NAME" --find clang++)" \
+    "$@"
+}
+if [[ "$MODE" == ios ]]; then
+  configure_native -DCMAKE_SYSTEM_NAME=iOS
+else
+  configure_native
+fi
 cmake --build "$NATIVE" --config Release --target mcbe_cli_apple_bridge --parallel 3
 sources=()
 test_sources=()
@@ -67,6 +72,7 @@ if [[ "$CHECK" == --test ]]; then
   python3 "$ROOT/CLI/Tests/stage05b_source_audit.py"
   python3 "$ROOT/CLI/Tests/stage05c_final_audit.py"
   python3 "$ROOT/CLI/Tests/stage06_conversion_audit.py"
+  python3 "$ROOT/CLI/Tests/stage06b_build_audit.py"
   python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$OUT/mcbe-cli"
   cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \

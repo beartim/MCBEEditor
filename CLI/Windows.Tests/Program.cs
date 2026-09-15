@@ -158,9 +158,9 @@ internal static class Program
         Check(StandaloneNbtFileCodec.Decode(File.ReadAllBytes(mcstructureFile), mcstructureFile).OriginalEncoding == NbtEncoding.LittleEndian, "mcstructure conversion encoding");
         InvokeStandalone("convert-no-overwrite", 3, ["--convert", structureFile, "--to", "json", "--output", jsonFile]);
         InvokeStandalone("convert-overwrite", 0, ["--convert", structureFile, "--to", "json", "--output", jsonFile, "--overwrite"]);
-        var root = StandaloneNbtFileCodec.Decode(File.ReadAllBytes(structureFile), structureFile).Documents.Single();
+        var rootDocument = StandaloneNbtFileCodec.Decode(File.ReadAllBytes(structureFile), structureFile).Documents.Single();
         var consecutiveFile = Path.Combine(structureFolder, "two roots.nbt");
-        File.WriteAllBytes(consecutiveFile, StandaloneNbtFileCodec.Encode([root, root], NbtEncoding.LittleEndian));
+        File.WriteAllBytes(consecutiveFile, StandaloneNbtFileCodec.Encode([rootDocument, rootDocument], NbtEncoding.LittleEndian));
         var consecutiveJson = Path.Combine(structureFolder, "two roots.json");
         InvokeStandalone("convert-consecutive-json", 0, ["--convert", consecutiveFile, "--to", "json", "--output", consecutiveJson]);
         Check(StandaloneNbtFileCodec.Decode(File.ReadAllBytes(consecutiveJson), consecutiveJson).Documents.Count == 2, "consecutive NBT conversion lost roots");

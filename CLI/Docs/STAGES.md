@@ -20,6 +20,7 @@
 | 05b | iOS arm64 裸二进制发布与 Actions | 已完成源码；iOS 13 arm64、ad-hoc 签名、Mach-O/最低系统检查并直接上传 mcbe-cli，macOS runner 待实际运行 |
 | 05c | 一次全量最终审计和最终报告 | 已完成；需求/回退/冗余/发布链/验证边界已复核，见 `WORK_FINAL_REPORT.md` |
 | 06 | 独立 NBT/mcstructure 文件格式转换 | 已完成源码；双端复用 Standalone NBT codec，支持 BE/LE/LE-VarInt/JSON/mcstructure，不含编辑器功能，平台原生运行待验证 |
+| 06b | Windows/iOS CLI 平台构建失败修复 | 已修复日志确认的 PowerShell CMake 参数拆分、macOS Bash 3.2 空数组 nounset，以及被前置错误遮住的 Windows 集成测试 CS0136；等待新一轮 Actions 真构建 |
 
 stage04e 之后，用户明确要求连续完成 **05a、05b**，并把 05b 范围收窄为 iOS arm64 裸二进制；随后完成 **05c 最终全量审计**。在此基线上，stage06 按新需求加入独立 NBT/mcstructure 格式转换入口；它是文件工具扩展，不增加世界命令，也不包含编辑器功能。当前环境仍不能运行 Windows/.NET 或 macOS/Xcode 发布构建；若后续获得 Actions/实机失败日志，应按真实日志修复并重新执行最终门禁。
 
@@ -75,4 +76,4 @@ stage04e 之后，用户明确要求连续完成 **05a、05b**，并把 05b 范�
 
 ## 断点纪律
 
-每次主要修改或验证里程碑后更新 WORK_CHECKPOINT.md，WORK_PROGRESS.md 只追加历史。开始大型重构或构建前先落盘。每轮 ZIP 包含可恢复的完整状态，不只打包差异，不删除上一轮唯一有效产物。当前无法可靠读取 Work 剩余额度，因此不猜测额度或使用比例，以阶段和里程碑主动保存。stage04e 之后用户明确要求连续完成 05a 与 05b，并说明 iOS 可以只提供裸二进制；05c 也已完成；随后新增 stage06 格式转换工具。最终快照不把 deb/rootful/rootless 作为缺口。后续若收到平台编译/原生失败日志，以 stage06 为当前功能基线修复并重新验证，同时保留 stage05c 历史审计门禁。
+每次主要修改或验证里程碑后更新 WORK_CHECKPOINT.md，WORK_PROGRESS.md 只追加历史。开始大型重构或构建前先落盘。每轮 ZIP 包含可恢复的完整状态，不只打包差异，不删除上一轮唯一有效产物。当前无法可靠读取 Work 剩余额度，因此不猜测额度或使用比例，以阶段和里程碑主动保存。stage04e 之后用户明确要求连续完成 05a 与 05b，并说明 iOS 可以只提供裸二进制；05c 也已完成；随后新增 stage06 格式转换工具。最终快照不把 deb/rootful/rootless 作为缺口。后续平台编译/原生失败日志以 stage06b 为当前源码基线继续修复；stage06 功能与 stage05c 历史审计门禁均保留。

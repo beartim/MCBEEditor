@@ -13,3 +13,10 @@ stage06 支持 `--convert 输入 --to big-endian|little-endian|little-varint|jso
 当前执行环境为 Linux x86_64、Swift 6.2.1；能完成源码审计、Swift 前端 parse、Python/bash/元数据检查，但没有 Windows .NET/MSVC，也不是 macOS/Xcode。因此 Windows 最终 EXE、Windows 原生转换集成、macOS host 原生链接、iOS arm64/lipo/vtool/codesign、GitHub Actions、iOS 设备与 Minecraft 实际读档仍必须保持为未验证，等待对应平台执行。
 
 当前 Linux 环境额外使用测试专用 Apple bridge/文件发布 stub，编译并执行了真实 Swift `CliFormatConverter` + Standalone NBT codec + `JavaStructureConverter`，实际验证 JSON/三种 NBT 编码、多根 NBT、覆盖保护和 Java structure → Bedrock mcstructure；这不等价于 iOS/macOS 原生构建。
+
+
+## stage06b 平台构建修复补充
+
+2026-09-15 收到真实 GitHub Actions 日志后确认，stage05c/06 之前“平台原生未验证”的边界确实包含构建脚本缺陷：Windows PowerShell 将未引用的 `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` 拆成两个 argv；macOS `/bin/bash` 3.2 在 `set -u` 下把 host 模式空 `PLATFORM_OPTIONS[@]` 当作未绑定变量。两项已在 stage06b 修复。进一步源码审计还发现 stage06 Windows 原生集成测试的 `root` 局部变量遮蔽 `RunTests` 参数，会导致 CS0136，已同步修复。
+
+没有改变 NBT/mcstructure 转换语义，也没有加入 NBT 编辑器功能。运行时版本仍为 `MCBEEditor CLI 0.6.0-stage06`。当前 Linux 可证明的是脚本/源码回归门禁与 Swift 前端解析通过；修复后的 Windows/macOS/iOS 真构建仍必须由对应 runner 重新执行确认。

@@ -131,3 +131,12 @@ stage05a/stage05b source audit 都先在 stage04e 基线观察到预期失败，
 先新增 stage06 源码门禁并观察预期红灯；随后 Windows/Swift 双端增加 `--convert 输入 --to 格式 --output 输出 [--overwrite]`，输出格式固定为 Big Endian、Little Endian、Little Endian VarInt、JSON 和 mcstructure。实现直接复用已有 Standalone NBT codec 与 JavaStructureConverter，没有复制 NBT 树编辑、搜索、增删标签等 UI 逻辑。多根 NBT 保留三种二进制编码/JSON 互转，mcstructure 继续限制单根结构。
 
 双端原生集成测试源码新增 help、LE、LE-VarInt、JSON、mcstructure、覆盖保护、多根保留和多根禁止转 mcstructure 场景；累计构建脚本加入 stage06 audit。当前环境继续按 Linux 可用门禁验证，Windows/macOS 原生运行状态单独记录。
+
+
+## 2026-09-15 stage06b CLI 平台构建失败修复
+
+用户提供的 Windows/iOS CLI Actions 日志实际来自同一次双 job 运行。iOS/macOS host 的首个失败点为 `build-apple.sh: line 34: PLATFORM_OPTIONS[@]: unbound variable`；Windows 首个失败点为 CMake 收到错误的 `CMAKE_POLICY_VERSION_MINIMUM=3` 和额外参数 `.5`。两者均发生在真正 CLI 编译之前。
+
+先新增 `stage06b_build_audit.py` 并观察红灯，然后修复：Windows 将 decimal CMake define 作为完整引号参数传递；Apple 去掉 host 模式空数组展开，改用 `configure_native "$@"` 的 Bash 3.2 兼容路径。继续审计 stage06 差异时发现 Windows 原生集成测试把 `RunTests` 参数 `root` 再声明为 NBT `root`，这是 C# CS0136 的确定性后续失败；同样先扩展门禁观察失败，再改名 `rootDocument`。
+
+本 Linux 环境重新通过累计源码门禁、Python 编译、Apple shell `bash -n`、62 个 Swift 生产输入 + NativeIntegration 的前端解析。这里仍不能运行 Windows .NET/MSVC 或 macOS/Xcode，所以不能宣称修复后的 Actions 已真构建通过；下一步应直接用 stage06b 在两个 runner 上复跑。

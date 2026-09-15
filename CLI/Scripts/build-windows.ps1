@@ -11,7 +11,7 @@ if ($Test -and -not (Get-Command python -ErrorAction SilentlyContinue)) { throw 
 
 & (Join-Path $root 'Windows\bootstrap-native.ps1')
 $testTools = if ($Test) { 'ON' } else { 'OFF' }
-& cmake -S $native -B $nativeBuild -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "-DMCBE_BUILD_CLI_TEST_TOOLS=$testTools"
+& cmake -S $native -B $nativeBuild -A x64 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" "-DMCBE_BUILD_CLI_TEST_TOOLS=$testTools"
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 & cmake --build $nativeBuild --config Release --target MCBEEditor.LevelDB.Native
 if ($LASTEXITCODE -ne 0) { throw "Native LevelDB build failed: $LASTEXITCODE" }
@@ -45,6 +45,8 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05c final audit failed.' }
     & python (Join-Path $root 'CLI\Tests\stage06_conversion_audit.py')
     if ($LASTEXITCODE -ne 0) { throw 'CLI stage 06 conversion audit failed.' }
+    & python (Join-Path $root 'CLI\Tests\stage06b_build_audit.py')
+    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 06b build audit failed.' }
     & python (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
     if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
     & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression
