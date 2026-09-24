@@ -3,6 +3,25 @@ import Foundation
 enum MapCoordinate {
     static let blocksPerChunk: Int64 = 16
 
+    /// Inclusive ray bounds shared by rendering and automatic block selection.
+    /// Saturate at the coordinate limits instead of wrapping or trapping.
+    static func projectionRange(
+        plane: Int64, depth: Int, towardPositive: Bool = false,
+        restrictToChunk: Bool = false
+    ) -> ClosedRange<Int64> {
+        if restrictToChunk {
+            let origin = floorDiv16(plane) * blocksPerChunk
+            return origin...(origin + (blocksPerChunk - 1))
+        }
+        let distance = Int64(max(1, depth) - 1)
+        if towardPositive {
+            let (end, overflow) = plane.addingReportingOverflow(distance)
+            return plane...(overflow ? Int64.max : end)
+        }
+        let (start, overflow) = plane.subtractingReportingOverflow(distance)
+        return (overflow ? Int64.min : start)...plane
+    }
+
     static func floorDiv16<T: BinaryInteger>(_ coordinate: T) -> Int64 {
         let value = Int64(clamping: coordinate)
         let quotient = value / blocksPerChunk

@@ -1,0 +1,16 @@
+Scripts/run_core_tests.sh: exit 0
+CLI/Scripts/build-apple.sh: exit 0
+CLI/Scripts/bootstrap-apple-native.sh: exit 0
+Scripts/build_unsigned_ipa.sh: exit 0
+CLI/Tests/windows_gui_overlap_click_audit.py: compile passed
+CLI/Tests/structure_file_smoke.py: compile passed
+CLI/Tests/apple_build_lifecycle.py: compile passed
+CLI/Tests/source_audit.py: compile passed
+CLI/Tests/map_projection_audit.py: compile passed
+CLI/Tests/build_audit.py: compile passed
+CLI/Tests/session_smoke.py: compile passed
+CLI/Tests/gui_nbt_audit.py: compile passed
+CLI/Tests/smoke.py: compile passed
+CLI/Tests/environment_smoke.py: compile passed
+CLI/Tests/nbt_conversion_smoke.py: compile passed
+CLI/Tests/portable_release_smoke.py: compile passed

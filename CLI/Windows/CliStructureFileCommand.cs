@@ -23,7 +23,7 @@ internal static class CliStructureFileCommand
         if (action is not ("import" or "export")) return false;
         var fileIndex = tokens.FindIndex(token => token.Equals("--file", StringComparison.OrdinalIgnoreCase));
         if (fileIndex < 0) return false;
-        if (fileIndex + 1 >= tokens.Count) throw new InvalidDataException("structure import/export 的 --file 缺少路径。");
+        if (fileIndex + 1 >= tokens.Count || tokens[fileIndex + 1].StartsWith("--", StringComparison.Ordinal)) throw new InvalidDataException("structure import/export 的 --file 缺少路径。");
         var overwrite = tokens.Any(token => token.Equals("--overwrite", StringComparison.OrdinalIgnoreCase));
         var allowedFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "--file", "--overwrite" };
         for (var i = 2; i < tokens.Count; i++)
@@ -43,6 +43,44 @@ internal static class CliStructureFileCommand
         var core = StructureTemplateCommandParser.Parse(string.Join(' ', coreTokens));
         request = new CliStructureFileRequest(core, Path.GetFullPath(tokens[fileIndex + 1]), overwrite);
         return true;
+    }
+
+    public static void ValidateFiles(IEnumerable<CliStructureFileRequest> requests, CliWorldPaths paths, string? scriptPath = null)
+    {
+        var files = requests.ToArray();
+        var imports = files.Where(file => file.Core.Operation == StructureTemplateStructureOperationKind.Import).ToArray();
+        var exports = new List<string>();
+        foreach (var file in files)
+        {
+            CliWorldPaths.RequireRegularPath(file.FilePath);
+            if (file.Core.Operation == StructureTemplateStructureOperationKind.Import)
+            {
+                if (!File.Exists(file.FilePath)) throw new CliInputException("找不到结构输入文件：" + file.FilePath);
+                if (!new[] { ".nbt", ".json", ".mcstructure" }.Contains(Path.GetExtension(file.FilePath), StringComparer.OrdinalIgnoreCase))
+                    throw new CliInputException("structure import 仅支持 .mcstructure、.nbt 或 .json 文件。");
+                continue;
+            }
+            var destination = file.FilePath;
+            if (files.Any(other => other.Core.Operation == StructureTemplateStructureOperationKind.Export
+                && !CliWorldPaths.Same(destination, other.FilePath)
+                && (CliWorldPaths.SameOrInside(destination, other.FilePath) || CliWorldPaths.SameOrInside(other.FilePath, destination))))
+                throw new CliInputException("本批次的结构输出存在文件与父目录冲突。");
+            var expected = "." + file.Core.Format!.Value.ToString().ToLowerInvariant();
+            if (!Path.GetExtension(destination).Equals(expected, StringComparison.OrdinalIgnoreCase) || Directory.Exists(destination))
+                throw new CliInputException("结构输出必须是扩展名匹配的文件：" + expected);
+            if (CliWorldPaths.Same(destination, paths.Source) || Directory.Exists(paths.Source) && CliWorldPaths.SameOrInside(destination, paths.Source)
+                || CliWorldPaths.SameOrInside(destination, paths.Cache)
+                || paths.Output is not null && CliWorldPaths.SameOrInside(destination, paths.Output)
+                || scriptPath is not null && scriptPath != "-" && CliWorldPaths.Same(destination, scriptPath)
+                || imports.Any(input => CliWorldPaths.Same(destination, input.FilePath)))
+                throw new CliInputException("结构输出不能覆盖或写入源世界、世界输出、命令文件、结构输入或会话缓存。");
+            if (!file.Overwrite && (File.Exists(destination) || exports.Any(previous => CliWorldPaths.Same(previous, destination))))
+                throw new CliInputException("结构输出已存在或在本批次重复；显式使用 --overwrite 才会覆盖。");
+            for (var parent = Path.GetDirectoryName(destination); !string.IsNullOrEmpty(parent); parent = Path.GetDirectoryName(parent))
+                if (File.Exists(parent) || exports.Any(previous => CliWorldPaths.Same(previous, parent)))
+                    throw new CliInputException("结构输出的父路径是文件：" + parent);
+            exports.Add(destination);
+        }
     }
 
     public static CliCommandResult Execute(CliStructureFileRequest request, WorldDocument document)

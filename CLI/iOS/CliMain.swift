@@ -45,12 +45,13 @@ structure import/export 使用 --file 路径；持续会话使用 --interactive�
             case ("--help", 1):
                 output(usage); output(""); output(WorldCommandParser.helpText()); return 0
             case ("--help", 2):
-                if arguments[1].lowercased() == "convert" { output(CliFormatConverter.usage); return 0 }
-                guard WorldCommandParser.commandNames.contains(arguments[1]) else {
+                let name = arguments[1].lowercased()
+                if name == "convert" { output(CliFormatConverter.usage); return 0 }
+                guard WorldCommandParser.commandNames.contains(name) else {
                     error("不存在的命令：\(arguments[1])"); return 2
                 }
-                output(WorldCommandParser.helpText(for: arguments[1]))
-                if arguments[1] == "structure" { output("\nCLI 文件接口：\n" + CliStructureFileCommand.usage) }
+                output(WorldCommandParser.helpText(for: name))
+                if name == "structure" { output("\nCLI 文件接口：\n" + CliStructureFileCommand.usage) }
                 return 0
             case ("--list-commands", 1):
                 output(WorldCommandParser.commandNames.joined(separator: "\n")); return 0

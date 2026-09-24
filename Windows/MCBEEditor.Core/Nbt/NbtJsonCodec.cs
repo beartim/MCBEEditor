@@ -117,7 +117,9 @@ public static class NbtJsonCodec
             case NbtTagType.Long:
                 return new NbtLongValue(Integer(payload, path, long.MinValue, long.MaxValue));
             case NbtTagType.Float:
-                return new NbtFloatValue((float)Floating(payload, path));
+                var single = (float)Floating(payload, path);
+                if (!float.IsFinite(single)) throw TypeError(path, "Float 范围内的有限数字");
+                return new NbtFloatValue(single);
             case NbtTagType.Double:
                 return new NbtDoubleValue(Floating(payload, path));
             case NbtTagType.String:

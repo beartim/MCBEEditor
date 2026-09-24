@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
@@ -8,7 +9,30 @@ import Foundation
 
 @main
 struct Main {
+    static func verifyNbtConversionAudit() throws {
+        for number in [Int64.min, -9_007_199_254_740_993, 9_007_199_254_740_993, Int64.max] {
+            for text in ["{\"type\":\"long\",\"value\":\(number)}", "\(number)"] {
+                let docs = try NBTJSONCodec.decode(Data(text.utf8))
+                guard case .long(let value) = docs[0].root else { preconditionFailure("Int64 tag type changed") }
+                precondition(value == number, "JSON Int64 lost precision")
+            }
+        }
+        let empty = try NBTJSONCodec.decode(Data("[]".utf8))
+        precondition(empty.count == 1)
+        guard case .list(.end, let values) = empty[0].root else { preconditionFailure("empty array type") }
+        precondition(values.isEmpty)
+        for text in [#"{"type":"float","value":1e39}"#, #"{"type":"double","value":"NaN"}"#, #"{"type":"int","value":true}"#, "null", #"{"documents":[]}"#] {
+            var rejected = false
+            do { _ = try NBTJSONCodec.decode(Data(text.utf8)) } catch { rejected = true }
+            precondition(rejected, "invalid JSON scalar accepted")
+        }
+        let duplicates = NBTDocument(rootName: "", root: .compound([NBTNamedTag(name: "same", value: .int(1)), NBTNamedTag(name: "same", value: .int(2))]))
+        var rejected = false
+        do { _ = try NBTJSONCodec.encode([duplicates]) } catch { rejected = true }
+        precondition(rejected, "JSON silently overwrote duplicate tags")
+    }
     static func main() throws {
+        try verifyNbtConversionAudit()
         let source = NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "LevelName", value: .string("测试世界")),
             NBTNamedTag(name: "Seed", value: .long(-123456789)),
@@ -1797,7 +1821,47 @@ struct WorldObjectNBTTest {
         return data
     }
 
+    static func verifyObjectIdentityAudit() throws {
+        func entity(_ id: Int64, _ x: Float = 1) -> NBTDocument {
+            NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "identifier", value: .string("minecraft:pig")),
+                NBTNamedTag(name: "UniqueID", value: .long(id)),
+                NBTNamedTag(name: "Pos", value: .list(.float, [.float(x), .float(64), .float(1)]))
+            ]))
+        }
+        let key = BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: 0), recordType: .entity, subChunkIndex: nil).encoded()
+        let database = MojangLevelDB(values: [key: try BedrockNBTCodec.encode(entity(601))])
+        let store = BedrockWorldObjectNBTStore(session: WorldSession(db: database))
+        let original = try BedrockWorldObjectScanner(database: database).scanRegion(
+            centerX: 0, centerZ: 0, dimension: 0, radius: 0,
+            includeEntities: true, includeBlockEntities: false).objects[0]
+        database.values[key] = try BedrockNBTCodec.encode(entity(602))
+        for delete in [false, true] {
+            let before = database.values
+            var rejected = false
+            do {
+                if delete { try store.delete(object: original) }
+                else { _ = try store.save(object: original, document: entity(601)) }
+            } catch { rejected = true }
+            precondition(rejected && database.values == before, "stale identity changed a same-position peer")
+        }
+        database.values[key] = try BedrockNBTCodec.encode(entity(601, 2)) + BedrockNBTCodec.encode(entity(601, 3))
+        let ambiguousBefore = database.values
+        var rejected = false
+        do { _ = try store.save(object: original, document: entity(601)) } catch { rejected = true }
+        precondition(rejected && database.values == ambiguousBefore, "ambiguous UID accepted")
+        database.values[key] = try BedrockNBTCodec.encode(entity(602)) + BedrockNBTCodec.encode(entity(601))
+        let result = try store.save(object: original, document: entity(603))
+        let refreshed = try store.refreshedObject(afterSaving: original, document: entity(603), result: result)
+        precondition(refreshed.uniqueID == 603 && refreshed.storage.recordIndex == 1)
+        _ = try store.save(object: refreshed, document: entity(604))
+        let records = try ConsecutiveNBTCodec.decode(database.values[key]!)
+        precondition(records[0].document.root.int64Value(namedAny: ["UniqueID"]) == 602)
+        precondition(records[1].document.root.int64Value(namedAny: ["UniqueID"]) == 604)
+    }
+
     static func main() throws {
+        try verifyObjectIdentityAudit()
         let actorID: Int64 = 42
         let actorDocument = NBTDocument(rootName: "", root: .compound([
             NBTNamedTag(name: "identifier", value: .string("minecraft:pig")),
@@ -2706,8 +2770,8 @@ swiftc \
   -parse-as-library "$TMP/block_nbt_editor_test.swift" -o "$TMP/block-nbt-editor-tests"
 "$TMP/block-nbt-editor-tests"
 
-"$ROOT/Scripts/test_legacy_terrain_subchunks.sh"
-"$ROOT/Scripts/test_subchunk_v0_v9_compat.sh"
+bash "$ROOT/Scripts/test_legacy_terrain_subchunks.sh"
+bash "$ROOT/Scripts/test_subchunk_v0_v9_compat.sh"
 bash "$ROOT/Scripts/test_end_missing_subchunks.sh"
 
 # v0.10.1: compact empty map layout, fixed layer 0/1 editing and no custom markers.
@@ -3867,6 +3931,337 @@ cat > "$TMP/effect_command_test.swift" <<'SWIFT'
 import Foundation
 @main
 struct EffectCommandTest {
+    static func verifyStructureAudit() throws {
+        let session = WorldSession()
+        let executor = WorldCommandExecutor(session: session)
+        func run(_ text: String) throws { _ = try executor.execute(try WorldCommandParser.parse(text)) }
+        func key(_ dim: Int32) -> Data { BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: dim), recordType: .blockEntity, subChunkIndex: nil).encoded() }
+        func record(_ x: Int8?, _ marker: String) throws -> Data {
+            var tags = [NBTNamedTag(name: "Marker", value: .string(marker)), NBTNamedTag(name: "DimensionId", value: .int(0))]
+            if let x = x { tags += [NBTNamedTag(name: "x", value: .byte(x)), NBTNamedTag(name: "y", value: .byte(0)), NBTNamedTag(name: "z", value: .byte(0))] }
+            return try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
+        }
+        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL")
+        session.db.values[key(0)] = try record(0, "source")
+        try run("structure save audit:one overworld 0 0 0 0 0 0")
+        let outside = try record(5, "outside-a") + record(nil, "orphan") + record(5, "outside-b")
+        session.db.values[key(1)] = try outside + record(1, "old-target")
+        try run("structure load audit:one nether 1 0 0")
+        let records = try ConsecutiveNBTCodec.decode(session.db.values[key(1)]!)
+        precondition(records.count == 4)
+        let preserved = try ConsecutiveNBTCodec.encode(Array(records.prefix(3)))
+        precondition(preserved == outside, "structure discarded unrelated records")
+        precondition(records[3].document.root.compoundValue(named: "x")?.integerValue() == 1)
+        precondition(records[3].document.root.compoundValue(named: "DimensionId")?.integerValue() == 1)
+        try run("structure load audit:one nether 300 0 0")
+        let farKey = BedrockDBKey(position: ChunkPosition(x: 18, z: 0, dimension: 1), recordType: .blockEntity, subChunkIndex: nil).encoded()
+        let far = try ConsecutiveNBTCodec.decode(session.db.values[farKey]!)[0]
+        precondition(far.document.root.compoundValue(named: "x")?.integerValue() == 300, "Byte coordinate was clamped")
+        session.db.values[key(0)] = try record(0, "first") + record(0, "duplicate")
+        let before = session.db.values
+        var rejected = false
+        do { try run("structure save audit:duplicate overworld 0 0 0 0 0 0") } catch { rejected = true }
+        precondition(rejected && session.db.values == before, "duplicate source structure was saved")
+    }
+    static func verifyRegionAudit() throws {
+        let circle = BedrockTickingArea(dimension: 0, isCircle: true, minimumX: Int32.min, minimumZ: Int32.min, maximumX: Int32.min + 32, maximumZ: Int32.min + 32, name: "edge", preload: false)
+        precondition(circle.contains(chunkX: circle.centerChunk.x, chunkZ: circle.centerChunk.z))
+        precondition(!circle.contains(chunkX: Int32.max, chunkZ: Int32.max))
+        precondition(!TickingAreaSelectionContext(chunk: ChunkPosition(x: Int32.max, z: Int32.max, dimension: 0)).intersects(circle))
+        let square = BedrockTickingArea(dimension: 0, isCircle: false, minimumX: Int32.min, minimumZ: Int32.min, maximumX: Int32.max, maximumZ: Int32.max, name: "huge", preload: false)
+        precondition(square.chunkCount == Int.max)
+        let session = WorldSession()
+        let executor = WorldCommandExecutor(session: session)
+        func run(_ text: String) throws { _ = try executor.execute(try WorldCommandParser.parse(text)) }
+        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL")
+        try run("setblock overworld 1 0 0 minecraft:dirt NULL")
+        try run("clone overworld 0 0 0 1 0 0 overworld 1 0 0")
+        let overlap = try BedrockSubChunk.decode(session.db.values[BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)]!, keyYIndex: 0)
+        precondition(overlap.storages[0].blockState(x: 2, y: 0, z: 0)!.name == "minecraft:dirt", "overlap must use the original source")
+        func record(_ x: Int32?, _ marker: String) throws -> Data {
+            var tags = [NBTNamedTag(name: "Marker", value: .string(marker)), NBTNamedTag(name: "DimensionId", value: .int(0))]
+            if let x = x { tags += [NBTNamedTag(name: "x", value: .int(x)), NBTNamedTag(name: "y", value: .int(0)), NBTNamedTag(name: "z", value: .int(0))] }
+            return try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
+        }
+        func key(_ x: Int32, _ dim: Int32) -> Data { BedrockDBKey(position: ChunkPosition(x: x, z: 0, dimension: dim), recordType: .blockEntity, subChunkIndex: nil).encoded() }
+        let source = try record(0, "source")
+        let outside = try record(5, "outside-a") + record(nil, "orphan") + record(5, "outside-b")
+        session.db.values[key(0, 0)] = try source + outside + record(1, "old-target")
+        try run("clone overworld 0 0 0 0 0 0 overworld 1 0 0")
+        let expected = try source + outside + record(1, "source")
+        precondition(session.db.values[key(0, 0)] == expected, "clone discarded outside records or retained overwritten target")
+        let sub = try BedrockSubChunk.decode(session.db.values[BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)]!, keyYIndex: 0)
+        precondition(sub.storages.map { $0.blockState(x: 1, y: 0, z: 0)!.name } == ["minecraft:stone", "minecraft:water", "minecraft:diamond_block"])
+        try run("clone overworld 1 0 0 1 0 0 nether 16 0 0")
+        precondition(session.db.values[key(0, 0)] == expected)
+        let copied = try ConsecutiveNBTCodec.decode(session.db.values[key(1, 1)]!)
+        guard case .compound(let tags) = copied[0].document.root else { preconditionFailure("compound") }
+        precondition(tags.first { $0.name == "x" }!.value.integerValue() == 16)
+        precondition(tags.first { $0.name == "DimensionId" }!.value.integerValue() == 1)
+        let orphanDocument = NBTDocument(rootName: "", root: .compound([NBTNamedTag(name: "Marker", value: .string("varint-orphan"))]))
+        session.db.values[key(2, 1)] = try BedrockNBTCodec.encode(orphanDocument, encoding: .littleEndianVarInt)
+        let beforeVarInt = session.db.values
+        var varIntRejected = false
+        do { try run("clone overworld 0 0 0 0 0 0 nether 32 0 0") } catch { varIntRejected = true }
+        precondition(varIntRejected && session.db.values == beforeVarInt, "unsupported VarInt concatenation caused partial write")
+        session.db.values.removeValue(forKey: key(2, 1))
+        session.db.values[key(0, 0)] = try expected + record(0, "duplicate")
+        let before = session.db.values
+        var rejected = false
+        do { try run("clone overworld 0 0 0 0 0 0 nether 32 0 0") } catch { rejected = true }
+        precondition(rejected && session.db.values == before, "ambiguous source caused partial clone")
+    }
+    static func verifyStorageAudit() throws {
+        for version in [UInt8(8), 9] {
+            let session = WorldSession()
+            let executor = WorldCommandExecutor(session: session)
+            func run(_ command: String) throws -> WorldCommandExecutionResult {
+                try executor.execute(try WorldCommandParser.parse(command))
+            }
+            let air = version == 8
+                ? BedrockBlockState(nbt: .compound([NBTNamedTag(name: "name", value: .string("minecraft:air")), NBTNamedTag(name: "val", value: .short(0))]), legacyID: nil, legacyData: nil)
+                : BedrockBlockState.editableAir(version: 17825808)
+            let seedKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 2, index: 0)
+            let seed = try BedrockSubChunk(version: version, yIndex: 0, storages: [.airFilled(with: air)], trailingData: Data()).encodePersistent()
+            session.db.values[seedKey] = seed
+            let beforeMissing = session.db.values
+            for command in ["storage query the_end 16 200 16", "storage delete the_end 16 200 16 0", "storage clear the_end 16 200 16 255"] {
+                let result = try run(command)
+                precondition(!result.changedWorld && result.message == "Block not generated" && session.db.values == beforeMissing)
+            }
+            for y in [160, 200, 255] {
+                let result = try run("storage set the_end 16 \(y) 16 0 minecraft:air NULL")
+                let key = BedrockDBKey.subChunk(x: 1, z: 1, dimension: 2, index: Int8(y / 16))
+                guard let raw = session.db.values[key] else { preconditionFailure("explicit layer0 air did not create the End slice") }
+                let saved = try BedrockSubChunk.decode(raw, keyYIndex: Int8(y / 16))
+                precondition(result.changedWorld && saved.version == version && saved.storages.count == 1)
+                precondition(saved.storages[0].blockState(x: 0, y: y % 16, z: 0)!.isAir)
+                if version == 8 {
+                    precondition(saved.storages[0].bitsPerBlock >= 1 && saved.storages[0].palette.allSatisfy { $0.nbt?.compoundValue(named: "val") != nil && $0.paletteVersion == nil })
+                }
+            }
+            _ = try run("storage set the_end 16 200 16 254 minecraft:diamond_block NULL")
+            let query = try run("storage query the_end 16 200 16")
+            precondition(!query.changedWorld && query.outputLines.count == 255)
+            let beforeNoOp = session.db.values
+            for command in ["storage clear the_end 16 200 16 255", "storage clear the_end 16 200 16 254", "storage set the_end 16 200 16 254 minecraft:diamond_block NULL"] {
+                let result = try run(command)
+                precondition(!result.changedWorld && session.db.values == beforeNoOp, "no-op storage command reported a world change")
+            }
+            _ = try run("storage set the_end 17 200 16 1 minecraft:gold_block NULL")
+            _ = try run("storage delete the_end 16 200 16 0")
+            let shiftedKey = BedrockDBKey.subChunk(x: 1, z: 1, dimension: 2, index: 12)
+            let shifted = try BedrockSubChunk.decode(session.db.values[shiftedKey]!, keyYIndex: 12)
+            precondition(shifted.storages.count == 254 && shifted.storages[0].blockState(x: 1, y: 8, z: 0)?.name == "minecraft:gold_block")
+            precondition(shifted.storages[253].blockState(x: 0, y: 8, z: 0)?.name == "minecraft:diamond_block")
+            precondition(session.db.values[seedKey] == seed)
+            let beforeInvalid = session.db.values
+            for command in [
+                "storage set the_end 16 200 16 255 minecraft:stone NULL", "storage clear the_end 16 200 16 256",
+                "storage query the_end 34359738368 200 0", "storage set the_end 34359738368 200 0 0 minecraft:stone NULL",
+                "storage delete the_end 0 200 -34359738369 0", "storage clear the_end 0 200 -34359738369 255"
+            ] {
+                var rejected = false
+                do { _ = try run(command) } catch { rejected = true }
+                precondition(rejected && session.db.values == beforeInvalid, "out-of-range storage command did not reject without writing")
+            }
+        }
+    }
+    static func verifyBlockCommandAudit() throws {
+        let session = WorldSession()
+        let executor = WorldCommandExecutor(session: session)
+        func run(_ command: String) throws { _ = try executor.execute(try WorldCommandParser.parse(command)) }
+        func layers(_ x: Int64) throws -> [BedrockBlockState] {
+            let key = BedrockDBKey.subChunk(x: MapCoordinate.chunk(fromBlock: x), z: -1, dimension: 0, index: 4)
+            let sub = try BedrockSubChunk.decode(session.db.values[key]!, keyYIndex: 4)
+            let localX = Int(x - MapCoordinate.blockOrigin(ofChunk: MapCoordinate.chunk(fromBlock: x)))
+            return sub.storages.map { $0.blockState(x: localX, y: 0, z: 15)! }
+        }
+        for x in [-17, -16, -1, 0, 15, 16, 17] {
+            try run("setblock overworld \(x) 64 -1 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL")
+        }
+        try run("fill overworld -17 64 -1 16 64 -1 minecraft:dirt NULL")
+        for x in [Int64(-17), -16, -1, 0, 15, 16] {
+            let states = try layers(x)
+            precondition(states.map(\.name) == ["minecraft:dirt", "minecraft:water", "minecraft:diamond_block"])
+        }
+        let neighbor = try layers(17)
+        precondition(neighbor[0].name == "minecraft:stone")
+        try run("setblock overworld -1 64 -1 minecraft:dirt NULL minecraft:air NULL")
+        let cleared = try layers(-1)
+        precondition(cleared[1].isAir && cleared[2].name == "minecraft:diamond_block")
+        let query = try executor.execute(try WorldCommandParser.parse("getblock overworld -1 64 -1"))
+        precondition(!query.changedWorld && query.message.contains("Storage2=["))
+        func record(_ x: Int32?, _ marker: String) throws -> Data {
+            var tags = [NBTNamedTag(name: "id", value: .string("Chest")), NBTNamedTag(name: "Marker", value: .string(marker))]
+            if let x = x {
+                tags += [NBTNamedTag(name: "x", value: .int(x)), NBTNamedTag(name: "y", value: .int(0)), NBTNamedTag(name: "z", value: .int(0))]
+            }
+            return try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
+        }
+        let key = BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: 0), recordType: .blockEntity, subChunkIndex: nil).encoded()
+        let first = try record(1, "first-outside")
+        let orphan = try record(nil, "no-position")
+        let second = try record(1, "second-outside")
+        let kept = first + orphan + second
+        let targetA = try record(0, "target-a")
+        let targetB = try record(0, "target-b")
+        session.db.values[key] = first + targetA + orphan + second + targetB
+        let beforeQuery = session.db.values
+        let entityQuery = try executor.execute(try WorldCommandParser.parse("getblock overworld 1 0 0"))
+        precondition(entityQuery.message.contains("first-outside") && !entityQuery.message.contains("second-outside"))
+        precondition(!entityQuery.changedWorld && session.db.values == beforeQuery)
+        try run("setblock overworld 0 0 0 minecraft:stone NULL")
+        precondition(session.db.values[key] == kept, "fill discarded outside/coordinate-less block entities")
+        try run("setblock overworld 2 0 0 minecraft:stone NULL")
+        precondition(session.db.values[key] == kept, "unmatched block entities were rewritten")
+        let brokenKey = BedrockDBKey(position: ChunkPosition(x: 1, z: 0, dimension: 0), recordType: .blockEntity, subChunkIndex: nil).encoded()
+        session.db.values[brokenKey] = Data([10, 0, 0, 3])
+        let beforeBroken = session.db.values
+        var brokenRejected = false
+        do { try run("fill overworld 0 0 0 16 0 0 minecraft:dirt NULL") } catch { brokenRejected = true }
+        precondition(brokenRejected && session.db.values == beforeBroken, "malformed block entity left a partial fill")
+        let legacy = WorldSession()
+        legacy.db.values[BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)] = try BedrockSubChunk.emptyLegacy(version: 7, yIndex: 0).encodePersistent()
+        legacy.db.values[BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: 0), recordType: .legacyVersion, subChunkIndex: nil).encoded()] = Data([19])
+        let before = legacy.db.values
+        for suffix in ["minecraft:not_in_old_game NULL", "minecraft:stone NULL minecraft:air NULL minecraft:air NULL"] {
+            var rejected = false
+            do { _ = try WorldCommandExecutor(session: legacy).execute(try WorldCommandParser.parse("setblock overworld 64 64 64 \(suffix)")) } catch { rejected = true }
+            precondition(rejected && legacy.db.values == before, "legacy rejection wrote partial data")
+        }
+    }
+    static func verifySpawnPointScopeAudit() throws {
+        let session = WorldSession()
+        let executor = WorldCommandExecutor(session: session)
+        let key = Data("~local_player".utf8)
+        let custom = NBTValue.compound([
+            NBTNamedTag(name: "SpawnX", value: .int(123)),
+            NBTNamedTag(name: "SpawnDimension", value: .int(2)),
+            NBTNamedTag(name: "spawnpoint", value: .string("custom-data"))
+        ])
+        let inventory = NBTValue.list(.compound, [custom])
+        let fields = ["SpawnX", "SpawnY", "SpawnZ", "SpawnDimension", "SpawnForced"]
+        var tags = fields.map { NBTNamedTag(name: $0, value: .int(1)) }
+        tags += [NBTNamedTag(name: "UniqueID", value: .long(1)),
+                 NBTNamedTag(name: "Inventory", value: inventory),
+                 NBTNamedTag(name: "RespawnCustom", value: custom)]
+        session.db.values[key] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
+        let result = try executor.execute(try WorldCommandParser.parse("clearspawnpoint @s"))
+        precondition(result.changedWorld)
+        let root = try BedrockNBTCodec.decode(session.db.values[key]!).root
+        for name in fields { precondition(root.compoundValue(named: name) == nil) }
+        for (name, expected) in [("Inventory", inventory), ("RespawnCustom", custom)] {
+            let actual = root.compoundValue(named: name)!
+            let expectedBytes = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: expected))
+            let actualBytes = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: actual))
+            precondition(actualBytes == expectedBytes, "clearspawnpoint deleted custom inventory tags")
+        }
+        let before = session.db.values
+        var rejected = false
+        do { _ = try executor.execute(try WorldCommandParser.parse("clearspawnpoint @s")) } catch { rejected = true }
+        precondition(rejected && session.db.values == before, "repeated clearspawnpoint must reject without writes")
+        print("Spawn-point scope audit passed: only player root tags removed; custom data preserved")
+    }
+    static func verifyPlayerTargetingAudit() throws {
+        let session = WorldSession()
+        let executor = WorldCommandExecutor(session: session)
+        func key(_ name: String) -> Data { Data(name.utf8) }
+        func player(_ id: Int64) throws -> Data {
+            try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "UniqueID", value: .long(id)),
+                NBTNamedTag(name: "PlayerLevel", value: .int(0)),
+                NBTNamedTag(name: "PlayerLevelProgress", value: .float(0)),
+                NBTNamedTag(name: "Keep", value: .string("unchanged"))
+            ])))
+        }
+        let local = try player(1001)
+        let other = try player(9002)
+        session.db.values[key("~local_player")] = local
+        session.db.values[key("player_server_2002")] = try player(2002)
+        session.db.values[key("player_server_9002")] = other
+        let deleted = ["player_server_2002_meta", "player_data_2002", "player_storage_2002:inventory", "player_2002/extra"]
+        let kept = ["player_server_9002_meta_2002", "player_data_9002:2002", "player_storage_9002_2002_meta", "player_data_12002", "player_data_20020", "unrelated_2002"]
+        for name in deleted + kept { session.db.values[key(name)] = Data([1, 2, 3]) }
+        let result = try executor.execute(try WorldCommandParser.parse("kick 2002"))
+        precondition(result.changedWorld && session.db.values[key("player_server_2002")] == nil)
+        precondition(deleted.allSatisfy { session.db.values[key($0)] == nil })
+        precondition(kept.allSatisfy { session.db.values[key($0)] == Data([1, 2, 3]) })
+        precondition(session.db.values[key("~local_player")] == local && session.db.values[key("player_server_9002")] == other)
+        // This harness's block-reader fixture has a solid block at Y=70.
+        for (y, expected) in [("64", 65.62), ("64.0", 64.0), ("Auto", 72.62)] {
+            _ = try executor.execute(try WorldCommandParser.parse("teleport @s overworld -0.5 \(y) -16.5"))
+            let root = try BedrockNBTCodec.decode(session.db.values[key("~local_player")]!).root
+            guard case .list(.float, let position)? = root.compoundValue(named: "Pos"),
+                  case .float(let actualY) = position[1], case .float(let actualX) = position[0],
+                  case .string(let keep)? = root.compoundValue(named: "Keep") else { preconditionFailure("invalid player position") }
+            precondition(abs(Double(actualY) - expected) < 0.001 && actualX == -0.5 && keep == "unchanged")
+        }
+        let totals: [Int64] = [0, 7, 352, 394, BedrockPlayerExperience.maximumTotal]
+        for total in totals {
+            let xp = try BedrockPlayerExperience.fromTotal(total)
+            precondition(xp.total == total)
+        }
+        let before = session.db.values
+        // 2^63 rounds to Double(Int64.max); conversion must throw, never trap.
+        for command in ["teleport @s overworld 9223372036854775808 Auto 0", "teleport @s overworld 0 Auto 9223372036854775808", "spread @s", "teleport 987654 overworld 0 64 0"] {
+            var rejected = false
+            do { _ = try executor.execute(try WorldCommandParser.parse(command)) } catch { rejected = true }
+            precondition(rejected && session.db.values == before, "invalid targeting command changed player data")
+        }
+    }
+    static func verifyGiveInventoryAudit() throws {
+        let auditSession = WorldSession()
+        let key = Data("~local_player".utf8)
+        let executor = WorldCommandExecutor(session: auditSession)
+        func item(_ slot: Int8, _ name: String) -> NBTValue {
+            .compound([NBTNamedTag(name: "Slot", value: .byte(slot)), NBTNamedTag(name: "Name", value: .string(name)), NBTNamedTag(name: "Count", value: .byte(1))])
+        }
+        func seed(_ items: [NBTValue]) throws {
+            auditSession.db.values[key] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+                NBTNamedTag(name: "UniqueID", value: .long(1001)), NBTNamedTag(name: "DimensionId", value: .int(0)),
+                NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)])),
+                NBTNamedTag(name: "Inventory", value: .list(.compound, items))
+            ])))
+        }
+        func inventory() throws -> [NBTValue] {
+            let root = try BedrockNBTCodec.decode(auditSession.db.values[key]!).root
+            guard case .list(.compound, let items)? = root.compoundValue(named: "Inventory") else { preconditionFailure("missing Inventory") }
+            return items
+        }
+        func nameAt(_ slot: Int64, _ items: [NBTValue]) -> String? {
+            guard let value = items.first(where: { $0.compoundValue(named: "Slot")?.numericInt64Value == slot }),
+                  case .string(let name)? = value.compoundValue(named: "Name") else { return nil }
+            return name
+        }
+        for slot in ["0", "Auto"] {
+            try seed([item(5, "minecraft:stone"), item(9, "minecraft:dirt")])
+            let result = try executor.execute(try WorldCommandParser.parse("give @s \(slot) minecraft:diamond 3 NULL"))
+            let values = try inventory()
+            precondition(result.changedWorld && values.count == 3 && nameAt(0, values) == "minecraft:diamond")
+            precondition(nameAt(5, values) == "minecraft:stone" && nameAt(9, values) == "minecraft:dirt")
+        }
+        try seed([item(0, "minecraft:stone"), item(9, "")])
+        _ = try executor.execute(try WorldCommandParser.parse("give @s Auto minecraft:diamond 3 NULL"))
+        let sparse = try inventory()
+        precondition(nameAt(1, sparse) == "minecraft:diamond" && nameAt(0, sparse) == "minecraft:stone" && nameAt(9, sparse) == "")
+        try seed((0..<36).map { item(Int8($0), "minecraft:stone") })
+        _ = try executor.execute(try WorldCommandParser.parse("give @s Auto minecraft:diamond 3 NULL"))
+        let full = try inventory()
+        precondition(full.count == 36 && nameAt(35, full) == "minecraft:diamond" && (0..<35).allSatisfy { nameAt(Int64($0), full) == "minecraft:stone" })
+        try seed([])
+        _ = try executor.execute(try WorldCommandParser.parse("give @s 0 minecraft:diamond 128 'String'\"name\"=\"minecraft:dirt\",'Long'\"count\"=\"999\",'Byte'\"slot\"=\"5\",'Byte'\"waspickedup\"=\"1\",'String'\"note\"=\"keep\""))
+        let stacks = try inventory()
+        let stack = stacks[0]
+        guard case .string(let name)? = stack.compoundValue(named: "Name"),
+              case .short(let count)? = stack.compoundValue(named: "Count"),
+              case .byte(let slot)? = stack.compoundValue(named: "Slot"),
+              case .byte(let picked)? = stack.compoundValue(named: "WasPickedUp"),
+              case .string(let note)? = stack.compoundValue(named: "note") else {
+            preconditionFailure("give changed canonical field names or types")
+        }
+        precondition(name == "minecraft:diamond" && count == 128 && slot == 0 && picked == 0 && note == "keep")
+    }
     static func emptyItem(_ slot: Int8) -> NBTValue {
         .compound([
             NBTNamedTag(name: "Name", value: .string("")),
@@ -3912,6 +4307,13 @@ struct EffectCommandTest {
         return name
     }
     static func main() throws {
+        try verifyGiveInventoryAudit()
+        try verifySpawnPointScopeAudit()
+        try verifyPlayerTargetingAudit()
+        try verifyBlockCommandAudit()
+        try verifyStructureAudit()
+        try verifyRegionAudit()
+        try verifyStorageAudit()
         let session = WorldSession()
         let localKey = Data("~local_player".utf8)
         session.db.values[localKey] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
@@ -4224,7 +4626,9 @@ struct EffectCommandTest {
         precondition(itemName(in: overflowingCow, container: "ChestItems", slot: 2) == "minecraft:emerald")
         precondition(itemName(in: overflowingCow, container: "Mainhand") == "minecraft:emerald")
 
+        let beforeSkippedGive = session.db.values[entityKey]
         let missingMainhandChestResult = try executor.execute(try WorldCommandParser.parse("give 4 1 minecraft:iron_ingot 1 NULL"))
+        precondition(!missingMainhandChestResult.changedWorld && session.db.values[entityKey] == beforeSkippedGive)
         precondition(missingMainhandChestResult.message.contains("跳过 1 个没有可写入 Mainhand 的实体"))
         giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
         let cowWithoutMainhand = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 4 }!.document.root
@@ -4232,6 +4636,7 @@ struct EffectCommandTest {
         precondition(itemName(in: cowWithoutMainhand, container: "Mainhand") == nil)
 
         let missingMainhandResult = try executor.execute(try WorldCommandParser.parse("give 3 2 minecraft:apple 1 NULL"))
+        precondition(!missingMainhandResult.changedWorld)
         precondition(missingMainhandResult.message.contains("跳过 1 个没有可写入 Mainhand 的实体"))
         giveEntities = try ConsecutiveNBTCodec.decode(session.db.values[entityKey]!)
         let pigWithoutChest = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 3 }!.document.root
@@ -4568,13 +4973,13 @@ swiftc -j 4 \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"
 
-"$ROOT/Scripts/test_viewed_unsaved_sync.sh"
+bash "$ROOT/Scripts/test_viewed_unsaved_sync.sh"
 
-"$ROOT/Scripts/test_legacy_zlib_and_selection_export.sh"
-"$ROOT/Scripts/test_modern_actor_binary_string.sh"
-"$ROOT/Scripts/test_iphone_layout_legacy_block_link.sh"
+bash "$ROOT/Scripts/test_legacy_zlib_and_selection_export.sh"
+bash "$ROOT/Scripts/test_modern_actor_binary_string.sh"
+bash "$ROOT/Scripts/test_iphone_layout_legacy_block_link.sh"
 
-"$ROOT/Scripts/test_metadata_crud_batch.sh"
+bash "$ROOT/Scripts/test_metadata_crud_batch.sh"
 
 echo "Running photo export / tab title / keyboard regression checks..."
 bash "$ROOT/Scripts/test_photo_export_tabs_keyboard.sh"

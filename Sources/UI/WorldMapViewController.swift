@@ -3931,13 +3931,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let axis = currentSliceAxis
     guard axis == .x || axis == .z else { return }
     let centerCoordinate = axis == .x ? sliceCenterBlockX : sliceCenterBlockZ
-    // Keep the full ±128 axis line available for manual selection. The visible
-    // projection itself only looks toward the negative axis, so the picker
-    // receives `centerCoordinate` separately as the automatic-selection upper
-    // bound: rows above the rendered plane remain manually selectable but are
-    // never chosen automatically.
-    let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange
-    let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange
+    // Keep ±128 available manually; automatic selection uses the same inclusive
+    // ray as rendering (128 blocks, 129 for ore, or the current chunk).
+    let mode = currentMode
+    let minimumCoordinate = MapCoordinate.projectionRange(
+      plane: centerCoordinate, depth: Int(crossSectionSelectionHalfRange) + 1).lowerBound
+    let maximumCoordinate = MapCoordinate.projectionRange(
+      plane: centerCoordinate, depth: Int(crossSectionSelectionHalfRange) + 1,
+      towardPositive: true).upperBound
+    let automaticRange: ClosedRange<Int64>
+    if mode == .biome || mode == .tickingAreas || mode == .slime {
+      automaticRange = centerCoordinate...centerCoordinate
+    } else {
+      automaticRange = MapCoordinate.projectionRange(
+        plane: centerCoordinate, depth: mode == .xray ? 129 : 128,
+        restrictToChunk: showUngeneratedChunks)
+    }
     let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
     let overlay = showBusy("读取 \(axis.displayName) 轴方块…")
     renderQueue.async { [weak self] in
@@ -3954,13 +3963,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         )
         DispatchQueue.main.async {
           overlay.removeFromSuperview()
-          let initial = axis == .x ? position.x : position.z
           let picker = BlockAxisPickerViewController(
             result: result,
-            initialCoordinate: initial,
-            automaticSelectionMinimumCoordinate: centerCoordinate - self.crossSectionSelectionHalfRange,
-            automaticSelectionMaximumCoordinate: centerCoordinate,
-            preferHighlightedOre: self.currentMode == .xray
+            initialCoordinate: automaticRange.upperBound,
+            automaticSelectionMinimumCoordinate: automaticRange.lowerBound,
+            automaticSelectionMaximumCoordinate: automaticRange.upperBound,
+            preferHighlightedOre: mode == .xray
           ) { [weak self] block in
             self?.selectBlock(block)
           }
@@ -6543,12 +6551,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
             : projectionRange.lowerBound
           let fixedX = axis == .x ? frontCoordinate : currentFixedX
           let fixedZ = axis == .z ? frontCoordinate : currentFixedZ
-          let minimumProjectionChunk = axis == .x
-            ? MapCoordinate.chunk(fromBlock: projectionRange.lowerBound)
-            : MapCoordinate.chunk(fromBlock: projectionRange.lowerBound)
-          let maximumProjectionChunk = axis == .x
-            ? MapCoordinate.chunk(fromBlock: projectionRange.upperBound)
-            : MapCoordinate.chunk(fromBlock: projectionRange.upperBound)
+          let minimumProjectionChunk = MapCoordinate.chunk(fromBlock: projectionRange.lowerBound)
+          let maximumProjectionChunk = MapCoordinate.chunk(fromBlock: projectionRange.upperBound)
           let intersectingSummaries = allSummaries.filter {
             let fixedChunkCoordinate = axis == .x ? $0.position.x : $0.position.z
             return fixedChunkCoordinate >= minimumProjectionChunk

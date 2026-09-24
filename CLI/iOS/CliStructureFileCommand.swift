@@ -21,7 +21,7 @@ structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
         guard let fileIndex = tokens.firstIndex(where: { $0.lowercased() == "--file" }) else {
             return (try WorldCommandParser.parse(text), nil)
         }
-        guard fileIndex + 1 < tokens.count else { throw CliError.input("structure import/export 的 --file 缺少路径。") }
+        guard fileIndex + 1 < tokens.count, !tokens[fileIndex + 1].hasPrefix("--") else { throw CliError.input("structure import/export 的 --file 缺少路径。") }
         let fileFlags = tokens.filter { $0.lowercased() == "--file" }.count
         let overwriteFlags = tokens.filter { $0.lowercased() == "--overwrite" }.count
         guard fileFlags == 1, overwriteFlags <= 1 else { throw CliError.input("structure 文件参数不能重复。") }
@@ -39,6 +39,51 @@ structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
         guard case .structure(let operation) = command else { throw CliError.input("structure 文件操作解析失败。") }
         return (command, CliStructureFileRequest(operation: operation,
             file: CliWorldPaths.canonical(tokens[fileIndex + 1]), overwrite: overwriteFlags == 1))
+    }
+
+    static func validateFiles(_ requests: [CliStructureFileRequest], paths: CliWorldPaths, script: String? = nil) throws {
+        let imports = requests.compactMap { request -> URL? in
+            if case .importFile = request.operation { return request.file }
+            return nil
+        }
+        var exports = [URL]()
+        for request in requests {
+            let destination = request.file
+            if case .importFile = request.operation {
+                guard FileManager.default.fileExists(atPath: destination.path), !CliFileSystem.isDirectory(destination),
+                      ["nbt", "json", "mcstructure"].contains(destination.pathExtension.lowercased()) else {
+                    throw CliError.input("结构输入必须是已存在的 .mcstructure、.nbt 或 .json 文件。")
+                }
+                continue
+            }
+            guard case .exportFile(let format, _) = request.operation else { continue }
+            if requests.contains(where: { other in
+                guard case .exportFile = other.operation, !CliWorldPaths.same(destination, other.file) else { return false }
+                return CliWorldPaths.sameOrInside(destination, other.file) || CliWorldPaths.sameOrInside(other.file, destination)
+            }) { throw CliError.input("本批次的结构输出存在文件与父目录冲突。") }
+            guard destination.pathExtension.lowercased() == format.rawValue, !CliFileSystem.isDirectory(destination) else {
+                throw CliError.input("结构输出必须是扩展名匹配的文件：.\(format.rawValue)")
+            }
+            let protectsOutput = paths.output.map { CliWorldPaths.sameOrInside(destination, $0) } ?? false
+            let protectsScript = script.map { $0 != "-" && CliWorldPaths.same(destination, CliWorldPaths.canonical($0)) } ?? false
+            if CliWorldPaths.same(destination, paths.source) || (paths.isDirectory && CliWorldPaths.sameOrInside(destination, paths.source))
+                || CliWorldPaths.sameOrInside(destination, paths.cache) || protectsOutput || protectsScript
+                || imports.contains(where: { CliWorldPaths.same(destination, $0) }) {
+                throw CliError.input("结构输出不能覆盖或写入源世界、世界输出、命令文件、结构输入或会话缓存。")
+            }
+            if !request.overwrite && (FileManager.default.fileExists(atPath: destination.path) || exports.contains(where: { CliWorldPaths.same(destination, $0) })) {
+                throw CliError.input("结构输出已存在或在本批次重复；显式使用 --overwrite 才会覆盖。")
+            }
+            var parent = destination.deletingLastPathComponent()
+            while parent.path != "/" {
+                if (FileManager.default.fileExists(atPath: parent.path) && !CliFileSystem.isDirectory(parent))
+                    || exports.contains(where: { CliWorldPaths.same(parent, $0) }) {
+                    throw CliError.input("结构输出的父路径是文件：\(parent.path)")
+                }
+                parent.deleteLastPathComponent()
+            }
+            exports.append(destination)
+        }
     }
 
     static func execute(_ request: CliStructureFileRequest, session: WorldSession) throws -> WorldCommandExecutionResult {

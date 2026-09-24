@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -207,13 +208,13 @@ public static class StandaloneNbtFileCodec
             NbtByteValue v => JsonValue.Create(v.Value),
             NbtShortValue v => JsonValue.Create(v.Value),
             NbtIntValue v => JsonValue.Create(v.Value),
-            NbtLongValue v => JsonValue.Create(v.Value),
+            NbtLongValue v => JsonValue.Create(v.Value.ToString(CultureInfo.InvariantCulture)),
             NbtFloatValue v => JsonValue.Create(v.Value),
             NbtDoubleValue v => JsonValue.Create(v.Value),
             NbtStringValue v => JsonValue.Create(v.Value),
             NbtByteArrayValue v => new JsonArray(v.Value.Select(b => JsonValue.Create(unchecked((sbyte)b))).ToArray()),
             NbtIntArrayValue v => new JsonArray(v.Values.Select(i => JsonValue.Create(i)).ToArray()),
-            NbtLongArrayValue v => new JsonArray(v.Values.Select(i => JsonValue.Create(i)).ToArray()),
+            NbtLongArrayValue v => new JsonArray(v.Values.Select(i => JsonValue.Create(i.ToString(CultureInfo.InvariantCulture))).ToArray()),
             NbtCompoundValue v => CompoundNode(v),
             NbtListValue v => new JsonObject
             {
@@ -229,7 +230,11 @@ public static class StandaloneNbtFileCodec
     private static JsonNode CompoundNode(NbtCompoundValue compound)
     {
         var node = new JsonObject();
-        foreach (var tag in compound.Tags.OrderBy(tag => tag.Name, StringComparer.Ordinal)) node[tag.Name] = ValueNode(tag.Value);
+        foreach (var tag in compound.Tags.OrderBy(tag => tag.Name, StringComparer.Ordinal))
+        {
+            if (node.ContainsKey(tag.Name)) throw new InvalidDataException($"JSON 导出不能保留 Compound 内的重名标签：{tag.Name}");
+            node[tag.Name] = ValueNode(tag.Value);
+        }
         return node;
     }
 

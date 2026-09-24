@@ -38,6 +38,29 @@ final class BedrockWorldObjectNBTStore {
     self.session = session
   }
 
+  /// Rebind the editor after a committed move or UniqueID change.
+  func refreshedObject(
+    afterSaving original: BedrockWorldObject, document: NBTDocument,
+    result: BedrockWorldObjectSaveResult
+  ) throws -> BedrockWorldObject {
+    let database = try session.database()
+    let scan = try BedrockWorldObjectScanner(database: database).scanRegion(
+      centerX: result.destinationChunkX, centerZ: result.destinationChunkZ,
+      dimension: result.destinationDimension, radius: 0,
+      includeEntities: original.kind == .entity,
+      includeBlockEntities: original.kind == .blockEntity, maximumObjects: Int.max)
+    let matches = try scan.objects.filter { candidate in
+      guard candidate.source == original.source else { return false }
+      if original.source == .modernActor,
+        candidate.storage.primaryKey != original.storage.primaryKey { return false }
+      return candidate.rawData == (try BedrockNBTCodec.encode(document, encoding: candidate.storage.encoding))
+    }
+    guard matches.count == 1 else {
+      throw MCBEEditorError.malformedData("已保存，但无法唯一重新定位对象；请返回列表重新打开。")
+    }
+    return matches[0]
+  }
+
   /// Returns every consecutive root stored in the same LevelDB value as the
   /// selected object. This is used by the long-press continuous-NBT export.
   func sourceDocuments(for object: BedrockWorldObject) throws -> [NBTDocument] {
@@ -764,25 +787,27 @@ final class BedrockWorldObjectNBTStore {
     if records.indices.contains(preferredIndex), records[preferredIndex].rawData == object.rawData {
       return preferredIndex
     }
-    if let uniqueID = object.uniqueID,
-      let index = records.firstIndex(where: {
-        $0.document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"])
-          == uniqueID
-      })
-    {
-      return index
+    // Record indexes can shift after deleting a sibling root.
+    let exact = records.indices.filter { records[$0].rawData == object.rawData }
+    if exact.count == 1 { return exact[0] }
+    if let uniqueID = object.uniqueID {
+      let matches = records.indices.filter {
+        records[$0].document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]) == uniqueID
+      }
+      guard matches.count == 1 else {
+        throw MCBEEditorError.malformedData("UniqueID 已变化或不唯一，请返回列表重新扫描。")
+      }
+      return matches[0]
     }
-    if let position = object.position,
-      let index = records.firstIndex(where: { record in
-        let candidate = extractPosition(root: record.document.root, kind: object.kind)
-        let identifier = record.document.root.stringValue(namedAny: [
-          "identifier", "Identifier", "id", "Id",
-        ])
+    if object.kind == .blockEntity, let position = object.position {
+      let matches = records.indices.filter { index in
+        let root = records[index].document.root
+        let candidate = extractPosition(root: root, kind: object.kind)
+        let identifier = root.stringValue(namedAny: ["identifier", "Identifier", "id", "Id"])
         return identifier == object.identifier && candidate?.blockX == position.blockX
           && candidate?.blockY == position.blockY && candidate?.blockZ == position.blockZ
-      })
-    {
-      return index
+      }
+      if matches.count == 1 { return matches[0] }
     }
     throw MCBEEditorError.malformedData("对象记录已经变化，无法确认要修改的 NBT。请返回列表重新扫描。")
   }

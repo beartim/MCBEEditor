@@ -23,6 +23,8 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
                 .Select(row => new CliOutputLine($"{row.Title}={row.Value}", CliOutputKind.Success)).ToArray());
         if (command is SetWorldSpawnTargetingCommandRequest worldSpawn)
             return CliCommandResult.Text(TargetingCommandStore.SetWorldSpawn(document, worldSpawn.Position), true);
+        if (command is EnvironmentCommandRequest levelSettings && levelSettings is not TickingAreaEnvironmentCommandRequest)
+            return CliCommandResult.FromCore(new EnvironmentCommandStore(document).Execute(levelSettings));
 
         // Every handle is closed before the next command or archive export.
         using var database = document.OpenDatabase(readOnly: !CliCommandPolicy.MayMutate(command));

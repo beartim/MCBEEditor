@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/1fca576c7209/cli-audit-round15/Windows/MCBEEditor.Core/MCBEEditor.Core.csproj (in 34.95 sec).
+  Restored /workspace/scratch/1fca576c7209/cli-audit-round15/Windows/MCBEEditor.Desktop/MCBEEditor.Desktop.csproj (in 34.96 sec).
+  MCBEEditor.Core -> /workspace/scratch/1fca576c7209/cli-audit-round15/Windows/MCBEEditor.Core/bin/Release/net10.0/MCBEEditor.Core.dll
+  MCBEEditor.Desktop -> /workspace/scratch/1fca576c7209/cli-audit-round15/Windows/MCBEEditor.Desktop/bin/Release/net10.0-windows/MCBEEditor.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:40.94

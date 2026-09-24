@@ -29,6 +29,8 @@ static NSData * _Nullable BTInflateData(NSData *data, NSUInteger expectedSize, i
     NSMutableData *output = [NSMutableData dataWithCapacity:MIN(expectedSize, 64 * 1024)];
     Bytef buffer[64 * 1024];
     BOOL sizeMismatch = NO;
+    BOOL wrappedLimitExceeded = NO;
+    const NSUInteger maximumWrappedBytes = 512ULL * 1024 * 1024;
     do {
         stream.next_out = buffer;
         stream.avail_out = static_cast<uInt>(sizeof(buffer));
@@ -38,10 +40,19 @@ static NSData * _Nullable BTInflateData(NSData *data, NSUInteger expectedSize, i
             sizeMismatch = YES;
             break;
         }
+        if (!exactSize && (output.length > maximumWrappedBytes || produced > maximumWrappedBytes - output.length)) {
+            wrappedLimitExceeded = YES;
+            break;
+        }
         if (produced > 0) [output appendBytes:buffer length:produced];
     } while (result == Z_OK);
     inflateEnd(&stream);
 
+    if (wrappedLimitExceeded) {
+        if (error) *error = [NSError errorWithDomain:BTCompressionErrorDomain code:Z_BUF_ERROR
+                                          userInfo:@{NSLocalizedDescriptionKey: @"GZip/Zlib 解压结果超过 512 MiB 安全上限"}];
+        return nil;
+    }
     if (sizeMismatch || (exactSize && result == Z_STREAM_END && output.length != expectedSize)) {
         if (error) *error = [NSError errorWithDomain:BTCompressionErrorDomain code:Z_DATA_ERROR
                                           userInfo:@{NSLocalizedDescriptionKey: @"ZIP 解压长度与声明长度不匹配"}];

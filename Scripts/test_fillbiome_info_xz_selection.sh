@@ -15,9 +15,9 @@ require_fixed() {
   grep -Fq -- "$text" "$file" || fail "$label ($file)"
 }
 
-require_fixed "$MAP" 'let minimumCoordinate = centerCoordinate - crossSectionSelectionHalfRange' 'X/Z picker manual range must extend 128 blocks below the rendered plane'
-require_fixed "$MAP" 'let maximumCoordinate = centerCoordinate + crossSectionSelectionHalfRange' 'X/Z picker manual range must extend 128 blocks above the rendered plane'
-require_fixed "$MAP" 'automaticSelectionMaximumCoordinate: centerCoordinate' 'X/Z picker auto-selection must be capped at the current rendered plane'
+require_fixed "$MAP" 'let minimumCoordinate = MapCoordinate.projectionRange(' 'X/Z picker manual range must extend 128 blocks below the rendered plane'
+require_fixed "$MAP" 'let maximumCoordinate = MapCoordinate.projectionRange(' 'X/Z picker manual range must extend 128 blocks above the rendered plane'
+require_fixed "$MAP" 'automaticSelectionMaximumCoordinate: automaticRange.upperBound' 'X/Z picker auto-selection must be capped at the rendered projection upper bound'
 PICKER="$ROOT/Sources/UI/BlockAxisPickerViewController.swift"
 require_fixed "$PICKER" 'automaticSelectionMaximumCoordinate: Int64? = nil' 'X/Z picker must accept an automatic-selection upper bound'
 require_fixed "$PICKER" 'guard coordinate >= automaticLowerBound, coordinate <= automaticUpperBound else { return false }' 'X/Z auto-selection must stay inside the requested projection range'

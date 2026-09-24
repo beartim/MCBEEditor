@@ -44,6 +44,7 @@ public static class BedrockTickingAreaMap
         var dx = (long)chunkX - center.X;
         var dz = (long)chunkZ - center.Z;
         var radius = (long)area.Radius;
+        if (Math.Abs(dx) > radius || Math.Abs(dz) > radius) return false;
         return dx * dx + dz * dz <= radius * radius;
     }
 

@@ -75,8 +75,9 @@ struct BedrockTickingArea: Equatable {
         }
         let width = Int64(value.maximumX) - Int64(value.minimumX) + 1
         let height = Int64(value.maximumZ) - Int64(value.minimumZ) + 1
-        let product = max(0, width) * max(0, height)
-        return product > Int64(Int.max) ? Int.max : Int(product)
+        let product = width.multipliedReportingOverflow(by: height)
+        guard !product.overflow else { return Int.max }
+        return product.partialValue > Int64(Int.max) ? Int.max : Int(product.partialValue)
     }
 
     func contains(chunkX: Int32, chunkZ: Int32) -> Bool {
@@ -89,6 +90,7 @@ struct BedrockTickingArea: Equatable {
         let dx = Int64(chunkX) - Int64(center.x)
         let dz = Int64(chunkZ) - Int64(center.z)
         let r = Int64(value.radius)
+        guard abs(dx) <= r, abs(dz) <= r else { return false }
         return dx * dx + dz * dz <= r * r
     }
 
@@ -184,6 +186,7 @@ struct TickingAreaSelectionContext: Equatable {
         let dx = Int64(center.x) - closestX
         let dz = Int64(center.z) - closestZ
         let radius = Int64(value.radius)
+        guard abs(dx) <= radius, abs(dz) <= radius else { return false }
         return dx * dx + dz * dz <= radius * radius
     }
 }

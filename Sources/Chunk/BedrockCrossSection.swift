@@ -125,12 +125,12 @@ extension ChunkSurfaceRenderer {
     let defaultProjectionCoordinateRange: ClosedRange<Int64>
     if let projectionCoordinateRange = projectionCoordinateRange {
       defaultProjectionCoordinateRange = projectionCoordinateRange
-    } else if showUngeneratedSubChunks || transparentUngeneratedSubChunks {
-      let chunk = MapCoordinate.chunk(fromBlock: planeCoordinate)
-      let minimumChunkCoordinate = MapCoordinate.blockOrigin(ofChunk: chunk)
-      defaultProjectionCoordinateRange = minimumChunkCoordinate...(minimumChunkCoordinate + 15)
     } else {
-      defaultProjectionCoordinateRange = (planeCoordinate - Int64(rayDepth - 1))...planeCoordinate
+      defaultProjectionCoordinateRange = MapCoordinate.projectionRange(
+        plane: planeCoordinate, depth: rayDepth,
+        towardPositive: projectionDirection == .negativeToPositive,
+        restrictToChunk: showUngeneratedSubChunks || transparentUngeneratedSubChunks
+      )
     }
 
     var errors = [String]()
@@ -221,15 +221,8 @@ extension ChunkSurfaceRenderer {
     /// coordinate system. Property modes intentionally keep reading the exact
     /// plane selected by the user.
     func sample(horizontal: Int64, y: Int64) -> Sample {
-      let frontProjectionCoordinate: Int64
-      switch projectionDirection {
-      case .positiveToNegative:
-        frontProjectionCoordinate = defaultProjectionCoordinateRange.upperBound
-      case .negativeToPositive:
-        frontProjectionCoordinate = defaultProjectionCoordinateRange.lowerBound
-      }
-      let planeX = axis == .x ? frontProjectionCoordinate : horizontal
-      let planeZ = axis == .z ? frontProjectionCoordinate : horizontal
+      let planeX = axis == .x ? fixedX : horizontal
+      let planeZ = axis == .z ? fixedZ : horizontal
 
       if mode == .biome || mode == .tickingAreas || mode == .slime {
         return sampleAt(worldX: planeX, worldZ: planeZ, y: y)

@@ -40,6 +40,9 @@ public sealed class NbtEditorWindow : Window
     private int _searchIndex = -1;
     private string _lastSearch = string.Empty;
     private bool _dirty;
+    private bool _saving;
+    private bool _allowClose;
+    private bool _restoringSelection;
     private bool _batchSelectionActive;
     private readonly HashSet<NbtEditorNode> _batchSelected = new();
     public bool DidSave { get; private set; }
@@ -244,7 +247,15 @@ public sealed class NbtEditorWindow : Window
 
     private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
+        if (_restoringSelection) return;
         if (e.NewValue is not TreeViewItem item || item.Tag is not NbtEditorNode node) return;
+        if (_selected is { } previous && previous != node && HasPendingValue && !TryApplyCurrent(showErrors: true))
+        {
+            _restoringSelection = true;
+            try { SelectNode(previous); }
+            finally { _restoringSelection = false; }
+            return;
+        }
         _selected = node;
         _pathText.Text = node.Path;
         _typeText.Text = node.Value.Type.ToString();
@@ -311,15 +322,19 @@ public sealed class NbtEditorWindow : Window
         _hintText.Text = "当前值已应用到编辑缓冲区；点击“应用 NBT”才会写入 Cache 工作副本，源世界不会被修改。";
     }
 
+    private bool HasPendingValue => _selected is { } node && CanEditValue(node)
+        && !string.Equals(_valueText.Text, ScalarText(node.Value), StringComparison.Ordinal);
+
     private bool TryApplyCurrent(bool showErrors)
     {
+        if (!HasPendingValue) return true;
         var node = _selected;
         if (node is null || !CanEditValue(node)) return true;
         try
         {
             node.Value = ParseEditableValue(node.Value.Type, _valueText.Text);
             MarkDirty();
-            if (_tree.SelectedItem is TreeViewItem selectedItem)
+            if (_tree.SelectedItem is TreeViewItem selectedItem && ReferenceEquals(selectedItem.Tag, node))
                 selectedItem.Header = CreateTreeHeader(node);
             _typeText.Text = node.Value.Type.ToString();
             return true;
@@ -950,29 +965,60 @@ public sealed class NbtEditorWindow : Window
         _ => throw new ArgumentOutOfRangeException(nameof(type), "End 不能作为普通 NBT 标签。")
     };
 
-    private async void Save_Click(object sender, RoutedEventArgs e)
+    private async void Save_Click(object sender, RoutedEventArgs e) => await SaveChangesAsync();
+
+    private async Task<bool> SaveChangesAsync()
     {
-        if (_saveAsync is null) return;
-        if (!TryApplyCurrent(showErrors: true)) return;
+        if (_saveAsync is null || _saving) return false;
+        if (!TryApplyCurrent(showErrors: true)) return false;
+        if (!_dirty) return true;
+        _saving = true;
+        if (Content is UIElement editorContent) editorContent.IsEnabled = false;
         try
         {
-            _saveButton.IsEnabled = false;
             var document = new NbtDocument(_rootName, _root.BuildValue());
             await _saveAsync(document);
             DidSave = true;
             _dirty = false;
             _hintText.Text = "NBT 已写入世界。";
+            return true;
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "应用 NBT 失败", MessageBoxButton.OK, MessageBoxImage.Error); }
-        finally { _saveButton.IsEnabled = true; }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "应用 NBT 失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+        finally
+        {
+            _saving = false;
+            if (Content is UIElement content) content.IsEnabled = true;
+        }
+    }
+
+    private async Task SaveAndCloseAsync()
+    {
+        if (!await SaveChangesAsync()) return;
+        _allowClose = true;
+        Close();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (_dirty && _saveAsync is not null)
+        if (_saving) { e.Cancel = true; return; }
+        if (!_allowClose && (_dirty || HasPendingValue) && _saveAsync is not null)
         {
-            var result = MessageBox.Show(this, "NBT 编辑缓冲区还有未应用修改，确定关闭？", "MCBEEditor", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (result != MessageBoxResult.Yes) { e.Cancel = true; return; }
+            var result = MessageBox.Show(this,
+                "NBT 还有未保存修改。是：保存并关闭；否：放弃修改；取消：继续编辑。",
+                "MCBEEditor", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+            if (result == MessageBoxResult.Cancel) { e.Cancel = true; return; }
+            if (result == MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                // Defer until this Closing callback has returned, including
+                // when the persistence callback completes synchronously.
+                Dispatcher.BeginInvoke(new Action(async () => await SaveAndCloseAsync()));
+                return;
+            }
         }
         base.OnClosing(e);
     }

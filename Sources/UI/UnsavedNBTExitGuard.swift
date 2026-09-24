@@ -9,6 +9,8 @@ final class UnsavedNBTExitGuard: NSObject {
   private let saveChanges: () -> Bool
   private var originalLeftItem: UIBarButtonItem?
   private var originalHidesBackButton = false
+  private var originalModalInPresentation = false
+  private var originalNavigationModalInPresentation = false
   private var capturedOriginalState = false
 
   init(
@@ -31,10 +33,17 @@ final class UnsavedNBTExitGuard: NSObject {
     if !capturedOriginalState {
       originalLeftItem = controller.navigationItem.leftBarButtonItem
       originalHidesBackButton = controller.navigationItem.hidesBackButton
+      originalModalInPresentation = controller.isModalInPresentation
+      originalNavigationModalInPresentation = controller.navigationController?.isModalInPresentation ?? false
       capturedOriginalState = true
     }
 
-    if isDirty() {
+    let hasUnsavedChanges = isDirty()
+    // A presented navigation stack can otherwise be swiped down without
+    // invoking the editor's back action. Keep the explicit exit choices.
+    controller.isModalInPresentation = hasUnsavedChanges || originalModalInPresentation
+    controller.navigationController?.isModalInPresentation = hasUnsavedChanges || originalNavigationModalInPresentation
+    if hasUnsavedChanges {
       controller.navigationItem.hidesBackButton = true
       let item = UIBarButtonItem(
         image: UIImage(systemName: "chevron.backward"),
@@ -77,6 +86,8 @@ final class UnsavedNBTExitGuard: NSObject {
 
   private func exitEditor() {
     guard let controller = controller else { return }
+    controller.isModalInPresentation = originalModalInPresentation
+    controller.navigationController?.isModalInPresentation = originalNavigationModalInPresentation
     if let navigation = controller.navigationController,
        navigation.viewControllers.first !== controller {
       navigation.popViewController(animated: true)

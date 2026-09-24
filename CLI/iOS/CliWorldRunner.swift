@@ -10,6 +10,7 @@ enum CliWorldRunner {
             throw CliError.input("本次命令包含存档修改，必须指定 --in-place 原位更新或 --output 新文件.mcworld 另存为。")
         }
         let paths = try CliWorldPaths.validate(options)
+        try CliStructureFileCommand.validateFiles(plan.commands.compactMap(\.structureFile), paths: paths, script: options.script)
         if cancelled() { error("已取消。"); return 130 }
         let workspace = try CliWorldWorkspace.open(paths, inPlace: options.inPlace)
         var preserve = true

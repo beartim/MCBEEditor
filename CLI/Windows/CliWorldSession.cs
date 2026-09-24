@@ -9,6 +9,7 @@ internal sealed class CliWorldSession : IDisposable
     private bool _disposed;
     private string? _sourceStamp;
     public WorldDocument Document { get; }
+    public string SessionRoot => _workspace.SessionPath;
     public string WorkingRoot => _workspace.WorkingRootPath;
     public bool HasChanges { get; private set; }
 

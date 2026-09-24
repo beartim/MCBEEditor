@@ -72,8 +72,8 @@ public sealed record EnvironmentTickingAreaSpec(
             }
             var width = (long)value.MaximumX - value.MinimumX + 1;
             var height = (long)value.MaximumZ - value.MinimumZ + 1;
-            var product = Math.Max(0L, width) * Math.Max(0L, height);
-            return product > int.MaxValue ? int.MaxValue : (int)product;
+            if (width > int.MaxValue / height) return int.MaxValue;
+            return (int)(width * height);
         }
     }
 
@@ -343,11 +343,18 @@ public sealed class EnvironmentCommandStore
 {
     private static readonly byte[] NativeTickingAreaPrefix = Encoding.UTF8.GetBytes("tickingarea_");
     private readonly WorldDocument _document;
-    private readonly IWorldDatabase _database;
+    private readonly IWorldDatabase? _database;
+    private IWorldDatabase Database => _database
+        ?? throw new InvalidOperationException("常加载区域操作需要打开世界数据库。");
 
-    public EnvironmentCommandStore(WorldDocument document, IWorldDatabase database)
+    // Time, weather and daylock use only level.dat. Ticking areas also need LevelDB.
+    public EnvironmentCommandStore(WorldDocument document)
     {
         _document = document ?? throw new ArgumentNullException(nameof(document));
+    }
+
+    public EnvironmentCommandStore(WorldDocument document, IWorldDatabase database) : this(document)
+    {
         _database = database ?? throw new ArgumentNullException(nameof(database));
     }
 
@@ -681,7 +688,7 @@ public sealed class EnvironmentCommandStore
 
     private List<EnvironmentTickingAreaRecord> ReadTickingAreas()
     {
-        var entries = _database.Entries(NativeTickingAreaPrefix, includeValues: true).ToArray();
+        var entries = Database.Entries(NativeTickingAreaPrefix, includeValues: true).ToArray();
         var result = new List<EnvironmentTickingAreaRecord>();
         foreach (var entry in entries)
         {
@@ -700,7 +707,7 @@ public sealed class EnvironmentCommandStore
         if (records.Count > 10) throw new InvalidDataException("基岩版每个世界最多支持 10 个常加载区域。");
         foreach (var record in records) EnvironmentCommandParser.ValidateTickingAreaSpec(record.Area);
 
-        var existingKeys = _database.Entries(NativeTickingAreaPrefix, includeValues: false).Select(entry => entry.Key).ToArray();
+        var existingKeys = Database.Entries(NativeTickingAreaPrefix, includeValues: false).Select(entry => entry.Key).ToArray();
         var usedKeys = new HashSet<string>(StringComparer.Ordinal);
         var puts = new List<WorldDatabasePut>(records.Count);
         foreach (var record in records)
@@ -722,7 +729,7 @@ public sealed class EnvironmentCommandStore
             puts.Add(new WorldDatabasePut(key, BedrockNbtCodec.Encode(document, record.Encoding)));
         }
         var deletes = existingKeys.Where(key => !usedKeys.Contains(Convert.ToHexString(key))).Select(key => key.ToArray()).ToArray();
-        _database.ApplyBatch(puts, deletes, sync: true);
+        Database.ApplyBatch(puts, deletes, sync: true);
     }
 
     private static byte[] MakeUniqueTickingAreaKey(HashSet<string> usedKeys)

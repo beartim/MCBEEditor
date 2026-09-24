@@ -25,30 +25,18 @@ if (-not (Test-Path $binary) -or -not (Test-Path $nativeCopy)) { throw 'CLI exec
 if ($Test) {
     & python (Join-Path $root 'CLI\Tests\source_audit.py')
     if ($LASTEXITCODE -ne 0) { throw 'CLI source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage02_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 02 source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage03_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 03 source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage04_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 04 source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage04c_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 04c source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage04d_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 04d source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage04e_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 04e source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage05a_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05a source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage05b_source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05b source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage05c_final_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 05c final audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage06_conversion_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 06 conversion audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\stage06b_build_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI stage 06b build audit failed.' }
+    & python (Join-Path $root 'CLI\Tests\build_audit.py')
+    if ($LASTEXITCODE -ne 0) { throw 'CLI build contract audit failed.' }
     & python (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
     if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
+    & python (Join-Path $root 'CLI\Tests\session_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI session/file lifecycle checks failed.' }
+    & python (Join-Path $root 'CLI\Tests\environment_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI level.dat environment/batch checks failed.' }
+    & python (Join-Path $root 'CLI\Tests\nbt_conversion_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI NBT conversion matrix failed.' }
+    & python (Join-Path $root 'CLI\Tests\structure_file_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI structure file preflight failed.' }
     & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression
     if ($LASTEXITCODE -ne 0) { throw 'Existing CLI-related core regressions failed.' }
     & cmake --build $nativeBuild --config Release --target mcbe_cli_create_test_db

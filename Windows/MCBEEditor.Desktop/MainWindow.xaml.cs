@@ -3007,20 +3007,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (row.Player is { } player) new PlayerNbtStore(database).Save(player, edited);
                 else if (currentObject is { } item)
                 {
-                    new BedrockWorldObjectNbtStore(database).Save(item, edited);
-                    if (item.Kind == BedrockWorldObjectKind.Entity)
-                    {
-                        // Keep the next save anchored to the just-saved identity and location.
-                        var position = BedrockEntityCommonNbt.Position(edited.Root) ?? item.Position;
-                        var dimension = BedrockEntityCommonNbt.Dimension(edited.Root) ?? item.Dimension;
-                        var chunkX = position is null ? item.ChunkX : BedrockSurfaceRegionRenderer.FloorDiv(position.BlockX, 16);
-                        var chunkZ = position is null ? item.ChunkZ : BedrockSurfaceRegionRenderer.FloorDiv(position.BlockZ, 16);
-                        currentObject = new BedrockWorldObjectScanner(database)
-                            .ScanRegion(chunkX, chunkZ, dimension, 0, true, false, maximumObjects: int.MaxValue).Objects
-                            .First(candidate => candidate.Source == item.Source
-                                && (item.Storage is not ModernActorStorage || candidate.Storage.PrimaryKey.SequenceEqual(item.Storage.PrimaryKey))
-                                && candidate.RawData.SequenceEqual(BedrockNbtCodec.Encode(edited, candidate.Storage.Encoding)));
-                    }
+                    var store = new BedrockWorldObjectNbtStore(database);
+                    store.Save(item, edited);
+                    currentObject = store.RefreshedObject(item, edited);
                 }
             });
             StatusText = $"NBT 已应用到工作副本：{row.DisplayName}";

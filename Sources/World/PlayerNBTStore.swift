@@ -132,11 +132,15 @@ final class PlayerNBTStore {
                 deleteKeys.insert(entry.key)
                 continue
             }
-            guard prefixes.contains(where: text.hasPrefix) else { continue }
+            // Only the owner immediately after a known key-family prefix counts.
+            // Numeric tokens in another owner's metadata must not trigger deletion.
             if uniqueIDs.contains(where: { id in
                 let token = String(id)
-                return text == token || text.hasSuffix("_" + token) || text.hasSuffix(":" + token)
-                    || text.contains("_" + token + "_") || text.contains(":" + token + ":")
+                return prefixes.contains { prefix in
+                    let ownerKey = prefix + token
+                    return text == ownerKey || text.hasPrefix(ownerKey + "_")
+                        || text.hasPrefix(ownerKey + ":") || text.hasPrefix(ownerKey + "/")
+                }
             }) {
                 deleteKeys.insert(entry.key)
             }

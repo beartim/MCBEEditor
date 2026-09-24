@@ -1,4 +1,0 @@
-Original regular files: 409
-Missing: 0
-Modified original files: 1
-Windows/MCBEEditor.Desktop/CommandHelpCatalog.cs: added a read-only Names property; original help text and order remain intact

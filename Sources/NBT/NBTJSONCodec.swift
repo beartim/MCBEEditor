@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// Lossless typed JSON bridge for NBT documents.
 ///
@@ -21,13 +22,13 @@ enum NBTJSONCodec {
     }
     let object: Any
     if documents.count == 1, let document = documents.first {
-      object = encodeDocument(document)
+      object = try encodeDocument(document)
     } else {
       object =
         [
           "format": formatIdentifier,
           "version": 1,
-          "documents": documents.map(encodeDocument),
+          "documents": try documents.map(encodeDocument),
         ] as [String: Any]
     }
     var options: JSONSerialization.WritingOptions = [.sortedKeys]
@@ -44,8 +45,8 @@ enum NBTJSONCodec {
     guard case .compound(let tags) = document.root else {
       throw MCBEEditorError.malformedData("实体 JSON 的 NBT 根标签必须是 Compound")
     }
-    let documents: [[String: Any]] = tags.map { tag in
-      var encoded = encodeTag(tag.value)
+    let documents: [[String: Any]] = try tags.map { tag in
+      var encoded = try encodeTag(tag.value)
       encoded["name"] = tag.name
       return encoded
     }
@@ -121,7 +122,7 @@ enum NBTJSONCodec {
         try decodeDocument(item, fallbackName: "root_\(index)")
       }
     }
-    if let array = object as? [Any], array.allSatisfy({ ($0 as? [String: Any])?["type"] != nil }) {
+    if let array = object as? [Any], !array.isEmpty, array.allSatisfy({ ($0 as? [String: Any])?["type"] != nil }) {
       return try array.enumerated().map { index, item in
         try decodeDocument(item, fallbackName: "root_\(index)")
       }
@@ -134,17 +135,17 @@ enum NBTJSONCodec {
     return [NBTDocument(rootName: "", root: try inferValue(from: object, path: "$"))]
   }
 
-  private static func encodeDocument(_ document: NBTDocument) -> [String: Any] {
-    var result = encodeTag(document.root)
+  private static func encodeDocument(_ document: NBTDocument) throws -> [String: Any] {
+    var result = try encodeTag(document.root)
     result["name"] = document.rootName
     return result
   }
 
-  private static func encodeTag(_ value: NBTValue) -> [String: Any] {
-    ["type": typeName(value.type), "value": encodePayload(value)]
+  private static func encodeTag(_ value: NBTValue) throws -> [String: Any] {
+    ["type": typeName(value.type), "value": try encodePayload(value)]
   }
 
-  private static func encodePayload(_ value: NBTValue) -> Any {
+  private static func encodePayload(_ value: NBTValue) throws -> Any {
     switch value {
     case .byte(let number): return Int(number)
     case .short(let number): return Int(number)
@@ -157,11 +158,16 @@ enum NBTJSONCodec {
     case .list(let type, let values):
       return [
         "type": typeName(type),
-        "value": values.map(encodeTag),
+        "value": try values.map(encodeTag),
       ] as [String: Any]
     case .compound(let tags):
       var dictionary = [String: Any]()
-      for tag in tags { dictionary[tag.name] = encodeTag(tag.value) }
+      for tag in tags {
+        guard dictionary[tag.name] == nil else {
+          throw MCBEEditorError.malformedData("JSON 导出不能保留 Compound 内的重名标签：\(tag.name)")
+        }
+        dictionary[tag.name] = try encodeTag(tag.value)
+      }
       return dictionary
     case .intArray(let values): return values.map(Int.init)
     case .longArray(let values): return values.map(String.init)
@@ -216,7 +222,9 @@ enum NBTJSONCodec {
     case .long:
       return .long(try integer(payload, path: path, minimum: Int64.min, maximum: Int64.max))
     case .float:
-      return .float(Float(try floating(payload, path: path)))
+      let value = Float(try floating(payload, path: path))
+      guard value.isFinite else { throw typeError(path, expected: "Float 范围内的有限数字") }
+      return .float(value)
     case .double:
       return .double(try floating(payload, path: path))
     case .byteArray:
@@ -311,12 +319,15 @@ enum NBTJSONCodec {
     }
     if let text = object as? String { return .string(text) }
     if let number = object as? NSNumber {
-      if String(cString: number.objCType) == "c" { return .byte(number.boolValue ? 1 : 0) }
-      let double = number.doubleValue
-      if double.isFinite, double.rounded() == double {
-        if double >= Double(Int32.min), double <= Double(Int32.max) { return .int(Int32(double)) }
-        if double >= Double(Int64.min), double <= Double(Int64.max) { return .long(Int64(double)) }
+      if CFGetTypeID(number) == CFBooleanGetTypeID() { return .byte(number.boolValue ? 1 : 0) }
+      // NSNumber retains integer JSON tokens exactly; Double would lose low bits
+      // above 2^53 and can round Int64.max to the trapping 2^63 boundary.
+      if let integer = Int64(number.stringValue) {
+        if let small = Int32(exactly: integer) { return .int(small) }
+        return .long(integer)
       }
+      let double = number.doubleValue
+      guard double.isFinite else { throw typeError(path, expected: "有限数字") }
       return .double(double)
     }
     if let dictionary = object as? [String: Any] {
@@ -348,9 +359,8 @@ enum NBTJSONCodec {
     let value: Int64?
     if let text = object as? String {
       value = Int64(text)
-    } else if let number = object as? NSNumber {
-      let double = number.doubleValue
-      value = double.rounded() == double ? Int64(exactly: double) : nil
+    } else if let number = object as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+      value = Int64(number.stringValue)
     } else {
       value = nil
     }
@@ -361,9 +371,12 @@ enum NBTJSONCodec {
   }
 
   private static func floating(_ object: Any, path: String) throws -> Double {
-    if let number = object as? NSNumber { return number.doubleValue }
-    if let text = object as? String, let value = Double(text) { return value }
-    throw typeError(path, expected: "数字")
+    let value: Double?
+    if let number = object as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() { value = number.doubleValue }
+    else if let text = object as? String { value = Double(text) }
+    else { value = nil }
+    guard let finite = value, finite.isFinite else { throw typeError(path, expected: "有限数字") }
+    return finite
   }
 
   private static func typeError(_ path: String, expected: String) -> Error {

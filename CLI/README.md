@@ -2,7 +2,7 @@
 
 当前 CLI 版本为 **1.0.0**。Windows x64 继续发布绿色单 `mcbe-cli.exe`，iOS 继续发布最低 iOS 13 arm64 裸二进制；独立 NBT/mcstructure 格式转换保持为工具功能，不加入 NBT 编辑器功能。
 
-源码审计与 Linux Swift 前端语法解析可在当前环境运行；当前环境没有 .NET/PowerShell，也不是 macOS/Xcode，因此新 Windows 单 exe 的真实发布/启动、Apple Objective-C++/LevelDB 链接、iOS arm64 裸二进制、GitHub Actions 和 Minecraft 实际读档仍是独立的未运行门禁。发布脚本和 Actions 已接线，但不要把静态检查写成平台构建通过。
+收尾检查的当前轮次、已运行验证和未完成范围统一见 [FINAL_REVIEW.md](Docs/FINAL_REVIEW.md)。命令覆盖与兼容限制见 [COMMAND_PARITY.md](Docs/COMMAND_PARITY.md)；功能接线不等于所有边界场景均已通过平台或游戏验证。
 
 ## 一次性执行与保存
 
@@ -18,9 +18,9 @@ mcbe-cli --world "D:\Worlds\My World.mcworld" --command "weather query" --output
 
 mcworld 原位提交保留原容器中的世界根目录层级、世界外文件和编辑器私有文件，排除世界数据库 `db/LOCK`；另存为继续沿用 GUI 导出规则，只导出世界根并过滤编辑器私有元数据。Swift 与 Windows 成功原位提交后都会刷新源内容指纹，因此同一持续会话可以再次修改并再次 `:save`，同时仍能识别真正的外部源变化。
 
-## 独立 NBT / mcstructure 格式转换（stage06）
+## 独立 NBT / mcstructure 格式转换
 
-转换工具**不需要 `--world`**，只读输入文件并生成新文件；不会进入 NBT 编辑器，也不会修改标签内容。
+转换工具**不需要 `--world`**，只读输入文件并生成新文件，不进入 NBT 编辑器。普通编码转换保留可表达的标签类型和值；Java→Bedrock 结构转换会映射结构内容，须注意下述兼容降级规则。
 
 ```text
 mcbe-cli --convert "input.nbt" --to big-endian --output "output-big.nbt"
@@ -34,9 +34,9 @@ mcbe-cli --convert "java-structure.nbt" --to mcstructure --output "output.mcstru
 
 输入由现有 `StandaloneNbtFileCodec` 自动识别：**Big Endian、Little Endian、Little Endian VarInt、JSON NBT、连续多根 NBT，以及 GZip/Zlib 包装的 NBT**。二进制输出统一为未压缩。多根 NBT 可在三种 NBT 编码和 JSON 之间互转；`.mcstructure` 只接受单根结构 NBT。Java structure NBT 转 `.mcstructure` 时继续复用现有 Java→Bedrock 转换器，因此兼容降级规则与 GUI 保持一致。
 
-目标格式名固定为：`big-endian`、`little-endian`、`little-varint`、`json`、`mcstructure`。stage06 没有复制 GUI 编辑逻辑，Windows/Swift 两端只调用原 NBT codec 与 structure converter。
+目标格式名固定为：`big-endian`、`little-endian`、`little-varint`、`json`、`mcstructure`。转换入口复用已有数据层，Windows/Swift 两端只调用原 NBT codec 与 structure converter。
 
-## structure 文件接口（04a）
+## structure 文件接口
 
 CLI 不打开 GUI 文件选择器，使用显式路径：
 
@@ -50,11 +50,11 @@ structure export nbt my:house --file "D:\Output\house.nbt"
 structure export json my:house --file "D:\Output\house.json" --overwrite
 ```
 
-支持 `.mcstructure`、Big Endian `.nbt` 和保留 NBT 类型信息的 `.json`。路径可包含空格，需在命令字符串内使用引号。导入同名结构或导出覆盖已有文件都必须显式 `--overwrite`。两端直接复用现有 Standalone NBT codec、Java→Bedrock 转换器和结构存储，不另写格式算法。
+支持 `.mcstructure`、Big Endian `.nbt` 和保留 NBT 类型信息的 `.json`。路径可包含空格，需在命令字符串内使用引号。导入同名结构或导出覆盖已有文件都必须显式 `--overwrite`。两端直接复用现有 Standalone NBT codec、Java→Bedrock 转换器和结构存储，不另写格式算法。导出前还会检查源世界、缓存、世界输出、脚本、同批结构输入，以及输出文件与父目录的冲突；`--overwrite` 不绕过这些路径保护。同批次重复导出到同一个文件时，后一次必须显式 `--overwrite`。多个结构文件与世界保存不构成统一事务，前序文件导出成功后不保证随后续命令失败而回滚。
 
 一次性 `--command/--script` 模式下，structure import/export 的结构名和 `--file` 都必须完整提供；漏项在整批预检阶段失败。交互模式允许省略名称并按提示输入；export 会先列出已有结构。
 
-## 持续交互会话（04b～04c）
+## 持续交互会话
 
 ```text
 mcbe-cli --interactive
@@ -74,13 +74,13 @@ mcbe-cli --interactive
 :quit --discard
 ```
 
-`:open ... --in-place` 允许无路径 `:save` 原位提交；普通 `:open` 只打开工作副本，保存时需给出另存为路径。保存成功后会话保持打开。潜在修改命令如果在运行中抛错，dirty 状态保守保持，因为原业务命令可能已经完成部分写入；`:quit` 不允许静默丢弃，需先保存或显式 `:quit --discard`。
+`:open ... --in-place` 允许无路径 `:save` 原位提交；普通 `:open` 只打开工作副本，保存时需给出另存为路径。保存成功后会话保持打开。另存副本后仍可用无路径 `:save` 将当前内容写回原位来源；另存不会取消待写回状态。输出必须位于源世界和缓存目录之外。输入错误或打开新世界失败时保留当前会话；不能把当前会话的临时副本重新作为来源打开。潜在修改命令如果在运行中抛错，dirty 状态保守保持，因为原业务命令可能已经完成部分写入；`:quit` 不允许静默丢弃，需先保存或显式 `:quit --discard`。
 
-04c 在真实终端加入历史 ↑/↓、←/→ 光标、Home/End、Backspace/Delete、`:history` 与 `:clear`。`clear` 没有冒号，仍是原游戏“清除物品”命令，不与清屏混用。
+真实终端支持历史 ↑/↓、←/→ 光标、Home/End、Backspace/Delete、`:history` 与 `:clear`。`clear` 没有冒号，仍是原游戏“清除物品”命令，不与清屏混用。
 
 真实 TTY 输出按原命令结果类型使用 ANSI 样式；错误为红色，玩家/实体/方块等保持各自终端颜色映射。stdin 或 stdout 不是 TTY 时禁用原始按键行编辑；stdout 重定向时不输出 ANSI/重绘序列，stderr 是否着色单独依据 stderr 自身是否为 TTY，因此 `>out.txt`、`2>err.txt` 和管道得到纯文本。
 
-## Commands 目录与 Command.txt（04d）
+## Commands 目录与 Command.txt
 
 程序启动时准备 Commands 目录并**重写固定 `ReadMe.txt`**；`Command.txt` 始终属于用户，程序不会自动创建、覆盖或删除它。
 
@@ -103,9 +103,9 @@ mcbe-cli --world "世界.mcworld" --script "Commands/Command.txt" --in-place
 
 `Command.txt` 与 `--check-file`/`--script` 共用严格 UTF-8/BOM、LF/CRLF/CR、空行忽略和原始物理行号处理。
 
-## 解析边界对齐（04e）
+## 解析边界
 
-stage04e 只修复已经记录的双端差异，没有把整条命令统一转小写：
+两端对语法关键字和语义参数分别处理：
 
 - 根命令、子命令、维度、tickingarea shape、time/weather 等**语法关键字**在 Windows 与 Swift 上都按大小写不敏感处理。
 - `ALL`、`Auto`、`default`、NBT 字符串、结构名/区域名、identifier 等**语义参数**仍遵守原命令规则；例如 `effect clear @e all` 继续无效，而 `EfFeCt ClEaR @e ALL` 有效。
@@ -159,8 +159,29 @@ bash CLI/Scripts/build-apple.sh ios CLI/build/apple-ios
 
 独立发布工作流为 `.github/workflows/cli-release.yml`：Windows job 上传 `CLI/Windows/dist/mcbe-cli.exe`，macOS job 先跑 host 原生测试再交叉编译并上传 iOS 裸二进制。
 
-stage06 在当前 Linux 环境继续执行累计源码审计、Python/bash/JSON/YAML 静态检查与 Swift `-frontend -parse`；新增的双端原生集成测试源码会在 Windows/macOS `-Test` 构建时实际跑转换链。因为这里仍不是 Windows/.NET 或 macOS/Xcode 环境，Windows 最终 EXE、Apple 原生链接、iOS arm64/codesign 及真实转换进程测试仍需对应平台确认。
+通用源码检查：
 
-## 最终状态与后续维护
+```sh
+python3 CLI/Tests/source_audit.py
+python3 CLI/Tests/build_audit.py
+```
 
-stage05c 仍作为此前全量审计基线；当前功能快照为 stage06。后续优先读取 `WORK_FINAL_REPORT.md` 与 `WORK_CHECKPOINT.md`；不要用 stage05c 或更早快照覆盖当前工程。若 Windows/macOS Actions、iOS 设备或 Minecraft 实际读档出现失败，以真实日志为准修复，并重新执行累计 stage05c + stage06 门禁与对应平台发布脚本。
+针对已构建的可执行文件：
+
+```sh
+python3 CLI/Tests/smoke.py --backend windows -- 路径/mcbe-cli.exe
+python3 CLI/Tests/session_smoke.py -- 路径/mcbe-cli.exe
+# Apple host 将 --backend 改为 swift，并使用 host 二进制。
+```
+
+`smoke.py` 检查帮助、全部根命令的公共解析用例、UTF-8/物理行号和格式转换。`session_smoke.py` 使用最小 level.dat 文件检查真实 CLI 进程的输入恢复、工作副本和保存生命周期；不打开 LevelDB，不代替原生数据库测试。macOS 进程测试应使用没有自定义 `~/Documents/Commands/Command.txt` 的测试账户，避免批处理提示影响输入。POSIX 下另测 SIGINT 取消后的输入不能触发保存；Windows 控制台 Ctrl-C 的实际即时响应仍需目标终端验证。
+
+上述检查与现有 C# 核心回归、Swift/C# 原生 LevelDB 集成测试继续由平台构建的 `-Test` / `--test` 入口运行。历史阶段日志、哈希快照、按 stage 分割的校验和重复工作流已经清理；当前发布入口统一为 `cli-release.yml`。本轮没有移除核心存档测试、夹具、GUI、图标、许可证或第三方声明。
+
+## 后续检查
+
+分轮计划见 [审计计划](../docs/superpowers/plans/2026-09-21-mcbeeditor-cli-audit-plan.md)，当前轮次与下一步只在 [FINAL_REVIEW.md](Docs/FINAL_REVIEW.md) 更新。各轮源码、静态检查、原生运行和游戏验收分别记录；结构、转换、地图与对象专项未闭环前不能结案。
+
+第 8 轮补充：`nbt_conversion_smoke.py` 已接入双端构建测试，独立检查三种二进制编码、JSON、压缩与文件保护。JSON 导出的 Long/LongArray 使用十进制字符串；Compound 重名标签无法由当前 JSON 对象格式完整表示，导出会拒绝。匿名数值根等大小端歧义输入仍按原优先顺序探测，显式输入编码选项待补，详见 [第 8 轮记录](Docs/AUDIT_ROUND08.md)。
+
+第 9 轮补充：structure 文件操作在执行前检查来源、缓存、脚本、同批结构输入与输出冲突；先导出再导入同一路径请分两次执行。新增 `structure_file_smoke.py` 已接入构建测试；结构加载的普通实体和多于两层 storage 不在本轮新增能力范围内。

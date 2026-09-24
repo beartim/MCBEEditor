@@ -117,12 +117,19 @@ public sealed class PlayerNbtStore
                 deleteKeys[Convert.ToHexString(entry.Key)] = entry.Key.ToArray();
                 continue;
             }
-            if (!prefixes.Any(prefix => text.StartsWith(prefix, StringComparison.Ordinal))) continue;
+            // Match the owner immediately after a known key-family prefix.
+            // An ID appearing in another owner's metadata is not ownership.
             foreach (var id in uniqueIds)
             {
                 var token = id.ToString(CultureInfo.InvariantCulture);
-                if (text == token || text.EndsWith("_" + token, StringComparison.Ordinal) || text.EndsWith(":" + token, StringComparison.Ordinal)
-                    || text.Contains("_" + token + "_", StringComparison.Ordinal) || text.Contains(":" + token + ":", StringComparison.Ordinal))
+                if (prefixes.Any(prefix =>
+                {
+                    var ownerKey = prefix + token;
+                    return text == ownerKey
+                        || text.StartsWith(ownerKey + "_", StringComparison.Ordinal)
+                        || text.StartsWith(ownerKey + ":", StringComparison.Ordinal)
+                        || text.StartsWith(ownerKey + "/", StringComparison.Ordinal);
+                }))
                 {
                     deleteKeys[Convert.ToHexString(entry.Key)] = entry.Key.ToArray();
                     break;

@@ -29,7 +29,7 @@ internal static class Program
         try
         {
             RunTests(root, args[0]);
-            Console.WriteLine($"PASS Windows CLI native integration: {_runs} invocation cases; real Mojang LevelDB, source integrity, export/reopen and failure recovery.");
+            Console.WriteLine($"PASS C# CLI native integration: {_runs} invocation cases; real Mojang LevelDB, source integrity, export/reopen and failure recovery.");
             return 0;
         }
         catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
@@ -218,7 +218,7 @@ internal static class Program
         using (var interactiveVerify = PortableWorldWorkspace.Create(Path.Combine(root, "VerifyInteractive"), interactiveArchive))
             Check(WorldTimeStore.Read(new WorldDocument(interactiveVerify.WorkingRootPath)).Time == 2222, "second interactive in-place save failed or source stamp was not refreshed");
 
-        // Stage04c: injected/redirected interactive input must remain plain text while meta history/clear stay usable.
+        // injected/redirected interactive input must remain plain text while meta history/clear stay usable.
         using (var plainOutput = new StringWriter())
         using (var plainError = new StringWriter())
         using (var plainInput = new StringReader(":history\n:clear\n:quit\n"))
@@ -229,7 +229,7 @@ internal static class Program
             Check(plainError.ToString().Length == 0, "redirected interactive history/clear wrote unexpected stderr");
         }
 
-        // Stage04d: ReadMe is fixed metadata, while Command.txt is always user-owned.
+        // ReadMe is fixed metadata, while Command.txt is always user-owned.
         var commandsDirectory = Path.Combine(root, "Commands");
         Directory.CreateDirectory(commandsDirectory);
         var commandFile = CliSharedCommandStore.CommandFilePath(commandsDirectory);
@@ -288,14 +288,18 @@ internal static class Program
         Check(File.ReadAllText(preserved) == "existing-content", "no-overwrite clobbered destination");
         Invoke("explicit-overwrite", 0, ["--command", "weather query", "--output", preserved, "--overwrite"]);
         using (var archive = ZipFile.OpenRead(preserved)) Check(archive.GetEntry("level.dat") is not null, "explicit overwrite failed");
-        var lockedOutputBytes = File.ReadAllBytes(preserved);
-        using (var lockedOutput = new FileStream(preserved, FileMode.Open, FileAccess.Read, FileShare.Read))
+        if (OperatingSystem.IsWindows())
         {
-            var blocked = Invoke("save-as-publish-blocked", 3, ["--command", "time set 4321", "--output", preserved, "--overwrite"]);
-            Check(File.ReadAllBytes(preserved).SequenceEqual(lockedOutputBytes), "failed save-as replaced the locked output");
-            var recovery = Path.Combine(Directory.GetDirectories(blocked.Cache).Single(), "World");
-            Check(WorldTimeStore.Read(new WorldDocument(recovery)).Time == 4321 && blocked.Error.Contains("工作副本已保留"), "failed save-as lost edits or recovery path");
+            var lockedOutputBytes = File.ReadAllBytes(preserved);
+            using (var lockedOutput = new FileStream(preserved, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var blocked = Invoke("save-as-publish-blocked", 3, ["--command", "time set 4321", "--output", preserved, "--overwrite"]);
+                Check(File.ReadAllBytes(preserved).SequenceEqual(lockedOutputBytes), "failed save-as replaced the locked output");
+                var recovery = Path.Combine(Directory.GetDirectories(blocked.Cache).Single(), "World");
+                Check(WorldTimeStore.Read(new WorldDocument(recovery)).Time == 4321 && blocked.Error.Contains("工作副本已保留"), "failed save-as lost edits or recovery path");
+            }
         }
+        else Console.WriteLine("SKIP: Windows FileShare replacement-lock scenario; POSIX rename permits replacement.");
         Invoke("source-archive-output", 2, ["--command", "weather query", "--output", exported, "--overwrite"], exported);
         Check(File.ReadAllBytes(exported).SequenceEqual(originalArchive), "input archive overwritten");
         Invoke("source-folder-output", 2, ["--command", "weather query", "--output", Path.Combine(source, "bad.mcworld")]);
@@ -446,14 +450,18 @@ internal static class Program
             Check(File.ReadAllBytes(inplaceArchive).SequenceEqual(beforeFailure), "cancelled archive batch changed the source");
             Check(WorldTimeStore.Read(new WorldDocument(recovery)).Time == 333, "cancelled archive lost edits or ran the next command");
         }
-        // Windows allows the original to be read but denies replacement while Delete sharing is absent.
-        using (var lockedSource = new FileStream(inplaceArchive, FileMode.Open, FileAccess.Read, FileShare.Read))
+        if (OperatingSystem.IsWindows())
         {
-            var blocked = Invoke("in-place-archive-publish-blocked", 3, ["--command", "time set 1357", "--in-place"], inplaceArchive);
-            Check(File.ReadAllBytes(inplaceArchive).SequenceEqual(beforeFailure), "failed archive publish changed the original bytes");
-            var recovery = Path.Combine(Directory.GetDirectories(blocked.Cache).Single(), "World");
-            Check(WorldTimeStore.Read(new WorldDocument(recovery)).Time == 1357 && blocked.Error.Contains("工作副本已保留"), "failed archive publish lost edits or recovery path");
+            // Windows allows the original to be read but denies replacement while Delete sharing is absent.
+            using (var lockedSource = new FileStream(inplaceArchive, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var blocked = Invoke("in-place-archive-publish-blocked", 3, ["--command", "time set 1357", "--in-place"], inplaceArchive);
+                Check(File.ReadAllBytes(inplaceArchive).SequenceEqual(beforeFailure), "failed archive publish changed the original bytes");
+                var recovery = Path.Combine(Directory.GetDirectories(blocked.Cache).Single(), "World");
+                Check(WorldTimeStore.Read(new WorldDocument(recovery)).Time == 1357 && blocked.Error.Contains("工作副本已保留"), "failed archive publish lost edits or recovery path");
+            }
         }
+        else Console.WriteLine("SKIP: Windows in-place FileShare replacement-lock scenario; POSIX rename permits replacement.");
         byte[]? externalArchiveBytes = null;
         var archiveConflict = Invoke("in-place-archive-source-change", 3, ["--command", "time set 888", "--in-place"], inplaceArchive, onOutput: line =>
         {

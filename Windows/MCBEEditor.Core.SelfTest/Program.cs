@@ -12,6 +12,15 @@ if (args.SequenceEqual(new[] { "--cli-regression" }))
     EndMissingSubChunkTests.Run();
     PersistenceCompatibilityTests.Run();
     CommandExtensionTests.Run();
+    EntityGiveAuditTests.Run();
+    PlayerTargetingAuditTests.Run();
+    BlockCommandAuditTests.Run();
+    StorageAuditTests.Run();
+    RegionAuditTests.Run();
+    NbtConversionAuditTests.Run();
+    StructureAuditTests.Run();
+    EntityUniqueIdEditTests.Run();
+    ObjectEditorRefreshTests.Run();
     Console.WriteLine("CLI-related existing core regressions passed.");
     return;
 }
@@ -433,7 +442,7 @@ using (var objectDb = new SelfTestWorldDatabase())
         new NbtNamedTag("Pos", new NbtListValue(NbtTagType.Float, [new NbtFloatValue(2.25f), new NbtFloatValue(64f), new NbtFloatValue(3.75f)])),
         new NbtNamedTag("CustomName", new NbtStringValue("Windows Actor"))
     ]));
-    new BedrockWorldObjectNbtStore(objectDb).SaveInPlace(actor, editedActor);
+    new BedrockWorldObjectNbtStore(objectDb).Save(actor, editedActor);
     var rescanned = new BedrockWorldObjectScanner(objectDb).ScanRegion(0, 0, 0, 0, includeEntities: true, includeBlockEntities: false);
     Assert(rescanned.Objects.Single().CustomName == "Windows Actor", " in-place actor NBT save");
 
@@ -2625,7 +2634,15 @@ EndMissingSubChunkTests.Run();
 PersistenceCompatibilityTests.Run();
 
 CommandExtensionTests.Run();
+EntityGiveAuditTests.Run();
+PlayerTargetingAuditTests.Run();
+BlockCommandAuditTests.Run();
+StorageAuditTests.Run();
+RegionAuditTests.Run();
+NbtConversionAuditTests.Run();
+StructureAuditTests.Run();
 EntityUniqueIdEditTests.Run();
+ObjectEditorRefreshTests.Run();
 
 sealed class SelfTestWorldDatabase : MCBEEditor.Core.World.IWorldDatabase
 {

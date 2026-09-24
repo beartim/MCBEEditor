@@ -11,6 +11,7 @@ internal static class CliWorldRunner
         if (plan.MayMutate && options.OutputPath is null && !options.InPlace)
             throw new CliInputException("本次命令包含存档修改，必须指定 --in-place 原位更新或 --output 新文件.mcworld 另存为。");
         var paths = CliWorldPaths.Validate(options);
+        CliStructureFileCommand.ValidateFiles(plan.Commands.Select(command => command.Request).OfType<CliStructureFileRequest>(), paths, options.ScriptPath);
         cancellationToken.ThrowIfCancellationRequested();
         CliWorldSession? session = null;
         try

@@ -31,21 +31,24 @@ internal sealed record CliWorldPaths(string Source, string Cache, string? Output
             if (options.ScriptPath is not null && options.ScriptPath != "-" && Same(source, options.ScriptPath))
                 throw new CliInputException("原位更新不能覆盖输入命令文件。");
         }
-        if (output is not null)
-        {
-            RequireRegularPath(output);
-            if (!Path.GetExtension(output).Equals(".mcworld", StringComparison.OrdinalIgnoreCase))
-                throw new CliInputException("输出文件必须使用 .mcworld 扩展名。");
-            if (Directory.Exists(output)) throw new CliInputException("输出路径指向文件夹，请指定 .mcworld 文件。");
-            if (SameOrInside(output, cache)) throw new CliInputException("输出文件不能位于工作副本缓存目录内。");
-            if (Same(output, source) || Directory.Exists(source) && SameOrInside(output, source))
-                throw new CliInputException("输出必须另存到源世界之外，不能覆盖或写入源世界。");
-            if (options.ScriptPath is not null && options.ScriptPath != "-" && Same(output, Path.GetFullPath(options.ScriptPath)))
-                throw new CliInputException("输出不能覆盖输入命令文件。");
-            if (File.Exists(output) && !options.Overwrite)
-                throw new CliInputException("输出文件已存在；另选文件名或显式使用 --overwrite。");
-        }
-        return new CliWorldPaths(source, cache, output);
+        var paths = new CliWorldPaths(source, cache, output);
+        if (output is not null) paths.ValidateSaveAs(output, options.Overwrite, options.ScriptPath);
+        return paths;
+    }
+
+    public void ValidateSaveAs(string destination, bool overwrite, string? scriptPath = null)
+    {
+        RequireRegularPath(destination);
+        if (!Path.GetExtension(destination).Equals(".mcworld", StringComparison.OrdinalIgnoreCase))
+            throw new CliInputException("输出文件必须使用 .mcworld 扩展名。");
+        if (Directory.Exists(destination)) throw new CliInputException("输出路径指向文件夹，请指定 .mcworld 文件。");
+        if (SameOrInside(destination, Cache)) throw new CliInputException("输出文件不能位于工作副本缓存目录内。");
+        if (Same(destination, Source) || Directory.Exists(Source) && SameOrInside(destination, Source))
+            throw new CliInputException("输出必须另存到源世界之外，不能覆盖或写入源世界；原位保存请使用 --in-place。");
+        if (scriptPath is not null && scriptPath != "-" && Same(destination, scriptPath))
+            throw new CliInputException("输出不能覆盖输入命令文件。");
+        if (File.Exists(destination) && !overwrite)
+            throw new CliInputException("输出文件已存在；另选文件名或显式使用 --overwrite。");
     }
 
     public static bool Same(string left, string right)

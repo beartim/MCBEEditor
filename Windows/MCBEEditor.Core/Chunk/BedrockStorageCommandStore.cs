@@ -73,8 +73,12 @@ public sealed class BedrockStorageCommandStore
             .Select(state => state.PaletteVersion)
             .FirstOrDefault(version => version.HasValue)
             ?? BedrockEmptyChunkMetadata.DetectBlockFormat(_database, dimension, address.Chunk).BlockPaletteVersion;
+        // Normalize before palette lookup so legacy-val worlds reuse existing
+        // entries instead of appending a modern state on every identical set.
+        var replacement = BedrockLegacyBlockStateConverter.ForPalette(block.ModernState(paletteVersion),
+            BedrockPaletteFormat.Detect(original.Storages.SelectMany(storage => storage.Palette)));
         var updated = original.ReplacingBlockState(
-            address.LocalX, address.LocalY, address.LocalZ, layer, block.ModernState(paletteVersion));
+            address.LocalX, address.LocalY, address.LocalZ, layer, replacement);
         var putCount = Persist(address.Chunk, address.SubChunkY, updated);
         var changed = putCount > 0 ? 1 : 0;
         return new BedrockStorageMutationResult(before, updated.Storages.Count, putCount,
@@ -99,8 +103,8 @@ public sealed class BedrockStorageCommandStore
             storages.Add(SubChunkStorage.AirFilled(EditableAir(stored.SubChunk)));
         TrimTrailingAir(storages);
         var updated = stored.SubChunk with { Storages = storages, RawPersistentData = null };
-        Persist(address.Chunk, address.SubChunkY, updated);
-        return new BedrockStorageMutationResult(before, storages.Count, 1,
+        var putCount = Persist(address.Chunk, address.SubChunkY, updated);
+        return new BedrockStorageMutationResult(before, storages.Count, putCount,
             $"storage delete 完成：删除原层 {layer}，后续 storage 已前移；storage 数量 {before}→{storages.Count}。");
     }
 
@@ -122,8 +126,8 @@ public sealed class BedrockStorageCommandStore
         if (storages.Count == 0)
             storages.Add(SubChunkStorage.AirFilled(EditableAir(stored.SubChunk)));
         var updated = stored.SubChunk with { Storages = storages, RawPersistentData = null };
-        Persist(address.Chunk, address.SubChunkY, updated);
-        return new BedrockStorageMutationResult(before, storages.Count, 1,
+        var putCount = Persist(address.Chunk, address.SubChunkY, updated);
+        return new BedrockStorageMutationResult(before, storages.Count, putCount,
             $"storage clear 完成：保留 storage 0…{keepThroughLayer}；storage 数量 {before}→{storages.Count}。");
     }
 

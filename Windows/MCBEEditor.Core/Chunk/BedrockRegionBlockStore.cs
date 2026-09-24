@@ -205,6 +205,7 @@ public sealed class BedrockRegionBlockStore
         }
 
         var positionTags = new List<NbtNamedTag>();
+        var entityPositions = new HashSet<int>();
         foreach (var chunk in EnumerateChunks(dimension, region))
         {
             var key = new BedrockDbKey(chunk, ChunkRecordType.BlockEntity, null).Encode();
@@ -215,6 +216,7 @@ public sealed class BedrockRegionBlockStore
                 var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
                 if (pos is null || !region.Contains(pos.BlockX, pos.BlockY, pos.BlockZ)) continue;
                 var flat = checked((pos.BlockX - region.Minimum.X) * sizeY * sizeZ + (pos.BlockY - region.Minimum.Y) * sizeZ + (pos.BlockZ - region.Minimum.Z));
+                if (!entityPositions.Add(flat)) throw new InvalidDataException("structure save 源区域包含重复坐标的方块实体。");
                 positionTags.Add(new NbtNamedTag(flat.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     new NbtCompoundValue([new NbtNamedTag("block_entity_data", NbtDocumentTools.DeepClone(record.Document.Root))])));
             }
@@ -360,7 +362,12 @@ public sealed class BedrockRegionBlockStore
             {
                 if (originalHadValue.Contains(pair.Key) && touched.Contains(pair.Key)) deletes.Add(key);
             }
-            else if (touched.Contains(pair.Key)) puts.Add(new WorldDatabasePut(key, ConsecutiveNbtCodec.Encode(pair.Value)));
+            else if (touched.Contains(pair.Key))
+            {
+                if (pair.Value.Count > 1 && pair.Value.Any(record => record.Encoding != NbtEncoding.LittleEndian))
+                    throw new NotSupportedException("structure load 暂不支持目标包含多个 VarInt NBT 根。");
+                puts.Add(new WorldDatabasePut(key, ConsecutiveNbtCodec.Encode(pair.Value)));
+            }
         }
         return new BlockEntityMutationWithChunks(puts, deletes, removed, copied, touched.Count);
     }
@@ -420,7 +427,8 @@ public sealed class BedrockRegionBlockStore
                 if (!int.TryParse(tag.Name, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var flat)
                     || flat < 0 || flat >= volume || tag.Value is not NbtCompoundValue entry
                     || entry.CompoundValue("block_entity_data") is not NbtCompoundValue entityRoot) continue;
-                entities[flat] = new NbtDocument(string.Empty, NbtDocumentTools.DeepClone(entityRoot));
+                if (!entities.TryAdd(flat, new NbtDocument(string.Empty, NbtDocumentTools.DeepClone(entityRoot))))
+                    throw new InvalidDataException($"结构 block_position_data 包含重复位置：{flat}");
             }
         }
         return new ParsedStructureDocument(sizeX, sizeY, sizeZ, layers.ToArray(), palette, entities);

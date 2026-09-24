@@ -15,6 +15,10 @@ done
 bash "$ROOT/CLI/Scripts/bootstrap-apple-native.sh"
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
+# Keep the last validated artifact intact until compilation, tests and signing pass.
+STAGING="$(mktemp -d "$OUT/.mcbe-build.XXXXXX")"
+trap 'rm -rf -- "$STAGING"' EXIT
+BINARY="$STAGING/mcbe-cli"
 SDK_NAME=macosx
 ARCH="$(uname -m)"
 MINIMUM=11.0
@@ -58,39 +62,37 @@ done < "$ROOT/CLI/iOS/sources.txt"
 swift_options=(-swift-version 5 -D MCBE_CLI -parse-as-library -O -sdk "$SDK" -target "$TARGET"
   -import-objc-header "$ROOT/Sources/MCBEEditor-Bridging-Header.h")
 libraries=("$NATIVE/lib/libmcbe_cli_apple_bridge.a" "$NATIVE/lib/libmcbe_leveldb_core.a" "$NATIVE/lib/libmcbe_cli_zlib.a" -lc++ -framework Foundation)
-xcrun --sdk "$SDK_NAME" swiftc "${swift_options[@]}" "${sources[@]}" "${libraries[@]}" -o "$OUT/mcbe-cli"
+xcrun --sdk "$SDK_NAME" swiftc "${swift_options[@]}" "${sources[@]}" "${libraries[@]}" -o "$BINARY"
 if [[ "$CHECK" == --test ]]; then
   bash "$ROOT/Scripts/test_end_missing_subchunks.sh"
   python3 "$ROOT/CLI/Tests/source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage02_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage03_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage04_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage04c_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage04d_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage04e_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage05a_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage05b_source_audit.py"
-  python3 "$ROOT/CLI/Tests/stage05c_final_audit.py"
-  python3 "$ROOT/CLI/Tests/stage06_conversion_audit.py"
-  python3 "$ROOT/CLI/Tests/stage06b_build_audit.py"
-  python3 "$ROOT/CLI/Tests/ios13_compat_audit.py"
-  python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$OUT/mcbe-cli"
+  python3 "$ROOT/CLI/Tests/build_audit.py"
+  python3 "$ROOT/CLI/Tests/apple_build_lifecycle.py"
+  python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/session_smoke.py" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/environment_smoke.py" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/nbt_conversion_smoke.py" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/structure_file_smoke.py" -- "$BINARY"
   cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \
     "$ROOT/CLI/iOS.Tests/NativeIntegration.swift" "${libraries[@]}" -o "$OUT/cli-native-tests"
   "$OUT/cli-native-tests" "$NATIVE/tools/mcbe_cli_create_test_db" "$ROOT/Tests/Fixtures/end_missing_subchunks.json"
 fi
 if [[ "$MODE" == ios ]]; then
-  [[ "$(xcrun lipo -archs "$OUT/mcbe-cli")" == arm64 ]] || { echo 'Expected iOS arm64 binary.' >&2; exit 1; }
-  xcrun vtool -show-build "$OUT/mcbe-cli" > "$OUT/build-platform.txt"
-  awk '/platform/ && $2 == "IOS" { platform=1 } /minos/ && $2 == "13.0" { minimum=1 } END { exit !(platform && minimum) }' "$OUT/build-platform.txt"
+  [[ "$(xcrun lipo -archs "$BINARY")" == arm64 ]] || { echo 'Expected iOS arm64 binary.' >&2; exit 1; }
+  xcrun vtool -show-build "$BINARY" > "$STAGING/build-platform.txt"
+  awk '/platform/ && $2 == "IOS" { platform=1 } /minos/ && $2 == "13.0" { minimum=1 } END { exit !(platform && minimum) }' "$STAGING/build-platform.txt"
 
-  # stage05b ships the executable itself rather than a deb. Give the bare Mach-O an
+  # Ship the executable itself rather than a deb. Give the bare Mach-O an
   # ad-hoc code signature so it is structurally signed before users copy it to a device.
   command -v codesign >/dev/null 2>&1 || { echo 'codesign is required for the iOS bare binary.' >&2; exit 127; }
-  codesign --force --sign - --timestamp=none "$OUT/mcbe-cli"
-  codesign --verify --strict --verbose=2 "$OUT/mcbe-cli"
-  codesign --display --verbose=2 "$OUT/mcbe-cli" > "$OUT/codesign.txt" 2>&1
-  shasum -a 256 "$OUT/mcbe-cli" > "$OUT/mcbe-cli.sha256"
+  codesign --force --sign - --timestamp=none "$BINARY"
+  codesign --verify --strict --verbose=2 "$BINARY"
+  codesign --display --verbose=2 "$BINARY" > "$STAGING/codesign.txt" 2>&1
+  (cd "$STAGING" && shasum -a 256 mcbe-cli > mcbe-cli.sha256)
+  for report in build-platform.txt codesign.txt mcbe-cli.sha256; do
+    mv -f "$STAGING/$report" "$OUT/$report"
+  done
 fi
+mv -f "$BINARY" "$OUT/mcbe-cli"
 printf 'Built CLI: %s\n' "$OUT/mcbe-cli"

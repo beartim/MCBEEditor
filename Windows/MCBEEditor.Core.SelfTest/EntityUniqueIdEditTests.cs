@@ -10,6 +10,7 @@ static class EntityUniqueIdEditTests
     {
         ModernActorEdits();
         LegacyEntityEdits();
+        StaleObjectIdentity();
         Console.WriteLine("Entity UniqueID edits passed: collisions, unchanged storage references, legacy records, relocation and repeated saves.");
     }
 
@@ -92,6 +93,24 @@ static class EntityUniqueIdEditTests
         Check(current.Storage is ChunkRecordStorage { RecordIndex: 1, Encoding: NbtEncoding.LittleEndian }, "refresh tracks the appended record index and encoding");
         store.Save(current, Entity(-507, 33, -17, 2));
         Check(Scan(db, 2, -2, 2, -507).UniqueId == -507, "legacy ID editable again after moving");
+    }
+
+    private static void StaleObjectIdentity()
+    {
+        using var db = new SelfTestWorldDatabase();
+        var store = new BedrockWorldObjectNbtStore(db);
+        var key = EntityKey(0, 0, 0);
+        db.Put(key, Encode(Entity(601)));
+        var stale = Scan(db, 0, 0, 0, 601);
+        db.Put(key, Encode(Entity(602))); // Identical name and coordinates, different identity.
+        RejectUnchanged(db, () => store.Save(stale, Entity(601)), "stale save must not overwrite same-position peer");
+        RejectUnchanged(db, () => store.Delete(stale), "stale delete must not delete same-position peer");
+        db.Put(key, Encode(Entity(601, 2)).Concat(Encode(Entity(601, 3))).ToArray());
+        RejectUnchanged(db, () => store.Save(stale, Entity(601)), "ambiguous UID must reject before writes");
+        db.Put(key, Encode(Entity(602)).Concat(Encode(Entity(601))).ToArray());
+        store.Save(stale, Entity(603));
+        Check(Scan(db, 0, 0, 0, 602).UniqueId == 602 && Scan(db, 0, 0, 0, 603).UniqueId == 603,
+            "shifted exact record remains editable and preserves peer");
     }
 
     private static NbtDocument Entity(long id, float x = 1, float z = 1, int dimension = 0) => new("", new NbtCompoundValue([

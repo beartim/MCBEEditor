@@ -1,0 +1,14 @@
+{
+  "native-integration-final": 0,
+  "smoke": 0,
+  "session_smoke": 0,
+  "environment_smoke": 0,
+  "nbt_conversion_smoke": 0,
+  "structure_file_smoke": 0,
+  "source_audit": 0,
+  "build_audit": 0,
+  "gui_nbt_audit": 0,
+  "map_projection_audit": 0,
+  "windows_gui_overlap_click_audit": 0,
+  "apple_build_lifecycle": 0
+}

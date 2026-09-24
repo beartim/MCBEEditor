@@ -72,16 +72,8 @@ final class WorldCommandExecutor {
         case .clearSpawnPoint(let target):
             return WorldCommandExecutionResult(message: try clearSpawnPoints(target: target), changedWorld: true)
         case .give(let target, let slot, let itemIdentifier, let count, let itemTags):
-            return WorldCommandExecutionResult(
-                message: try give(
-                    target: target,
-                    slot: slot,
-                    itemIdentifier: itemIdentifier,
-                    count: count,
-                    itemTags: itemTags
-                ),
-                changedWorld: true
-            )
+            let result = try give(target: target, slot: slot, itemIdentifier: itemIdentifier, count: count, itemTags: itemTags)
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         case .kill(let target, let killCreativePlayers):
             return WorldCommandExecutionResult(
                 message: try kill(target: target, killCreativePlayers: killCreativePlayers),
@@ -316,19 +308,19 @@ final class WorldCommandExecutor {
 
 
         case .set(let dimension, let position, let layer, let block):
-            let message = try CommandBlockStore(session: session, dimension: dimension)
+            let result = try CommandBlockStore(session: session, dimension: dimension)
                 .setStorage(at: position, layer: layer, block: block)
-            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
 
         case .delete(let dimension, let position, let layer):
-            let message = try CommandBlockStore(session: session, dimension: dimension)
+            let result = try CommandBlockStore(session: session, dimension: dimension)
                 .deleteStorage(at: position, layer: layer)
-            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
 
         case .clear(let dimension, let position, let keepThroughLayer):
-            let message = try CommandBlockStore(session: session, dimension: dimension)
+            let result = try CommandBlockStore(session: session, dimension: dimension)
                 .clearStorages(at: position, keepThroughLayer: keepThroughLayer)
-            return WorldCommandExecutionResult(message: message, changedWorld: message != "Block not generated")
+            return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
         }
     }
 
@@ -464,10 +456,10 @@ final class WorldCommandExecutor {
             throw MCBEEditorError.malformedData("Auto 的 \(name) 坐标必须是有限数值")
         }
         let floored = floor(value)
-        guard floored >= Double(Int64.min), floored <= Double(Int64.max) else {
+        guard let coordinate = Int64(exactly: floored) else {
             throw MCBEEditorError.malformedData("Auto 的 \(name) 坐标超出 Int64 方块坐标范围")
         }
-        return Int64(floored)
+        return coordinate
     }
 
     private func nonAirTeleportY(
@@ -1302,27 +1294,26 @@ final class WorldCommandExecutor {
         guard !targets.players.isEmpty else {
             throw MCBEEditorError.unsupported("目标 \(target.displayText) 没有匹配到玩家；实体不具有玩家出生点")
         }
-        let store = PlayerNBTStore(session: session)
-        var changed = 0
+        var puts = [(key: Data, value: Data)]()
         var removed = 0
         for record in targets.players {
             let mutation = removeSpawnTags(in: record.document.root)
             guard mutation.removedCount > 0 else { continue }
             var document = record.document
             document.root = mutation.value
-            try store.save(record: record, document: document)
-            changed += 1
+            puts.append((record.key, try BedrockNBTCodec.encode(document, encoding: .littleEndian)))
             removed += mutation.removedCount
         }
-        guard changed > 0 else {
+        guard !puts.isEmpty else {
             throw MCBEEditorError.unsupported("目标玩家当前没有可清除的出生点标签")
         }
-        return "clearspawnpoint 完成：清除 \(changed) 个玩家的出生点，移除 \(removed) 个相关标签。"
+        try session.database().applyBatch(puts: puts, deletes: [], sync: true)
+        return "clearspawnpoint 完成：清除 \(puts.count) 个玩家的出生点，移除 \(removed) 个相关标签。"
     }
 
     // MARK: give
 
-    private func give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag]) throws -> String {
+    private func give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag]) throws -> (message: String, changed: Bool) {
         let targets = try resolveTargets(target)
         let playerStore = PlayerNBTStore(session: session)
         let entityStore = BedrockWorldObjectNBTStore(session: session)
@@ -1393,7 +1384,7 @@ final class WorldCommandExecutor {
         if changedPlayers + changedEntities == 0 && skippedEntities == 0 {
             throw MCBEEditorError.unsupported("目标没有可写入的玩家 Inventory；非玩家实体必须已有 Mainhand 标签")
         }
-        return "give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与已有 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有可写入 Mainhand 的实体。"
+        return ("give 完成：Slot=\(slot.displayText)，修改 \(changedPlayers) 个玩家和 \(changedEntities) 个实体；ChestItems 写入 \(chestWrites) 次，Mainhand 写入 \(mainhandWrites) 次，其中 \(chestOverflowWrites) 个实体因 Slot 超出 ChestItems 槽位数而同时写入最后槽位与已有 Mainhand；物品 \(itemIdentifier) × \(count)，跳过 \(skippedEntities) 个没有可写入 Mainhand 的实体。", changedPlayers + changedEntities > 0)
     }
 
     private func itemStack(
@@ -1430,7 +1421,7 @@ final class WorldCommandExecutor {
 
     private func replaceItemTag(named name: String, with value: NBTValue, in tags: inout [NBTNamedTag]) {
         if let index = tags.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-            tags[index] = NBTNamedTag(name: tags[index].name, value: value)
+            tags[index] = NBTNamedTag(name: name, value: value)
         } else {
             tags.append(NBTNamedTag(name: name, value: value))
         }
@@ -1454,31 +1445,20 @@ final class WorldCommandExecutor {
         let inventoryNames: Set<String> = ["inventory", "playerinventory"]
         for index in tags.indices where inventoryNames.contains(normalized(tags[index].name)) {
             if case .list(let type, var values) = tags[index].value, type == .compound || values.isEmpty {
-                if let requestedSlot = requestedSlot {
-                    let slotNumber = Int64(requestedSlot)
-                    if let existing = values.firstIndex(where: { itemSlot($0) == slotNumber }) {
-                        values[existing] = itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags)
-                    } else if Int(requestedSlot) < values.count {
-                        values[Int(requestedSlot)] = itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags)
-                    } else {
-                        values.append(itemStack(identifier: identifier, count: count, slot: requestedSlot, itemTags: itemTags))
-                    }
+                var targetSlot = requestedSlot ?? 35
+                if requestedSlot == nil {
+                    // Sparse Inventory lists omit empty slots; list position is not Slot.
+                    let occupied = Set(values.enumerated().compactMap { (index, item) -> Int64? in
+                        isEmptyInventorySlot(item) ? nil : (itemSlot(item) ?? Int64(index))
+                    })
+                    targetSlot = Int8((0..<36).first { !occupied.contains(Int64($0)) } ?? 35)
+                }
+                if let existing = values.firstIndex(where: { itemSlot($0) == Int64(targetSlot) }) {
+                    values[existing] = itemStack(identifier: identifier, count: count, slot: targetSlot, itemTags: itemTags)
+                } else if Int(targetSlot) < values.count, itemSlot(values[Int(targetSlot)]) == nil {
+                    values[Int(targetSlot)] = itemStack(identifier: identifier, count: count, slot: targetSlot, itemTags: itemTags)
                 } else {
-                    let emptyCandidates = values.indices.compactMap { valueIndex -> (Int, Int64)? in
-                        guard isEmptyInventorySlot(values[valueIndex]),
-                              let slot = itemSlot(values[valueIndex]),
-                              (0...35).contains(slot) else { return nil }
-                        return (valueIndex, slot)
-                    }.sorted { $0.1 < $1.1 }
-                    if let firstEmpty = emptyCandidates.first {
-                        values[firstEmpty.0] = itemStack(identifier: identifier, count: count, slot: Int8(firstEmpty.1), itemTags: itemTags)
-                    } else if let slot35 = values.firstIndex(where: { itemSlot($0) == 35 }) {
-                        values[slot35] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
-                    } else if !values.isEmpty {
-                        values[values.count - 1] = itemStack(identifier: identifier, count: count, slot: 35, itemTags: itemTags)
-                    } else {
-                        values.append(itemStack(identifier: identifier, count: count, slot: 0, itemTags: itemTags))
-                    }
+                    values.append(itemStack(identifier: identifier, count: count, slot: targetSlot, itemTags: itemTags))
                 }
                 tags[index].value = .list(.compound, values)
                 return (.compound(tags), true)
@@ -1846,40 +1826,12 @@ final class WorldCommandExecutor {
     }
 
     private func removeSpawnTags(in value: NBTValue) -> (value: NBTValue, removedCount: Int) {
-        let directFields: Set<String> = [
-            "spawnx", "spawny", "spawnz", "spawndimension", "spawnforced",
-            "spawnblockposition", "respawnx", "respawny", "respawnz",
-            "respawndimension", "respawnforced"
-        ]
-        let containers: Set<String> = [
-            "respawn", "spawn", "spawnpoint", "playerspawn", "bedspawn", "respawnpoint"
-        ]
-        switch value {
-        case .compound(let original):
-            var tags = [NBTNamedTag]()
-            var removed = 0
-            for tag in original {
-                let name = normalized(tag.name)
-                if directFields.contains(name) || containers.contains(name) {
-                    removed += 1
-                    continue
-                }
-                let nested = removeSpawnTags(in: tag.value)
-                tags.append(NBTNamedTag(name: tag.name, value: nested.value))
-                removed += nested.removedCount
-            }
-            return (.compound(tags), removed)
-        case .list(let type, var values):
-            var removed = 0
-            for index in values.indices {
-                let nested = removeSpawnTags(in: values[index])
-                values[index] = nested.value
-                removed += nested.removedCount
-            }
-            return (.list(type, values), removed)
-        default:
-            return (value, 0)
-        }
+        // Player spawn fields belong to the root; item/custom compounds can use
+        // the same names and must remain untouched, matching the Windows store.
+        let fields: Set<String> = ["spawnx", "spawny", "spawnz", "spawndimension", "spawnforced"]
+        guard case .compound(let original) = value else { return (value, 0) }
+        let kept = original.filter { !fields.contains($0.name.lowercased()) }
+        return (.compound(kept), original.count - kept.count)
     }
 
     private func normalized(_ value: String) -> String {
@@ -2047,10 +1999,13 @@ private final class CommandBlockStore {
         try validateHorizontal(coordinate.x, name: "X")
         try validateHorizontal(coordinate.z, name: "Z")
         let key = try subKey(for: coordinate)
-        let loadedEntities = try loadBlockEntities(for: Set([key.chunk]))
         let entityKey = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
+        let blockEntityKey = BedrockDBKey(position: key.chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+        let entityRecords = try database.get(blockEntityKey).map { try ConsecutiveNBTCodec.decode($0) } ?? []
+        // Match Windows: report the first stored record at this coordinate.
+        let blockEntity = entityRecords.first { blockEntityCoordinate($0.document.root) == entityKey }?.document
         guard availableChunks.contains(key.chunk) else {
-            return (nil, loadedEntities.documents[entityKey])
+            return (nil, blockEntity)
         }
         let index = localIndex(for: coordinate)
         let states: [BedrockBlockState]
@@ -2065,7 +2020,7 @@ private final class CommandBlockStore {
             }
             states = subChunk.allStates(linearIndex: index)
         }
-        return (states, loadedEntities.documents[entityKey])
+        return (states, blockEntity)
     }
 
     func queryStorages(at coordinate: CommandBlockCoordinate) throws -> StorageQueryResult {
@@ -2080,7 +2035,7 @@ private final class CommandBlockStore {
         return StorageQueryResult(states: subChunk.allStates(linearIndex: localIndex(for: coordinate)), isNotGenerated: false)
     }
 
-    func setStorage(at coordinate: CommandBlockCoordinate, layer: Int, block: CommandBlockStateSpec) throws -> String {
+    func setStorage(at coordinate: CommandBlockCoordinate, layer: Int, block: CommandBlockStateSpec) throws -> (message: String, changed: Bool) {
         guard (0..<Int(UInt8.max)).contains(layer) else {
             throw MCBEEditorError.malformedData("storage set 层数必须为 0…254")
         }
@@ -2098,13 +2053,13 @@ private final class CommandBlockStore {
         let state = block.modernState(version: try paletteVersion(for: key))
         let changed = try setState(state, layer: layer, at: coordinate, createWhenAir: true, trimTrailingAir: false)
         let written = try commit()
-        return "storage set 完成：\(WorldCommandParser.dimensionName(for: dimension)) \(coordinate.x) \(coordinate.y) \(coordinate.z)，storage\(layer)=\(block.name)；变化=\(changed ? 1 : 0)，写入 \(written) 个 SubChunk。"
+        return ("storage set 完成：\(WorldCommandParser.dimensionName(for: dimension)) \(coordinate.x) \(coordinate.y) \(coordinate.z)，storage\(layer)=\(block.name)；变化=\(changed ? 1 : 0)，写入 \(written) 个 SubChunk。", changed || written > 0)
     }
 
-    func deleteStorage(at coordinate: CommandBlockCoordinate, layer: Int) throws -> String {
+    func deleteStorage(at coordinate: CommandBlockCoordinate, layer: Int) throws -> (message: String, changed: Bool) {
         let key = try subKey(for: coordinate)
         guard case .value(var subChunk) = try load(key) else {
-            return "Block not generated"
+            return ("Block not generated", false)
         }
         try requireV8OrNewerStructured(subChunk)
         guard subChunk.storages.indices.contains(layer) else {
@@ -2115,13 +2070,13 @@ private final class CommandBlockStore {
         cache[key] = .value(subChunk)
         changedKeys.insert(key)
         let written = try commit()
-        return "storage delete 完成：删除 storage\(layer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。"
+        return ("storage delete 完成：删除 storage\(layer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。", written > 0)
     }
 
-    func clearStorages(at coordinate: CommandBlockCoordinate, keepThroughLayer: UInt8) throws -> String {
+    func clearStorages(at coordinate: CommandBlockCoordinate, keepThroughLayer: UInt8) throws -> (message: String, changed: Bool) {
         let key = try subKey(for: coordinate)
         guard case .value(var subChunk) = try load(key) else {
-            return "Block not generated"
+            return ("Block not generated", false)
         }
         try requireV8OrNewerStructured(subChunk)
         let before = subChunk.storages.count
@@ -2131,7 +2086,7 @@ private final class CommandBlockStore {
             changedKeys.insert(key)
         }
         let written = changed ? try commit() : 0
-        return "storage clear 完成：保留 storage0…storage\(keepThroughLayer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。"
+        return ("storage clear 完成：保留 storage0…storage\(keepThroughLayer)，storage 数量 \(before)→\(subChunk.storages.count)，写入 \(written) 个 SubChunk。", changed)
     }
 
     private func requireV8OrNewerStructured(_ subChunk: MutableCommandSubChunk) throws {
@@ -2206,9 +2161,9 @@ private final class CommandBlockStore {
             x += 1
         }
 
-        let blockEntityState = try store.loadBlockEntities(for: store.chunks(in: region))
+        let sourceEntities = try store.structureSourceEntities(in: region)
         var positionData = [NBTNamedTag]()
-        for (coordinate, document) in blockEntityState.documents {
+        for (coordinate, document) in sourceEntities {
             let commandCoordinate = CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
             guard region.contains(commandCoordinate) else { continue }
             let dx = Int(coordinate.x - region.minimum.x)
@@ -2275,8 +2230,8 @@ private final class CommandBlockStore {
         let store = try CommandBlockStore(session: session, dimension: targetDimension)
         try store.validateVolume(targetRegion)
         let generatedCount = try store.ensureGenerated(store.chunks(in: targetRegion))
-        let targetEntityState = try store.loadBlockEntities(for: store.chunks(in: targetRegion))
-        var targetBlockEntities = targetEntityState.documents
+        var writtenEntityCoordinates = Set<BlockEntityCoordinate>()
+        var copiedBlockEntities = [BlockEntityCoordinate: NBTDocument]()
         var changedEntityChunks = Set<ChunkPosition>()
         var changedBlocks: UInt64 = 0
 
@@ -2307,19 +2262,17 @@ private final class CommandBlockStore {
                     }
                     guard wroteAnyLayer else { continue }
                     let entityCoordinate = BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
-                    targetBlockEntities.removeValue(forKey: entityCoordinate)
+                    writtenEntityCoordinates.insert(entityCoordinate)
                     if let sourceEntity = parsed.blockEntities[flat] {
-                        targetBlockEntities[entityCoordinate] = store.offsetBlockEntity(sourceEntity, to: coordinate)
+                        copiedBlockEntities[entityCoordinate] = store.offsetBlockEntity(sourceEntity, to: coordinate)
                     }
                     changedEntityChunks.insert(store.chunkPosition(x: coordinate.x, z: coordinate.z))
                 }
             }
         }
 
-        let entityWrites = try store.encodeBlockEntities(
-            documents: targetBlockEntities,
-            changedChunks: changedEntityChunks,
-            originalKeys: targetEntityState.keysByChunk
+        let entityWrites = try store.planStructureBlockEntities(
+            written: writtenEntityCoordinates, copied: copiedBlockEntities, chunks: changedEntityChunks
         )
         let written = try store.commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty || generatedCount > 0 else {
@@ -2399,6 +2352,9 @@ private final class CommandBlockStore {
                 guard let flat = Int(position.name), (0..<volume).contains(flat),
                       let entityRoot = position.value.compoundValue(named: "block_entity_data"),
                       case .compound = entityRoot else { continue }
+                guard blockEntities[flat] == nil else {
+                    throw MCBEEditorError.malformedData("结构 block_position_data 包含重复位置：\(flat)")
+                }
                 blockEntities[flat] = NBTDocument(rootName: "", root: entityRoot)
             }
         }
@@ -2536,15 +2492,8 @@ private final class CommandBlockStore {
         var changedBlocks: UInt64 = 0
         var touchedDestinationChunks = Set<ChunkPosition>()
 
-        // Read both entity collections before any write. This gives block entities
-        // snapshot semantics even when source and target overlap in one dimension.
-        let sourceEntityChunks = sourceStore.chunks(in: source).intersection(sourceStore.availableChunks)
-        let targetEntityChunks = chunks(in: targetRegion).intersection(availableChunks)
-        let sourceEntityState = try sourceStore.loadBlockEntities(for: sourceEntityChunks)
-        let targetEntityState = try loadBlockEntities(for: targetEntityChunks)
-        let sourceBlockEntities = sourceEntityState.documents
-        var targetBlockEntities = targetEntityState.documents
-        var changedEntityChunks = Set<ChunkPosition>()
+        // Plan entities from the original records before touching any target cache.
+        let entityWrites = try planCloneBlockEntities(from: sourceStore, source: source, target: targetRegion)
         // Freeze every source SubChunk before the first target write. This is
         // required not only for overlapping X/Z ranges, but also when Y3 differs
         // from Y1 and source/target share the same CommandBlockStore cache.
@@ -2598,18 +2547,6 @@ private final class CommandBlockStore {
                     }
                     if changedAtPosition { changedBlocks += 1 }
 
-                    let sourceEntityKey = BlockEntityCoordinate(x: x, y: y, z: z)
-                    let targetEntityKey = BlockEntityCoordinate(
-                        x: targetCoordinate.x,
-                        y: targetCoordinate.y,
-                        z: targetCoordinate.z
-                    )
-                    if let sourceDocument = sourceBlockEntities[sourceEntityKey] {
-                        targetBlockEntities[targetEntityKey] = offsetBlockEntity(sourceDocument, to: targetCoordinate)
-                    } else {
-                        targetBlockEntities.removeValue(forKey: targetEntityKey)
-                    }
-                    changedEntityChunks.insert(targetChunk)
                     z = nextAxisValue(z, step: traversal.stepZ)
                 }
                 y = nextAxisValue(y, step: traversal.stepY)
@@ -2617,11 +2554,6 @@ private final class CommandBlockStore {
             x = nextAxisValue(x, step: traversal.stepX)
         }
 
-        let entityWrites = try encodeBlockEntities(
-            documents: targetBlockEntities,
-            changedChunks: changedEntityChunks,
-            originalKeys: targetEntityState.keysByChunk
-        )
         let sourceMetadata = sourceStore.pendingMetadataPuts.map { (key: $0.key, value: $0.value) }
         let written = try commit(extraPuts: sourceMetadata + entityWrites.puts, extraDeletes: entityWrites.deletes)
         guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty
@@ -2696,7 +2628,9 @@ private final class CommandBlockStore {
     }
 
     private func subKey(for coordinate: CommandBlockCoordinate) throws -> SubKey {
-        SubKey(chunk: chunkPosition(x: coordinate.x, z: coordinate.z), y: try subChunkY(for: coordinate.y))
+        try validateHorizontal(coordinate.x, name: "X")
+        try validateHorizontal(coordinate.z, name: "Z")
+        return SubKey(chunk: chunkPosition(x: coordinate.x, z: coordinate.z), y: try subChunkY(for: coordinate.y))
     }
 
     private func subChunkY(for y: Int32) throws -> Int8 {
@@ -2805,11 +2739,14 @@ private final class CommandBlockStore {
         let index = localIndex(for: coordinate)
         var writable = try adaptedState(state, layer: layer, for: key)
         var mutable: MutableCommandSubChunk
+        let created: Bool
         switch try load(key) {
         case .value(let value):
             mutable = value
+            created = false
         case .missing:
             if writable.isAir && !createWhenAir { return false }
+            created = true
             let persistentVersion = try preferredSubChunkVersion(for: key)
             if try isLegacyTarget(key) {
                 mutable = try MutableCommandSubChunk.emptyLegacy(y: key.y, subChunkVersion: persistentVersion)
@@ -2824,7 +2761,9 @@ private final class CommandBlockStore {
             writable = try BedrockLegacyBlockStateConverter.forPalette(writable,
                 format: BedrockPaletteFormat.detect(mutable.storages.flatMap(\.palette)))
         }
-        let changed = try mutable.setState(writable, layer: layer, linearIndex: index, trimTrailingAir: trimTrailingAir)
+        // Persist an explicitly created empty slice even when its initial air
+        // already equals the requested layer0 state.
+        let changed = try mutable.setState(writable, layer: layer, linearIndex: index, trimTrailingAir: trimTrailingAir) || created
         if changed {
             cache[key] = .value(mutable)
             changedKeys.insert(key)
@@ -2959,21 +2898,134 @@ private final class CommandBlockStore {
         return result
     }
 
-    private func loadBlockEntities(
-        for chunks: Set<ChunkPosition>
-    ) throws -> (documents: [BlockEntityCoordinate: NBTDocument], keysByChunk: [ChunkPosition: Data]) {
-        var documents = [BlockEntityCoordinate: NBTDocument]()
-        var keys = [ChunkPosition: Data]()
-        for chunk in chunks {
+    private func planCloneBlockEntities(
+        from sourceStore: CommandBlockStore,
+        source: CommandBlockBox,
+        target: CommandBlockBox
+    ) throws -> (puts: [(key: Data, value: Data)], deletes: [Data]) {
+        var copied = [(BlockEntityCoordinate, ConsecutiveNBTRecord)]()
+        var seen = Set<BlockEntityCoordinate>()
+        for chunk in sourceStore.chunks(in: source).sorted(by: { $0.z == $1.z ? $0.x < $1.x : $0.z < $1.z }) {
             let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
-            keys[chunk] = key
-            guard let raw = try database.get(key) else { continue }
+            guard let raw = try sourceStore.database.get(key) else { continue }
             for record in try ConsecutiveNBTCodec.decode(raw) {
-                guard let coordinate = blockEntityCoordinate(record.document.root) else { continue }
-                documents[coordinate] = record.document
+                guard let coordinate = blockEntityCoordinate(record.document.root),
+                      source.contains(CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)) else { continue }
+                guard seen.insert(coordinate).inserted else {
+                    throw MCBEEditorError.malformedData("clone 源区域包含重复坐标的方块实体")
+                }
+                copied.append((coordinate, record))
             }
         }
-        return (documents, keys)
+        var recordsByChunk = [ChunkPosition: [ConsecutiveNBTRecord]]()
+        var original = [ChunkPosition: Data]()
+        var encodings = [ChunkPosition: NBTEncoding]()
+        for chunk in chunks(in: target) {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            guard let raw = try database.get(key) else { continue }
+            original[chunk] = raw
+            let records = try ConsecutiveNBTCodec.decode(raw)
+            encodings[chunk] = records.first?.encoding
+            recordsByChunk[chunk] = records.filter { record in
+                guard let coordinate = blockEntityCoordinate(record.document.root) else { return true }
+                return !target.contains(CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z))
+            }
+        }
+        for (coordinate, sourceRecord) in copied {
+            // Validated source/target boxes guarantee these relative offsets fit.
+            let x = target.minimum.x + (coordinate.x - source.minimum.x)
+            let y = target.minimum.y + (coordinate.y - source.minimum.y)
+            let z = target.minimum.z + (coordinate.z - source.minimum.z)
+            let chunk = chunkPosition(x: x, z: z)
+            var record = sourceRecord
+            guard case .compound(var tags) = record.document.root else { continue }
+            func number(_ value: Int64) -> NBTValue {
+                if let value32 = Int32(exactly: value) { return .int(value32) }
+                return .long(value)
+            }
+            for index in tags.indices {
+                switch tags[index].name.lowercased() {
+                case "x": tags[index].value = number(x)
+                case "y": tags[index].value = .int(y)
+                case "z": tags[index].value = number(z)
+                case "dimensionid", "dimension": tags[index].value = .int(dimension)
+                default: break
+                }
+            }
+            record.document.root = .compound(tags)
+            record.encoding = encodings[chunk] ?? sourceRecord.encoding
+            encodings[chunk] = record.encoding
+            recordsByChunk[chunk, default: []].append(record)
+        }
+        var puts = [(key: Data, value: Data)]()
+        var deletes = [Data]()
+        for (chunk, records) in recordsByChunk {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            if records.isEmpty {
+                if original[chunk] != nil { deletes.append(key) }
+            } else {
+                // The current VarInt fallback supports one root only. Never
+                // persist a concatenation that this reader cannot reopen.
+                guard records.count == 1 || records.allSatisfy({ $0.encoding == .littleEndian }) else {
+                    throw MCBEEditorError.unsupported("clone 暂不支持目标包含多个 VarInt NBT 根")
+                }
+                let data = try ConsecutiveNBTCodec.encode(records)
+                if original[chunk] != data { puts.append((key, data)) }
+            }
+        }
+        return (puts, deletes)
+    }
+
+    private func structureSourceEntities(in region: CommandBlockBox) throws -> [BlockEntityCoordinate: NBTDocument] {
+        var result = [BlockEntityCoordinate: NBTDocument]()
+        for chunk in chunks(in: region) {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            guard let raw = try database.get(key) else { continue }
+            for record in try ConsecutiveNBTCodec.decode(raw) {
+                guard let coordinate = blockEntityCoordinate(record.document.root),
+                      region.contains(CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)) else { continue }
+                guard result[coordinate] == nil else {
+                    throw MCBEEditorError.malformedData("structure save 源区域包含重复坐标的方块实体")
+                }
+                result[coordinate] = record.document
+            }
+        }
+        return result
+    }
+
+    private func planStructureBlockEntities(
+        written: Set<BlockEntityCoordinate>, copied: [BlockEntityCoordinate: NBTDocument], chunks: Set<ChunkPosition>
+    ) throws -> (puts: [(key: Data, value: Data)], deletes: [Data]) {
+        var puts = [(key: Data, value: Data)]()
+        var deletes = [Data]()
+        for chunk in chunks {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            let original = try database.get(key)
+            let records = try original.map { try ConsecutiveNBTCodec.decode($0) } ?? []
+            var kept = records.filter { record in
+                guard let coordinate = blockEntityCoordinate(record.document.root) else { return true }
+                return !written.contains(coordinate)
+            }
+            let additions = copied.filter { chunkPosition(x: $0.key.x, z: $0.key.z) == chunk }
+                .sorted { lhs, rhs in
+                    if lhs.key.x != rhs.key.x { return lhs.key.x < rhs.key.x }
+                    if lhs.key.y != rhs.key.y { return lhs.key.y < rhs.key.y }
+                    return lhs.key.z < rhs.key.z
+                }
+            guard kept.count != records.count || !additions.isEmpty else { continue }
+            for (_, document) in additions {
+                kept.append(ConsecutiveNBTRecord(document: document, rawData: Data(), encoding: records.first?.encoding ?? .littleEndian))
+            }
+            guard kept.count <= 1 || kept.allSatisfy({ $0.encoding == .littleEndian }) else {
+                throw MCBEEditorError.unsupported("structure load 暂不支持目标包含多个 VarInt NBT 根")
+            }
+            if kept.isEmpty { deletes.append(key) }
+            else {
+                let encoded = try ConsecutiveNBTCodec.encode(kept)
+                if encoded != original { puts.append((key, encoded)) }
+            }
+        }
+        return (puts, deletes)
     }
 
     private func removeBlockEntities(
@@ -2981,35 +3033,25 @@ private final class CommandBlockStore {
         onlyLoadedChunks: Bool
     ) throws -> (puts: [(key: Data, value: Data)], deletes: [Data], changedCount: Int) {
         let relevant = chunks(in: region).filter { !onlyLoadedChunks || availableChunks.contains($0) }
-        let loaded = try loadBlockEntities(for: Set(relevant))
-        var documents = loaded.documents
-        let removeKeys = documents.keys.filter { region.contains(CommandBlockCoordinate(x: $0.x, y: $0.y, z: $0.z)) }
-        for key in removeKeys { documents.removeValue(forKey: key) }
-        let writes = try encodeBlockEntities(documents: documents, changedChunks: Set(relevant), originalKeys: loaded.keysByChunk)
-        return (writes.puts, writes.deletes, removeKeys.count)
-    }
-
-    private func encodeBlockEntities(
-        documents: [BlockEntityCoordinate: NBTDocument],
-        changedChunks: Set<ChunkPosition>,
-        originalKeys: [ChunkPosition: Data]
-    ) throws -> (puts: [(key: Data, value: Data)], deletes: [Data]) {
         var puts = [(key: Data, value: Data)]()
         var deletes = [Data]()
-        for chunk in changedChunks {
-            let key = originalKeys[chunk] ?? BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
-            let records = documents
-                .filter { chunkPosition(x: $0.key.x, z: $0.key.z) == chunk }
-                .sorted { lhs, rhs in
-                    if lhs.key.y != rhs.key.y { return lhs.key.y < rhs.key.y }
-                    if lhs.key.z != rhs.key.z { return lhs.key.z < rhs.key.z }
-                    return lhs.key.x < rhs.key.x
-                }
-                .map { ConsecutiveNBTRecord(document: $0.value, rawData: Data(), encoding: .littleEndian) }
-            if records.isEmpty { deletes.append(key) }
-            else { puts.append((key, try ConsecutiveNBTCodec.encode(records))) }
+        var removed = 0
+        for chunk in relevant {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            guard let raw = try database.get(key) else { continue }
+            let records = try ConsecutiveNBTCodec.decode(raw)
+            // Keep original order, duplicate positions and unlocatable records.
+            // A coordinate dictionary would silently discard unrelated data.
+            let kept = records.filter { record in
+                guard let coordinate = blockEntityCoordinate(record.document.root) else { return true }
+                return !region.contains(CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z))
+            }
+            guard kept.count != records.count else { continue }
+            removed += records.count - kept.count
+            if kept.isEmpty { deletes.append(key) }
+            else { puts.append((key, try ConsecutiveNBTCodec.encode(kept))) }
         }
-        return (puts, deletes)
+        return (puts, deletes, removed)
     }
 
     private func blockEntityCoordinate(_ root: NBTValue) -> BlockEntityCoordinate? {
@@ -3028,29 +3070,23 @@ private final class CommandBlockStore {
     private func offsetBlockEntity(_ document: NBTDocument, to coordinate: CommandBlockCoordinate) -> NBTDocument {
         var document = document
         guard case .compound(var tags) = document.root else { return document }
-        for index in tags.indices {
-            switch tags[index].name.lowercased() {
-            case "x": tags[index].value = numericLike(tags[index].value, value: coordinate.x)
-            case "y": tags[index].value = numericLike(tags[index].value, value: Int64(coordinate.y))
-            case "z": tags[index].value = numericLike(tags[index].value, value: coordinate.z)
-            default: break
-            }
+        func number(_ value: Int64) -> NBTValue {
+            if let small = Int32(exactly: value) { return .int(small) }
+            return .long(value)
+        }
+        let coordinates: [(String, NBTValue)] = [("x", number(coordinate.x)), ("y", .int(coordinate.y)), ("z", number(coordinate.z))]
+        for (name, value) in coordinates {
+            let indices = tags.indices.filter { tags[$0].name.lowercased() == name }
+            if indices.isEmpty { tags.append(NBTNamedTag(name: name, value: value)) }
+            else { for index in indices { tags[index].value = value } }
+        }
+        for index in tags.indices where ["dimensionid", "dimension"].contains(tags[index].name.lowercased()) {
+            tags[index].value = .int(dimension)
         }
         document.root = .compound(tags)
         return document
     }
 
-    private func numericLike(_ original: NBTValue, value: Int64) -> NBTValue {
-        switch original {
-        case .byte: return .byte(Int8(clamping: value))
-        case .short: return .short(Int16(clamping: value))
-        case .int: return .int(Int32(clamping: value))
-        case .long: return .long(value)
-        case .float: return .float(Float(value))
-        case .double: return .double(Double(value))
-        default: return .int(Int32(clamping: value))
-        }
-    }
 }
 
 private struct MutableCommandStorage {

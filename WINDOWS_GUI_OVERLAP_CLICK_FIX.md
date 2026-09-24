@@ -45,4 +45,4 @@ Windows 地图的重叠对象菜单由 `MainWindow.xaml.cs` 中的 `TryShowMapPo
 
 ## 完整性清单
 
-本修复包新增 `CLI/Shared/stage06a-windows-gui-overlap-files.sha256` 作为当前快照的完整性清单；原 `stage06-files.sha256` 保留为输入基线的历史记录，不再代表修复后的工作树。
+该次修复的历史哈希快照已在收尾检查中清理；当前验证范围及后续计划见 `CLI/Docs/FINAL_REVIEW.md`。对应修复代码和 `CLI/Tests/windows_gui_overlap_click_audit.py` 仍保留。

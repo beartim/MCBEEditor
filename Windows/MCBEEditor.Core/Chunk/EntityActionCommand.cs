@@ -460,33 +460,20 @@ public sealed class EntityActionCommandStore
             if (inventoryName != "inventory" && inventoryName != "playerinventory") continue;
             if (tags[i].Value is not NbtListValue list || (list.ElementType != NbtTagType.Compound && list.Values.Count != 0)) continue;
             var values = list.Values.Select(NbtDocumentTools.DeepClone).ToList();
-            if (requestedSlot.HasValue)
+            var slot = requestedSlot ?? (sbyte)35;
+            if (!requestedSlot.HasValue)
             {
-                var slot = requestedSlot.Value;
-                var existing = values.FindIndex(item => ItemSlot(item) == slot);
-                if (existing >= 0) values[existing] = ItemStack(identifier, count, slot, 0, itemTags);
-                else if (slot < values.Count) values[slot] = ItemStack(identifier, count, slot, 0, itemTags);
-                else values.Add(ItemStack(identifier, count, slot, 0, itemTags));
+                // Sparse Inventory lists omit empty slots; list position is not Slot.
+                var occupied = values.Select((item, index) => (item, slot: ItemSlot(item) ?? index))
+                    .Where(entry => !IsEmptyInventorySlot(entry.item)).Select(entry => entry.slot).ToHashSet();
+                for (sbyte candidate = 0; candidate < 36; candidate++)
+                    if (!occupied.Contains(candidate)) { slot = candidate; break; }
             }
-            else
-            {
-                var emptyCandidates = values.Select((item, index) => (item, index, slot: ItemSlot(item)))
-                    .Where(x => IsEmptyInventorySlot(x.item) && x.slot.HasValue && x.slot.Value is >= 0 and <= 35)
-                    .OrderBy(x => x.slot!.Value)
-                    .ToArray();
-                if (emptyCandidates.Length > 0)
-                {
-                    var firstEmpty = emptyCandidates[0];
-                    values[firstEmpty.index] = ItemStack(identifier, count, (sbyte)firstEmpty.slot!.Value, 0, itemTags);
-                }
-                else
-                {
-                    var slot35 = values.FindIndex(item => ItemSlot(item) == 35);
-                    if (slot35 >= 0) values[slot35] = ItemStack(identifier, count, 35, 0, itemTags);
-                    else if (values.Count > 0) values[^1] = ItemStack(identifier, count, 35, 0, itemTags);
-                    else values.Add(ItemStack(identifier, count, 0, 0, itemTags));
-                }
-            }
+            var existing = values.FindIndex(item => ItemSlot(item) == slot);
+            if (existing >= 0) values[existing] = ItemStack(identifier, count, slot, 0, itemTags);
+            else if (slot < values.Count && ItemSlot(values[slot]) is null)
+                values[slot] = ItemStack(identifier, count, slot, 0, itemTags);
+            else values.Add(ItemStack(identifier, count, slot, 0, itemTags));
             tags[i] = new NbtNamedTag(tags[i].Name, new NbtListValue(NbtTagType.Compound, values));
             return new ValueMutation(new NbtCompoundValue(tags), true);
         }
@@ -628,8 +615,7 @@ public sealed class EntityActionCommandStore
     private static void ReplaceItemTag(List<NbtNamedTag> tags, string name, NbtValue value)
     {
         var index = tags.FindIndex(tag => string.Equals(tag.Name, name, StringComparison.OrdinalIgnoreCase));
-        var preferred = index >= 0 ? tags[index].Name : name;
-        var replacement = new NbtNamedTag(preferred, value);
+        var replacement = new NbtNamedTag(name, value);
         if (index >= 0) tags[index] = replacement; else tags.Add(replacement);
     }
 

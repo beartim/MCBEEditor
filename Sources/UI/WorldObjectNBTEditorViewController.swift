@@ -402,6 +402,19 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     do {
       let result = try store.save(object: object, document: document)
       dirty = false
+      do {
+        object = try store.refreshedObject(afterSaving: object, document: document, result: result)
+        title = object.displayName
+      } catch {
+        // The write has committed. Do not report a save failure or allow a
+        // second write through the old identity if the refresh cannot resolve it.
+        rebuildRows()
+        tableView.isUserInteractionEnabled = false
+        navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = false }
+        navigationItem.prompt = "已保存；请返回列表重新打开该对象。"
+        onSave()
+        return true
+      }
       rebuildRows()
       let movedText =
         result.moved

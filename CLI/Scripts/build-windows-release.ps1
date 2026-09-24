@@ -1,4 +1,4 @@
-param([switch]$Test)
+﻿param([switch]$Test)
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $baseBuild = Join-Path $root 'CLI\Scripts\build-windows.ps1'
@@ -61,7 +61,7 @@ New-Item -ItemType Directory -Path $probeBin,$probeCwd | Out-Null
 try {
     $probeExe = Join-Path $probeBin 'mcbe-cli.exe'
     Copy-Item -LiteralPath $finalExe -Destination $probeExe
-    Set-Content -LiteralPath (Join-Path $probeCwd 'relative-command-file.txt') -Value 'weather query' -Encoding utf8NoBOM
+    [IO.File]::WriteAllText((Join-Path $probeCwd 'relative-command-file.txt'), "weather query`n", (New-Object Text.UTF8Encoding($false)))
 
     Push-Location $probeCwd
     try {
@@ -106,6 +106,12 @@ try {
 }
 finally {
     Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+if ($Test) {
+    $fixtureTool = Join-Path $root 'CLI\build\native-tests\mcbe_cli_create_test_db.exe'
+    & python (Join-Path $root 'CLI\Tests\portable_release_smoke.py') --exe $finalExe --fixture-tool $fixtureTool
+    if ($LASTEXITCODE -ne 0) { throw 'Final portable EXE native/process checks failed.' }
 }
 
 # Reassert the shipping directory after all probes: runtime-created directories were isolated in probeRoot.

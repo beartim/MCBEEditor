@@ -2,7 +2,7 @@ namespace MCBEEditor.Cli;
 
 /// <summary>
 /// Resolves user-visible CLI directories independently from the managed payload location.
-/// The stage05a native launcher extracts the self-contained payload below Cache and sets
+/// The native launcher extracts the self-contained payload below Cache and sets
 /// these variables so Commands and world workspaces remain beside the outer mcbe-cli.exe.
 /// </summary>
 internal static class CliPortablePaths

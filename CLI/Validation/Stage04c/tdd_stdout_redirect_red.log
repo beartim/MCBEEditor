@@ -1,2 +1,0 @@
-FAIL: Windows raw line editor must be disabled when stdout is redirected
-FAIL: Swift raw line editor must be disabled when stdout is redirected

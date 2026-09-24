@@ -25,3 +25,7 @@ CLI/Windows/artifacts/
 CLI/Windows/dist/
 __pycache__/
 *.pyc
+
+# Reproducible validation output; source fixtures remain tracked.
+/Validation/
+/CLI/Validation/

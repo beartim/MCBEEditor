@@ -25,8 +25,6 @@ public sealed class BedrockWorldObjectNbtStore
     private readonly IWorldDatabase _database;
     public BedrockWorldObjectNbtStore(IWorldDatabase database) => _database = database;
 
-    public void SaveInPlace(BedrockWorldObject item, NbtDocument edited) => Save(item, edited);
-
     public void Save(BedrockWorldObject item, NbtDocument edited)
     {
         if (edited.Root is not NbtCompoundValue)
@@ -87,6 +85,26 @@ public sealed class BedrockWorldObjectNbtStore
                 SaveSingleRecordInPlace(item, edited);
                 break;
         }
+    }
+
+    /// <summary>Rebind an open editor to the unique record just committed by Save.</summary>
+    public BedrockWorldObject RefreshedObject(BedrockWorldObject original, NbtDocument edited)
+    {
+        var position = BedrockWorldObjectScanner.ExtractPosition(edited.Root, original.Kind) ?? original.Position;
+        var dimension = BedrockWorldObjectScanner.ExtractDimension(edited.Root) ?? original.Dimension;
+        var chunkX = position is null ? original.ChunkX : BedrockWorldObjectScanner.FloorDiv(position.BlockX, 16);
+        var chunkZ = position is null ? original.ChunkZ : BedrockWorldObjectScanner.FloorDiv(position.BlockZ, 16);
+        var matches = new BedrockWorldObjectScanner(_database)
+            .ScanRegion(chunkX, chunkZ, dimension, 0,
+                original.Kind == BedrockWorldObjectKind.Entity,
+                original.Kind == BedrockWorldObjectKind.BlockEntity, maximumObjects: int.MaxValue).Objects
+            .Where(candidate => candidate.Source == original.Source
+                && (original.Storage is not ModernActorStorage || candidate.Storage.PrimaryKey.SequenceEqual(original.Storage.PrimaryKey))
+                && candidate.RawData.SequenceEqual(BedrockNbtCodec.Encode(edited, candidate.Storage.Encoding)))
+            .Take(2).ToArray();
+        if (matches.Length != 1)
+            throw new InvalidDataException("已保存，但无法唯一重新定位对象；请返回列表重新打开。");
+        return matches[0];
     }
 
     public void MoveBlockEntity(BedrockWorldObject item, int targetDimension, int targetX, int targetY, int targetZ)
@@ -757,18 +775,24 @@ public sealed class BedrockWorldObjectNbtStore
         var preferred = item.Storage.RecordIndex;
         if (preferred >= 0 && preferred < records.Count && records[preferred].RawData.SequenceEqual(item.RawData)) return preferred;
 
+        var exact = Enumerable.Range(0, records.Count).Where(index => records[index].RawData.SequenceEqual(item.RawData)).ToArray();
+        if (exact.Length == 1) return exact[0];
         if (item.UniqueId is long uniqueId)
         {
-            for (var index = 0; index < records.Count; index++)
-                if (records[index].Document.Root.CompoundValueIgnoreCase("UniqueID", "UniqueId", "uniqueID", "uniqueId")?.IntegerValue() == uniqueId) return index;
+            var matches = Enumerable.Range(0, records.Count).Where(index =>
+                records[index].Document.Root.CompoundValueIgnoreCase("UniqueID", "UniqueId", "uniqueID", "uniqueId")?.IntegerValue() == uniqueId).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidDataException("UniqueID 已变化或不唯一，请重新扫描实体列表。");
+            return matches[0];
         }
-        if (item.Position is { } position)
+        if (item.Kind == BedrockWorldObjectKind.BlockEntity && item.Position is { } position)
         {
-            for (var index = 0; index < records.Count; index++)
+            var matches = Enumerable.Range(0, records.Count).Where(index =>
             {
                 var candidate = BedrockWorldObjectScanner.ExtractPosition(records[index].Document.Root, item.Kind);
-                if (candidate?.BlockX == position.BlockX && candidate.BlockY == position.BlockY && candidate.BlockZ == position.BlockZ) return index;
-            }
+                return candidate?.BlockX == position.BlockX && candidate.BlockY == position.BlockY && candidate.BlockZ == position.BlockZ;
+            }).ToArray();
+            if (matches.Length == 1) return matches[0];
         }
         throw new InvalidDataException("对象记录已经变化，无法确认要修改的 NBT。请重新扫描后再编辑。");
     }

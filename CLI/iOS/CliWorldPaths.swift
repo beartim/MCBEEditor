@@ -40,20 +40,23 @@ struct CliWorldPaths {
                 throw CliError.input("原位更新不能覆盖输入命令文件。")
             }
         }
-        if let output = output {
-            if output.pathExtension.lowercased() != "mcworld" { throw CliError.input("输出文件必须使用 .mcworld 扩展名。") }
-            var targetIsDirectory: ObjCBool = false
-            let exists = manager.fileExists(atPath: output.path, isDirectory: &targetIsDirectory)
-            if targetIsDirectory.boolValue { throw CliError.input("输出路径指向文件夹，请指定 .mcworld 文件。") }
-            if sameOrInside(output, cache) { throw CliError.input("输出文件不能位于工作副本缓存目录内。") }
-            if same(output, source) || (isDirectory.boolValue && sameOrInside(output, source)) {
-                throw CliError.input("另存为不能覆盖源世界；原位更新请使用 --in-place。")
-            }
-            if let script = options.script, script != "-", same(output, canonical(script)) {
-                throw CliError.input("输出不能覆盖输入命令文件。")
-            }
-            if exists && !options.overwrite { throw CliError.input("输出文件已存在；另选文件名或显式使用 --overwrite。") }
+        let paths = CliWorldPaths(source: source, cache: cache, output: output, isDirectory: isDirectory.boolValue)
+        if let output = output { try paths.validateSaveAs(output, overwrite: options.overwrite, script: options.script) }
+        return paths
+    }
+
+    func validateSaveAs(_ destination: URL, overwrite: Bool, script: String? = nil) throws {
+        if destination.pathExtension.lowercased() != "mcworld" { throw CliError.input("输出文件必须使用 .mcworld 扩展名。") }
+        var targetIsDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: destination.path, isDirectory: &targetIsDirectory)
+        if targetIsDirectory.boolValue { throw CliError.input("输出路径指向文件夹，请指定 .mcworld 文件。") }
+        if Self.sameOrInside(destination, cache) { throw CliError.input("输出文件不能位于工作副本缓存目录内。") }
+        if Self.same(destination, source) || (isDirectory && Self.sameOrInside(destination, source)) {
+            throw CliError.input("另存为不能覆盖源世界；原位更新请使用 --in-place。")
         }
-        return CliWorldPaths(source: source, cache: cache, output: output, isDirectory: isDirectory.boolValue)
+        if let script = script, script != "-", Self.same(destination, Self.canonical(script)) {
+            throw CliError.input("输出不能覆盖输入命令文件。")
+        }
+        if exists && !overwrite { throw CliError.input("输出文件已存在；另选文件名或显式使用 --overwrite。") }
     }
 }

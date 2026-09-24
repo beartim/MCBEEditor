@@ -99,7 +99,7 @@ def main():
         invoke(["--check-file", str(directory / "missing.txt")], 3)
         invoke(["--check-file", str(directory)], 3)
 
-        # stage06 standalone converter: no world/session is involved.
+        # Standalone converter: no world/session is involved.
         typed_json = directory / "typed input.json"
         typed_json.write_text(
             '{"format":"mcbeeditor-nbt-json","documents":[{"name":"","root":{"type":"compound","value":{"answer":{"type":"int","value":42},"name":{"type":"string","value":"cli"}}}}]}',

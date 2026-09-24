@@ -9,6 +9,7 @@ enum CliInteractiveShell {
         var paths: CliWorldPaths?
         var inPlace = false
         var dirty = false
+        var inPlacePending = false
         var batchExitStatus: Int32 = 0
         terminal.writeLine("MCBEEditor CLI 交互会话。输入 :help 查看会话命令。")
         defer {
@@ -17,7 +18,9 @@ enum CliInteractiveShell {
             }
         }
         while !cancelled() {
-            guard var line = terminal.readLine(prompt: workspace == nil ? "mcbe> " : "mcbe(world)> ", history: history) else {
+            let nextLine = terminal.readLine(prompt: workspace == nil ? "mcbe> " : "mcbe(world)> ", history: history)
+            if cancelled() { return 130 }
+            guard var line = nextLine else {
                 return dirty ? 1 : batchExitStatus
             }
             line = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,36 +44,40 @@ enum CliInteractiveShell {
                         guard (2...3).contains(meta.count), meta.dropFirst(2).allSatisfy({ $0.lowercased() == "--in-place" }) else {
                             terminal.writeError("用法：:open \"世界路径\" [--in-place]"); continue
                         }
-                        if let old = workspace { old.finish(preserve: false, notice: terminal.writeError) }
-                        workspace = nil; paths = nil
-                        inPlace = meta.dropFirst(2).contains { $0.lowercased() == "--in-place" }
+                        let nextInPlace = meta.dropFirst(2).contains { $0.lowercased() == "--in-place" }
                         let cache = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
                             .appendingPathComponent("Library/Caches/MCBEEditorCLI/Worlds").path
                         let options = CliRunOptions(world: meta[1], commands: [], script: nil, output: nil,
-                                                    cache: cache, overwrite: false, keepWork: false, inPlace: inPlace)
+                                                    cache: cache, overwrite: false, keepWork: false, inPlace: nextInPlace)
                         let newPaths = try CliWorldPaths.validate(options)
-                        let newWorkspace = try CliWorldWorkspace.open(newPaths, inPlace: inPlace)
-                        paths = newPaths; workspace = newWorkspace; dirty = false
+                        if let old = workspace, CliWorldPaths.sameOrInside(newPaths.source, old.sessionRoot) {
+                            throw CliError.input("不能将当前会话的临时副本重新作为来源打开；请先另存到缓存目录外。")
+                        }
+                        let newWorkspace = try CliWorldWorkspace.open(newPaths, inPlace: nextInPlace)
+                        // Release the old copy only after the replacement world is usable.
+                        if let old = workspace { old.finish(preserve: false, notice: terminal.writeError) }
+                        paths = newPaths; workspace = newWorkspace; inPlace = nextInPlace; dirty = false; inPlacePending = false
                         terminal.writeLine("已打开工作副本：\(newWorkspace.worldRoot.path)")
-                        runSharedCommandFileIfPresent(workspace: newWorkspace, terminal: terminal, history: history,
+                        runSharedCommandFileIfPresent(workspace: newWorkspace, paths: newPaths, terminal: terminal, history: history,
                             directory: commandsDirectory ?? CliSharedCommandStore.defaultDirectory,
                             dirty: &dirty, batchExitStatus: &batchExitStatus, cancelled: cancelled)
+                        inPlacePending = dirty
                     case ":save":
                         guard let workspace = workspace, let paths = paths else { terminal.writeError("尚未打开世界。先使用 :open。"); continue }
                         let overwrite = meta.dropFirst().contains { $0.lowercased() == "--overwrite" }
                         let values = meta.dropFirst().filter { $0.lowercased() != "--overwrite" }
                         if values.isEmpty {
                             guard inPlace else { terminal.writeError("当前不是原位会话；请使用 :save \"输出.mcworld\" [--overwrite]。"); continue }
-                            if !dirty { terminal.writeLine("没有未保存修改。"); continue }
+                            if !inPlacePending { terminal.writeLine("没有未保存修改。"); continue }
                             do {
                                 try workspace.commitInPlace(notice: terminal.writeError)
-                                dirty = false
+                                dirty = false; inPlacePending = false
                                 terminal.writeLine("原位更新完成：\(paths.source.path)")
                             } catch { terminal.writeError("保存失败：\(error.localizedDescription)") }
                         } else if values.count == 1 {
                             do {
                                 let destination = CliWorldPaths.canonical(values[0])
-                                try validateSaveAs(destination, paths: paths, overwrite: overwrite)
+                                try paths.validateSaveAs(destination, overwrite: overwrite)
                                 try workspace.export(to: destination, overwrite: overwrite)
                                 dirty = false
                                 terminal.writeLine("导出完成：\(destination.path)")
@@ -92,6 +99,11 @@ enum CliInteractiveShell {
             guard let workspace = workspace else { terminal.writeError("尚未打开世界。先使用 :open \"世界路径\"。"); continue }
             guard let plan = CliCommandPlan.parse([CliCommandLine(lineNumber: 1, text: line)], forExecution: true, allowInteractiveStructureName: true, error: terminal.writeError),
                   let command = plan.commands.first else { continue }
+            do {
+                guard let paths = paths else { continue }
+                try CliStructureFileCommand.validateFiles(plan.commands.compactMap(\.structureFile), paths: paths,
+                    script: (commandsDirectory ?? CliSharedCommandStore.defaultDirectory).appendingPathComponent("Command.txt").path)
+            } catch { terminal.writeError(error.localizedDescription); continue }
             var structureFile = command.structureFile
             if let request = structureFile {
                 switch request.operation {
@@ -106,6 +118,7 @@ enum CliInteractiveShell {
                 default: break
                 }
             }
+            if cancelled() { return 130 }
             do {
                 let result: WorldCommandExecutionResult
                 defer { workspace.session.close() }
@@ -116,16 +129,16 @@ enum CliInteractiveShell {
                 } else {
                     result.outputLines.forEach(terminal.writeLine)
                 }
-                if result.changedWorld { dirty = true }
+                if result.changedWorld { dirty = true; inPlacePending = true }
             } catch {
-                if plan.mayMutate { dirty = true }
+                if plan.mayMutate { dirty = true; inPlacePending = true }
                 terminal.writeError("执行失败：\(error.localizedDescription)")
             }
         }
         return 130
     }
 
-    private static func runSharedCommandFileIfPresent(workspace: CliWorldWorkspace, terminal: CliTerminal,
+    private static func runSharedCommandFileIfPresent(workspace: CliWorldWorkspace, paths: CliWorldPaths, terminal: CliTerminal,
                                                       history: [String], directory: URL, dirty: inout Bool,
                                                       batchExitStatus: inout Int32, cancelled: () -> Bool) {
         guard CliSharedCommandStore.commandFileExists(in: directory) else { return }
@@ -151,6 +164,12 @@ enum CliInteractiveShell {
                                               error: { parseMessages.append($0) }) else {
             parseMessages.forEach(terminal.writeError)
             terminal.writeError("Command.txt 语法检查失败；本次没有执行任何命令。")
+            batchExitStatus = max(batchExitStatus, 2)
+            return
+        }
+        do { try CliStructureFileCommand.validateFiles(plan.commands.compactMap(\.structureFile), paths: paths, script: directory.appendingPathComponent("Command.txt").path) }
+        catch {
+            terminal.writeError("Command.txt 文件预检失败：\(error.localizedDescription)")
             batchExitStatus = max(batchExitStatus, 2)
             return
         }
@@ -200,16 +219,6 @@ enum CliInteractiveShell {
             terminal.writeError("已取消 structure 文件操作。"); return nil
         }
         return name
-    }
-
-    private static func validateSaveAs(_ destination: URL, paths: CliWorldPaths, overwrite: Bool) throws {
-        guard destination.pathExtension.lowercased() == "mcworld" else { throw CliError.input("输出文件必须使用 .mcworld 扩展名。") }
-        if CliWorldPaths.same(destination, paths.source) || (paths.isDirectory && CliWorldPaths.sameOrInside(destination, paths.source)) {
-            throw CliError.input("另存为不能覆盖源世界；原位保存请在 :open 时使用 --in-place 后执行 :save。")
-        }
-        if FileManager.default.fileExists(atPath: destination.path) && !overwrite {
-            throw CliError.input("输出文件已存在；使用 --overwrite 才会覆盖。")
-        }
     }
 
     private static func tokenize(_ text: String) throws -> [String] {

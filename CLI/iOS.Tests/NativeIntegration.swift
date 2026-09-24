@@ -256,7 +256,7 @@ enum NativeIntegration {
             try expect(try BedrockTimeStore.read(session: interactiveWorkspace.session).time == 2222, "second interactive in-place save failed or source stamp was not refreshed")
         }
 
-        // Stage04c: callback/redirected sessions must stay plain text while :history/:clear remain usable.
+        // callback/redirected sessions must stay plain text while :history/:clear remain usable.
         let plainLines = [":history", ":clear", ":quit"]
         var plainIndex = 0, plainOutput = [String](), plainError = [String]()
         let plainExit = MCBEEditorCli.run(["--interactive"], output: { plainOutput.append($0) }, error: { plainError.append($0) },
@@ -265,7 +265,7 @@ enum NativeIntegration {
             && !plainOutput.contains(where: { $0.contains("\u{001B}") }), "redirected interactive history/clear emitted ANSI or failed")
         try expect(plainError.isEmpty, "redirected interactive history/clear wrote unexpected stderr")
 
-        // Stage04d: fixed ReadMe is editor-owned; Command.txt is user-owned and must survive preparation byte-for-byte.
+        // fixed ReadMe is editor-owned; Command.txt is user-owned and must survive preparation byte-for-byte.
         let commandsDirectory = root.appendingPathComponent("Commands", isDirectory: true)
         try manager.createDirectory(at: commandsDirectory, withIntermediateDirectories: true)
         let commandFile = CliSharedCommandStore.commandFile(in: commandsDirectory)
