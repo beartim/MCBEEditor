@@ -1,0 +1,8 @@
+PASS: real Apple build shell retains prior binary on compile/architecture/platform/sign/verify failure and publishes on success (tool doubles only)
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/ios-lifecycle-fix/CLI/Tests/apple_build_lifecycle.py", line 125, in <module>
+    main()
+  File "/workspace/scratch/b1b811844258/ios-lifecycle-fix/CLI/Tests/apple_build_lifecycle.py", line 119, in main
+    assert target.read_bytes() == b'new-binary'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

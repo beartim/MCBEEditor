@@ -1,0 +1,26 @@
+[
+  {
+    "check": "bash32-all-shims",
+    "exit_code": 0
+  },
+  {
+    "check": "source-audit",
+    "exit_code": 0
+  },
+  {
+    "check": "build-audit",
+    "exit_code": 0
+  },
+  {
+    "check": "support-tests",
+    "exit_code": 0
+  },
+  {
+    "check": "bash32-syntax",
+    "exit_code": 0
+  },
+  {
+    "check": "bash52-syntax",
+    "exit_code": 0
+  }
+]

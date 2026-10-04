@@ -23,7 +23,12 @@ def main():
         executable(scripts / 'bootstrap-apple-native.sh', 'exit 0\n')
         ios = root / 'CLI/iOS'
         ios.mkdir()
-        (ios / 'sources.txt').write_text('CLI/iOS/CliEntry.swift\n')
+        # The host native-test build excludes CliEntry. Mirror the real
+        # manifest's entry and non-entry sources: Bash 3.2 with nounset cannot
+        # expand an empty test_sources array, even when it reports exit 0.
+        (ios / 'CliEntry.swift').write_text('@main struct CliEntry { static func main() {} }\n', encoding='utf-8')
+        (ios / 'CliMain.swift').write_text('enum CliMain {}\n', encoding='utf-8')
+        (ios / 'sources.txt').write_text('CLI/iOS/CliEntry.swift\nCLI/iOS/CliMain.swift\n', encoding='utf-8')
         bins = root / 'tools'
         bins.mkdir()
         executable(bins / 'uname', 'if [[ "$1" == -s ]]; then echo Darwin; else echo arm64; fi\n')
@@ -54,7 +59,8 @@ esac
                                     env=env, capture_output=True, timeout=20)
             if failure == 'none':
                 assert result.returncode == 0, result.stderr
-                assert target.read_bytes() == b'new-binary'
+                assert not result.stderr, result.stderr
+                assert target.read_bytes() == b'new-binary', (result.stdout, result.stderr)
             else:
                 assert result.returncode != 0, failure
                 assert target.read_bytes() == b'previous-verified-binary', failure + ': failed build replaced approved binary'
@@ -115,8 +121,9 @@ esac
                 assert not trace.exists(), 'smoke tests ran after a failed fixture build'
             else:
                 assert result.returncode == 0, result.stderr
+                assert not result.stderr, result.stderr
                 assert trace.read_text().splitlines() == ['fixture', 'session_smoke.py', 'environment_smoke.py']
-                assert target.read_bytes() == b'new-binary'
+                assert target.read_bytes() == b'new-binary', (result.stdout, result.stderr)
             assert not list(out.glob('.mcbe-build.*')), 'temporary host build left behind'
         print('PASS: Apple host tests receive a built database fixture; fixture failure preserves the prior CLI (tool doubles only)')
 
