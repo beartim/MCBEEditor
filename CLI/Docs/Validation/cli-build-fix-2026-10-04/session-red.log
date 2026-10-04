@@ -1,0 +1,15 @@
+PASS unclosed-quote-recovers
+PASS missing-world-recovers
+FAIL failed-open-keeps-current-world: 
+FAIL corrupt-world-keeps-current-world: 
+FAIL active-work-copy-cannot-become-new-source: 
+FAIL reject-save-cache-keeps-dirty: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/b88ab96c8b474f9eb6651902e417f9c4/World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/b88ab96c8b474f9eb6651902e417f9c4/World/db: does not exist (create_if_missing is false)\n保存失败：输出文件不能位于工作副本缓存目录内。\n')
+FAIL reject-save-working-keeps-dirty: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/5f45ff6654c54c04a9c4604d10c5a701/World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/5f45ff6654c54c04a9c4604d10c5a701/World/db: does not exist (create_if_missing is false)\n保存失败：输出文件不能位于工作副本缓存目录内。\n')
+FAIL reject-save-source-keeps-dirty: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/096c2c74eb9746f38f9aae7771651086/World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/096c2c74eb9746f38f9aae7771651086/World/db: does not exist (create_if_missing is false)\n保存失败：输出必须另存到源世界之外，不能覆盖或写入源世界；原位保存请使用 --in-place。\n')
+FAIL reject-save-directory-keeps-dirty: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/17b2d7b7a1c241daaaa900e84206524c/World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/17b2d7b7a1c241daaaa900e84206524c/World/db: does not exist (create_if_missing is false)\n保存失败：输出路径指向文件夹，请指定 .mcworld 文件。\n')
+FAIL repeated-in-place-save: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/54213b6f79c54a51839e6a460586d29d/World\nmcbe(world)> mcbe(world)> 没有未保存修改。\nmcbe(world)> mcbe(world)> 没有未保存修改。\nmcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/54213b6f79c54a51839e6a460586d29d/World/db: does not exist (create_if_missing is false)\n打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/54213b6f79c54a51839e6a460586d29d/World/db: does not exist (create_if_missing is false)\n')
+FAIL save-copy-does-not-hide-pending-in-place: (0, 'MCBEEditor CLI 交互会话。输入 :help 查看会话命令。\nmcbe> 已打开工作副本：/tmp/mcbe-cli-session-82canal0/cache/Worlds/3c2a334465754c51b2727489ad4857ff/World\nmcbe(world)> mcbe(world)> 导出完成：/tmp/mcbe-cli-session-82canal0/saved-copy.mcworld\nmcbe(world)> 没有未保存修改。\nmcbe(world)> ', '打开 LevelDB：Invalid argument: /tmp/mcbe-cli-session-82canal0/cache/Worlds/3c2a334465754c51b2727489ad4857ff/World/db: does not exist (create_if_missing is false)\n')
+FAIL cancelled-input-cannot-save: 
+PASS whole-batch-preflight-before-write
+PASS mixed-case-help
+FAIL: 10/14 session cases

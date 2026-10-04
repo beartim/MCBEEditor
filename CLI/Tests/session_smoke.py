@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Exercise real CLI sessions and file lifecycle without opening a LevelDB handle.
+"""Exercise real CLI sessions and file lifecycle with a valid test database.
 
-The fixture only uses level.dat commands. Native database/terrain behavior stays
-in Windows.Tests and iOS.Tests; this test runs against either released backend.
+Commands under test edit level.dat, but dimension preflight opens LevelDB.
+Database/terrain behavior stays in Windows.Tests and iOS.Tests.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import zipfile
+from smoke_support import configure_utf8_output, create_test_database, snapshot
 
 
 def level_dat(x=0, y=64, z=0):
@@ -79,20 +80,24 @@ class Session:
 
 
 def main():
+    configure_utf8_output()
     parser = argparse.ArgumentParser()
+    parser.add_argument("--fixture-tool", required=True, type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     executable = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not executable:
         parser.error("supply an executable after --")
+    fixture_tool = args.fixture_tool.resolve(strict=True)
     failures, count = [], 0
     with tempfile.TemporaryDirectory(prefix="mcbe-cli-session-") as temporary:
         root = Path(temporary)
         source = root / "源世界 with spaces"
-        (source / "db").mkdir(parents=True)
+        create_test_database(source, fixture_tool)
         original = level_dat()
         (source / "level.dat").write_bytes(original)
         (source / "untouched.bin").write_bytes(b"\x00\x80\xff")
+        source_before = snapshot(source)
         env = dict(os.environ, MCBEEDITOR_PORTABLE_ROOT=str(root / "portable"),
                    MCBEEDITOR_CACHE_ROOT=str(root / "cache"))
 
@@ -101,8 +106,7 @@ def main():
             count += 1
             try:
                 action()
-                assert (source / "level.dat").read_bytes() == original, "changed source level.dat"
-                assert (source / "untouched.bin").read_bytes() == b"\x00\x80\xff", "changed source bytes"
+                assert snapshot(source) == source_before, "changed source world bytes"
                 print("PASS", name)
             except (AssertionError, OSError, queue.Empty, subprocess.TimeoutExpired) as error:
                 failures.append(f"{name}: {error}")
@@ -180,7 +184,7 @@ def main():
 
         def repeated_save():
             target = root / "in-place"
-            (target / "db").mkdir(parents=True)
+            create_test_database(target, fixture_tool)
             (target / "level.dat").write_bytes(original)
             session = Session(executable, env)
             try:
@@ -195,7 +199,7 @@ def main():
 
         def save_copy_then_in_place():
             target = root / "in-place-after-copy"
-            (target / "db").mkdir(parents=True)
+            create_test_database(target, fixture_tool)
             (target / "level.dat").write_bytes(original)
             backup = root / "saved-copy.mcworld"
             session = Session(executable, env)
@@ -213,7 +217,7 @@ def main():
         if os.name == "posix":
             def interrupted_save():
                 target = root / "cancelled"
-                (target / "db").mkdir(parents=True)
+                create_test_database(target, fixture_tool)
                 (target / "level.dat").write_bytes(original)
                 session = Session(executable, env)
                 try:
@@ -254,7 +258,7 @@ def main():
 
     if failures:
         raise SystemExit(f"FAIL: {len(failures)}/{count} session cases")
-    print(f"PASS: {count} session cases; level.dat/file lifecycle only, no native LevelDB coverage claimed")
+    print(f"PASS: {count} session cases; valid native database fixture; level.dat/file lifecycle")
 
 
 if __name__ == "__main__":

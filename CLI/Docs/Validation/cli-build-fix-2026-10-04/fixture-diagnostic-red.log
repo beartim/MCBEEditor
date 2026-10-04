@@ -1,0 +1,24 @@
+.F
+======================================================================
+FAIL: test_fixture_failure_includes_process_diagnostic (__main__.SmokeOutputTests.test_fixture_failure_includes_process_diagnostic)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/test_smoke_support.py", line 19, in test_fixture_failure_includes_process_diagnostic
+    create_test_database(world, sys.executable)
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/smoke_support.py", line 27, in create_test_database
+    subprocess.run([str(fixture_tool), "db"], cwd=root, check=True,
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3', 'db']' returned non-zero exit status 2.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/test_smoke_support.py", line 21, in test_fixture_failure_includes_process_diagnostic
+    self.assertIn("can't open file", str(error))
+AssertionError: "can't open file" not found in "Command '['/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3', 'db']' returned non-zero exit status 2."
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.061s
+
+FAILED (failures=1)

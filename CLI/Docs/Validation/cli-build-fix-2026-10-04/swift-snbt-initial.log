@@ -1,0 +1,2 @@
+MCBE-SNBT Swift codec: byte-exact roundtrip, canonical text, legacy forms, malformed input and depth checks passed
+PASS MCBE-SNBT probe fixtures/atomicity: 48 cases, 87 real process invocations

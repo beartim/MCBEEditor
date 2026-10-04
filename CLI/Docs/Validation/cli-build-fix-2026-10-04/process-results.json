@@ -1,0 +1,18 @@
+[
+  {
+    "check": "process",
+    "exit_code": 0
+  },
+  {
+    "check": "nbt-conversion",
+    "exit_code": 0
+  },
+  {
+    "check": "mcbe-snbt",
+    "exit_code": 0
+  },
+  {
+    "check": "structure-files",
+    "exit_code": 0
+  }
+]

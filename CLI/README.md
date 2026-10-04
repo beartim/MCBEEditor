@@ -204,11 +204,13 @@ python3 CLI/Tests/build_audit.py
 
 ```sh
 python3 CLI/Tests/smoke.py --backend windows -- 路径/mcbe-cli.exe
-python3 CLI/Tests/session_smoke.py -- 路径/mcbe-cli.exe
+python3 CLI/Tests/session_smoke.py --fixture-tool CLI/build/native-tests/mcbe_cli_create_test_db.exe -- 路径/mcbe-cli.exe
+python3 CLI/Tests/environment_smoke.py --fixture-tool CLI/build/native-tests/mcbe_cli_create_test_db.exe -- 路径/mcbe-cli.exe
 # Apple host 将 --backend 改为 swift，并使用 host 二进制。
+# Apple fixture tool 位于 CLI/build/apple-host/native/tools/mcbe_cli_create_test_db。
 ```
 
-`smoke.py` 检查帮助、全部根命令的公共解析用例、UTF-8/物理行号和格式转换。`session_smoke.py` 使用最小 level.dat 文件检查真实 CLI 进程的输入恢复、工作副本和保存生命周期；不打开 LevelDB，不代替原生数据库测试。macOS 进程测试应使用没有自定义 `~/Documents/Commands/Command.txt` 的测试账户，避免批处理提示影响输入。POSIX 下另测 SIGINT 取消后的输入不能触发保存；Windows 控制台 Ctrl-C 的实际即时响应仍需目标终端验证。
+`smoke.py` 检查帮助、全部根命令的公共解析用例、UTF-8/物理行号和格式转换。`session_smoke.py` 与 `environment_smoke.py` 用原生工具生成真实空数据库，并使用手工编码的最小 level.dat 检查输入恢复、工作副本、保存和环境命令；维度预检会打开数据库，不能再用只有空 db 文件夹的世界。两端测试构建入口会先构建夹具工具并传入 `--fixture-tool`。这些测试仍不代替区块、实体等完整原生集成测试。Windows 构建以 Python UTF-8 模式运行测试，会话和环境测试也会将自身日志设为 UTF-8，保证中文失败信息正常输出。macOS 进程测试应使用没有自定义 `~/Documents/Commands/Command.txt` 的测试账户，避免批处理提示影响输入。POSIX 下另测 SIGINT 取消后的输入不能触发保存；Windows 控制台 Ctrl-C 的实际即时响应仍需目标终端验证。
 
 上述检查与现有 C# 核心回归、Swift/C# 原生 LevelDB 集成测试继续由平台构建的 `-Test` / `--test` 入口运行。历史阶段日志、哈希快照、按 stage 分割的校验和重复工作流已经清理；当前发布入口统一为 `cli-release.yml`。本轮没有移除核心存档测试、夹具、GUI、图标、许可证或第三方声明。
 

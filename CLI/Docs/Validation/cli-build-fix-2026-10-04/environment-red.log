@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/environment_smoke.py", line 128, in <module>
+    main()
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/environment_smoke.py", line 101, in main
+    result, _ = run("read-only", ["help WeAtHeR", "weather query", "time query gametime", "time query day"], 0)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/environment_smoke.py", line 80, in run
+    assert result.returncode == expected, (name, result.returncode, result.stdout, result.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('read-only', 3, '', '工作副本：/tmp/mcbe-environment-5qjw7_w_/read-only/cache/14894489d23e43908e33bfe3e4feb8d2/World\n工作副本已保留：/tmp/mcbe-environment-5qjw7_w_/read-only/cache/14894489d23e43908e33bfe3e4feb8d2/World\n可将此路径作为下一次 --world 的输入继续处理或重新导出。\n打开 LevelDB：Invalid argument: /tmp/mcbe-environment-5qjw7_w_/read-only/cache/14894489d23e43908e33bfe3e4feb8d2/World/db: does not exist (create_if_missing is false)\n')

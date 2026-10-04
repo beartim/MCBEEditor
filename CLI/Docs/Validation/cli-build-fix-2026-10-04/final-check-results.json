@@ -1,0 +1,26 @@
+[
+  {
+    "check": "session-final",
+    "exit_code": 0
+  },
+  {
+    "check": "environment-final",
+    "exit_code": 0
+  },
+  {
+    "check": "support-final",
+    "exit_code": 0
+  },
+  {
+    "check": "apple-lifecycle-final",
+    "exit_code": 0
+  },
+  {
+    "check": "source-audit-final",
+    "exit_code": 0
+  },
+  {
+    "check": "build-audit-final",
+    "exit_code": 0
+  }
+]

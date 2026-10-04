@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Real CLI regression for level.dat-only commands and batch commit semantics.
 
-The deliberately non-database db/ fixture detects accidental LevelDB opens.
-Run against either backend: python3 environment_smoke.py -- /path/to/mcbe-cli
-This is not a native database integration test.
+Dimension preflight requires a valid native database fixture. Database/terrain
+behavior stays in the dedicated integration suites.
+Run: python3 environment_smoke.py --fixture-tool /path/to/tool -- /path/to/mcbe-cli
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+from smoke_support import configure_utf8_output, create_test_database, snapshot
 
 
 def initial_level_dat():
@@ -43,17 +44,16 @@ def numeric_tags(data):
     return values
 
 
-def snapshot(root):
-    return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
-
-
 def main():
+    configure_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixture-tool", required=True, type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     executable = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not executable:
         parser.error("supply an executable after --")
+    fixture_tool = args.fixture_tool.resolve(strict=True)
     count = 0
     with tempfile.TemporaryDirectory(prefix="mcbe-environment-") as temporary:
         root = Path(temporary)
@@ -64,9 +64,9 @@ def main():
             nonlocal count
             folder = root / name
             world = folder / "源世界 with spaces"
-            (world / "db").mkdir(parents=True)
+            create_test_database(world, fixture_tool)
             (world / "level.dat").write_bytes(initial_level_dat())
-            (world / "db" / "fixture-sentinel.bin").write_bytes(b"not a LevelDB database\x00\xff")
+            (world / "db" / "fixture-sentinel.bin").write_bytes(b"preserve this unrelated file\x00\xff")
             before = snapshot(world)
             cache, destination = folder / "cache", folder / "result.mcworld"
             argv = executable + ["--world", str(world), "--cache-dir", str(cache)]
@@ -80,13 +80,13 @@ def main():
             assert result.returncode == expected, (name, result.returncode, result.stdout, result.stderr)
             if mode != "in-place" or expected != 0:
                 assert snapshot(world) == before, name + ": source changed"
-            assert snapshot(world / "db") == {"fixture-sentinel.bin": before["db/fixture-sentinel.bin"]}
+            assert (world / "db" / "fixture-sentinel.bin").read_bytes() == before["db/fixture-sentinel.bin"]
             saved = None
             if mode == "output" and expected in (0, 1):
                 with zipfile.ZipFile(destination) as archive:
                     saved = numeric_tags(archive.read("level.dat"))
-                    assert {n: archive.read(n) for n in archive.namelist() if n.startswith("db/") and not n.endswith("/")} == {
-                        "db/fixture-sentinel.bin": before["db/fixture-sentinel.bin"]}
+                    assert archive.read("db/fixture-sentinel.bin") == before["db/fixture-sentinel.bin"]
+                    assert archive.read("db/CURRENT"), "export omitted the database manifest pointer"
             if mode == "in-place" and expected == 0:
                 saved = numeric_tags((world / "level.dat").read_bytes())
             if expected == 2:
@@ -121,7 +121,7 @@ def main():
         assert saved["doWeatherCycle"] == (1, 1)
         run("syntax-rejects-entire-batch", ["time set 7", "weather rain 20 NaN 1", "time set 8"], 2, "in-place")
         run("unknown-help-rejects-entire-batch", ["time set 7", "help not_a_command"], 2, "output")
-    print(f"PASS: {count} environment/batch scenarios; no native LevelDB coverage claimed")
+    print(f"PASS: {count} environment/batch scenarios; valid native database fixture")
 
 
 if __name__ == "__main__":

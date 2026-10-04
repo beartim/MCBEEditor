@@ -64,20 +64,23 @@ swift_options=(-swift-version 5 -D MCBE_CLI -parse-as-library -O -sdk "$SDK" -ta
 libraries=("$NATIVE/lib/libmcbe_cli_apple_bridge.a" "$NATIVE/lib/libmcbe_leveldb_core.a" "$NATIVE/lib/libmcbe_cli_zlib.a" -lc++ -framework Foundation)
 xcrun --sdk "$SDK_NAME" swiftc "${swift_options[@]}" "${sources[@]}" "${libraries[@]}" -o "$BINARY"
 if [[ "$CHECK" == --test ]]; then
+  cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
+  FIXTURE_TOOL="$NATIVE/tools/mcbe_cli_create_test_db"
+  [[ -x "$FIXTURE_TOOL" ]] || { echo 'Native database fixture tool is missing.' >&2; exit 1; }
   bash "$ROOT/Scripts/test_end_missing_subchunks.sh"
   python3 "$ROOT/CLI/Tests/source_audit.py"
   python3 "$ROOT/CLI/Tests/build_audit.py"
   python3 "$ROOT/CLI/Tests/apple_build_lifecycle.py"
   python3 "$ROOT/CLI/Tests/smoke.py" --backend swift -- "$BINARY"
-  python3 "$ROOT/CLI/Tests/session_smoke.py" -- "$BINARY"
-  python3 "$ROOT/CLI/Tests/environment_smoke.py" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/test_smoke_support.py"
+  python3 "$ROOT/CLI/Tests/session_smoke.py" --fixture-tool "$FIXTURE_TOOL" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/environment_smoke.py" --fixture-tool "$FIXTURE_TOOL" -- "$BINARY"
   python3 "$ROOT/CLI/Tests/nbt_conversion_smoke.py" -- "$BINARY"
   python3 "$ROOT/CLI/Tests/mcbe_snbt_smoke.py" --backend cli -- "$BINARY"
   python3 "$ROOT/CLI/Tests/structure_file_smoke.py" -- "$BINARY"
-  cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \
     "$ROOT/CLI/iOS.Tests/NativeIntegration.swift" "${libraries[@]}" -o "$OUT/cli-native-tests"
-  "$OUT/cli-native-tests" "$NATIVE/tools/mcbe_cli_create_test_db" "$ROOT/Tests/Fixtures/end_missing_subchunks.json"
+  "$OUT/cli-native-tests" "$FIXTURE_TOOL" "$ROOT/Tests/Fixtures/end_missing_subchunks.json"
 fi
 if [[ "$MODE" == ios ]]; then
   [[ "$(xcrun lipo -archs "$BINARY")" == arm64 ]] || { echo 'Expected iOS arm64 binary.' >&2; exit 1; }

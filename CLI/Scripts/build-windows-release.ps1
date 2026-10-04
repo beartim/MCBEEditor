@@ -110,7 +110,7 @@ finally {
 
 if ($Test) {
     $fixtureTool = Join-Path $root 'CLI\build\native-tests\mcbe_cli_create_test_db.exe'
-    & python (Join-Path $root 'CLI\Tests\portable_release_smoke.py') --exe $finalExe --fixture-tool $fixtureTool
+    & python -X utf8 (Join-Path $root 'CLI\Tests\portable_release_smoke.py') --exe $finalExe --fixture-tool $fixtureTool
     if ($LASTEXITCODE -ne 0) { throw 'Final portable EXE native/process checks failed.' }
 }
 

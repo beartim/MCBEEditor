@@ -23,27 +23,30 @@ $nativeCopy = Join-Path (Split-Path -Parent $binary) 'MCBEEditor.LevelDB.Native.
 if (-not (Test-Path $binary) -or -not (Test-Path $nativeCopy)) { throw 'CLI executable or native DLL is missing from the output.' }
 
 if ($Test) {
-    & python (Join-Path $root 'CLI\Tests\source_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI source audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\build_audit.py')
-    if ($LASTEXITCODE -ne 0) { throw 'CLI build contract audit failed.' }
-    & python (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
-    & python (Join-Path $root 'CLI\Tests\session_smoke.py') -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI session/file lifecycle checks failed.' }
-    & python (Join-Path $root 'CLI\Tests\environment_smoke.py') -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI level.dat environment/batch checks failed.' }
-    & python (Join-Path $root 'CLI\Tests\nbt_conversion_smoke.py') -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI NBT conversion matrix failed.' }
-    & python (Join-Path $root 'CLI\Tests\mcbe_snbt_smoke.py') --backend cli -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI MCBE-SNBT roundtrip and invalid-input checks failed.' }
-    & python (Join-Path $root 'CLI\Tests\structure_file_smoke.py') -- $binary
-    if ($LASTEXITCODE -ne 0) { throw 'CLI structure file preflight failed.' }
-    & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression
-    if ($LASTEXITCODE -ne 0) { throw 'Existing CLI-related core regressions failed.' }
     & cmake --build $nativeBuild --config Release --target mcbe_cli_create_test_db
     if ($LASTEXITCODE -ne 0) { throw 'Native database fixture tool build failed.' }
     $fixtureTool = Join-Path $root 'CLI\build\native-tests\mcbe_cli_create_test_db.exe'
+    if (-not (Test-Path -LiteralPath $fixtureTool -PathType Leaf)) { throw 'Native database fixture tool is missing.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\source_audit.py')
+    if ($LASTEXITCODE -ne 0) { throw 'CLI source audit failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\build_audit.py')
+    if ($LASTEXITCODE -ne 0) { throw 'CLI build contract audit failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\test_smoke_support.py')
+    if ($LASTEXITCODE -ne 0) { throw 'CLI test diagnostic encoding checks failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\session_smoke.py') --fixture-tool $fixtureTool -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI session/file lifecycle checks failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\environment_smoke.py') --fixture-tool $fixtureTool -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI level.dat environment/batch checks failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\nbt_conversion_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI NBT conversion matrix failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\mcbe_snbt_smoke.py') --backend cli -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI MCBE-SNBT roundtrip and invalid-input checks failed.' }
+    & python -X utf8 (Join-Path $root 'CLI\Tests\structure_file_smoke.py') -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI structure file preflight failed.' }
+    & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression
+    if ($LASTEXITCODE -ne 0) { throw 'Existing CLI-related core regressions failed.' }
     & dotnet run --project (Join-Path $root 'CLI\Windows.Tests\MCBEEditor.Cli.Tests.csproj') --configuration Release -- $fixtureTool
     if ($LASTEXITCODE -ne 0) { throw 'CLI native world integration tests failed.' }
 }

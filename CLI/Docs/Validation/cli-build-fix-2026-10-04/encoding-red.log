@@ -1,0 +1,29 @@
+PASS unclosed-quote-recovers
+PASS missing-world-recovers
+FAIL failed-open-keeps-current-world: 
+FAIL corrupt-world-keeps-current-world: 
+FAIL active-work-copy-cannot-become-new-source: 
+FAIL Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 103, in check
+    action()
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 179, in <lambda>
+    check(f"reject-save-{location}-keeps-dirty", lambda location=location: reject_save(location))
+                                                                           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 170, in reject_save
+    assert code == 0 and "\u672a\u4fdd\u5b58\u4fee\u6539" in err and destination.exists(), (code, out, err)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (0, 'MCBEEditor CLI \u4ea4\u4e92\u4f1a\u8bdd\u3002\u8f93\u5165 :help \u67e5\u770b\u4f1a\u8bdd\u547d\u4ee4\u3002\nmcbe> \u5df2\u6253\u5f00\u5de5\u4f5c\u526f\u672c\uff1a/tmp/mcbe-cli-session-yzv9tbvm/cache/Worlds/cdc202b32a2f48f9b5c8cf79650538d9/World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '\u6253\u5f00 LevelDB\uff1aInvalid argument: /tmp/mcbe-cli-session-yzv9tbvm/cache/Worlds/cdc202b32a2f48f9b5c8cf79650538d9/World/db: does not exist (create_if_missing is false)\n\u4fdd\u5b58\u5931\u8d25\uff1a\u8f93\u51fa\u6587\u4ef6\u4e0d\u80fd\u4f4d\u4e8e\u5de5\u4f5c\u526f\u672c\u7f13\u5b58\u76ee\u5f55\u5185\u3002\n')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 261, in <module>
+    main()
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 179, in main
+    check(f"reject-save-{location}-keeps-dirty", lambda location=location: reject_save(location))
+  File "/workspace/scratch/b1b811844258/cli-build-fix/CLI/Tests/session_smoke.py", line 109, in check
+    print("FAIL", failures[-1])
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/encodings/cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 51-57: character maps to <undefined>

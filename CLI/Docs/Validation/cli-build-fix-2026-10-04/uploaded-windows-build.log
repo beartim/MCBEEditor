@@ -1,0 +1,209 @@
+﻿2026-10-04T13:01:30.2905380Z ##[group]Run ./CLI/Scripts/build-windows-release.ps1 -Test
+2026-10-04T13:01:30.2906151Z [36;1m./CLI/Scripts/build-windows-release.ps1 -Test[0m
+2026-10-04T13:01:30.3293061Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-04T13:01:30.3293575Z env:
+2026-10-04T13:01:30.3293907Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-10-04T13:01:30.3294371Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-04T13:01:30.3294930Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-04T13:01:30.3295447Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-04T13:01:30.3295904Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-04T13:01:30.3296408Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-04T13:01:30.3296853Z ##[endgroup]
+2026-10-04T13:01:30.8274599Z Fetching Amulet-Team/leveldb-mcpe (0.8.0a8) with git...
+2026-10-04T13:01:30.8603469Z Cloning into 'D:\a\MCBEEditor\MCBEEditor\Windows\Native\vendor\leveldb-mcpe'...
+2026-10-04T13:01:31.5545618Z Note: switching to '327630b4ce17986963b80bf4dbcba32b19c13b88'.
+2026-10-04T13:01:31.5546159Z 
+2026-10-04T13:01:31.5546592Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-04T13:01:31.5548082Z changes and commit them, and you can discard any commits you make in this
+2026-10-04T13:01:31.5549202Z state without impacting any branches by switching back to a branch.
+2026-10-04T13:01:31.5549662Z 
+2026-10-04T13:01:31.5549995Z If you want to create a new branch to retain commits you create, you may
+2026-10-04T13:01:31.5550853Z do so (now or later) by using -c with the switch command. Example:
+2026-10-04T13:01:31.5551240Z 
+2026-10-04T13:01:31.5551574Z   git switch -c <new-branch-name>
+2026-10-04T13:01:31.5551845Z 
+2026-10-04T13:01:31.5552135Z Or undo this operation with:
+2026-10-04T13:01:31.5552406Z 
+2026-10-04T13:01:31.5552615Z   git switch -
+2026-10-04T13:01:31.5552882Z 
+2026-10-04T13:01:31.5553268Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-04T13:01:31.5553826Z 
+2026-10-04T13:01:31.5998564Z Fetching madler/zlib (v1.3.1) with git...
+2026-10-04T13:01:31.6269084Z Cloning into 'D:\a\MCBEEditor\MCBEEditor\Windows\Native\vendor\zlib'...
+2026-10-04T13:01:32.4224974Z warning: refs/tags/v1.3.1 925af44f3cde53c6b076611c297850091b5dc7bb is not a commit!
+2026-10-04T13:01:32.4266725Z Note: switching to '51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf'.
+2026-10-04T13:01:32.4267266Z 
+2026-10-04T13:01:32.4267590Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-04T13:01:32.4268154Z changes and commit them, and you can discard any commits you make in this
+2026-10-04T13:01:32.4268700Z state without impacting any branches by switching back to a branch.
+2026-10-04T13:01:32.4269031Z 
+2026-10-04T13:01:32.4269302Z If you want to create a new branch to retain commits you create, you may
+2026-10-04T13:01:32.4269807Z do so (now or later) by using -c with the switch command. Example:
+2026-10-04T13:01:32.4270095Z 
+2026-10-04T13:01:32.4270552Z   git switch -c <new-branch-name>
+2026-10-04T13:01:32.4270793Z 
+2026-10-04T13:01:32.4271003Z Or undo this operation with:
+2026-10-04T13:01:32.4271236Z 
+2026-10-04T13:01:32.4271372Z   git switch -
+2026-10-04T13:01:32.4271623Z 
+2026-10-04T13:01:32.4271997Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-04T13:01:32.4272442Z 
+2026-10-04T13:01:32.5111975Z Native dependencies are ready: leveldb-mcpe 0.8.0a8 / zlib v1.3.1
+2026-10-04T13:01:43.6668526Z -- Building for: Visual Studio 18 2026
+2026-10-04T13:01:43.6669213Z -- The C compiler identification is MSVC 19.51.36260.0
+2026-10-04T13:01:45.1089420Z -- The CXX compiler identification is MSVC 19.51.36260.0
+2026-10-04T13:01:45.2167947Z -- Detecting C compiler ABI info
+2026-10-04T13:01:46.3483806Z -- Detecting C compiler ABI info - done
+2026-10-04T13:01:46.3795386Z -- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+2026-10-04T13:01:46.3807292Z -- Detecting C compile features
+2026-10-04T13:01:46.3818847Z -- Detecting C compile features - done
+2026-10-04T13:01:46.4469856Z -- Detecting CXX compiler ABI info
+2026-10-04T13:01:47.1447446Z -- Detecting CXX compiler ABI info - done
+2026-10-04T13:01:47.1656916Z -- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+2026-10-04T13:01:47.1661936Z -- Detecting CXX compile features
+2026-10-04T13:01:47.1669897Z -- Detecting CXX compile features - done
+2026-10-04T13:01:47.2421656Z -- Looking for sys/types.h
+2026-10-04T13:01:50.0502672Z -- Looking for sys/types.h - found
+2026-10-04T13:01:50.0503912Z -- Looking for stdint.h
+2026-10-04T13:01:50.8405014Z -- Looking for stdint.h - found
+2026-10-04T13:01:50.8406269Z -- Looking for stddef.h
+2026-10-04T13:01:51.6295489Z -- Looking for stddef.h - found
+2026-10-04T13:01:51.6297491Z -- Check size of off64_t
+2026-10-04T13:01:52.6243526Z -- Check size of off64_t - failed
+2026-10-04T13:01:52.6245182Z -- Looking for fseeko
+2026-10-04T13:01:53.3473937Z -- Looking for fseeko - not found
+2026-10-04T13:01:53.3475585Z -- Looking for unistd.h
+2026-10-04T13:01:54.1168633Z -- Looking for unistd.h - not found
+2026-10-04T13:01:54.1169580Z -- Renaming
+2026-10-04T13:01:54.1170006Z --     D:/a/MCBEEditor/MCBEEditor/Windows/Native/vendor/zlib/zconf.h
+2026-10-04T13:01:54.1170543Z -- to 'zconf.h.included' because this file is included with zlib
+2026-10-04T13:01:54.1171066Z -- but CMake generates it automatically in the build directory.
+2026-10-04T13:01:54.1262990Z -- Configuring done (21.0s)
+2026-10-04T13:01:54.1841392Z -- Generating done (0.1s)
+2026-10-04T13:01:54.1849548Z -- Build files have been written to: D:/a/MCBEEditor/MCBEEditor/Windows/Native/build/x64
+2026-10-04T13:01:54.3258894Z MSBuild version 18.10.1-1.26427.6+3cd27c13e for .NET Framework
+2026-10-04T13:01:54.3594132Z 
+2026-10-04T13:01:54.6370898Z   1>Checking Build System
+2026-10-04T13:01:54.8028883Z   Building Custom Rule D:/a/MCBEEditor/MCBEEditor/Windows/Native/vendor/zlib/CMakeLists.txt
+2026-10-04T13:01:54.9645659Z   adler32.c
+2026-10-04T13:01:55.0493532Z   compress.c
+2026-10-04T13:01:55.0642628Z   crc32.c
+2026-10-04T13:01:55.0918521Z   deflate.c
+2026-10-04T13:01:55.1219529Z   gzclose.c
+2026-10-04T13:01:55.1984334Z   gzlib.c
+2026-10-04T13:01:55.2343690Z   gzread.c
+2026-10-04T13:01:55.2704884Z   gzwrite.c
+2026-10-04T13:01:55.3079023Z   inflate.c
+2026-10-04T13:01:55.3368042Z   infback.c
+2026-10-04T13:01:55.3633819Z   inftrees.c
+2026-10-04T13:01:55.3887350Z   inffast.c
+2026-10-04T13:01:55.4135992Z   trees.c
+2026-10-04T13:01:55.4426258Z   uncompr.c
+2026-10-04T13:01:55.4577947Z   zutil.c
+2026-10-04T13:01:55.4939990Z   Generating Code...
+2026-10-04T13:01:56.8162761Z   zlibstatic.vcxproj -> D:\a\MCBEEditor\MCBEEditor\Windows\Native\build\x64\zlib\Release\zlibstatic.lib
+2026-10-04T13:01:56.8658893Z   Building Custom Rule D:/a/MCBEEditor/MCBEEditor/Windows/Native/CMakeLists.txt
+2026-10-04T13:01:56.9552743Z   builder.cc
+2026-10-04T13:01:58.4202757Z   db_impl.cc
+2026-10-04T13:01:59.0942539Z   db_iter.cc
+2026-10-04T13:01:59.5039488Z   dbformat.cc
+2026-10-04T13:01:59.8782212Z   filename.cc
+2026-10-04T13:02:00.2572031Z   log_reader.cc
+2026-10-04T13:02:00.6054093Z   log_writer.cc
+2026-10-04T13:02:00.9577904Z   memtable.cc
+2026-10-04T13:02:01.3506482Z   repair.cc
+2026-10-04T13:02:01.8580316Z   table_cache.cc
+2026-10-04T13:02:02.2392447Z   version_edit.cc
+2026-10-04T13:02:02.6783747Z   version_set.cc
+2026-10-04T13:02:03.2551697Z   write_batch.cc
+2026-10-04T13:02:03.6377533Z   zlib_compressor.cc
+2026-10-04T13:02:03.9781485Z   block.cc
+2026-10-04T13:02:04.3817988Z   block_builder.cc
+2026-10-04T13:02:04.7882030Z   filter_block.cc
+2026-10-04T13:02:05.1621188Z   format.cc
+2026-10-04T13:02:05.5588750Z   iterator.cc
+2026-10-04T13:02:05.8212825Z   merger.cc
+2026-10-04T13:02:06.0814977Z   Generating Code...
+2026-10-04T13:02:09.8296018Z   Compiling...
+2026-10-04T13:02:09.8296915Z   table.cc
+2026-10-04T13:02:10.2151854Z   table_builder.cc
+2026-10-04T13:02:10.5985428Z   two_level_iterator.cc
+2026-10-04T13:02:10.9166590Z   arena.cc
+2026-10-04T13:02:11.2651978Z   bloom.cc
+2026-10-04T13:02:11.5279266Z   cache.cc
+2026-10-04T13:02:11.8649164Z   coding.cc
+2026-10-04T13:02:12.2034340Z   comparator.cc
+2026-10-04T13:02:12.5668994Z   crc32c.cc
+2026-10-04T13:02:12.8966406Z   env.cc
+2026-10-04T13:02:13.1715615Z   filter_policy.cc
+2026-10-04T13:02:13.4264421Z   hash.cc
+2026-10-04T13:02:13.7620569Z   histogram.cc
+2026-10-04T13:02:14.0969431Z   logging.cc
+2026-10-04T13:02:14.4354996Z   options.cc
+2026-10-04T13:02:14.7564951Z   status.cc
+2026-10-04T13:02:15.0801207Z   port_posix_sse.cc
+2026-10-04T13:02:15.4204004Z   port_win.cc
+2026-10-04T13:02:17.5062208Z   env_win.cc
+2026-10-04T13:02:18.4165285Z   win_logger.cc
+2026-10-04T13:02:18.9892756Z   Generating Code...
+2026-10-04T13:02:20.7582078Z   mcbe_leveldb_core.vcxproj -> D:\a\MCBEEditor\MCBEEditor\Windows\Native\build\x64\Release\mcbe_leveldb_core.lib
+2026-10-04T13:02:20.8002017Z   Building Custom Rule D:/a/MCBEEditor/MCBEEditor/Windows/Native/CMakeLists.txt
+2026-10-04T13:02:20.8763207Z   mcbe_leveldb.cpp
+2026-10-04T13:02:23.8166679Z      Creating library D:/a/MCBEEditor/MCBEEditor/Windows/Native/build/x64/lib/Release/MCBEEditor.LevelDB.Native.lib and object D:/a/MCBEEditor/MCBEEditor/Windows/Native/build/x64/lib/Release/MCBEEditor.LevelDB.Native.exp
+2026-10-04T13:02:23.9393625Z   MCBEEditor.LevelDB.Native.vcxproj -> D:\a\MCBEEditor\MCBEEditor\Windows\Native\bin\x64\MCBEEditor.LevelDB.Native.dll
+2026-10-04T13:02:33.8017036Z   Determining projects to restore...
+2026-10-04T13:02:34.9169018Z   Restored D:\a\MCBEEditor\MCBEEditor\Windows\MCBEEditor.Core\MCBEEditor.Core.csproj (in 131 ms).
+2026-10-04T13:02:34.9170178Z   Restored D:\a\MCBEEditor\MCBEEditor\CLI\Windows\MCBEEditor.Cli.csproj (in 160 ms).
+2026-10-04T13:02:45.3560390Z   MCBEEditor.Core -> D:\a\MCBEEditor\MCBEEditor\Windows\MCBEEditor.Core\bin\Release\net10.0\MCBEEditor.Core.dll
+2026-10-04T13:02:46.0308514Z   MCBEEditor.Cli -> D:\a\MCBEEditor\MCBEEditor\CLI\Windows\bin\Release\net10.0\mcbe-cli.dll
+2026-10-04T13:02:46.0418074Z 
+2026-10-04T13:02:46.0425072Z Build succeeded.
+2026-10-04T13:02:46.0433491Z     0 Warning(s)
+2026-10-04T13:02:46.0433956Z     0 Error(s)
+2026-10-04T13:02:46.0434958Z 
+2026-10-04T13:02:46.0435357Z Time Elapsed 00:00:16.62
+2026-10-04T13:02:47.6260753Z PASS: 28 GUI names and both help catalogs match the saved inventory
+2026-10-04T13:02:47.6261777Z PASS: all Windows parser families are wired to the original implementations
+2026-10-04T13:02:47.6262572Z PASS: concrete Windows command requests have executor routes
+2026-10-04T13:02:47.6263387Z PASS: Windows console project references Core and the strings-only help file; no WPF dependency
+2026-10-04T13:02:47.6264597Z PASS: 67 Swift build inputs exist and do not import a GUI framework
+2026-10-04T13:02:47.6265487Z PASS: 231 executable parser fixtures cover all commands and storage boundaries
+2026-10-04T13:02:47.6266436Z RESULT: source audit passed; compiler and executable behavior remain separate validation gates
+2026-10-04T13:02:47.7096962Z PASS: Windows/Apple build inputs, native test wiring, portable release and iOS 13.0 source contracts
+2026-10-04T13:03:11.5375171Z PASS windows: 293 process checks; 231 parser cases; 28 commands
+2026-10-04T13:03:12.3070698Z PASS unclosed-quote-recovers
+2026-10-04T13:03:12.3071340Z PASS missing-world-recovers
+2026-10-04T13:03:12.3071754Z FAIL failed-open-keeps-current-world: 
+2026-10-04T13:03:12.3072261Z FAIL corrupt-world-keeps-current-world: 
+2026-10-04T13:03:12.3072902Z FAIL active-work-copy-cannot-become-new-source: 
+2026-10-04T13:03:12.3073585Z Traceback (most recent call last):
+2026-10-04T13:03:12.3081231Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 103, in check
+2026-10-04T13:03:12.3081823Z     action()
+2026-10-04T13:03:12.3146074Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 179, in <lambda>
+2026-10-04T13:03:12.3149132Z     check(f"reject-save-{location}-keeps-dirty", lambda location=location: reject_save(location))
+2026-10-04T13:03:12.3150170Z                                                                            ^^^^^^^^^^^^^^^^^^^^^
+2026-10-04T13:03:12.3151200Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 170, in reject_save
+2026-10-04T13:03:12.3152154Z     assert code == 0 and "\u672a\u4fdd\u5b58\u4fee\u6539" in err and destination.exists(), (code, out, err)
+2026-10-04T13:03:12.3752650Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-04T13:03:12.3755620Z AssertionError: (0, 'MCBEEditor CLI \u4ea4\u4e92\u4f1a\u8bdd\u3002\u8f93\u5165 :help \u67e5\u770b\u4f1a\u8bdd\u547d\u4ee4\u3002\nmcbe> \u5df2\u6253\u5f00\u5de5\u4f5c\u526f\u672c\uff1aC:\\Users\\runneradmin\\AppData\\Local\\Temp\\mcbe-cli-session-3c4qvbvj\\cache\\Worlds\\b9b279c9e2d945178196096c23ada814\\World\nmcbe(world)> mcbe(world)> mcbe(world)> ', '\u6253\u5f00 LevelDB\uff1aInvalid argument: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\mcbe-cli-session-3c4qvbvj\\cache\\Worlds\\b9b279c9e2d945178196096c23ada814\\World\\db: does not exist (create_if_missing is false)\n\u4fdd\u5b58\u5931\u8d25\uff1a\u8f93\u51fa\u6587\u4ef6\u4e0d\u80fd\u4f4d\u4e8e\u5de5\u4f5c\u526f\u672c\u7f13\u5b58\u76ee\u5f55\u5185\u3002\n')
+2026-10-04T13:03:12.3761467Z 
+2026-10-04T13:03:12.3762058Z During handling of the above exception, another exception occurred:
+2026-10-04T13:03:12.3762480Z 
+2026-10-04T13:03:12.3762809Z Traceback (most recent call last):
+2026-10-04T13:03:12.3763673Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 261, in <module>
+2026-10-04T13:03:12.3764359Z     main()
+2026-10-04T13:03:12.3764868Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 179, in main
+2026-10-04T13:03:12.3765562Z     check(f"reject-save-{location}-keeps-dirty", lambda location=location: reject_save(location))
+2026-10-04T13:03:12.3766279Z   File "D:\a\MCBEEditor\MCBEEditor\CLI\Tests\session_smoke.py", line 109, in check
+2026-10-04T13:03:12.3766782Z     print("FAIL", failures[-1])
+2026-10-04T13:03:12.3767360Z   File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py", line 19, in encode
+2026-10-04T13:03:12.3831642Z     return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+2026-10-04T13:03:12.3832865Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-04T13:03:12.3833659Z UnicodeEncodeError: 'charmap' codec can't encode characters in position 51-57: character maps to <undefined>
+2026-10-04T13:03:12.5453755Z [31;1mException: [0mD:\a\MCBEEditor\MCBEEditor\CLI\Scripts\build-windows.ps1:33[0m
+2026-10-04T13:03:12.5454749Z [31;1m[0m[36;1mLine |[0m
+2026-10-04T13:03:12.5455749Z [31;1m[0m[36;1m[36;1m  33 | [0m … EXITCODE -ne 0) { [36;1mthrow 'CLI session/file lifecycle checks failed.'[0m }[0m
+2026-10-04T13:03:12.5456873Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-10-04T13:03:12.5458064Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCLI session/file lifecycle checks failed.[0m
+2026-10-04T13:03:12.5552771Z FAIL 
+2026-10-04T13:03:12.5732734Z ##[error]Process completed with exit code 1.

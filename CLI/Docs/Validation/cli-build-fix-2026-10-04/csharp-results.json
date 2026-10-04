@@ -1,0 +1,18 @@
+[
+  {
+    "check": "native-tests-build",
+    "exit_code": 0
+  },
+  {
+    "check": "native-tests",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-core-build",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-core",
+    "exit_code": 0
+  }
+]
