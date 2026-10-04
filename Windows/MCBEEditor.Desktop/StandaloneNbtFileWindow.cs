@@ -73,6 +73,7 @@ public sealed class StandaloneNbtFileWindow : Window
         actions.Children.Add(Button("删除所选根", (_, _) => DeleteSelected()));
         actions.Children.Add(Button("原格式导出", (_, _) => ExportOriginal()));
         actions.Children.Add(Button("JSON", (_, _) => ExportJson()));
+        actions.Children.Add(Button("MCBE-SNBT (.txt)", (_, _) => ExportSnbt()));
         actions.Children.Add(Button("Little Endian", (_, _) => ExportNbt(NbtEncoding.LittleEndian, "-little-endian")));
         actions.Children.Add(Button("VarInt", (_, _) => ExportNbt(NbtEncoding.LittleEndianVarInt, "-little-varint")));
         actions.Children.Add(Button("Big Endian", (_, _) => ExportNbt(NbtEncoding.BigEndian, "-big-endian")));
@@ -149,7 +150,7 @@ public sealed class StandaloneNbtFileWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "导入 NBT 根标签",
-            Filter = "NBT / mcstructure / JSON|*.nbt;*.mcstructure;*.json|所有文件|*.*",
+            Filter = "NBT / mcstructure / JSON / MCBE-SNBT|*.nbt;*.mcstructure;*.json;*.txt|MCBE-SNBT (.txt)|*.txt|所有文件|*.*",
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != true) return;
@@ -186,20 +187,22 @@ public sealed class StandaloneNbtFileWindow : Window
 
     private void ExportOriginal()
     {
-        if (_file.OriginalWasJson) { ExportBytes(StandaloneNbtFileCodec.EncodeJson(_documents), BaseFilename() + ".json", "JSON NBT|*.json"); return; }
+        if (_file.OriginalWasSnbt) { ExportSnbt(); return; }
+        if (_file.OriginalWasJson) { ExportJson(); return; }
         var ext = string.Equals(_file.OriginalExtension, "mcstructure", StringComparison.OrdinalIgnoreCase) ? ".mcstructure" : ".nbt";
-        ExportBytes(StandaloneNbtFileCodec.Encode(_documents, _file.OriginalEncoding), BaseFilename() + ext, ext == ".mcstructure" ? "Bedrock mcstructure|*.mcstructure" : "NBT 文件|*.nbt");
+        ExportBytes(() => StandaloneNbtFileCodec.Encode(_documents, _file.OriginalEncoding), BaseFilename() + ext, ext == ".mcstructure" ? "Bedrock mcstructure|*.mcstructure" : "NBT 文件|*.nbt");
     }
 
-    private void ExportJson() => ExportBytes(StandaloneNbtFileCodec.EncodeJson(_documents), BaseFilename() + ".json", "JSON NBT|*.json");
-    private void ExportNbt(NbtEncoding encoding, string suffix) => ExportBytes(StandaloneNbtFileCodec.Encode(_documents, encoding), BaseFilename() + suffix + ".nbt", "NBT 文件|*.nbt");
+    private void ExportJson() => ExportBytes(() => StandaloneNbtFileCodec.EncodeJson(_documents), BaseFilename() + ".json", "JSON NBT|*.json");
+    private void ExportSnbt() => ExportBytes(() => McbeSnbtCodec.Encode(_documents), BaseFilename() + ".txt", "MCBE-SNBT (.txt)|*.txt");
+    private void ExportNbt(NbtEncoding encoding, string suffix) => ExportBytes(() => StandaloneNbtFileCodec.Encode(_documents, encoding), BaseFilename() + suffix + ".nbt", "NBT 文件|*.nbt");
 
     private void ExportMcStructure()
     {
         try
         {
             var converted = StandaloneNbtFileCodec.EncodeAsMcStructure(_documents);
-            ExportBytes(converted.Data, BaseFilename() + ".mcstructure", "Bedrock mcstructure|*.mcstructure");
+            ExportBytes(() => converted.Data, BaseFilename() + ".mcstructure", "Bedrock mcstructure|*.mcstructure");
             if (converted.Result.ConvertedFromJava)
             {
                 var loss = converted.Result.LossyPaletteEntryCount == 0 ? string.Empty : $"；兼容降级 {converted.Result.LossyPaletteEntryCount} 个调色板条目";
@@ -209,12 +212,16 @@ public sealed class StandaloneNbtFileWindow : Window
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "转换失败", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
-    private void ExportBytes(byte[] data, string fileName, string filter)
+    private void ExportBytes(Func<byte[]> producer, string fileName, string filter)
     {
         try
         {
             var dialog = new SaveFileDialog { Title = "导出 NBT / mcstructure", Filter = filter + "|所有文件|*.*", FileName = SafeFileName(fileName), AddExtension = true };
             if (dialog.ShowDialog(this) != true) return;
+            if (fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+                && !Path.GetExtension(dialog.FileName).Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("MCBE-SNBT 输出文件的扩展名必须为 .txt。");
+            var data = producer();
             File.WriteAllBytes(dialog.FileName, data);
             _dirty = false;
             Rebuild();

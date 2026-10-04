@@ -13,9 +13,12 @@ Sources/Chunk/MapCoordinate.swift
 Sources/Chunk/BedrockMapRegion.swift
 Sources/Chunk/BedrockSubChunk.swift
 Sources/Command/WorldCommand.swift
+Sources/Command/DimensionNameRules.swift
+Sources/Command/DimensionCommandContext.swift
 Sources/Support/AtomicFile.swift
 Sources/NBT/ConsecutiveNBTCodec.swift
 Sources/NBT/NBTJSONCodec.swift
+Sources/NBT/MCBESNBTCodec.swift
 Sources/NBT/NBTTreeMutation.swift
 Sources/LevelDB/MojangLevelDB.swift
 Sources/Chunk/BedrockBiomeData.swift
@@ -35,6 +38,8 @@ Sources/Entity/BedrockWorldObjectScanner.swift
 Sources/World/WorldSession.swift
 Sources/World/WorldDocument.swift
 Sources/World/WorldInspector.swift
+Sources/World/DimensionStore.swift
+Sources/World/DimensionContentPlan.swift
 Sources/World/PlayerNBTStore.swift
 Sources/World/VillageNBTStore.swift
 Sources/World/StructureNBTStore.swift

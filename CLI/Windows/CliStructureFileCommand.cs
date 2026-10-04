@@ -11,8 +11,8 @@ internal sealed record CliStructureFileRequest(
 
 internal static class CliStructureFileCommand
 {
-    public const string Usage = "structure import 名称 --file \"路径.mcstructure|nbt|json\" [--overwrite]\n" +
-        "structure export mcstructure|nbt|json 名称 --file \"输出路径\" [--overwrite]\n" +
+    public const string Usage = "structure import 名称 --file \"路径.mcstructure|nbt|json|txt\" [--overwrite]\n" +
+        "structure export mcstructure|nbt|json|txt|mcbe-snbt 名称 --file \"输出路径\" [--overwrite]\n" +
         "非交互模式名称和 --file 均必填；交互模式可省略名称后按提示输入。";
     public static bool TryParse(string text, out CliStructureFileRequest? request)
     {
@@ -56,8 +56,8 @@ internal static class CliStructureFileCommand
             if (file.Core.Operation == StructureTemplateStructureOperationKind.Import)
             {
                 if (!File.Exists(file.FilePath)) throw new CliInputException("找不到结构输入文件：" + file.FilePath);
-                if (!new[] { ".nbt", ".json", ".mcstructure" }.Contains(Path.GetExtension(file.FilePath), StringComparer.OrdinalIgnoreCase))
-                    throw new CliInputException("structure import 仅支持 .mcstructure、.nbt 或 .json 文件。");
+                if (!new[] { ".nbt", ".json", ".mcstructure", ".txt" }.Contains(Path.GetExtension(file.FilePath), StringComparer.OrdinalIgnoreCase))
+                    throw new CliInputException("structure import 仅支持 .mcstructure、.nbt、.json 或 MCBE-SNBT .txt 文件。");
                 continue;
             }
             var destination = file.FilePath;
@@ -89,8 +89,8 @@ internal static class CliStructureFileCommand
         {
             var name = request.Core.Name ?? throw new CliInputException("非交互 structure import 必须指定结构名称；交互会话可省略后按提示输入。");
             if (!File.Exists(request.FilePath)) throw new FileNotFoundException("找不到结构文件。", request.FilePath);
-            if (!new[] { ".mcstructure", ".nbt", ".json" }.Contains(Path.GetExtension(request.FilePath), StringComparer.OrdinalIgnoreCase))
-                throw new InvalidDataException("structure import 仅支持 .mcstructure、.nbt 或 .json 文件。");
+            if (!new[] { ".mcstructure", ".nbt", ".json", ".txt" }.Contains(Path.GetExtension(request.FilePath), StringComparer.OrdinalIgnoreCase))
+                throw new InvalidDataException("structure import 仅支持 .mcstructure、.nbt、.json 或 MCBE-SNBT .txt 文件。");
             var file = StandaloneNbtFileCodec.Decode(File.ReadAllBytes(request.FilePath), request.FilePath);
             if (file.Documents.Count != 1) throw new InvalidDataException("结构文件必须只包含一个 NBT 根标签。");
             using var database = document.OpenDatabase(readOnly: false);

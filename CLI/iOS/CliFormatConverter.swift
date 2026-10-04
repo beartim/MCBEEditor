@@ -5,11 +5,13 @@ enum CliConversionFormat: String {
     case littleEndian = "little-endian"
     case littleVarInt = "little-varint"
     case json
+    case txt
     case mcstructure
 
     var fileExtension: String {
         switch self {
         case .json: return "json"
+        case .txt: return "txt"
         case .mcstructure: return "mcstructure"
         default: return "nbt"
         }
@@ -21,6 +23,7 @@ enum CliConversionFormat: String {
         case .littleEndian: return "Little Endian NBT"
         case .littleVarInt: return "Little Endian VarInt NBT"
         case .json: return "JSON NBT"
+        case .txt: return "MCBE-SNBT (.txt)"
         case .mcstructure: return "Bedrock mcstructure"
         }
     }
@@ -35,10 +38,10 @@ struct CliConversionRequest {
 
 enum CliFormatConverter {
     static let usage = """
-mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|little-varint|json|mcstructure --output "输出文件" [--overwrite]
+mcbe-cli --convert "输入.nbt|mcstructure|json|txt" --to big-endian|little-endian|little-varint|json|txt|mcbe-snbt|mcstructure --output "输出文件" [--overwrite]
 
-输入自动识别 JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 与 GZip/Zlib 包装。
-输出 binary NBT 均为未压缩；JSON 保留 NBT 类型；mcstructure 仅支持单根结构 NBT，并可自动将 Java structure NBT 转为 Bedrock mcstructure。
+输入自动识别 MCBE-SNBT (.txt)、JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 与 GZip/Zlib 包装。
+输出 binary NBT 均为未压缩；JSON 保留 NBT 类型；txt 与 mcbe-snbt 均输出 .txt，保留根名称、类型和顺序；mcstructure 仅支持单根结构 NBT，并可自动将 Java structure NBT 转为 Bedrock mcstructure。
 """
 
     static func run(_ arguments: [String], output write: (String) -> Void) throws -> Int32 {
@@ -80,8 +83,9 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
         guard let formatText, let outputPath else {
             throw CliError.input("格式转换必须同时指定 --to 和 --output。\n" + usage)
         }
-        guard let format = CliConversionFormat(rawValue: formatText.lowercased()) else {
-            throw CliError.input("未知输出格式：\(formatText)。支持 big-endian、little-endian、little-varint、json、mcstructure。")
+        let token = formatText.lowercased()
+        guard let format = CliConversionFormat(rawValue: token == "mcbe-snbt" ? "txt" : token) else {
+            throw CliError.input("未知输出格式：\(formatText)。支持 big-endian、little-endian、little-varint、json、txt（mcbe-snbt）、mcstructure。")
         }
         return CliConversionRequest(
             input: CliWorldPaths.canonical(arguments[1]),
@@ -117,6 +121,8 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
             data = try StandaloneNBTFileCodec.encode(decoded.documents, encoding: .littleEndianVarInt)
         case .json:
             data = try StandaloneNBTFileCodec.encodeJSON(decoded.documents)
+        case .txt:
+            data = try StandaloneNBTFileCodec.encodeMCBESNBT(decoded.documents)
         case .mcstructure:
             let converted = try StandaloneNBTFileCodec.encodeAsMCStructure(decoded.documents)
             data = converted.data

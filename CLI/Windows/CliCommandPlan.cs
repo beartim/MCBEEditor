@@ -1,3 +1,6 @@
+using MCBEEditor.Core.Chunk;
+using MCBEEditor.Core.World;
+
 namespace MCBEEditor.Cli;
 
 internal sealed record CliPlannedCommand(int LineNumber, string Text, object Request);
@@ -5,18 +8,21 @@ internal sealed record CliCommandPlan(IReadOnlyList<CliPlannedCommand> Commands)
 {
     public bool MayMutate => Commands.Any(command => CliCommandPolicy.MayMutate(command.Request));
 
-    public static CliCommandPlan? Parse(IReadOnlyList<CliCommandLine> lines, TextWriter error, bool forExecution, bool allowInteractiveStructureName = false)
+    public static CliCommandPlan? Parse(IReadOnlyList<CliCommandLine> lines, TextWriter error, bool forExecution, bool allowInteractiveStructureName = false,
+        DimensionCommandContext? dimensionContext = null)
     {
         var parsed = new List<CliPlannedCommand>();
         var failures = 0;
+        var dimensions = dimensionContext ?? new DimensionCommandContext();
         foreach (var line in lines)
         {
             try
             {
-                var request = CliCommandParser.Parse(line.Text);
+                var request = CliCommandParser.Parse(line.Text, dimensions.Resolve);
                 if (forExecution && request is CliStructureFileRequest { Core.Name: null } && !allowInteractiveStructureName)
                     throw new CliInputException("非交互 structure import/export 必须指定结构名称；交互会话可省略后按提示输入。");
                 if (forExecution) CliCommandPolicy.RequireExecutable(request);
+                if (request is DimensionCommandRequest dimension) dimensions.Apply(dimension);
                 parsed.Add(new CliPlannedCommand(line.LineNumber, line.Text, request));
             }
             catch (Exception exception) when (exception is InvalidDataException or CliInputException)

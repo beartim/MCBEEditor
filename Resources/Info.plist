@@ -85,6 +85,7 @@
 				<string>com.wzn.minecraft.nbt</string>
 				<string>com.wzn.minecraft.mcstructure</string>
 				<string>public.json</string>
+				<string>public.plain-text</string>
 			</array>
 		</dict>
 	</array>

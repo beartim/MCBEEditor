@@ -38,7 +38,7 @@ def main():
     windows = read("Windows/MCBEEditor.Desktop/CommandHelpCatalog.cs")
     swift_names = re.findall(r'"([a-z]+)"', re.search(r'commandNames[^=]*=\s*\[(.*?)\]', swift, re.S)[1])
     windows_names = re.findall(r'"([a-z]+)"', re.search(r'CommandOrder\s*=\s*\[(.*?)\]', windows, re.S)[1])
-    assert len(expected) == len(set(expected)) == 26
+    assert len(expected) == len(set(expected)) == 28
     assert expected == swift_names == windows_names, "top-level command inventory drift"
     swift_help = dict((m[1], json.loads(m[2])) for m in re.finditer(
         r'^\s*"([a-z]+)": ("(?:[^"\\]|\\.)*")\s*,?$', swift, re.M))
@@ -48,18 +48,18 @@ def main():
     for row in inventory["commands"]:
         assert row["gui_usage"] == swift_help[row["name"]] == windows_help[row["name"]], row["name"]
         assert row["coverage"], row["name"]
-    print("PASS: 26 GUI names and both help catalogs match the saved inventory")
+    print("PASS: 28 GUI names and both help catalogs match the saved inventory")
 
     router = read("CLI/Windows/CliCommandParser.cs")
     for name in {row["windows_parser"] for row in inventory["commands"]} - {"CliCommandParser"}:
-        assert f"{name}.Parse(trimmed)" in router, f"parser not routed: {name}"
+        assert (f"{name}.Parse(trimmed)" if name == "DimensionCommandParser" else f"{name}.Parse(trimmed, dimensionResolver)") in router, f"parser not routed: {name}"
         source = read(f"Windows/MCBEEditor.Core/Chunk/{name.removesuffix('Parser')}.cs")
         if name != "ChunkCommandParser":
             detector = re.search(r'public static bool Is\w+Command\(string text\)(.*?)(?=public static)', source, re.S)[1]
             for row in inventory["commands"]:
                 if row["windows_parser"] == name:
                     assert f'"{row["name"]}"' in detector, f"incorrect parser mapping: {row['name']}"
-    print("PASS: all seven Windows parser families are wired to the original implementations")
+    print("PASS: all Windows parser families are wired to the original implementations")
 
     executor = read("CLI/Windows/CliWorldCommandExecutor.cs")
     for family in ("BlockCommand", "StorageBiomeCommand", "TargetingCommand", "EntityActionCommand"):

@@ -6,6 +6,7 @@ enum NBTExportUI {
         documents: [NBTDocument],
         baseFilename: String,
         allowMCStructure: Bool = false,
+        originalFile: (filename: String, data: Data)? = nil,
         barButtonItem: UIBarButtonItem? = nil,
         sourceView: UIView? = nil
     ) {
@@ -15,9 +16,19 @@ enum NBTExportUI {
         }
         let sheet = UIAlertController(
             title: documents.count == 1 ? "导出 NBT" : "导出 \(documents.count) 个 NBT 标签",
-            message: "请选择导出格式。多个标签会写成连续 NBT，JSON 会写入 documents 数组。",
+            message: "请选择导出格式。多个根标签保持原顺序；MCBE-SNBT 为带类型的 .txt 文本。",
             preferredStyle: .actionSheet
         )
+        if let originalFile = originalFile {
+            sheet.addAction(UIAlertAction(title: "原始 NBT 数据", style: .default) { _ in
+                export(from: presenter, filename: safeFilename(originalFile.filename)) { originalFile.data }
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "MCBE-SNBT (.txt)", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + ".txt") {
+                try StandaloneNBTFileCodec.encodeMCBESNBT(documents)
+            }
+        })
         sheet.addAction(UIAlertAction(title: "JSON NBT (.json)", style: .default) { _ in
             export(from: presenter, filename: safeFilename(baseFilename) + ".json") {
                 try NBTJSONCodec.encode(documents)
@@ -76,6 +87,11 @@ enum NBTExportUI {
             message: "仅导出当前选中实体的全部标签。请选择格式。",
             preferredStyle: .actionSheet
         )
+        sheet.addAction(UIAlertAction(title: "MCBE-SNBT (.txt)", style: .default) { _ in
+            export(from: presenter, filename: safeFilename(baseFilename) + ".txt") {
+                try StandaloneNBTFileCodec.encodeMCBESNBT([document])
+            }
+        })
         sheet.addAction(UIAlertAction(title: "实体 JSON (.json)", style: .default) { _ in
             export(from: presenter, filename: safeFilename(baseFilename) + ".json") {
                 try NBTJSONCodec.encodeEntityDocument(document)
@@ -111,18 +127,15 @@ enum NBTExportUI {
         documents: [NBTDocument],
         baseFilename: String
     ) {
-        guard !documents.isEmpty else {
-            presenter.showError(MCBEEditorError.unsupported("没有可导出的 NBT 标签"), title: "无法导出")
-            return
-        }
-        export(from: presenter, filename: safeFilename(baseFilename) + "-consecutive.nbt") {
-            try StandaloneNBTFileCodec.encode(documents, encoding: .littleEndian)
-        }
+        presentFormatChooser(from: presenter, documents: documents, baseFilename: baseFilename + "-consecutive")
     }
 
     static func documents(from nodes: [NBTNode]) -> [NBTDocument] {
         nodes.map { node in
-            let rawName = node.name.hasPrefix("[") ? "item" : node.name
+            let rawName: String
+            if case .compound(let name)? = node.path.last { rawName = name }
+            else if case .list? = node.path.last { rawName = "item" }
+            else { rawName = node.name }
             return NBTDocument(rootName: rawName, root: node.value)
         }
     }

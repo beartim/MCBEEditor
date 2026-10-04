@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/eeb749bc8d93/mcbe-snbt/source/CLI/Windows/MCBEEditor.Cli.csproj (in 88 ms).
+  1 of 2 projects are up-to-date for restore.
+  MCBEEditor.Core -> /workspace/scratch/eeb749bc8d93/mcbe-snbt/source/Windows/MCBEEditor.Core/bin/Release/net10.0/MCBEEditor.Core.dll
+  MCBEEditor.Cli -> /workspace/scratch/eeb749bc8d93/mcbe-snbt/source/CLI/Windows/bin/Release/net10.0/mcbe-cli.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.18

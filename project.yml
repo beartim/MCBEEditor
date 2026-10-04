@@ -147,6 +147,7 @@ targets:
               - com.wzn.minecraft.nbt
               - com.wzn.minecraft.mcstructure
               - public.json
+              - public.plain-text
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: com.mojang.mcworld
             UTTypeDescription: Minecraft Bedrock World

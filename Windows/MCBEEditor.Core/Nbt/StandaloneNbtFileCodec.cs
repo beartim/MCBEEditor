@@ -7,7 +7,7 @@ using MCBEEditor.Core.World;
 
 namespace MCBEEditor.Core.Nbt;
 
-public enum StructureFileFormat { Mcstructure, Nbt, Json }
+public enum StructureFileFormat { Mcstructure, Nbt, Json, Txt }
 
 public enum StandaloneNbtStorageKind { Single, Consecutive }
 
@@ -17,7 +17,8 @@ public sealed record StandaloneNbtFile(
     NbtEncoding OriginalEncoding,
     bool OriginalWasJson,
     bool WasCompressed,
-    IReadOnlyList<NbtDocument> Documents)
+    IReadOnlyList<NbtDocument> Documents,
+    bool OriginalWasSnbt = false)
 {
     public StandaloneNbtStorageKind StorageKind => Documents.Count == 1 ? StandaloneNbtStorageKind.Single : StandaloneNbtStorageKind.Consecutive;
 
@@ -26,6 +27,7 @@ public sealed record StandaloneNbtFile(
         get
         {
             var layout = StorageKind == StandaloneNbtStorageKind.Single ? "单根 NBT" : $"连续 NBT（{Documents.Count} 个根标签）";
+            if (OriginalWasSnbt) return layout + " · MCBE-SNBT (.txt)";
             if (OriginalWasJson) return layout + " · JSON NBT";
             return layout + " · " + EncodingDescription(OriginalEncoding) + (WasCompressed ? " · 原文件为 GZip/Zlib" : string.Empty);
         }
@@ -48,10 +50,14 @@ public static class StandaloneNbtFileCodec
     public static StandaloneNbtFile Decode(byte[] originalData, string filename)
     {
         ArgumentNullException.ThrowIfNull(originalData);
-        if (originalData.Length == 0) throw new InvalidDataException("NBT/JSON 文件为空。");
+        if (originalData.Length == 0) throw new InvalidDataException("NBT/JSON/MCBE-SNBT 文件为空。");
         filename ??= "file.nbt";
         var ext = Path.GetExtension(filename).TrimStart('.').ToLowerInvariant();
-        var first = originalData.FirstOrDefault(value => value is not (0x20 or 0x09 or 0x0A or 0x0D));
+        if (ext == "txt")
+            return new StandaloneNbtFile(filename, ext, NbtEncoding.LittleEndian, false, false,
+                McbeSnbtCodec.Decode(originalData), OriginalWasSnbt: true);
+        var prefix = originalData.AsSpan().StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }) ? 3 : 0;
+        var first = originalData.Skip(prefix).FirstOrDefault(value => value is not (0x20 or 0x09 or 0x0A or 0x0D));
         if (ext == "json" || first is 0x7B or 0x5B)
         {
             try
@@ -63,6 +69,19 @@ public static class StandaloneNbtFileCodec
             catch when (ext != "json")
             {
                 // Binary NBT can begin with a byte resembling JSON. Continue binary probing.
+            }
+        }
+
+        if (first is 0x27 or 0x7B or 0x5B)
+        {
+            try
+            {
+                return new StandaloneNbtFile(filename, ext, NbtEncoding.LittleEndian, false, false,
+                    McbeSnbtCodec.Decode(originalData), OriginalWasSnbt: true);
+            }
+            catch (InvalidDataException)
+            {
+                // Keep binary probing for files without a declared text extension.
             }
         }
 
@@ -87,7 +106,7 @@ public static class StandaloneNbtFileCodec
                 }
             }
         }
-        throw new InvalidDataException("无法识别该文件。支持 JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 以及 GZip/Zlib。\n" + string.Join("\n", failures.Take(6)));
+        throw new InvalidDataException("无法识别该文件。支持 MCBE-SNBT (.txt)、JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 以及 GZip/Zlib。\n" + string.Join("\n", failures.Take(6)));
     }
 
     public static byte[] Encode(IReadOnlyList<NbtDocument> documents, NbtEncoding encoding)
@@ -108,6 +127,7 @@ public static class StandaloneNbtFileCodec
         StructureFileFormat.Mcstructure => EncodeAsMcStructure([document]).Data,
         StructureFileFormat.Nbt => Encode([document], NbtEncoding.BigEndian),
         StructureFileFormat.Json => EncodeJson([document]),
+        StructureFileFormat.Txt => McbeSnbtCodec.Encode([document]),
         _ => throw new InvalidDataException("未知结构导出格式。")
     };
 

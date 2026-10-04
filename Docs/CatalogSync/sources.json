@@ -1,0 +1,75 @@
+{
+  "retrieved_date": "2026-10-04",
+  "repository": "https://github.com/Mojang/bedrock-samples",
+  "files": [
+    {
+      "path": "version.json",
+      "bytes": 2209,
+      "sha256": "87d10cc94dad2eb95aba526812739a4136b2be46efc5b6bf0ee2aef4bedb2d13",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/version.json"
+    },
+    {
+      "path": "metadata/vanilladata_modules/mojang-entities.json",
+      "bytes": 6456,
+      "sha256": "a9228d1c20b13fdec4ebe5d791c18d6f06430ed9ae7c637b6559b67297c196f7",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/metadata/vanilladata_modules/mojang-entities.json"
+    },
+    {
+      "path": "metadata/vanilladata_modules/mojang-biomes.json",
+      "bytes": 6334,
+      "sha256": "d0b49b0e9c89aa50936e7daa467f4b07daa04c38e267c8506a9ea92ff941b567",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/metadata/vanilladata_modules/mojang-biomes.json"
+    },
+    {
+      "path": "metadata/vanilladata_modules/mojang-effects.json",
+      "bytes": 1973,
+      "sha256": "c08ae0f16edb9919eb7ed9165cd94c352883d6521227846cf183a90faed81d69",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/metadata/vanilladata_modules/mojang-effects.json"
+    },
+    {
+      "path": "metadata/vanilladata_modules/mojang-enchantments.json",
+      "bytes": 2251,
+      "sha256": "20ea2758987541b10e6c3dfcc5ad9f3883cd1b4141f4d3ef2e7cf7ad691b6eea",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/metadata/vanilladata_modules/mojang-enchantments.json"
+    },
+    {
+      "path": "metadata/vanilladata_modules/mojang-blocks.json",
+      "bytes": 394512,
+      "sha256": "044d494af33347eb1f0e76bab64ce04f44261ec3dac7d1938549a41cf0a770ba",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/metadata/vanilladata_modules/mojang-blocks.json"
+    },
+    {
+      "path": "resource_pack/texts/en_US.lang",
+      "bytes": 816616,
+      "sha256": "0af440d960125ca795b0bb03623b9a6aa07c83570413cc5efd70a7491581de9c",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/texts/en_US.lang"
+    },
+    {
+      "path": "resource_pack/texts/zh_CN.lang",
+      "bytes": 797716,
+      "sha256": "4efceb24a13b80c35f79a1c9ac2bb0fb62b7e461f3f99f4e22be947139ebb7c2",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/texts/zh_CN.lang"
+    }
+  ],
+  "commit": "46ba6ea985fb5a92d79a9419198f10dda14c199d",
+  "tag": "v1.26.50.4",
+  "content_version": "1.26.50.4",
+  "stable_release": "26.52",
+  "numeric_entities": {
+    "url": "https://raw.githubusercontent.com/MicrosoftDocs/minecraft-creator/ba7a3b48ae80393780766f361b83698361ee3f3e/creator/Reference/Content/VanillaListingsReference/Entities.md",
+    "sha256": "a4731ed3192ad351e46a4d86588c15e5c11dc9fb04fda3b654dafa784cf62e49",
+    "rows": 141,
+    "commit": "ba7a3b48ae80393780766f361b83698361ee3f3e"
+  },
+  "wiki_sources": [
+    "https://zh.minecraft.wiki/w/方块?variant=zh-cn",
+    "https://zh.minecraft.wiki/w/加载提示?variant=zh-tw",
+    "https://zh.minecraft.wiki/w/化合物",
+    "https://minecraft.fandom.com/zh/wiki/Reserved6?variant=zh-hant"
+  ],
+  "protocol_sources": [
+    "https://mojang.github.io/bedrock-protocol-docs/1.26.51/types/actor-type/",
+    "https://mojang.github.io/bedrock-protocol-docs/1.26.51/types/enchant-type/"
+  ],
+  "stable_release_source": "https://feedback.minecraft.net/hc/en-us/articles/49175370527501-Minecraft-Bedrock-Edition-26-52-Hotfix-Changelog"
+}

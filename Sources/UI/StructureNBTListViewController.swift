@@ -108,7 +108,7 @@ final class StructureNBTListViewController: UITableViewController, UISearchResul
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { shownRecords.count }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        "Java .nbt 或结构 JSON 会先转换为游戏可读取的 Bedrock mcstructure，再以 Little Endian 写入；现有 .mcstructure 会校正索引层长度并规范化编码。也可重命名、删除、导出和完整修改结构 NBT。"
+        "Java .nbt、结构 JSON 或 MCBE-SNBT (.txt) 会先转换为游戏可读取的 Bedrock mcstructure，再以 Little Endian 写入；现有 .mcstructure 会校正索引层长度并规范化编码。也可重命名、删除、导出和完整修改结构 NBT。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {

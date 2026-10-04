@@ -299,9 +299,6 @@ final class TickingAreaStore {
 
     static func validate(_ area: BedrockTickingArea) throws {
         let value = area.normalized
-        guard BedrockDimension(rawValue: value.dimension) != nil else {
-            throw MCBEEditorError.unsupported("不支持维度 \(value.dimension)")
-        }
         if value.isCircle, value.radius > maximumCircleRadius {
             throw MCBEEditorError.unsupported("圆形常加载区域半径最多为 \(maximumCircleRadius) 个区块")
         }

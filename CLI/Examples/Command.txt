@@ -1,3 +1,4 @@
+dimension query
 help weather
 info
 weather query

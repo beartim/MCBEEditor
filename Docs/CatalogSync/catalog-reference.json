@@ -1,0 +1,2837 @@
+{
+  "entities": [
+    {
+      "id": 1,
+      "identifier": "minecraft:undefined_test_only",
+      "displayName": "仅测试未定义实体"
+    },
+    {
+      "id": 10,
+      "identifier": "minecraft:chicken",
+      "displayName": "鸡"
+    },
+    {
+      "id": 11,
+      "identifier": "minecraft:cow",
+      "displayName": "牛"
+    },
+    {
+      "id": 12,
+      "identifier": "minecraft:pig",
+      "displayName": "猪"
+    },
+    {
+      "id": 13,
+      "identifier": "minecraft:sheep",
+      "displayName": "绵羊"
+    },
+    {
+      "id": 14,
+      "identifier": "minecraft:wolf",
+      "displayName": "狼"
+    },
+    {
+      "id": 15,
+      "identifier": "minecraft:villager",
+      "displayName": "村民（旧版）"
+    },
+    {
+      "id": 16,
+      "identifier": "minecraft:mooshroom",
+      "displayName": "哞菇"
+    },
+    {
+      "id": 17,
+      "identifier": "minecraft:squid",
+      "displayName": "鱿鱼"
+    },
+    {
+      "id": 18,
+      "identifier": "minecraft:rabbit",
+      "displayName": "兔子"
+    },
+    {
+      "id": 19,
+      "identifier": "minecraft:bat",
+      "displayName": "蝙蝠"
+    },
+    {
+      "id": 20,
+      "identifier": "minecraft:iron_golem",
+      "displayName": "铁傀儡"
+    },
+    {
+      "id": 21,
+      "identifier": "minecraft:snow_golem",
+      "displayName": "雪傀儡"
+    },
+    {
+      "id": 22,
+      "identifier": "minecraft:ocelot",
+      "displayName": "豹猫"
+    },
+    {
+      "id": 23,
+      "identifier": "minecraft:horse",
+      "displayName": "马"
+    },
+    {
+      "id": 24,
+      "identifier": "minecraft:donkey",
+      "displayName": "驴"
+    },
+    {
+      "id": 25,
+      "identifier": "minecraft:mule",
+      "displayName": "骡"
+    },
+    {
+      "id": 26,
+      "identifier": "minecraft:skeleton_horse",
+      "displayName": "骷髅马"
+    },
+    {
+      "id": 27,
+      "identifier": "minecraft:zombie_horse",
+      "displayName": "僵尸马"
+    },
+    {
+      "id": 28,
+      "identifier": "minecraft:polar_bear",
+      "displayName": "北极熊"
+    },
+    {
+      "id": 29,
+      "identifier": "minecraft:llama",
+      "displayName": "羊驼"
+    },
+    {
+      "id": 30,
+      "identifier": "minecraft:parrot",
+      "displayName": "鹦鹉"
+    },
+    {
+      "id": 31,
+      "identifier": "minecraft:dolphin",
+      "displayName": "海豚"
+    },
+    {
+      "id": 32,
+      "identifier": "minecraft:zombie",
+      "displayName": "僵尸"
+    },
+    {
+      "id": 33,
+      "identifier": "minecraft:creeper",
+      "displayName": "苦力怕"
+    },
+    {
+      "id": 34,
+      "identifier": "minecraft:skeleton",
+      "displayName": "骷髅"
+    },
+    {
+      "id": 35,
+      "identifier": "minecraft:spider",
+      "displayName": "蜘蛛"
+    },
+    {
+      "id": 36,
+      "identifier": "minecraft:zombie_pigman",
+      "displayName": "僵尸猪灵"
+    },
+    {
+      "id": 37,
+      "identifier": "minecraft:slime",
+      "displayName": "史莱姆"
+    },
+    {
+      "id": 38,
+      "identifier": "minecraft:enderman",
+      "displayName": "末影人"
+    },
+    {
+      "id": 39,
+      "identifier": "minecraft:silverfish",
+      "displayName": "蠹虫"
+    },
+    {
+      "id": 40,
+      "identifier": "minecraft:cave_spider",
+      "displayName": "洞穴蜘蛛"
+    },
+    {
+      "id": 41,
+      "identifier": "minecraft:ghast",
+      "displayName": "恶魂"
+    },
+    {
+      "id": 42,
+      "identifier": "minecraft:magma_cube",
+      "displayName": "岩浆怪"
+    },
+    {
+      "id": 43,
+      "identifier": "minecraft:blaze",
+      "displayName": "烈焰人"
+    },
+    {
+      "id": 44,
+      "identifier": "minecraft:zombie_villager",
+      "displayName": "僵尸村民（旧版）"
+    },
+    {
+      "id": 45,
+      "identifier": "minecraft:witch",
+      "displayName": "女巫"
+    },
+    {
+      "id": 46,
+      "identifier": "minecraft:stray",
+      "displayName": "流浪者"
+    },
+    {
+      "id": 47,
+      "identifier": "minecraft:husk",
+      "displayName": "尸壳"
+    },
+    {
+      "id": 48,
+      "identifier": "minecraft:wither_skeleton",
+      "displayName": "凋灵骷髅"
+    },
+    {
+      "id": 49,
+      "identifier": "minecraft:guardian",
+      "displayName": "守卫者"
+    },
+    {
+      "id": 50,
+      "identifier": "minecraft:elder_guardian",
+      "displayName": "远古守卫者"
+    },
+    {
+      "id": 51,
+      "identifier": "minecraft:npc",
+      "displayName": "非玩家角色（NPC）"
+    },
+    {
+      "id": 52,
+      "identifier": "minecraft:wither",
+      "displayName": "凋灵"
+    },
+    {
+      "id": 53,
+      "identifier": "minecraft:ender_dragon",
+      "displayName": "末影龙"
+    },
+    {
+      "id": 54,
+      "identifier": "minecraft:shulker",
+      "displayName": "潜影贝"
+    },
+    {
+      "id": 55,
+      "identifier": "minecraft:endermite",
+      "displayName": "末影螨"
+    },
+    {
+      "id": 56,
+      "identifier": "minecraft:agent",
+      "displayName": "智能体"
+    },
+    {
+      "id": 57,
+      "identifier": "minecraft:vindicator",
+      "displayName": "卫道士"
+    },
+    {
+      "id": 58,
+      "identifier": "minecraft:phantom",
+      "displayName": "幻翼"
+    },
+    {
+      "id": 59,
+      "identifier": "minecraft:ravager",
+      "displayName": "劫掠兽"
+    },
+    {
+      "id": 61,
+      "identifier": "minecraft:armor_stand",
+      "displayName": "盔甲架"
+    },
+    {
+      "id": 62,
+      "identifier": "minecraft:tripod_camera",
+      "displayName": "相机"
+    },
+    {
+      "id": 63,
+      "identifier": "minecraft:player",
+      "displayName": "玩家"
+    },
+    {
+      "id": 64,
+      "identifier": "minecraft:item",
+      "displayName": "掉落物"
+    },
+    {
+      "id": 65,
+      "identifier": "minecraft:tnt",
+      "displayName": "点燃的 TNT"
+    },
+    {
+      "id": 66,
+      "identifier": "minecraft:falling_block",
+      "displayName": "下落的方块"
+    },
+    {
+      "id": 67,
+      "identifier": "minecraft:moving_block",
+      "displayName": "移动的方块"
+    },
+    {
+      "id": 68,
+      "identifier": "minecraft:xp_bottle",
+      "displayName": "附魔之瓶"
+    },
+    {
+      "id": 69,
+      "identifier": "minecraft:xp_orb",
+      "displayName": "经验球"
+    },
+    {
+      "id": 70,
+      "identifier": "minecraft:eye_of_ender_signal",
+      "displayName": "末影之眼"
+    },
+    {
+      "id": 71,
+      "identifier": "minecraft:ender_crystal",
+      "displayName": "末地水晶"
+    },
+    {
+      "id": 72,
+      "identifier": "minecraft:fireworks_rocket",
+      "displayName": "烟花火箭"
+    },
+    {
+      "id": 73,
+      "identifier": "minecraft:thrown_trident",
+      "displayName": "三叉戟"
+    },
+    {
+      "id": 74,
+      "identifier": "minecraft:turtle",
+      "displayName": "海龟"
+    },
+    {
+      "id": 75,
+      "identifier": "minecraft:cat",
+      "displayName": "猫"
+    },
+    {
+      "id": 76,
+      "identifier": "minecraft:shulker_bullet",
+      "displayName": "潜影弹"
+    },
+    {
+      "id": 77,
+      "identifier": "minecraft:fishing_hook",
+      "displayName": "浮漂"
+    },
+    {
+      "id": 78,
+      "identifier": "minecraft:chalkboard",
+      "displayName": "黑板"
+    },
+    {
+      "id": 79,
+      "identifier": "minecraft:dragon_fireball",
+      "displayName": "末影龙火球"
+    },
+    {
+      "id": 80,
+      "identifier": "minecraft:arrow",
+      "displayName": "箭"
+    },
+    {
+      "id": 81,
+      "identifier": "minecraft:snowball",
+      "displayName": "雪球"
+    },
+    {
+      "id": 82,
+      "identifier": "minecraft:egg",
+      "displayName": "鸡蛋"
+    },
+    {
+      "id": 83,
+      "identifier": "minecraft:painting",
+      "displayName": "画"
+    },
+    {
+      "id": 84,
+      "identifier": "minecraft:minecart",
+      "displayName": "矿车"
+    },
+    {
+      "id": 85,
+      "identifier": "minecraft:fireball",
+      "displayName": "火球"
+    },
+    {
+      "id": 86,
+      "identifier": "minecraft:splash_potion",
+      "displayName": "喷溅药水"
+    },
+    {
+      "id": 87,
+      "identifier": "minecraft:ender_pearl",
+      "displayName": "末影珍珠"
+    },
+    {
+      "id": 88,
+      "identifier": "minecraft:leash_knot",
+      "displayName": "拴绳结"
+    },
+    {
+      "id": 89,
+      "identifier": "minecraft:wither_skull",
+      "displayName": "凋灵之首"
+    },
+    {
+      "id": 90,
+      "identifier": "minecraft:boat",
+      "displayName": "船"
+    },
+    {
+      "id": 91,
+      "identifier": "minecraft:wither_skull_dangerous",
+      "displayName": "蓝色凋灵之首"
+    },
+    {
+      "id": 93,
+      "identifier": "minecraft:lightning_bolt",
+      "displayName": "闪电"
+    },
+    {
+      "id": 94,
+      "identifier": "minecraft:small_fireball",
+      "displayName": "小火球"
+    },
+    {
+      "id": 95,
+      "identifier": "minecraft:area_effect_cloud",
+      "displayName": "区域效果云"
+    },
+    {
+      "id": 96,
+      "identifier": "minecraft:hopper_minecart",
+      "displayName": "漏斗矿车"
+    },
+    {
+      "id": 97,
+      "identifier": "minecraft:tnt_minecart",
+      "displayName": "TNT 矿车"
+    },
+    {
+      "id": 98,
+      "identifier": "minecraft:chest_minecart",
+      "displayName": "运输矿车"
+    },
+    {
+      "id": 100,
+      "identifier": "minecraft:command_block_minecart",
+      "displayName": "命令方块矿车"
+    },
+    {
+      "id": 101,
+      "identifier": "minecraft:lingering_potion",
+      "displayName": "滞留药水"
+    },
+    {
+      "id": 102,
+      "identifier": "minecraft:llama_spit",
+      "displayName": "羊驼唾沫"
+    },
+    {
+      "id": 103,
+      "identifier": "minecraft:evocation_fang",
+      "displayName": "尖牙"
+    },
+    {
+      "id": 104,
+      "identifier": "minecraft:evocation_illager",
+      "displayName": "唤魔者"
+    },
+    {
+      "id": 105,
+      "identifier": "minecraft:vex",
+      "displayName": "恼鬼"
+    },
+    {
+      "id": 106,
+      "identifier": "minecraft:ice_bomb",
+      "displayName": "冰弹"
+    },
+    {
+      "id": 107,
+      "identifier": "minecraft:balloon",
+      "displayName": "气球"
+    },
+    {
+      "id": 108,
+      "identifier": "minecraft:pufferfish",
+      "displayName": "河豚"
+    },
+    {
+      "id": 109,
+      "identifier": "minecraft:salmon",
+      "displayName": "鲑鱼"
+    },
+    {
+      "id": 110,
+      "identifier": "minecraft:drowned",
+      "displayName": "溺尸"
+    },
+    {
+      "id": 111,
+      "identifier": "minecraft:tropicalfish",
+      "displayName": "热带鱼"
+    },
+    {
+      "id": 112,
+      "identifier": "minecraft:cod",
+      "displayName": "鳕鱼"
+    },
+    {
+      "id": 113,
+      "identifier": "minecraft:panda",
+      "displayName": "熊猫"
+    },
+    {
+      "id": 114,
+      "identifier": "minecraft:pillager",
+      "displayName": "掠夺者"
+    },
+    {
+      "id": 115,
+      "identifier": "minecraft:villager_v2",
+      "displayName": "村民"
+    },
+    {
+      "id": 116,
+      "identifier": "minecraft:zombie_villager_v2",
+      "displayName": "僵尸村民"
+    },
+    {
+      "id": 117,
+      "identifier": "minecraft:shield",
+      "displayName": "盾牌"
+    },
+    {
+      "id": 118,
+      "identifier": "minecraft:wandering_trader",
+      "displayName": "流浪商人"
+    },
+    {
+      "id": 120,
+      "identifier": "minecraft:elder_guardian_ghost",
+      "displayName": "远古守卫者幽灵"
+    },
+    {
+      "id": 121,
+      "identifier": "minecraft:fox",
+      "displayName": "狐狸"
+    },
+    {
+      "id": 122,
+      "identifier": "minecraft:bee",
+      "displayName": "蜜蜂"
+    },
+    {
+      "id": 123,
+      "identifier": "minecraft:piglin",
+      "displayName": "猪灵"
+    },
+    {
+      "id": 124,
+      "identifier": "minecraft:hoglin",
+      "displayName": "疣猪兽"
+    },
+    {
+      "id": 125,
+      "identifier": "minecraft:strider",
+      "displayName": "炽足兽"
+    },
+    {
+      "id": 126,
+      "identifier": "minecraft:zoglin",
+      "displayName": "僵尸疣猪兽"
+    },
+    {
+      "id": 127,
+      "identifier": "minecraft:piglin_brute",
+      "displayName": "猪灵蛮兵"
+    },
+    {
+      "id": 128,
+      "identifier": "minecraft:goat",
+      "displayName": "山羊"
+    },
+    {
+      "id": 129,
+      "identifier": "minecraft:glow_squid",
+      "displayName": "发光鱿鱼"
+    },
+    {
+      "id": 130,
+      "identifier": "minecraft:axolotl",
+      "displayName": "美西螈"
+    },
+    {
+      "id": 131,
+      "identifier": "minecraft:warden",
+      "displayName": "监守者"
+    },
+    {
+      "id": 132,
+      "identifier": "minecraft:frog",
+      "displayName": "青蛙"
+    },
+    {
+      "id": 133,
+      "identifier": "minecraft:tadpole",
+      "displayName": "蝌蚪"
+    },
+    {
+      "id": 134,
+      "identifier": "minecraft:allay",
+      "displayName": "悦灵"
+    },
+    {
+      "id": 138,
+      "identifier": "minecraft:camel",
+      "displayName": "骆驼"
+    },
+    {
+      "id": 139,
+      "identifier": "minecraft:sniffer",
+      "displayName": "嗅探兽"
+    },
+    {
+      "id": 140,
+      "identifier": "minecraft:breeze",
+      "displayName": "旋风人"
+    },
+    {
+      "id": 141,
+      "identifier": "minecraft:breeze_wind_charge_projectile",
+      "displayName": "旋风弹"
+    },
+    {
+      "id": 142,
+      "identifier": "minecraft:armadillo",
+      "displayName": "犰狳"
+    },
+    {
+      "id": 143,
+      "identifier": "minecraft:wind_charge_projectile",
+      "displayName": "风弹"
+    },
+    {
+      "id": 144,
+      "identifier": "minecraft:bogged",
+      "displayName": "沼骸"
+    },
+    {
+      "id": 145,
+      "identifier": "minecraft:ominous_item_spawner",
+      "displayName": "不祥之物生成器"
+    },
+    {
+      "id": 146,
+      "identifier": "minecraft:creaking",
+      "displayName": "嘎枝"
+    },
+    {
+      "id": 147,
+      "identifier": "minecraft:happy_ghast",
+      "displayName": "快乐恶魂"
+    },
+    {
+      "id": 148,
+      "identifier": "minecraft:copper_golem",
+      "displayName": "铜傀儡"
+    },
+    {
+      "id": 149,
+      "identifier": "minecraft:nautilus",
+      "displayName": "鹦鹉螺"
+    },
+    {
+      "id": 150,
+      "identifier": "minecraft:zombie_nautilus",
+      "displayName": "僵尸鹦鹉螺"
+    },
+    {
+      "id": 151,
+      "identifier": "minecraft:parched",
+      "displayName": "焦骸"
+    },
+    {
+      "id": 152,
+      "identifier": "minecraft:camel_husk",
+      "displayName": "骆驼尸壳"
+    },
+    {
+      "id": 153,
+      "identifier": "minecraft:sulfur_cube",
+      "displayName": "硫方怪"
+    },
+    {
+      "id": 154,
+      "identifier": "minecraft:cushion",
+      "displayName": "坐垫"
+    },
+    {
+      "id": 157,
+      "identifier": "minecraft:trader_llama",
+      "displayName": "行商羊驼"
+    },
+    {
+      "id": 218,
+      "identifier": "minecraft:chest_boat",
+      "displayName": "运输船"
+    }
+  ],
+  "statusEffects": [
+    {
+      "id": 1,
+      "identifier": "speed",
+      "displayName": "迅捷"
+    },
+    {
+      "id": 2,
+      "identifier": "slowness",
+      "displayName": "缓慢"
+    },
+    {
+      "id": 3,
+      "identifier": "haste",
+      "displayName": "急迫"
+    },
+    {
+      "id": 4,
+      "identifier": "mining_fatigue",
+      "displayName": "挖掘疲劳"
+    },
+    {
+      "id": 5,
+      "identifier": "strength",
+      "displayName": "力量"
+    },
+    {
+      "id": 6,
+      "identifier": "instant_health",
+      "displayName": "瞬间治疗"
+    },
+    {
+      "id": 7,
+      "identifier": "instant_damage",
+      "displayName": "瞬间伤害"
+    },
+    {
+      "id": 8,
+      "identifier": "jump_boost",
+      "displayName": "跳跃提升"
+    },
+    {
+      "id": 9,
+      "identifier": "nausea",
+      "displayName": "反胃"
+    },
+    {
+      "id": 10,
+      "identifier": "regeneration",
+      "displayName": "生命恢复"
+    },
+    {
+      "id": 11,
+      "identifier": "resistance",
+      "displayName": "抗性提升"
+    },
+    {
+      "id": 12,
+      "identifier": "fire_resistance",
+      "displayName": "抗火"
+    },
+    {
+      "id": 13,
+      "identifier": "water_breathing",
+      "displayName": "水下呼吸"
+    },
+    {
+      "id": 14,
+      "identifier": "invisibility",
+      "displayName": "隐身"
+    },
+    {
+      "id": 15,
+      "identifier": "blindness",
+      "displayName": "失明"
+    },
+    {
+      "id": 16,
+      "identifier": "night_vision",
+      "displayName": "夜视"
+    },
+    {
+      "id": 17,
+      "identifier": "hunger",
+      "displayName": "饥饿"
+    },
+    {
+      "id": 18,
+      "identifier": "weakness",
+      "displayName": "虚弱"
+    },
+    {
+      "id": 19,
+      "identifier": "poison",
+      "displayName": "中毒"
+    },
+    {
+      "id": 20,
+      "identifier": "wither",
+      "displayName": "凋零"
+    },
+    {
+      "id": 21,
+      "identifier": "health_boost",
+      "displayName": "生命提升"
+    },
+    {
+      "id": 22,
+      "identifier": "absorption",
+      "displayName": "伤害吸收"
+    },
+    {
+      "id": 23,
+      "identifier": "saturation",
+      "displayName": "饱和"
+    },
+    {
+      "id": 24,
+      "identifier": "levitation",
+      "displayName": "飘浮"
+    },
+    {
+      "id": 25,
+      "identifier": "fatal_poison",
+      "displayName": "中毒（致命）"
+    },
+    {
+      "id": 26,
+      "identifier": "conduit_power",
+      "displayName": "潮涌能量"
+    },
+    {
+      "id": 27,
+      "identifier": "slow_falling",
+      "displayName": "缓降"
+    },
+    {
+      "id": 28,
+      "identifier": "bad_omen",
+      "displayName": "不祥之兆"
+    },
+    {
+      "id": 29,
+      "identifier": "village_hero",
+      "displayName": "村庄英雄"
+    },
+    {
+      "id": 30,
+      "identifier": "darkness",
+      "displayName": "黑暗"
+    },
+    {
+      "id": 31,
+      "identifier": "trial_omen",
+      "displayName": "试炼之兆"
+    },
+    {
+      "id": 32,
+      "identifier": "wind_charged",
+      "displayName": "蓄风"
+    },
+    {
+      "id": 33,
+      "identifier": "weaving",
+      "displayName": "盘丝"
+    },
+    {
+      "id": 34,
+      "identifier": "oozing",
+      "displayName": "渗浆"
+    },
+    {
+      "id": 35,
+      "identifier": "infested",
+      "displayName": "寄生"
+    },
+    {
+      "id": 36,
+      "identifier": "raid_omen",
+      "displayName": "袭击之兆"
+    },
+    {
+      "id": 37,
+      "identifier": "breath_of_the_nautilus",
+      "displayName": "鹦鹉螺之息"
+    }
+  ],
+  "biomes": [
+    {
+      "id": 0,
+      "identifier": "minecraft:ocean",
+      "displayName": "海洋"
+    },
+    {
+      "id": 1,
+      "identifier": "minecraft:plains",
+      "displayName": "平原"
+    },
+    {
+      "id": 2,
+      "identifier": "minecraft:desert",
+      "displayName": "沙漠"
+    },
+    {
+      "id": 3,
+      "identifier": "minecraft:extreme_hills",
+      "displayName": "峭壁"
+    },
+    {
+      "id": 4,
+      "identifier": "minecraft:forest",
+      "displayName": "森林"
+    },
+    {
+      "id": 5,
+      "identifier": "minecraft:taiga",
+      "displayName": "针叶林"
+    },
+    {
+      "id": 6,
+      "identifier": "minecraft:swampland",
+      "displayName": "沼泽"
+    },
+    {
+      "id": 7,
+      "identifier": "minecraft:river",
+      "displayName": "河流"
+    },
+    {
+      "id": 8,
+      "identifier": "minecraft:hell",
+      "displayName": "下界荒地"
+    },
+    {
+      "id": 9,
+      "identifier": "minecraft:the_end",
+      "displayName": "末地"
+    },
+    {
+      "id": 10,
+      "identifier": "minecraft:legacy_frozen_ocean",
+      "displayName": "旧版冻洋"
+    },
+    {
+      "id": 11,
+      "identifier": "minecraft:frozen_river",
+      "displayName": "冻河"
+    },
+    {
+      "id": 12,
+      "identifier": "minecraft:ice_plains",
+      "displayName": "雪原"
+    },
+    {
+      "id": 13,
+      "identifier": "minecraft:ice_mountains",
+      "displayName": "雪山"
+    },
+    {
+      "id": 14,
+      "identifier": "minecraft:mushroom_island",
+      "displayName": "蘑菇岛"
+    },
+    {
+      "id": 15,
+      "identifier": "minecraft:mushroom_island_shore",
+      "displayName": "蘑菇岛岸"
+    },
+    {
+      "id": 16,
+      "identifier": "minecraft:beach",
+      "displayName": "沙滩"
+    },
+    {
+      "id": 17,
+      "identifier": "minecraft:desert_hills",
+      "displayName": "沙漠丘陵"
+    },
+    {
+      "id": 18,
+      "identifier": "minecraft:forest_hills",
+      "displayName": "森林丘陵"
+    },
+    {
+      "id": 19,
+      "identifier": "minecraft:taiga_hills",
+      "displayName": "针叶林丘陵"
+    },
+    {
+      "id": 20,
+      "identifier": "minecraft:extreme_hills_edge",
+      "displayName": "峭壁边缘"
+    },
+    {
+      "id": 21,
+      "identifier": "minecraft:jungle",
+      "displayName": "丛林"
+    },
+    {
+      "id": 22,
+      "identifier": "minecraft:jungle_hills",
+      "displayName": "丛林丘陵"
+    },
+    {
+      "id": 23,
+      "identifier": "minecraft:jungle_edge",
+      "displayName": "丛林边缘"
+    },
+    {
+      "id": 24,
+      "identifier": "minecraft:deep_ocean",
+      "displayName": "深海"
+    },
+    {
+      "id": 25,
+      "identifier": "minecraft:stone_beach",
+      "displayName": "石岸"
+    },
+    {
+      "id": 26,
+      "identifier": "minecraft:cold_beach",
+      "displayName": "积雪沙滩"
+    },
+    {
+      "id": 27,
+      "identifier": "minecraft:birch_forest",
+      "displayName": "桦木森林"
+    },
+    {
+      "id": 28,
+      "identifier": "minecraft:birch_forest_hills",
+      "displayName": "桦木森林丘陵"
+    },
+    {
+      "id": 29,
+      "identifier": "minecraft:roofed_forest",
+      "displayName": "黑森林"
+    },
+    {
+      "id": 30,
+      "identifier": "minecraft:cold_taiga",
+      "displayName": "积雪针叶林"
+    },
+    {
+      "id": 31,
+      "identifier": "minecraft:cold_taiga_hills",
+      "displayName": "积雪针叶林丘陵"
+    },
+    {
+      "id": 32,
+      "identifier": "minecraft:mega_taiga",
+      "displayName": "巨型针叶林"
+    },
+    {
+      "id": 33,
+      "identifier": "minecraft:mega_taiga_hills",
+      "displayName": "巨型针叶林丘陵"
+    },
+    {
+      "id": 34,
+      "identifier": "minecraft:extreme_hills_plus_trees",
+      "displayName": "繁茂峭壁"
+    },
+    {
+      "id": 35,
+      "identifier": "minecraft:savanna",
+      "displayName": "热带草原"
+    },
+    {
+      "id": 36,
+      "identifier": "minecraft:savanna_plateau",
+      "displayName": "热带高原"
+    },
+    {
+      "id": 37,
+      "identifier": "minecraft:mesa",
+      "displayName": "恶地"
+    },
+    {
+      "id": 38,
+      "identifier": "minecraft:mesa_plateau_stone",
+      "displayName": "繁茂恶地高原"
+    },
+    {
+      "id": 39,
+      "identifier": "minecraft:mesa_plateau",
+      "displayName": "恶地高原"
+    },
+    {
+      "id": 40,
+      "identifier": "minecraft:warm_ocean",
+      "displayName": "暖水海洋"
+    },
+    {
+      "id": 41,
+      "identifier": "minecraft:deep_warm_ocean",
+      "displayName": "暖水深海"
+    },
+    {
+      "id": 42,
+      "identifier": "minecraft:lukewarm_ocean",
+      "displayName": "温水海洋"
+    },
+    {
+      "id": 43,
+      "identifier": "minecraft:deep_lukewarm_ocean",
+      "displayName": "温水深海"
+    },
+    {
+      "id": 44,
+      "identifier": "minecraft:cold_ocean",
+      "displayName": "冷水海洋"
+    },
+    {
+      "id": 45,
+      "identifier": "minecraft:deep_cold_ocean",
+      "displayName": "冷水深海"
+    },
+    {
+      "id": 46,
+      "identifier": "minecraft:frozen_ocean",
+      "displayName": "冻洋"
+    },
+    {
+      "id": 47,
+      "identifier": "minecraft:deep_frozen_ocean",
+      "displayName": "封冻深海"
+    },
+    {
+      "id": 48,
+      "identifier": "minecraft:bamboo_jungle",
+      "displayName": "竹林"
+    },
+    {
+      "id": 49,
+      "identifier": "minecraft:bamboo_jungle_hills",
+      "displayName": "竹林丘陵"
+    },
+    {
+      "id": 129,
+      "identifier": "minecraft:sunflower_plains",
+      "displayName": "向日葵平原"
+    },
+    {
+      "id": 130,
+      "identifier": "minecraft:desert_mutated",
+      "displayName": "沙漠湖泊"
+    },
+    {
+      "id": 131,
+      "identifier": "minecraft:extreme_hills_mutated",
+      "displayName": "沙砾山地"
+    },
+    {
+      "id": 132,
+      "identifier": "minecraft:flower_forest",
+      "displayName": "繁花森林"
+    },
+    {
+      "id": 133,
+      "identifier": "minecraft:taiga_mutated",
+      "displayName": "针叶林山地"
+    },
+    {
+      "id": 134,
+      "identifier": "minecraft:swampland_mutated",
+      "displayName": "沼泽丘陵"
+    },
+    {
+      "id": 140,
+      "identifier": "minecraft:ice_plains_spikes",
+      "displayName": "冰刺之地"
+    },
+    {
+      "id": 149,
+      "identifier": "minecraft:jungle_mutated",
+      "displayName": "变种丛林"
+    },
+    {
+      "id": 151,
+      "identifier": "minecraft:jungle_edge_mutated",
+      "displayName": "变种丛林边缘"
+    },
+    {
+      "id": 155,
+      "identifier": "minecraft:birch_forest_mutated",
+      "displayName": "原始桦木森林"
+    },
+    {
+      "id": 156,
+      "identifier": "minecraft:birch_forest_hills_mutated",
+      "displayName": "高大桦木丘陵"
+    },
+    {
+      "id": 157,
+      "identifier": "minecraft:roofed_forest_mutated",
+      "displayName": "黑森林丘陵"
+    },
+    {
+      "id": 158,
+      "identifier": "minecraft:cold_taiga_mutated",
+      "displayName": "积雪针叶林山地"
+    },
+    {
+      "id": 160,
+      "identifier": "minecraft:redwood_taiga_mutated",
+      "displayName": "原始云杉针叶林"
+    },
+    {
+      "id": 161,
+      "identifier": "minecraft:redwood_taiga_hills_mutated",
+      "displayName": "巨型云杉针叶林丘陵"
+    },
+    {
+      "id": 162,
+      "identifier": "minecraft:extreme_hills_plus_trees_mutated",
+      "displayName": "沙砾山地+"
+    },
+    {
+      "id": 163,
+      "identifier": "minecraft:savanna_mutated",
+      "displayName": "风袭热带草原"
+    },
+    {
+      "id": 164,
+      "identifier": "minecraft:savanna_plateau_mutated",
+      "displayName": "破碎热带高原"
+    },
+    {
+      "id": 165,
+      "identifier": "minecraft:mesa_bryce",
+      "displayName": "风蚀恶地"
+    },
+    {
+      "id": 166,
+      "identifier": "minecraft:mesa_plateau_stone_mutated",
+      "displayName": "变种繁茂恶地高原"
+    },
+    {
+      "id": 167,
+      "identifier": "minecraft:mesa_plateau_mutated",
+      "displayName": "变种恶地高原"
+    },
+    {
+      "id": 178,
+      "identifier": "minecraft:soulsand_valley",
+      "displayName": "灵魂沙峡谷"
+    },
+    {
+      "id": 179,
+      "identifier": "minecraft:crimson_forest",
+      "displayName": "绯红森林"
+    },
+    {
+      "id": 180,
+      "identifier": "minecraft:warped_forest",
+      "displayName": "诡异森林"
+    },
+    {
+      "id": 181,
+      "identifier": "minecraft:basalt_deltas",
+      "displayName": "玄武岩三角洲"
+    },
+    {
+      "id": 182,
+      "identifier": "minecraft:jagged_peaks",
+      "displayName": "尖峭山峰"
+    },
+    {
+      "id": 183,
+      "identifier": "minecraft:frozen_peaks",
+      "displayName": "冰封山峰"
+    },
+    {
+      "id": 184,
+      "identifier": "minecraft:snowy_slopes",
+      "displayName": "积雪山坡"
+    },
+    {
+      "id": 185,
+      "identifier": "minecraft:grove",
+      "displayName": "雪林"
+    },
+    {
+      "id": 186,
+      "identifier": "minecraft:meadow",
+      "displayName": "草甸"
+    },
+    {
+      "id": 187,
+      "identifier": "minecraft:lush_caves",
+      "displayName": "繁茂洞穴"
+    },
+    {
+      "id": 188,
+      "identifier": "minecraft:dripstone_caves",
+      "displayName": "溶洞"
+    },
+    {
+      "id": 189,
+      "identifier": "minecraft:stony_peaks",
+      "displayName": "裸岩山峰"
+    },
+    {
+      "id": 190,
+      "identifier": "minecraft:deep_dark",
+      "displayName": "深暗之域"
+    },
+    {
+      "id": 191,
+      "identifier": "minecraft:mangrove_swamp",
+      "displayName": "红树林沼泽"
+    },
+    {
+      "id": 192,
+      "identifier": "minecraft:cherry_grove",
+      "displayName": "樱花树林"
+    },
+    {
+      "id": 193,
+      "identifier": "minecraft:pale_garden",
+      "displayName": "苍白之园"
+    },
+    {
+      "id": 194,
+      "identifier": "minecraft:sulfur_caves",
+      "displayName": "硫磺洞穴"
+    },
+    {
+      "id": 195,
+      "identifier": "minecraft:dappled_forest",
+      "displayName": "斑驳森林"
+    }
+  ],
+  "enchantments": [
+    {
+      "id": 0,
+      "identifier": "protection",
+      "displayName": "保护"
+    },
+    {
+      "id": 1,
+      "identifier": "fire_protection",
+      "displayName": "火焰保护"
+    },
+    {
+      "id": 2,
+      "identifier": "feather_falling",
+      "displayName": "摔落缓冲"
+    },
+    {
+      "id": 3,
+      "identifier": "blast_protection",
+      "displayName": "爆炸保护"
+    },
+    {
+      "id": 4,
+      "identifier": "projectile_protection",
+      "displayName": "弹射物保护"
+    },
+    {
+      "id": 5,
+      "identifier": "thorns",
+      "displayName": "荆棘"
+    },
+    {
+      "id": 6,
+      "identifier": "respiration",
+      "displayName": "水下呼吸"
+    },
+    {
+      "id": 7,
+      "identifier": "depth_strider",
+      "displayName": "深海探索者"
+    },
+    {
+      "id": 8,
+      "identifier": "aqua_affinity",
+      "displayName": "水下速掘"
+    },
+    {
+      "id": 9,
+      "identifier": "sharpness",
+      "displayName": "锋利"
+    },
+    {
+      "id": 10,
+      "identifier": "smite",
+      "displayName": "亡灵杀手"
+    },
+    {
+      "id": 11,
+      "identifier": "bane_of_arthropods",
+      "displayName": "节肢杀手"
+    },
+    {
+      "id": 12,
+      "identifier": "knockback",
+      "displayName": "击退"
+    },
+    {
+      "id": 13,
+      "identifier": "fire_aspect",
+      "displayName": "火焰附加"
+    },
+    {
+      "id": 14,
+      "identifier": "looting",
+      "displayName": "抢夺"
+    },
+    {
+      "id": 15,
+      "identifier": "efficiency",
+      "displayName": "效率"
+    },
+    {
+      "id": 16,
+      "identifier": "silk_touch",
+      "displayName": "精准采集"
+    },
+    {
+      "id": 17,
+      "identifier": "unbreaking",
+      "displayName": "耐久"
+    },
+    {
+      "id": 18,
+      "identifier": "fortune",
+      "displayName": "时运"
+    },
+    {
+      "id": 19,
+      "identifier": "power",
+      "displayName": "力量"
+    },
+    {
+      "id": 20,
+      "identifier": "punch",
+      "displayName": "冲击"
+    },
+    {
+      "id": 21,
+      "identifier": "flame",
+      "displayName": "火矢"
+    },
+    {
+      "id": 22,
+      "identifier": "infinity",
+      "displayName": "无限"
+    },
+    {
+      "id": 23,
+      "identifier": "luck_of_the_sea",
+      "displayName": "海之眷顾"
+    },
+    {
+      "id": 24,
+      "identifier": "lure",
+      "displayName": "饵钓"
+    },
+    {
+      "id": 25,
+      "identifier": "frost_walker",
+      "displayName": "冰霜行者"
+    },
+    {
+      "id": 26,
+      "identifier": "mending",
+      "displayName": "经验修补"
+    },
+    {
+      "id": 27,
+      "identifier": "binding",
+      "displayName": "绑定诅咒"
+    },
+    {
+      "id": 28,
+      "identifier": "vanishing",
+      "displayName": "消失诅咒"
+    },
+    {
+      "id": 29,
+      "identifier": "impaling",
+      "displayName": "穿刺"
+    },
+    {
+      "id": 30,
+      "identifier": "riptide",
+      "displayName": "激流"
+    },
+    {
+      "id": 31,
+      "identifier": "loyalty",
+      "displayName": "忠诚"
+    },
+    {
+      "id": 32,
+      "identifier": "channeling",
+      "displayName": "引雷"
+    },
+    {
+      "id": 33,
+      "identifier": "multishot",
+      "displayName": "多重射击"
+    },
+    {
+      "id": 34,
+      "identifier": "piercing",
+      "displayName": "穿透"
+    },
+    {
+      "id": 35,
+      "identifier": "quick_charge",
+      "displayName": "快速装填"
+    },
+    {
+      "id": 36,
+      "identifier": "soul_speed",
+      "displayName": "灵魂疾行"
+    },
+    {
+      "id": 37,
+      "identifier": "swift_sneak",
+      "displayName": "迅捷潜行"
+    },
+    {
+      "id": 38,
+      "identifier": "wind_burst",
+      "displayName": "风爆"
+    },
+    {
+      "id": 39,
+      "identifier": "density",
+      "displayName": "致密"
+    },
+    {
+      "id": 40,
+      "identifier": "breach",
+      "displayName": "破甲"
+    },
+    {
+      "id": 41,
+      "identifier": "lunge",
+      "displayName": "戳刺（突进）"
+    }
+  ],
+  "legacyBlocks": [
+    {
+      "id": 0,
+      "identifier": "minecraft:air",
+      "displayName": "空气"
+    },
+    {
+      "id": 1,
+      "identifier": "minecraft:stone",
+      "displayName": "石头"
+    },
+    {
+      "id": 2,
+      "identifier": "minecraft:grass",
+      "displayName": "草方块"
+    },
+    {
+      "id": 3,
+      "identifier": "minecraft:dirt",
+      "displayName": "泥土"
+    },
+    {
+      "id": 4,
+      "identifier": "minecraft:cobblestone",
+      "displayName": "圆石"
+    },
+    {
+      "id": 5,
+      "identifier": "minecraft:planks",
+      "displayName": "木板"
+    },
+    {
+      "id": 6,
+      "identifier": "minecraft:sapling",
+      "displayName": "树苗"
+    },
+    {
+      "id": 7,
+      "identifier": "minecraft:bedrock",
+      "displayName": "基岩"
+    },
+    {
+      "id": 8,
+      "identifier": "minecraft:flowing_water",
+      "displayName": "流动的水"
+    },
+    {
+      "id": 9,
+      "identifier": "minecraft:water",
+      "displayName": "水"
+    },
+    {
+      "id": 10,
+      "identifier": "minecraft:flowing_lava",
+      "displayName": "流动的熔岩"
+    },
+    {
+      "id": 11,
+      "identifier": "minecraft:lava",
+      "displayName": "熔岩"
+    },
+    {
+      "id": 12,
+      "identifier": "minecraft:sand",
+      "displayName": "沙子"
+    },
+    {
+      "id": 13,
+      "identifier": "minecraft:gravel",
+      "displayName": "砂砾"
+    },
+    {
+      "id": 14,
+      "identifier": "minecraft:gold_ore",
+      "displayName": "金矿石"
+    },
+    {
+      "id": 15,
+      "identifier": "minecraft:iron_ore",
+      "displayName": "铁矿石"
+    },
+    {
+      "id": 16,
+      "identifier": "minecraft:coal_ore",
+      "displayName": "煤矿石"
+    },
+    {
+      "id": 17,
+      "identifier": "minecraft:log",
+      "displayName": "原木"
+    },
+    {
+      "id": 18,
+      "identifier": "minecraft:leaves",
+      "displayName": "树叶"
+    },
+    {
+      "id": 19,
+      "identifier": "minecraft:sponge",
+      "displayName": "海绵"
+    },
+    {
+      "id": 20,
+      "identifier": "minecraft:glass",
+      "displayName": "玻璃"
+    },
+    {
+      "id": 21,
+      "identifier": "minecraft:lapis_ore",
+      "displayName": "青金石矿石"
+    },
+    {
+      "id": 22,
+      "identifier": "minecraft:lapis_block",
+      "displayName": "青金石块"
+    },
+    {
+      "id": 23,
+      "identifier": "minecraft:dispenser",
+      "displayName": "发射器"
+    },
+    {
+      "id": 24,
+      "identifier": "minecraft:sandstone",
+      "displayName": "砂岩"
+    },
+    {
+      "id": 25,
+      "identifier": "minecraft:noteblock",
+      "displayName": "音符盒"
+    },
+    {
+      "id": 26,
+      "identifier": "minecraft:bed",
+      "displayName": "床"
+    },
+    {
+      "id": 27,
+      "identifier": "minecraft:golden_rail",
+      "displayName": "动力铁轨"
+    },
+    {
+      "id": 28,
+      "identifier": "minecraft:detector_rail",
+      "displayName": "探测铁轨"
+    },
+    {
+      "id": 29,
+      "identifier": "minecraft:sticky_piston",
+      "displayName": "黏性活塞"
+    },
+    {
+      "id": 30,
+      "identifier": "minecraft:web",
+      "displayName": "蜘蛛网"
+    },
+    {
+      "id": 31,
+      "identifier": "minecraft:tallgrass",
+      "displayName": "矮草丛"
+    },
+    {
+      "id": 32,
+      "identifier": "minecraft:deadbush",
+      "displayName": "枯萎的灌木"
+    },
+    {
+      "id": 33,
+      "identifier": "minecraft:piston",
+      "displayName": "活塞"
+    },
+    {
+      "id": 34,
+      "identifier": "minecraft:pistonArmCollision",
+      "displayName": "活塞头"
+    },
+    {
+      "id": 35,
+      "identifier": "minecraft:wool",
+      "displayName": "羊毛"
+    },
+    {
+      "id": 36,
+      "identifier": "minecraft:element_0",
+      "displayName": "未知元素"
+    },
+    {
+      "id": 37,
+      "identifier": "minecraft:yellow_flower",
+      "displayName": "蒲公英"
+    },
+    {
+      "id": 38,
+      "identifier": "minecraft:red_flower",
+      "displayName": "花（旧版红花组）"
+    },
+    {
+      "id": 39,
+      "identifier": "minecraft:brown_mushroom",
+      "displayName": "棕色蘑菇"
+    },
+    {
+      "id": 40,
+      "identifier": "minecraft:red_mushroom",
+      "displayName": "红蘑菇"
+    },
+    {
+      "id": 41,
+      "identifier": "minecraft:gold_block",
+      "displayName": "金块"
+    },
+    {
+      "id": 42,
+      "identifier": "minecraft:iron_block",
+      "displayName": "铁块"
+    },
+    {
+      "id": 43,
+      "identifier": "minecraft:double_stone_slab",
+      "displayName": "双层石台阶"
+    },
+    {
+      "id": 44,
+      "identifier": "minecraft:stone_slab",
+      "displayName": "石台阶"
+    },
+    {
+      "id": 45,
+      "identifier": "minecraft:brick_block",
+      "displayName": "砖块"
+    },
+    {
+      "id": 46,
+      "identifier": "minecraft:tnt",
+      "displayName": "TNT（炸药）"
+    },
+    {
+      "id": 47,
+      "identifier": "minecraft:bookshelf",
+      "displayName": "书架"
+    },
+    {
+      "id": 48,
+      "identifier": "minecraft:mossy_cobblestone",
+      "displayName": "苔石"
+    },
+    {
+      "id": 49,
+      "identifier": "minecraft:obsidian",
+      "displayName": "黑曜石"
+    },
+    {
+      "id": 50,
+      "identifier": "minecraft:torch",
+      "displayName": "火把"
+    },
+    {
+      "id": 51,
+      "identifier": "minecraft:fire",
+      "displayName": "火"
+    },
+    {
+      "id": 52,
+      "identifier": "minecraft:mob_spawner",
+      "displayName": "刷怪笼"
+    },
+    {
+      "id": 53,
+      "identifier": "minecraft:oak_stairs",
+      "displayName": "橡木楼梯"
+    },
+    {
+      "id": 54,
+      "identifier": "minecraft:chest",
+      "displayName": "箱子"
+    },
+    {
+      "id": 55,
+      "identifier": "minecraft:redstone_wire",
+      "displayName": "红石粉"
+    },
+    {
+      "id": 56,
+      "identifier": "minecraft:diamond_ore",
+      "displayName": "钻石矿石"
+    },
+    {
+      "id": 57,
+      "identifier": "minecraft:diamond_block",
+      "displayName": "钻石块"
+    },
+    {
+      "id": 58,
+      "identifier": "minecraft:crafting_table",
+      "displayName": "工作台"
+    },
+    {
+      "id": 59,
+      "identifier": "minecraft:wheat",
+      "displayName": "小麦"
+    },
+    {
+      "id": 60,
+      "identifier": "minecraft:farmland",
+      "displayName": "耕地"
+    },
+    {
+      "id": 61,
+      "identifier": "minecraft:furnace",
+      "displayName": "熔炉"
+    },
+    {
+      "id": 62,
+      "identifier": "minecraft:lit_furnace",
+      "displayName": "燃烧中的熔炉"
+    },
+    {
+      "id": 63,
+      "identifier": "minecraft:standing_sign",
+      "displayName": "告示牌"
+    },
+    {
+      "id": 64,
+      "identifier": "minecraft:wooden_door",
+      "displayName": "橡木门"
+    },
+    {
+      "id": 65,
+      "identifier": "minecraft:ladder",
+      "displayName": "梯子"
+    },
+    {
+      "id": 66,
+      "identifier": "minecraft:rail",
+      "displayName": "铁轨"
+    },
+    {
+      "id": 67,
+      "identifier": "minecraft:stone_stairs",
+      "displayName": "圆石楼梯"
+    },
+    {
+      "id": 68,
+      "identifier": "minecraft:wall_sign",
+      "displayName": "墙上的告示牌"
+    },
+    {
+      "id": 69,
+      "identifier": "minecraft:lever",
+      "displayName": "拉杆"
+    },
+    {
+      "id": 70,
+      "identifier": "minecraft:stone_pressure_plate",
+      "displayName": "石质压力板"
+    },
+    {
+      "id": 71,
+      "identifier": "minecraft:iron_door",
+      "displayName": "铁门"
+    },
+    {
+      "id": 72,
+      "identifier": "minecraft:wooden_pressure_plate",
+      "displayName": "橡木压力板"
+    },
+    {
+      "id": 73,
+      "identifier": "minecraft:redstone_ore",
+      "displayName": "红石矿石"
+    },
+    {
+      "id": 74,
+      "identifier": "minecraft:lit_redstone_ore",
+      "displayName": "发光的红石矿石"
+    },
+    {
+      "id": 75,
+      "identifier": "minecraft:unlit_redstone_torch",
+      "displayName": "熄灭的红石火把"
+    },
+    {
+      "id": 76,
+      "identifier": "minecraft:redstone_torch",
+      "displayName": "点亮的红石火把"
+    },
+    {
+      "id": 77,
+      "identifier": "minecraft:stone_button",
+      "displayName": "石质按钮"
+    },
+    {
+      "id": 78,
+      "identifier": "minecraft:snow_layer",
+      "displayName": "雪"
+    },
+    {
+      "id": 79,
+      "identifier": "minecraft:ice",
+      "displayName": "冰"
+    },
+    {
+      "id": 80,
+      "identifier": "minecraft:snow",
+      "displayName": "雪块"
+    },
+    {
+      "id": 81,
+      "identifier": "minecraft:cactus",
+      "displayName": "仙人掌"
+    },
+    {
+      "id": 82,
+      "identifier": "minecraft:clay",
+      "displayName": "黏土"
+    },
+    {
+      "id": 83,
+      "identifier": "minecraft:reeds",
+      "displayName": "甘蔗"
+    },
+    {
+      "id": 84,
+      "identifier": "minecraft:jukebox",
+      "displayName": "唱片机"
+    },
+    {
+      "id": 85,
+      "identifier": "minecraft:fence",
+      "displayName": "橡木栅栏"
+    },
+    {
+      "id": 86,
+      "identifier": "minecraft:pumpkin",
+      "displayName": "南瓜"
+    },
+    {
+      "id": 87,
+      "identifier": "minecraft:netherrack",
+      "displayName": "下界岩"
+    },
+    {
+      "id": 88,
+      "identifier": "minecraft:soul_sand",
+      "displayName": "灵魂沙"
+    },
+    {
+      "id": 89,
+      "identifier": "minecraft:glowstone",
+      "displayName": "荧石"
+    },
+    {
+      "id": 90,
+      "identifier": "minecraft:portal",
+      "displayName": "下界传送门"
+    },
+    {
+      "id": 91,
+      "identifier": "minecraft:lit_pumpkin",
+      "displayName": "南瓜灯"
+    },
+    {
+      "id": 92,
+      "identifier": "minecraft:cake",
+      "displayName": "蛋糕"
+    },
+    {
+      "id": 93,
+      "identifier": "minecraft:unpowered_repeater",
+      "displayName": "红石中继器（未激活）"
+    },
+    {
+      "id": 94,
+      "identifier": "minecraft:powered_repeater",
+      "displayName": "红石中继器（已激活）"
+    },
+    {
+      "id": 95,
+      "identifier": "minecraft:invisibleBedrock",
+      "displayName": "隐形基岩"
+    },
+    {
+      "id": 96,
+      "identifier": "minecraft:trapdoor",
+      "displayName": "橡木活板门"
+    },
+    {
+      "id": 97,
+      "identifier": "minecraft:monster_egg",
+      "displayName": "虫蚀方块"
+    },
+    {
+      "id": 98,
+      "identifier": "minecraft:stonebrick",
+      "displayName": "石砖"
+    },
+    {
+      "id": 99,
+      "identifier": "minecraft:brown_mushroom_block",
+      "displayName": "棕色蘑菇方块"
+    },
+    {
+      "id": 100,
+      "identifier": "minecraft:red_mushroom_block",
+      "displayName": "红色蘑菇方块"
+    },
+    {
+      "id": 101,
+      "identifier": "minecraft:iron_bars",
+      "displayName": "铁栏杆"
+    },
+    {
+      "id": 102,
+      "identifier": "minecraft:glass_pane",
+      "displayName": "玻璃板"
+    },
+    {
+      "id": 103,
+      "identifier": "minecraft:melon_block",
+      "displayName": "西瓜"
+    },
+    {
+      "id": 104,
+      "identifier": "minecraft:pumpkin_stem",
+      "displayName": "南瓜茎"
+    },
+    {
+      "id": 105,
+      "identifier": "minecraft:melon_stem",
+      "displayName": "西瓜茎"
+    },
+    {
+      "id": 106,
+      "identifier": "minecraft:vine",
+      "displayName": "藤蔓"
+    },
+    {
+      "id": 107,
+      "identifier": "minecraft:fence_gate",
+      "displayName": "橡木栅栏门"
+    },
+    {
+      "id": 108,
+      "identifier": "minecraft:brick_stairs",
+      "displayName": "砖块楼梯"
+    },
+    {
+      "id": 109,
+      "identifier": "minecraft:stone_brick_stairs",
+      "displayName": "石砖楼梯"
+    },
+    {
+      "id": 110,
+      "identifier": "minecraft:mycelium",
+      "displayName": "菌丝体"
+    },
+    {
+      "id": 111,
+      "identifier": "minecraft:waterlily",
+      "displayName": "睡莲"
+    },
+    {
+      "id": 112,
+      "identifier": "minecraft:nether_brick",
+      "displayName": "下界砖块"
+    },
+    {
+      "id": 113,
+      "identifier": "minecraft:nether_brick_fence",
+      "displayName": "下界砖栅栏"
+    },
+    {
+      "id": 114,
+      "identifier": "minecraft:nether_brick_stairs",
+      "displayName": "下界砖楼梯"
+    },
+    {
+      "id": 115,
+      "identifier": "minecraft:nether_wart",
+      "displayName": "下界疣"
+    },
+    {
+      "id": 116,
+      "identifier": "minecraft:enchanting_table",
+      "displayName": "附魔台"
+    },
+    {
+      "id": 117,
+      "identifier": "minecraft:brewing_stand",
+      "displayName": "酿造台"
+    },
+    {
+      "id": 118,
+      "identifier": "minecraft:cauldron",
+      "displayName": "炼药锅"
+    },
+    {
+      "id": 119,
+      "identifier": "minecraft:end_portal",
+      "displayName": "末地传送门"
+    },
+    {
+      "id": 120,
+      "identifier": "minecraft:end_portal_frame",
+      "displayName": "末地传送门框架"
+    },
+    {
+      "id": 121,
+      "identifier": "minecraft:end_stone",
+      "displayName": "末地石"
+    },
+    {
+      "id": 122,
+      "identifier": "minecraft:dragon_egg",
+      "displayName": "龙蛋"
+    },
+    {
+      "id": 123,
+      "identifier": "minecraft:redstone_lamp",
+      "displayName": "红石灯"
+    },
+    {
+      "id": 124,
+      "identifier": "minecraft:lit_redstone_lamp",
+      "displayName": "点亮的红石灯"
+    },
+    {
+      "id": 125,
+      "identifier": "minecraft:dropper",
+      "displayName": "投掷器"
+    },
+    {
+      "id": 126,
+      "identifier": "minecraft:activator_rail",
+      "displayName": "激活铁轨"
+    },
+    {
+      "id": 127,
+      "identifier": "minecraft:cocoa",
+      "displayName": "可可"
+    },
+    {
+      "id": 128,
+      "identifier": "minecraft:sandstone_stairs",
+      "displayName": "砂岩楼梯"
+    },
+    {
+      "id": 129,
+      "identifier": "minecraft:emerald_ore",
+      "displayName": "绿宝石矿石"
+    },
+    {
+      "id": 130,
+      "identifier": "minecraft:ender_chest",
+      "displayName": "末影箱"
+    },
+    {
+      "id": 131,
+      "identifier": "minecraft:tripwire_hook",
+      "displayName": "绊线钩"
+    },
+    {
+      "id": 132,
+      "identifier": "minecraft:tripWire",
+      "displayName": "绊线"
+    },
+    {
+      "id": 133,
+      "identifier": "minecraft:emerald_block",
+      "displayName": "绿宝石块"
+    },
+    {
+      "id": 134,
+      "identifier": "minecraft:spruce_stairs",
+      "displayName": "云杉木楼梯"
+    },
+    {
+      "id": 135,
+      "identifier": "minecraft:birch_stairs",
+      "displayName": "白桦木楼梯"
+    },
+    {
+      "id": 136,
+      "identifier": "minecraft:jungle_stairs",
+      "displayName": "丛林木楼梯"
+    },
+    {
+      "id": 137,
+      "identifier": "minecraft:command_block",
+      "displayName": "命令方块"
+    },
+    {
+      "id": 138,
+      "identifier": "minecraft:beacon",
+      "displayName": "信标"
+    },
+    {
+      "id": 139,
+      "identifier": "minecraft:cobblestone_wall",
+      "displayName": "圆石墙"
+    },
+    {
+      "id": 140,
+      "identifier": "minecraft:flower_pot",
+      "displayName": "花盆"
+    },
+    {
+      "id": 141,
+      "identifier": "minecraft:carrots",
+      "displayName": "胡萝卜"
+    },
+    {
+      "id": 142,
+      "identifier": "minecraft:potatoes",
+      "displayName": "马铃薯"
+    },
+    {
+      "id": 143,
+      "identifier": "minecraft:wooden_button",
+      "displayName": "橡木按钮"
+    },
+    {
+      "id": 144,
+      "identifier": "minecraft:skull",
+      "displayName": "生物头颅"
+    },
+    {
+      "id": 145,
+      "identifier": "minecraft:anvil",
+      "displayName": "铁砧"
+    },
+    {
+      "id": 146,
+      "identifier": "minecraft:trapped_chest",
+      "displayName": "陷阱箱"
+    },
+    {
+      "id": 147,
+      "identifier": "minecraft:light_weighted_pressure_plate",
+      "displayName": "轻质测重压力板"
+    },
+    {
+      "id": 148,
+      "identifier": "minecraft:heavy_weighted_pressure_plate",
+      "displayName": "重质测重压力板"
+    },
+    {
+      "id": 149,
+      "identifier": "minecraft:unpowered_comparator",
+      "displayName": "红石比较器（未激活）"
+    },
+    {
+      "id": 150,
+      "identifier": "minecraft:powered_comparator",
+      "displayName": "红石比较器（已激活）"
+    },
+    {
+      "id": 151,
+      "identifier": "minecraft:daylight_detector",
+      "displayName": "阳光探测器"
+    },
+    {
+      "id": 152,
+      "identifier": "minecraft:redstone_block",
+      "displayName": "红石块"
+    },
+    {
+      "id": 153,
+      "identifier": "minecraft:quartz_ore",
+      "displayName": "下界石英矿石"
+    },
+    {
+      "id": 154,
+      "identifier": "minecraft:hopper",
+      "displayName": "漏斗"
+    },
+    {
+      "id": 155,
+      "identifier": "minecraft:quartz_block",
+      "displayName": "石英块"
+    },
+    {
+      "id": 156,
+      "identifier": "minecraft:quartz_stairs",
+      "displayName": "石英楼梯"
+    },
+    {
+      "id": 157,
+      "identifier": "minecraft:double_wooden_slab",
+      "displayName": "双层木台阶"
+    },
+    {
+      "id": 158,
+      "identifier": "minecraft:wooden_slab",
+      "displayName": "木台阶"
+    },
+    {
+      "id": 159,
+      "identifier": "minecraft:stained_hardened_clay",
+      "displayName": "染色陶瓦"
+    },
+    {
+      "id": 160,
+      "identifier": "minecraft:stained_glass_pane",
+      "displayName": "染色玻璃板"
+    },
+    {
+      "id": 161,
+      "identifier": "minecraft:leaves2",
+      "displayName": "树叶（第二组）"
+    },
+    {
+      "id": 162,
+      "identifier": "minecraft:log2",
+      "displayName": "原木（第二组）"
+    },
+    {
+      "id": 163,
+      "identifier": "minecraft:acacia_stairs",
+      "displayName": "金合欢木楼梯"
+    },
+    {
+      "id": 164,
+      "identifier": "minecraft:dark_oak_stairs",
+      "displayName": "深色橡木楼梯"
+    },
+    {
+      "id": 165,
+      "identifier": "minecraft:slime",
+      "displayName": "黏液块"
+    },
+    {
+      "id": 166,
+      "identifier": "minecraft:unused_166",
+      "displayName": "未使用"
+    },
+    {
+      "id": 167,
+      "identifier": "minecraft:iron_trapdoor",
+      "displayName": "铁活板门"
+    },
+    {
+      "id": 168,
+      "identifier": "minecraft:prismarine",
+      "displayName": "海晶石"
+    },
+    {
+      "id": 169,
+      "identifier": "minecraft:seaLantern",
+      "displayName": "海晶灯"
+    },
+    {
+      "id": 170,
+      "identifier": "minecraft:hay_block",
+      "displayName": "干草块"
+    },
+    {
+      "id": 171,
+      "identifier": "minecraft:carpet",
+      "displayName": "地毯"
+    },
+    {
+      "id": 172,
+      "identifier": "minecraft:hardened_clay",
+      "displayName": "陶瓦"
+    },
+    {
+      "id": 173,
+      "identifier": "minecraft:coal_block",
+      "displayName": "煤炭块"
+    },
+    {
+      "id": 174,
+      "identifier": "minecraft:packed_ice",
+      "displayName": "浮冰"
+    },
+    {
+      "id": 175,
+      "identifier": "minecraft:double_plant",
+      "displayName": "高花与高草丛"
+    },
+    {
+      "id": 176,
+      "identifier": "minecraft:standing_banner",
+      "displayName": "旗帜"
+    },
+    {
+      "id": 177,
+      "identifier": "minecraft:wall_banner",
+      "displayName": "墙上的旗帜"
+    },
+    {
+      "id": 178,
+      "identifier": "minecraft:daylight_detector_inverted",
+      "displayName": "反向阳光探测器"
+    },
+    {
+      "id": 179,
+      "identifier": "minecraft:red_sandstone",
+      "displayName": "红砂岩"
+    },
+    {
+      "id": 180,
+      "identifier": "minecraft:red_sandstone_stairs",
+      "displayName": "红砂岩楼梯"
+    },
+    {
+      "id": 181,
+      "identifier": "minecraft:double_stone_slab2",
+      "displayName": "双层石台阶（第二组）"
+    },
+    {
+      "id": 182,
+      "identifier": "minecraft:stone_slab2",
+      "displayName": "石台阶（第二组）"
+    },
+    {
+      "id": 183,
+      "identifier": "minecraft:spruce_fence_gate",
+      "displayName": "云杉木栅栏门"
+    },
+    {
+      "id": 184,
+      "identifier": "minecraft:birch_fence_gate",
+      "displayName": "白桦木栅栏门"
+    },
+    {
+      "id": 185,
+      "identifier": "minecraft:jungle_fence_gate",
+      "displayName": "丛林木栅栏门"
+    },
+    {
+      "id": 186,
+      "identifier": "minecraft:dark_oak_fence_gate",
+      "displayName": "深色橡木栅栏门"
+    },
+    {
+      "id": 187,
+      "identifier": "minecraft:acacia_fence_gate",
+      "displayName": "金合欢木栅栏门"
+    },
+    {
+      "id": 188,
+      "identifier": "minecraft:repeating_command_block",
+      "displayName": "循环型命令方块"
+    },
+    {
+      "id": 189,
+      "identifier": "minecraft:chain_command_block",
+      "displayName": "锁链命令方块"
+    },
+    {
+      "id": 190,
+      "identifier": "minecraft:hard_glass_pane",
+      "displayName": "强化玻璃板"
+    },
+    {
+      "id": 191,
+      "identifier": "minecraft:hard_stained_glass_pane",
+      "displayName": "强化染色玻璃板"
+    },
+    {
+      "id": 192,
+      "identifier": "minecraft:chemical_heat",
+      "displayName": "加热块"
+    },
+    {
+      "id": 193,
+      "identifier": "minecraft:spruce_door",
+      "displayName": "云杉木门"
+    },
+    {
+      "id": 194,
+      "identifier": "minecraft:birch_door",
+      "displayName": "白桦木门"
+    },
+    {
+      "id": 195,
+      "identifier": "minecraft:jungle_door",
+      "displayName": "丛林木门"
+    },
+    {
+      "id": 196,
+      "identifier": "minecraft:acacia_door",
+      "displayName": "金合欢木门"
+    },
+    {
+      "id": 197,
+      "identifier": "minecraft:dark_oak_door",
+      "displayName": "深色橡木门"
+    },
+    {
+      "id": 198,
+      "identifier": "minecraft:grass_path",
+      "displayName": "土径"
+    },
+    {
+      "id": 199,
+      "identifier": "minecraft:frame",
+      "displayName": "物品展示框"
+    },
+    {
+      "id": 200,
+      "identifier": "minecraft:chorus_flower",
+      "displayName": "紫颂花"
+    },
+    {
+      "id": 201,
+      "identifier": "minecraft:purpur_block",
+      "displayName": "紫珀块"
+    },
+    {
+      "id": 202,
+      "identifier": "minecraft:colored_torch_rg",
+      "displayName": "彩色火把（红、绿）"
+    },
+    {
+      "id": 203,
+      "identifier": "minecraft:purpur_stairs",
+      "displayName": "紫珀楼梯"
+    },
+    {
+      "id": 204,
+      "identifier": "minecraft:colored_torch_bp",
+      "displayName": "彩色火把（蓝、紫）"
+    },
+    {
+      "id": 205,
+      "identifier": "minecraft:undyed_shulker_box",
+      "displayName": "潜影盒（未染色）"
+    },
+    {
+      "id": 206,
+      "identifier": "minecraft:end_bricks",
+      "displayName": "末地石砖"
+    },
+    {
+      "id": 207,
+      "identifier": "minecraft:frosted_ice",
+      "displayName": "霜冰"
+    },
+    {
+      "id": 208,
+      "identifier": "minecraft:end_rod",
+      "displayName": "末地烛"
+    },
+    {
+      "id": 209,
+      "identifier": "minecraft:end_gateway",
+      "displayName": "末地折跃门"
+    },
+    {
+      "id": 210,
+      "identifier": "minecraft:allow",
+      "displayName": "允许方块"
+    },
+    {
+      "id": 211,
+      "identifier": "minecraft:deny",
+      "displayName": "拒绝方块"
+    },
+    {
+      "id": 212,
+      "identifier": "minecraft:border_block",
+      "displayName": "边界方块"
+    },
+    {
+      "id": 213,
+      "identifier": "minecraft:magma",
+      "displayName": "岩浆块"
+    },
+    {
+      "id": 214,
+      "identifier": "minecraft:nether_wart_block",
+      "displayName": "下界疣块"
+    },
+    {
+      "id": 215,
+      "identifier": "minecraft:red_nether_brick",
+      "displayName": "红色下界砖块"
+    },
+    {
+      "id": 216,
+      "identifier": "minecraft:bone_block",
+      "displayName": "骨块"
+    },
+    {
+      "id": 217,
+      "identifier": "minecraft:structure_void",
+      "displayName": "结构空位"
+    },
+    {
+      "id": 218,
+      "identifier": "minecraft:shulker_box",
+      "displayName": "潜影盒"
+    },
+    {
+      "id": 219,
+      "identifier": "minecraft:purple_glazed_terracotta",
+      "displayName": "紫色带釉陶瓦"
+    },
+    {
+      "id": 220,
+      "identifier": "minecraft:white_glazed_terracotta",
+      "displayName": "白色带釉陶瓦"
+    },
+    {
+      "id": 221,
+      "identifier": "minecraft:orange_glazed_terracotta",
+      "displayName": "橙色带釉陶瓦"
+    },
+    {
+      "id": 222,
+      "identifier": "minecraft:magenta_glazed_terracotta",
+      "displayName": "品红色带釉陶瓦"
+    },
+    {
+      "id": 223,
+      "identifier": "minecraft:light_blue_glazed_terracotta",
+      "displayName": "淡蓝色带釉陶瓦"
+    },
+    {
+      "id": 224,
+      "identifier": "minecraft:yellow_glazed_terracotta",
+      "displayName": "黄色带釉陶瓦"
+    },
+    {
+      "id": 225,
+      "identifier": "minecraft:lime_glazed_terracotta",
+      "displayName": "黄绿色带釉陶瓦"
+    },
+    {
+      "id": 226,
+      "identifier": "minecraft:pink_glazed_terracotta",
+      "displayName": "粉红色带釉陶瓦"
+    },
+    {
+      "id": 227,
+      "identifier": "minecraft:gray_glazed_terracotta",
+      "displayName": "灰色带釉陶瓦"
+    },
+    {
+      "id": 228,
+      "identifier": "minecraft:silver_glazed_terracotta",
+      "displayName": "淡灰色带釉陶瓦"
+    },
+    {
+      "id": 229,
+      "identifier": "minecraft:cyan_glazed_terracotta",
+      "displayName": "青色带釉陶瓦"
+    },
+    {
+      "id": 230,
+      "identifier": "minecraft:chalkboard",
+      "displayName": "黑板"
+    },
+    {
+      "id": 231,
+      "identifier": "minecraft:blue_glazed_terracotta",
+      "displayName": "蓝色带釉陶瓦"
+    },
+    {
+      "id": 232,
+      "identifier": "minecraft:brown_glazed_terracotta",
+      "displayName": "棕色带釉陶瓦"
+    },
+    {
+      "id": 233,
+      "identifier": "minecraft:green_glazed_terracotta",
+      "displayName": "绿色带釉陶瓦"
+    },
+    {
+      "id": 234,
+      "identifier": "minecraft:red_glazed_terracotta",
+      "displayName": "红色带釉陶瓦"
+    },
+    {
+      "id": 235,
+      "identifier": "minecraft:black_glazed_terracotta",
+      "displayName": "黑色带釉陶瓦"
+    },
+    {
+      "id": 236,
+      "identifier": "minecraft:concrete",
+      "displayName": "混凝土"
+    },
+    {
+      "id": 237,
+      "identifier": "minecraft:concretePowder",
+      "displayName": "混凝土粉末"
+    },
+    {
+      "id": 238,
+      "identifier": "minecraft:chemistry_table",
+      "displayName": "化学工作台（旧版共用 ID）"
+    },
+    {
+      "id": 239,
+      "identifier": "minecraft:underwater_torch",
+      "displayName": "水下火把"
+    },
+    {
+      "id": 240,
+      "identifier": "minecraft:chorus_plant",
+      "displayName": "紫颂植株"
+    },
+    {
+      "id": 241,
+      "identifier": "minecraft:stained_glass",
+      "displayName": "染色玻璃"
+    },
+    {
+      "id": 242,
+      "identifier": "minecraft:camera",
+      "displayName": "摄像机"
+    },
+    {
+      "id": 243,
+      "identifier": "minecraft:podzol",
+      "displayName": "灰化土"
+    },
+    {
+      "id": 244,
+      "identifier": "minecraft:beetroot",
+      "displayName": "甜菜根"
+    },
+    {
+      "id": 245,
+      "identifier": "minecraft:stonecutter",
+      "displayName": "切石机（旧版）"
+    },
+    {
+      "id": 246,
+      "identifier": "minecraft:glowingobsidian",
+      "displayName": "发光的黑曜石"
+    },
+    {
+      "id": 247,
+      "identifier": "minecraft:netherreactor",
+      "displayName": "下界反应核"
+    },
+    {
+      "id": 248,
+      "identifier": "minecraft:info_update",
+      "displayName": "数据更新方块"
+    },
+    {
+      "id": 249,
+      "identifier": "minecraft:info_update2",
+      "displayName": "数据更新方块（第二种）"
+    },
+    {
+      "id": 250,
+      "identifier": "minecraft:movingBlock",
+      "displayName": "活塞移动方块"
+    },
+    {
+      "id": 251,
+      "identifier": "minecraft:observer",
+      "displayName": "侦测器"
+    },
+    {
+      "id": 252,
+      "identifier": "minecraft:structure_block",
+      "displayName": "结构方块"
+    },
+    {
+      "id": 253,
+      "identifier": "minecraft:hard_glass",
+      "displayName": "强化玻璃"
+    },
+    {
+      "id": 254,
+      "identifier": "minecraft:hard_stained_glass",
+      "displayName": "强化染色玻璃"
+    },
+    {
+      "id": 255,
+      "identifier": "minecraft:reserved6",
+      "displayName": "未命名预留方块（reserved6）"
+    }
+  ]
+}

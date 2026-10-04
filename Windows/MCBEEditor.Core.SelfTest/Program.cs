@@ -7,8 +7,45 @@ using MCBEEditor.Core.Nbt;
 using MCBEEditor.Core.LevelDB;
 using MCBEEditor.Core.World;
 
+if (args.SequenceEqual(new[] { "--dimension" }))
+{
+    DimensionTests.Run();
+    DimensionAddTests.Run();
+    DimensionEmptyTests.Run();
+    DimensionPurgeTests.Run();
+    DimensionCommandResolverTests.Run();
+    DimensionCommandContextTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--mcbe-snbt" }))
+{
+    McbeSnbtCodecTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--summon" }))
+{
+    SummonCommandTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--nbt-list-output" }))
+{
+    NbtOutputListTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--entity-query" }))
+{
+    EntityQueryTests.Run();
+    return;
+}
+
 if (args.SequenceEqual(new[] { "--cli-regression" }))
 {
+    NbtOutputListTests.Run();
+    EntityQueryTests.Run();
     EndMissingSubChunkTests.Run();
     PersistenceCompatibilityTests.Run();
     CommandExtensionTests.Run();
@@ -18,8 +55,10 @@ if (args.SequenceEqual(new[] { "--cli-regression" }))
     StorageAuditTests.Run();
     RegionAuditTests.Run();
     NbtConversionAuditTests.Run();
+    McbeSnbtCodecTests.Run();
     StructureAuditTests.Run();
     EntityUniqueIdEditTests.Run();
+    SummonCommandTests.Run();
     ObjectEditorRefreshTests.Run();
     Console.WriteLine("CLI-related existing core regressions passed.");
     return;
@@ -2630,6 +2669,14 @@ Console.WriteLine("MCBEEditor.Core self-test passed; typed state parsing, bulk f
 Console.WriteLine("MCBEEditor.Core self-test passed; X/Y/Z modes, 129-block mineral projection, missing-section air fallback, projected selection coordinates and height limits matched expectations.");
 Console.WriteLine("MCBEEditor.Core self-test passed; external colour override routing and bidirectional x/y/z projection matched expectations.");
 
+NbtOutputListTests.Run();
+EntityQueryTests.Run();
+DimensionTests.Run();
+DimensionAddTests.Run();
+DimensionEmptyTests.Run();
+    DimensionPurgeTests.Run();
+    DimensionCommandResolverTests.Run();
+    DimensionCommandContextTests.Run();
 EndMissingSubChunkTests.Run();
 PersistenceCompatibilityTests.Run();
 
@@ -2640,8 +2687,10 @@ BlockCommandAuditTests.Run();
 StorageAuditTests.Run();
 RegionAuditTests.Run();
 NbtConversionAuditTests.Run();
+McbeSnbtCodecTests.Run();
 StructureAuditTests.Run();
 EntityUniqueIdEditTests.Run();
+SummonCommandTests.Run();
 ObjectEditorRefreshTests.Run();
 
 sealed class SelfTestWorldDatabase : MCBEEditor.Core.World.IWorldDatabase

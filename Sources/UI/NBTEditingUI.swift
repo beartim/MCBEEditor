@@ -98,7 +98,7 @@ enum NBTEditingUI {
         sheet.addAction(UIAlertAction(title: "新建标签", style: .default) { _ in
             presentNewTag(from: presenter, container: container, sourceView: sourceView, completion: completion)
         })
-        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON…", style: .default) { _ in
+        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON／MCBE-SNBT (.txt)…", style: .default) { _ in
             presentImport(from: presenter, container: container, sourceView: sourceView, completion: completion)
         })
         if hasCopiedTag {
@@ -304,10 +304,10 @@ enum NBTEditingUI {
     ) {
         let sheet = UIAlertController(
             title: "新建 NBT 根标签",
-            message: "选择根标签类型，或从 nbt／mcstructure／json 文件导入。",
+            message: "选择根标签类型，或从 nbt／mcstructure／json／txt 文件导入。",
             preferredStyle: .actionSheet
         )
-        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON…", style: .default) { _ in
+        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON／MCBE-SNBT (.txt)…", style: .default) { _ in
             presentImportPicker(from: presenter) { documents, _ in
                 completion(documents)
                 presenter.navigationItem.prompt = documents.count == 1
@@ -360,7 +360,7 @@ enum NBTEditingUI {
         sheet.addAction(UIAlertAction(title: "新建标签", style: .default) { _ in
             presentNewTag(from: presenter, container: container, sourceView: sourceView, completion: completion)
         })
-        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON…", style: .default) { _ in
+        sheet.addAction(UIAlertAction(title: "导入 NBT／mcstructure／JSON／MCBE-SNBT (.txt)…", style: .default) { _ in
             presentImport(from: presenter, container: container, sourceView: sourceView, completion: completion)
         })
         sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
@@ -633,9 +633,9 @@ private final class NBTTagImportPickerCoordinator: NSObject, UIDocumentPickerDel
         defer { finish() }
         guard let presenter = presenter, let url = urls.first else { return }
         let ext = url.pathExtension.lowercased()
-        guard ext == "nbt" || ext == "mcstructure" || ext == "json" else {
+        guard ext == "nbt" || ext == "mcstructure" || ext == "json" || ext == "txt" else {
             presenter.showError(
-                MCBEEditorError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件"),
+                MCBEEditorError.unsupported("请选择 .nbt、.mcstructure、.json 或 MCBE-SNBT .txt 文件"),
                 title: "无法导入 NBT 标签"
             )
             return

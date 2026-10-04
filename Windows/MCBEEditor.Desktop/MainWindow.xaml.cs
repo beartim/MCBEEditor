@@ -318,8 +318,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_commandBatchRunning) return;
         var dialog = new OpenFileDialog
         {
-            Title = "选择 NBT / mcstructure / JSON 文件",
-            Filter = "NBT / mcstructure / JSON|*.nbt;*.mcstructure;*.json|NBT|*.nbt|mcstructure|*.mcstructure|JSON|*.json|所有文件|*.*",
+            Title = "选择 NBT / mcstructure / JSON / MCBE-SNBT 文件",
+            Filter = "NBT / mcstructure / JSON / MCBE-SNBT|*.nbt;*.mcstructure;*.json;*.txt|NBT|*.nbt|mcstructure|*.mcstructure|JSON|*.json|MCBE-SNBT (.txt)|*.txt|所有文件|*.*",
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != true) return;
@@ -1135,10 +1135,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        DimensionCommandContext dimensions;
+        try
+        {
+            using var database = _document.OpenDatabase(readOnly: true);
+            dimensions = DimensionCommandContext.FromDatabase(database);
+        }
+        catch (Exception ex)
+        {
+            CommandOutputRows.Add(new CommandOutputLine("Command.txt 维度预检失败：" + ex.Message, Brushes.Firebrick));
+            return;
+        }
         var syntaxErrors = new List<string>();
         foreach (var line in lines)
         {
-            try { ValidateCommandSyntax(line.Text); }
+            try { ValidateCommandSyntax(line.Text, dimensions); }
             catch (Exception ex) { syntaxErrors.Add($"第 {line.LineNumber} 行：{ex.Message}"); }
         }
         if (syntaxErrors.Count > 0)
@@ -1197,7 +1208,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private static void ValidateCommandSyntax(string text)
+    private Func<string,int> CommandDimensionResolver()
+    {
+        if(_document is null) throw new InvalidOperationException("请先打开世界。");
+        using var database=_document.OpenDatabase(readOnly:true);
+        var names=new DimensionStore(database).Snapshot().ToDictionary(row=>row.Name,row=>row.Id,StringComparer.Ordinal);
+        return token=>names.TryGetValue(token,out var id)?id:BlockCommandParser.ParseDimension(token);
+    }
+
+    private void ValidateCommandSyntax(string text, DimensionCommandContext? dimensions = null)
     {
         ValidateCommandName(text);
         try
@@ -1207,13 +1226,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 _ = HelpTextFor(text, validateOnly: true);
                 return;
             }
-            if (BlockCommandParser.IsBlockCommand(text)) { _ = BlockCommandParser.Parse(text); return; }
-            if (StorageBiomeCommandParser.IsStorageBiomeCommand(text)) { _ = StorageBiomeCommandParser.Parse(text); return; }
-            if (TargetingCommandParser.IsTargetingCommand(text)) { _ = TargetingCommandParser.Parse(text); return; }
-            if (EntityActionCommandParser.IsEntityActionCommand(text)) { _ = EntityActionCommandParser.Parse(text); return; }
-            if (EnvironmentCommandParser.IsEnvironmentCommand(text)) { _ = EnvironmentCommandParser.Parse(text); return; }
-            if (StructureTemplateCommandParser.IsStructureTemplateCommand(text)) { _ = StructureTemplateCommandParser.Parse(text); return; }
-            _ = ChunkCommandParser.Parse(text);
+            if (DimensionCommandParser.IsDimensionCommand(text))
+            {
+                var dimension = DimensionCommandParser.Parse(text);
+                dimensions?.Apply(dimension);
+                return;
+            }
+            Func<string, int> resolver = dimensions is null ? CommandDimensionResolver() : dimensions.Resolve;
+            if (BlockCommandParser.IsBlockCommand(text)) { _ = BlockCommandParser.Parse(text, resolver); return; }
+            if (StorageBiomeCommandParser.IsStorageBiomeCommand(text)) { _ = StorageBiomeCommandParser.Parse(text, resolver); return; }
+            if (TargetingCommandParser.IsTargetingCommand(text)) { _ = TargetingCommandParser.Parse(text, resolver); return; }
+            if (EntityActionCommandParser.IsEntityActionCommand(text)) { _ = EntityActionCommandParser.Parse(text, resolver); return; }
+            if (EntityQueryCommandParser.IsEntityQueryCommand(text)) { _ = EntityQueryCommandParser.Parse(text, resolver); return; }
+            if (EnvironmentCommandParser.IsEnvironmentCommand(text)) { _ = EnvironmentCommandParser.Parse(text, resolver); return; }
+            if (StructureTemplateCommandParser.IsStructureTemplateCommand(text)) { _ = StructureTemplateCommandParser.Parse(text, resolver); return; }
+            _ = ChunkCommandParser.Parse(text, resolver);
         }
         catch (InvalidDataException ex)
         {
@@ -1471,6 +1498,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StatusText = "help 完成。";
                 return;
             }
+            if (DimensionCommandParser.IsDimensionCommand(text))
+            {
+                await ExecuteDimensionCommandAsync(text);
+                return;
+            }
             if (BlockCommandParser.IsBlockCommand(text))
             {
                 await ExecuteBlockCommandAsync(text);
@@ -1491,6 +1523,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 await ExecuteEntityActionCommandAsync(text);
                 return;
             }
+            if (EntityQueryCommandParser.IsEntityQueryCommand(text))
+            {
+                await ExecuteEntityQueryCommandAsync(text);
+                return;
+            }
             if (EnvironmentCommandParser.IsEnvironmentCommand(text))
             {
                 await ExecuteEnvironmentCommandAsync(text);
@@ -1502,7 +1539,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            var request = ChunkCommandParser.Parse(text);
+            var request = ChunkCommandParser.Parse(text, CommandDimensionResolver());
             if (request.IsDestructive)
             {
                 var position = new ChunkPosition(request.X!.Value, request.Z!.Value, request.Dimension!.Value);
@@ -1528,7 +1565,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     }
                     else
                     {
-                        var dimensions = request.Dimension.HasValue ? new[] { request.Dimension.Value } : new[] { 0, 1, 2 };
+                        var dimensions = request.Dimension.HasValue ? new[] { request.Dimension.Value } : new DimensionStore(database).Snapshot().Select(row => row.Id).ToArray();
                         var order = dimensions.Select((value, index) => (value, index)).ToDictionary(item => item.value, item => item.index);
                         summaries = store.ListChunks()
                             .Where(item => order.ContainsKey(item.Position.Dimension))
@@ -1704,7 +1741,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ExecuteStorageBiomeCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = StorageBiomeCommandParser.Parse(text);
+        var request = StorageBiomeCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
 
         if (request is InfoStorageBiomeCommandRequest)
@@ -1800,7 +1837,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ExecuteTargetingCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = TargetingCommandParser.Parse(text);
+        var request = TargetingCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
 
         if (request is ExperienceTargetingCommandRequest { Operation: TargetingExperienceOperationKind.Query } query)
@@ -1895,10 +1932,63 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _ => Brushes.ForestGreen
     };
 
+    private async Task ExecuteDimensionCommandAsync(string text)
+    {
+        if (_document is null) throw new InvalidOperationException("请先打开世界。");
+        var request = DimensionCommandParser.Parse(text);
+        var document = _document;
+        if (request.IsDestructive && !ConfirmCommandMutation($"确认执行 dimension {request.Kind.ToString().ToLowerInvariant()} {request.Name} {request.Id}？\n\n修改工作副本，导出 .mcworld 后保存。"))
+        {
+            CommandOutputRows.Add(new CommandOutputLine("已取消。", Brushes.DimGray));
+            return;
+        }
+        _databaseBusy = true;
+        TargetingCommandExecutionResult result;
+        try
+        {
+            if (request.IsDestructive) await PrepareWorldMutationAsync(document);
+            StatusText = "正在执行 dimension…";
+            result = await Task.Run(() =>
+            {
+                using var database = document.OpenDatabase(readOnly: !request.IsDestructive);
+                return new DimensionCommandStore(database).Execute(request);
+            });
+            foreach (var line in result.OutputLines)
+                CommandOutputRows.Add(new CommandOutputLine(line.Text, Brushes.ForestGreen));
+            StatusText = result.Message;
+        }
+        finally { _databaseBusy = false; }
+        if (result.ChangedWorld) await LoadDatabaseAsync();
+    }
+
+    private async Task ExecuteEntityQueryCommandAsync(string text)
+    {
+        if (_document is null) throw new InvalidOperationException("请先打开世界。");
+        var request = EntityQueryCommandParser.Parse(text, CommandDimensionResolver());
+        var document = _document;
+        _databaseBusy = true;
+        try
+        {
+            StatusText = "正在执行 entity…";
+            var result = await Task.Run(() =>
+            {
+                using var database = document.OpenDatabase(readOnly: true);
+                return new EntityQueryCommandStore(database).Execute(request);
+            });
+            foreach (var line in result.OutputLines)
+                CommandOutputRows.Add(new CommandOutputLine(line.Text, TargetingOutputBrush(line.Style)));
+            StatusText = result.Message;
+        }
+        finally
+        {
+            _databaseBusy = false;
+        }
+    }
+
     private async Task ExecuteEntityActionCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = EntityActionCommandParser.Parse(text);
+        var request = EntityActionCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
         var actionText = request switch
         {
@@ -1906,7 +1996,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             GiveEntityActionCommandRequest give => $"give {give.Target.DisplayText} {give.Slot.DisplayText} {give.ItemIdentifier} × {give.Count}",
             KillEntityActionCommandRequest kill => $"kill {kill.Target.DisplayText} {(kill.KillCreativePlayers ? 1 : 0)}",
             KickEntityActionCommandRequest kick => $"kick {kick.Target.DisplayText}",
-            SummonEntityActionCommandRequest summon => $"summon {summon.Identifier} {CommandDimensionToken(summon.Dimension)} {TargetingCommandParser.CoordinateText(summon.X)} {TargetingCommandParser.CoordinateText(summon.Y)} {TargetingCommandParser.CoordinateText(summon.Z)}",
+            SummonEntityActionCommandRequest summon => $"summon {summon.Identifier} {CommandDimensionToken(summon.Dimension)} {TargetingCommandParser.CoordinateText(summon.X)} {TargetingCommandParser.CoordinateText(summon.Y)} {TargetingCommandParser.CoordinateText(summon.Z)} UniqueID={summon.UniqueId?.ToString(CultureInfo.InvariantCulture) ?? "Auto"}",
+            SummonNbtEntityActionCommandRequest summon => $"summon 完整 NBT（{summon.Tags.Count} 个标签）",
             EffectEntityActionCommandRequest effect => $"effect {effect.Operation.ToString().ToLowerInvariant()} {effect.Target.DisplayText} {effect.Selection.DisplayText}",
             _ => "对象状态命令"
         };
@@ -1935,6 +2026,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     KillEntityActionCommandRequest kill => store.Kill(kill),
                     KickEntityActionCommandRequest kick => store.Kick(kick),
                     SummonEntityActionCommandRequest summon => store.Summon(summon),
+                    SummonNbtEntityActionCommandRequest summon => store.Summon(summon),
                     EffectEntityActionCommandRequest effect => store.Effect(effect),
                     _ => throw new InvalidOperationException("无法执行未知命令。")
                 };
@@ -1949,14 +2041,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             CommandOutputRows.Add(new CommandOutputLine(line.Text, TargetingOutputBrush(line.Style)));
         StatusText = executionResult.Message;
         await LoadDatabaseAsync();
-        if (ObjectRows.Count > 0 || request is SummonEntityActionCommandRequest) await ScanObjectsAsync();
+        if (ObjectRows.Count > 0 || request is SummonEntityActionCommandRequest or SummonNbtEntityActionCommandRequest) await ScanObjectsAsync();
         if (HasRenderedMap) await RenderMapAsync();
     }
 
     private async Task ExecuteEnvironmentCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = EnvironmentCommandParser.Parse(text);
+        var request = EnvironmentCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
 
         if (!request.IsDestructive)
@@ -2043,7 +2135,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ExecuteStructureTemplateCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = StructureTemplateCommandParser.Parse(text);
+        var request = StructureTemplateCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
         if (request.Operation is StructureTemplateStructureOperationKind.Query or StructureTemplateStructureOperationKind.Import or StructureTemplateStructureOperationKind.Export)
         {
@@ -2116,7 +2208,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ExecuteBlockCommandAsync(string text)
     {
         if (_document is null) throw new InvalidOperationException("请先打开世界。");
-        var request = BlockCommandParser.Parse(text);
+        var request = BlockCommandParser.Parse(text, CommandDimensionResolver());
         var document = _document;
 
         if (request is GetBlockCommandRequest get)
@@ -2637,17 +2729,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var save = new SaveFileDialog
         {
             Title = "导出实体 NBT",
-            Filter = "Little Endian NBT (*.nbt)|*.nbt|Little Endian VarInt NBT (*.nbt)|*.nbt|Big Endian NBT (*.nbt)|*.nbt|JSON NBT (*.json)|*.json",
-            FilterIndex = 1, AddExtension = true, FileName = $"{safeIdentifier}-{suffix}.nbt"
+            Filter = "Little Endian NBT (*.nbt)|*.nbt|Little Endian VarInt NBT (*.nbt)|*.nbt|Big Endian NBT (*.nbt)|*.nbt|JSON NBT (*.json)|*.json|MCBE-SNBT (.txt)|*.txt",
+            FilterIndex = 1, AddExtension = true, FileName = $"{safeIdentifier}-{suffix}"
         };
         if (save.ShowDialog(this) != true) return;
         try
         {
+            var expectedExtension = save.FilterIndex == 5 ? ".txt" : save.FilterIndex == 4 ? ".json" : ".nbt";
+            if (!Path.GetExtension(save.FileName).Equals(expectedExtension, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"输出扩展名必须与所选格式一致：{expectedExtension}");
             byte[] data = save.FilterIndex switch
             {
                 2 => StandaloneNbtFileCodec.Encode([item.Document], NbtEncoding.LittleEndianVarInt),
                 3 => StandaloneNbtFileCodec.Encode([item.Document], NbtEncoding.BigEndian),
                 4 => StandaloneNbtFileCodec.EncodeJson([item.Document]),
+                5 => McbeSnbtCodec.Encode([item.Document]),
                 _ => StandaloneNbtFileCodec.Encode([item.Document], NbtEncoding.LittleEndian)
             };
             await File.WriteAllBytesAsync(save.FileName, data);
@@ -2885,8 +2981,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var picker = new OpenFileDialog
         {
-            Title = "选择实体 NBT / JSON",
-            Filter = "实体 NBT/JSON|*.nbt;*.json|NBT 文件|*.nbt|JSON 文件|*.json|所有文件|*.*",
+            Title = "选择实体 NBT / JSON / MCBE-SNBT",
+            Filter = "实体 NBT/JSON/MCBE-SNBT|*.nbt;*.json;*.txt|NBT 文件|*.nbt|JSON 文件|*.json|MCBE-SNBT (.txt)|*.txt|所有文件|*.*",
             Multiselect = false,
             CheckFileExists = true
         };

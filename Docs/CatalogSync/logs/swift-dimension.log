@@ -1,0 +1,5 @@
+Dimension add tests passed.
+Dimension safety regressions passed: unknown raw tags, longest village names and atomic ownership rejection.
+Dimension empty tests passed.
+Dimension purge tests passed.
+Dimension query tests passed.

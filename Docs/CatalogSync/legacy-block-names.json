@@ -1,0 +1,2050 @@
+[
+  {
+    "id": 0,
+    "identifier": "minecraft:air",
+    "previousName": "air",
+    "displayName": "空气",
+    "translationKey": "tile.air.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 1,
+    "identifier": "minecraft:stone",
+    "previousName": "stone",
+    "displayName": "石头",
+    "translationKey": "tile.stone.stone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 2,
+    "identifier": "minecraft:grass",
+    "previousName": "grass block",
+    "displayName": "草方块",
+    "translationKey": "tile.grass.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 3,
+    "identifier": "minecraft:dirt",
+    "previousName": "dirt",
+    "displayName": "泥土",
+    "translationKey": "tile.dirt.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 4,
+    "identifier": "minecraft:cobblestone",
+    "previousName": "cobblestone",
+    "displayName": "圆石",
+    "translationKey": "tile.cobblestone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 5,
+    "identifier": "minecraft:planks",
+    "previousName": "wooden planks",
+    "displayName": "木板",
+    "translationKey": "tile.planks.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 6,
+    "identifier": "minecraft:sapling",
+    "previousName": "sapling",
+    "displayName": "树苗",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 7,
+    "identifier": "minecraft:bedrock",
+    "previousName": "bedrock",
+    "displayName": "基岩",
+    "translationKey": "tile.bedrock.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 8,
+    "identifier": "minecraft:flowing_water",
+    "previousName": "flowing water",
+    "displayName": "流动的水",
+    "translationKey": "tile.flowing_water.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 9,
+    "identifier": "minecraft:water",
+    "previousName": "water",
+    "displayName": "水",
+    "translationKey": "tile.water.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 10,
+    "identifier": "minecraft:flowing_lava",
+    "previousName": "flowing lava",
+    "displayName": "流动的熔岩",
+    "translationKey": "tile.flowing_lava.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 11,
+    "identifier": "minecraft:lava",
+    "previousName": "lava",
+    "displayName": "熔岩",
+    "translationKey": "tile.lava.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 12,
+    "identifier": "minecraft:sand",
+    "previousName": "sand",
+    "displayName": "沙子",
+    "translationKey": "tile.sand.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 13,
+    "identifier": "minecraft:gravel",
+    "previousName": "gravel",
+    "displayName": "砂砾",
+    "translationKey": "tile.gravel.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 14,
+    "identifier": "minecraft:gold_ore",
+    "previousName": "gold ore",
+    "displayName": "金矿石",
+    "translationKey": "tile.gold_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 15,
+    "identifier": "minecraft:iron_ore",
+    "previousName": "iron ore",
+    "displayName": "铁矿石",
+    "translationKey": "tile.iron_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 16,
+    "identifier": "minecraft:coal_ore",
+    "previousName": "coal ore",
+    "displayName": "煤矿石",
+    "translationKey": "tile.coal_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 17,
+    "identifier": "minecraft:log",
+    "previousName": "log",
+    "displayName": "原木",
+    "translationKey": "tile.log.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 18,
+    "identifier": "minecraft:leaves",
+    "previousName": "leaves",
+    "displayName": "树叶",
+    "translationKey": "tile.leaves.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 19,
+    "identifier": "minecraft:sponge",
+    "previousName": "sponge",
+    "displayName": "海绵",
+    "translationKey": "tile.sponge.dry.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 20,
+    "identifier": "minecraft:glass",
+    "previousName": "glass",
+    "displayName": "玻璃",
+    "translationKey": "tile.glass.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 21,
+    "identifier": "minecraft:lapis_ore",
+    "previousName": "lapis ore",
+    "displayName": "青金石矿石",
+    "translationKey": "tile.lapis_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 22,
+    "identifier": "minecraft:lapis_block",
+    "previousName": "lapis block",
+    "displayName": "青金石块",
+    "translationKey": "tile.lapis_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 23,
+    "identifier": "minecraft:dispenser",
+    "previousName": "dispenser",
+    "displayName": "发射器",
+    "translationKey": "tile.dispenser.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 24,
+    "identifier": "minecraft:sandstone",
+    "previousName": "sandstone",
+    "displayName": "砂岩",
+    "translationKey": "tile.sandstone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 25,
+    "identifier": "minecraft:noteblock",
+    "previousName": "noteblock",
+    "displayName": "音符盒",
+    "translationKey": "tile.noteblock.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 26,
+    "identifier": "minecraft:bed",
+    "previousName": "bed",
+    "displayName": "床",
+    "translationKey": "tile.bed.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 27,
+    "identifier": "minecraft:golden_rail",
+    "previousName": "golden rail",
+    "displayName": "动力铁轨",
+    "translationKey": "tile.golden_rail.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 28,
+    "identifier": "minecraft:detector_rail",
+    "previousName": "detector rail",
+    "displayName": "探测铁轨",
+    "translationKey": "tile.detector_rail.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 29,
+    "identifier": "minecraft:sticky_piston",
+    "previousName": "sticky piston",
+    "displayName": "黏性活塞",
+    "translationKey": "tile.sticky_piston.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 30,
+    "identifier": "minecraft:web",
+    "previousName": "web",
+    "displayName": "蜘蛛网",
+    "translationKey": "tile.web.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 31,
+    "identifier": "minecraft:tallgrass",
+    "previousName": "tall grass",
+    "displayName": "矮草丛",
+    "translationKey": "tile.tallgrass.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 32,
+    "identifier": "minecraft:deadbush",
+    "previousName": "deadbush",
+    "displayName": "枯萎的灌木",
+    "translationKey": "tile.deadbush.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 33,
+    "identifier": "minecraft:piston",
+    "previousName": "piston",
+    "displayName": "活塞",
+    "translationKey": "tile.piston.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 34,
+    "identifier": "minecraft:pistonArmCollision",
+    "previousName": "piston arm collision",
+    "displayName": "活塞头",
+    "translationKey": "tile.piston_arm_collision.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 35,
+    "identifier": "minecraft:wool",
+    "previousName": "wool",
+    "displayName": "羊毛",
+    "translationKey": "tile.wool.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 36,
+    "identifier": "minecraft:element_0",
+    "previousName": "element 0",
+    "displayName": "未知元素",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 37,
+    "identifier": "minecraft:yellow_flower",
+    "previousName": "yellow flower",
+    "displayName": "蒲公英",
+    "translationKey": "tile.yellow_flower.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 38,
+    "identifier": "minecraft:red_flower",
+    "previousName": "red flower",
+    "displayName": "花（旧版红花组）",
+    "translationKey": "tile.red_flower.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 39,
+    "identifier": "minecraft:brown_mushroom",
+    "previousName": "brown mushroom",
+    "displayName": "棕色蘑菇",
+    "translationKey": "tile.brown_mushroom.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 40,
+    "identifier": "minecraft:red_mushroom",
+    "previousName": "red mushroom",
+    "displayName": "红蘑菇",
+    "translationKey": "tile.red_mushroom.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 41,
+    "identifier": "minecraft:gold_block",
+    "previousName": "gold block",
+    "displayName": "金块",
+    "translationKey": "tile.gold_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 42,
+    "identifier": "minecraft:iron_block",
+    "previousName": "iron block",
+    "displayName": "铁块",
+    "translationKey": "tile.iron_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 43,
+    "identifier": "minecraft:double_stone_slab",
+    "previousName": "double stone slab",
+    "displayName": "双层石台阶",
+    "translationKey": "tile.double_stone_slab.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 44,
+    "identifier": "minecraft:stone_slab",
+    "previousName": "stone slab",
+    "displayName": "石台阶",
+    "translationKey": "tile.stone_slab.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 45,
+    "identifier": "minecraft:brick_block",
+    "previousName": "brick block",
+    "displayName": "砖块",
+    "translationKey": "tile.brick_block.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 46,
+    "identifier": "minecraft:tnt",
+    "previousName": "tnt",
+    "displayName": "TNT（炸药）",
+    "translationKey": "tile.tnt.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 47,
+    "identifier": "minecraft:bookshelf",
+    "previousName": "bookshelf",
+    "displayName": "书架",
+    "translationKey": "tile.bookshelf.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 48,
+    "identifier": "minecraft:mossy_cobblestone",
+    "previousName": "mossy cobblestone",
+    "displayName": "苔石",
+    "translationKey": "tile.mossy_cobblestone.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 49,
+    "identifier": "minecraft:obsidian",
+    "previousName": "obsidian",
+    "displayName": "黑曜石",
+    "translationKey": "tile.obsidian.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 50,
+    "identifier": "minecraft:torch",
+    "previousName": "torch",
+    "displayName": "火把",
+    "translationKey": "tile.torch.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 51,
+    "identifier": "minecraft:fire",
+    "previousName": "fire",
+    "displayName": "火",
+    "translationKey": "tile.fire.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 52,
+    "identifier": "minecraft:mob_spawner",
+    "previousName": "mob spawner",
+    "displayName": "刷怪笼",
+    "translationKey": "tile.mob_spawner.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 53,
+    "identifier": "minecraft:oak_stairs",
+    "previousName": "oak stairs",
+    "displayName": "橡木楼梯",
+    "translationKey": "tile.oak_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 54,
+    "identifier": "minecraft:chest",
+    "previousName": "chest",
+    "displayName": "箱子",
+    "translationKey": "tile.chest.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 55,
+    "identifier": "minecraft:redstone_wire",
+    "previousName": "redstone wire",
+    "displayName": "红石粉",
+    "translationKey": "tile.redstone_wire.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 56,
+    "identifier": "minecraft:diamond_ore",
+    "previousName": "diamond ore",
+    "displayName": "钻石矿石",
+    "translationKey": "tile.diamond_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 57,
+    "identifier": "minecraft:diamond_block",
+    "previousName": "diamond block",
+    "displayName": "钻石块",
+    "translationKey": "tile.diamond_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 58,
+    "identifier": "minecraft:crafting_table",
+    "previousName": "crafting table",
+    "displayName": "工作台",
+    "translationKey": "tile.crafting_table.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 59,
+    "identifier": "minecraft:wheat",
+    "previousName": "wheat",
+    "displayName": "小麦",
+    "translationKey": "tile.wheat.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 60,
+    "identifier": "minecraft:farmland",
+    "previousName": "farmland",
+    "displayName": "耕地",
+    "translationKey": "tile.farmland.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 61,
+    "identifier": "minecraft:furnace",
+    "previousName": "furnace",
+    "displayName": "熔炉",
+    "translationKey": "tile.furnace.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 62,
+    "identifier": "minecraft:lit_furnace",
+    "previousName": "lit furnace",
+    "displayName": "燃烧中的熔炉",
+    "translationKey": "tile.lit_furnace.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 63,
+    "identifier": "minecraft:standing_sign",
+    "previousName": "standing sign",
+    "displayName": "告示牌",
+    "translationKey": "tile.standing_sign.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 64,
+    "identifier": "minecraft:wooden_door",
+    "previousName": "wooden door",
+    "displayName": "橡木门",
+    "translationKey": "tile.wooden_door.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 65,
+    "identifier": "minecraft:ladder",
+    "previousName": "ladder",
+    "displayName": "梯子",
+    "translationKey": "tile.ladder.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 66,
+    "identifier": "minecraft:rail",
+    "previousName": "rail",
+    "displayName": "铁轨",
+    "translationKey": "tile.rail.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 67,
+    "identifier": "minecraft:stone_stairs",
+    "previousName": "stone stairs",
+    "displayName": "圆石楼梯",
+    "translationKey": "tile.stone_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 68,
+    "identifier": "minecraft:wall_sign",
+    "previousName": "wall sign",
+    "displayName": "墙上的告示牌",
+    "translationKey": "tile.wall_sign.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 69,
+    "identifier": "minecraft:lever",
+    "previousName": "lever",
+    "displayName": "拉杆",
+    "translationKey": "tile.lever.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 70,
+    "identifier": "minecraft:stone_pressure_plate",
+    "previousName": "stone pressure plate",
+    "displayName": "石质压力板",
+    "translationKey": "tile.stone_pressure_plate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 71,
+    "identifier": "minecraft:iron_door",
+    "previousName": "iron door",
+    "displayName": "铁门",
+    "translationKey": "tile.iron_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 72,
+    "identifier": "minecraft:wooden_pressure_plate",
+    "previousName": "wooden pressure plate",
+    "displayName": "橡木压力板",
+    "translationKey": "tile.wooden_pressure_plate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 73,
+    "identifier": "minecraft:redstone_ore",
+    "previousName": "redstone ore",
+    "displayName": "红石矿石",
+    "translationKey": "tile.redstone_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 74,
+    "identifier": "minecraft:lit_redstone_ore",
+    "previousName": "lit redstone ore",
+    "displayName": "发光的红石矿石",
+    "translationKey": "tile.lit_redstone_ore.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 75,
+    "identifier": "minecraft:unlit_redstone_torch",
+    "previousName": "unlit redstone torch",
+    "displayName": "熄灭的红石火把",
+    "translationKey": "tile.unlit_redstone_torch.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 76,
+    "identifier": "minecraft:redstone_torch",
+    "previousName": "redstone torch",
+    "displayName": "点亮的红石火把",
+    "translationKey": "tile.redstone_torch.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 77,
+    "identifier": "minecraft:stone_button",
+    "previousName": "stone button",
+    "displayName": "石质按钮",
+    "translationKey": "tile.stone_button.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 78,
+    "identifier": "minecraft:snow_layer",
+    "previousName": "snow layer",
+    "displayName": "雪",
+    "translationKey": "tile.snow_layer.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 79,
+    "identifier": "minecraft:ice",
+    "previousName": "ice",
+    "displayName": "冰",
+    "translationKey": "tile.ice.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 80,
+    "identifier": "minecraft:snow",
+    "previousName": "snow",
+    "displayName": "雪块",
+    "translationKey": "tile.snow.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 81,
+    "identifier": "minecraft:cactus",
+    "previousName": "cactus",
+    "displayName": "仙人掌",
+    "translationKey": "tile.cactus.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 82,
+    "identifier": "minecraft:clay",
+    "previousName": "clay",
+    "displayName": "黏土",
+    "translationKey": "tile.clay.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 83,
+    "identifier": "minecraft:reeds",
+    "previousName": "reeds",
+    "displayName": "甘蔗",
+    "translationKey": "tile.reeds.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 84,
+    "identifier": "minecraft:jukebox",
+    "previousName": "jukebox",
+    "displayName": "唱片机",
+    "translationKey": "tile.jukebox.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 85,
+    "identifier": "minecraft:fence",
+    "previousName": "fence",
+    "displayName": "橡木栅栏",
+    "translationKey": "tile.fence.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 86,
+    "identifier": "minecraft:pumpkin",
+    "previousName": "pumpkin",
+    "displayName": "南瓜",
+    "translationKey": "tile.pumpkin.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 87,
+    "identifier": "minecraft:netherrack",
+    "previousName": "netherrack",
+    "displayName": "下界岩",
+    "translationKey": "tile.netherrack.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 88,
+    "identifier": "minecraft:soul_sand",
+    "previousName": "soul sand",
+    "displayName": "灵魂沙",
+    "translationKey": "tile.soul_sand.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 89,
+    "identifier": "minecraft:glowstone",
+    "previousName": "glowstone",
+    "displayName": "荧石",
+    "translationKey": "tile.glowstone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 90,
+    "identifier": "minecraft:portal",
+    "previousName": "portal",
+    "displayName": "下界传送门",
+    "translationKey": "tile.portal.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 91,
+    "identifier": "minecraft:lit_pumpkin",
+    "previousName": "lit pumpkin",
+    "displayName": "南瓜灯",
+    "translationKey": "tile.lit_pumpkin.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 92,
+    "identifier": "minecraft:cake",
+    "previousName": "cake",
+    "displayName": "蛋糕",
+    "translationKey": "tile.cake.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 93,
+    "identifier": "minecraft:unpowered_repeater",
+    "previousName": "unpowered repeater",
+    "displayName": "红石中继器（未激活）",
+    "translationKey": "tile.unpowered_repeater.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 94,
+    "identifier": "minecraft:powered_repeater",
+    "previousName": "powered repeater",
+    "displayName": "红石中继器（已激活）",
+    "translationKey": "tile.powered_repeater.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 95,
+    "identifier": "minecraft:invisibleBedrock",
+    "previousName": "invisible bedrock",
+    "displayName": "隐形基岩",
+    "translationKey": "tile.invisibleBedrock.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 96,
+    "identifier": "minecraft:trapdoor",
+    "previousName": "trapdoor",
+    "displayName": "橡木活板门",
+    "translationKey": "tile.trapdoor.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 97,
+    "identifier": "minecraft:monster_egg",
+    "previousName": "monster egg",
+    "displayName": "虫蚀方块",
+    "translationKey": "tile.monster_egg.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 98,
+    "identifier": "minecraft:stonebrick",
+    "previousName": "stone bricks",
+    "displayName": "石砖",
+    "translationKey": "tile.stonebrick.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 99,
+    "identifier": "minecraft:brown_mushroom_block",
+    "previousName": "brown mushroom block",
+    "displayName": "棕色蘑菇方块",
+    "translationKey": "tile.brown_mushroom_block.cap.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 100,
+    "identifier": "minecraft:red_mushroom_block",
+    "previousName": "red mushroom block",
+    "displayName": "红色蘑菇方块",
+    "translationKey": "tile.red_mushroom_block.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 101,
+    "identifier": "minecraft:iron_bars",
+    "previousName": "iron bars",
+    "displayName": "铁栏杆",
+    "translationKey": "tile.iron_bars.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 102,
+    "identifier": "minecraft:glass_pane",
+    "previousName": "glass pane",
+    "displayName": "玻璃板",
+    "translationKey": "tile.glass_pane.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 103,
+    "identifier": "minecraft:melon_block",
+    "previousName": "melon block",
+    "displayName": "西瓜",
+    "translationKey": "tile.melon_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 104,
+    "identifier": "minecraft:pumpkin_stem",
+    "previousName": "pumpkin stem",
+    "displayName": "南瓜茎",
+    "translationKey": "tile.pumpkin_stem.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 105,
+    "identifier": "minecraft:melon_stem",
+    "previousName": "melon stem",
+    "displayName": "西瓜茎",
+    "translationKey": "tile.melon_stem.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 106,
+    "identifier": "minecraft:vine",
+    "previousName": "vine",
+    "displayName": "藤蔓",
+    "translationKey": "tile.vine.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 107,
+    "identifier": "minecraft:fence_gate",
+    "previousName": "fence gate",
+    "displayName": "橡木栅栏门",
+    "translationKey": "tile.fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 108,
+    "identifier": "minecraft:brick_stairs",
+    "previousName": "brick stairs",
+    "displayName": "砖块楼梯",
+    "translationKey": "tile.brick_stairs.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 109,
+    "identifier": "minecraft:stone_brick_stairs",
+    "previousName": "stone brick stairs",
+    "displayName": "石砖楼梯",
+    "translationKey": "tile.stone_brick_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 110,
+    "identifier": "minecraft:mycelium",
+    "previousName": "mycelium",
+    "displayName": "菌丝体",
+    "translationKey": "tile.mycelium.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 111,
+    "identifier": "minecraft:waterlily",
+    "previousName": "waterlily",
+    "displayName": "睡莲",
+    "translationKey": "tile.waterlily.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 112,
+    "identifier": "minecraft:nether_brick",
+    "previousName": "nether brick",
+    "displayName": "下界砖块",
+    "translationKey": "tile.nether_brick.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 113,
+    "identifier": "minecraft:nether_brick_fence",
+    "previousName": "nether brick fence",
+    "displayName": "下界砖栅栏",
+    "translationKey": "tile.nether_brick_fence.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 114,
+    "identifier": "minecraft:nether_brick_stairs",
+    "previousName": "nether brick stairs",
+    "displayName": "下界砖楼梯",
+    "translationKey": "tile.nether_brick_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 115,
+    "identifier": "minecraft:nether_wart",
+    "previousName": "nether wart",
+    "displayName": "下界疣",
+    "translationKey": "tile.nether_wart.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 116,
+    "identifier": "minecraft:enchanting_table",
+    "previousName": "enchanting table",
+    "displayName": "附魔台",
+    "translationKey": "tile.enchanting_table.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 117,
+    "identifier": "minecraft:brewing_stand",
+    "previousName": "brewing stand",
+    "displayName": "酿造台",
+    "translationKey": "item.brewing_stand.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 118,
+    "identifier": "minecraft:cauldron",
+    "previousName": "cauldron",
+    "displayName": "炼药锅",
+    "translationKey": "tile.cauldron.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 119,
+    "identifier": "minecraft:end_portal",
+    "previousName": "end portal",
+    "displayName": "末地传送门",
+    "translationKey": "tile.end_portal.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 120,
+    "identifier": "minecraft:end_portal_frame",
+    "previousName": "end portal frame",
+    "displayName": "末地传送门框架",
+    "translationKey": "tile.end_portal_frame.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 121,
+    "identifier": "minecraft:end_stone",
+    "previousName": "end stone",
+    "displayName": "末地石",
+    "translationKey": "tile.end_stone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 122,
+    "identifier": "minecraft:dragon_egg",
+    "previousName": "dragon egg",
+    "displayName": "龙蛋",
+    "translationKey": "tile.dragon_egg.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 123,
+    "identifier": "minecraft:redstone_lamp",
+    "previousName": "redstone lamp",
+    "displayName": "红石灯",
+    "translationKey": "tile.redstone_lamp.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 124,
+    "identifier": "minecraft:lit_redstone_lamp",
+    "previousName": "lit redstone lamp",
+    "displayName": "点亮的红石灯",
+    "translationKey": "tile.lit_redstone_lamp.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 125,
+    "identifier": "minecraft:dropper",
+    "previousName": "dropper",
+    "displayName": "投掷器",
+    "translationKey": "tile.dropper.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 126,
+    "identifier": "minecraft:activator_rail",
+    "previousName": "activator rail",
+    "displayName": "激活铁轨",
+    "translationKey": "tile.activator_rail.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 127,
+    "identifier": "minecraft:cocoa",
+    "previousName": "cocoa",
+    "displayName": "可可",
+    "translationKey": "tile.cocoa.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 128,
+    "identifier": "minecraft:sandstone_stairs",
+    "previousName": "sandstone stairs",
+    "displayName": "砂岩楼梯",
+    "translationKey": "tile.sandstone_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 129,
+    "identifier": "minecraft:emerald_ore",
+    "previousName": "emerald ore",
+    "displayName": "绿宝石矿石",
+    "translationKey": "tile.emerald_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 130,
+    "identifier": "minecraft:ender_chest",
+    "previousName": "ender chest",
+    "displayName": "末影箱",
+    "translationKey": "tile.ender_chest.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 131,
+    "identifier": "minecraft:tripwire_hook",
+    "previousName": "tripwire hook",
+    "displayName": "绊线钩",
+    "translationKey": "tile.tripwire_hook.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 132,
+    "identifier": "minecraft:tripWire",
+    "previousName": "tripwire",
+    "displayName": "绊线",
+    "translationKey": "tile.tripWire.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 133,
+    "identifier": "minecraft:emerald_block",
+    "previousName": "emerald block",
+    "displayName": "绿宝石块",
+    "translationKey": "tile.emerald_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 134,
+    "identifier": "minecraft:spruce_stairs",
+    "previousName": "spruce stairs",
+    "displayName": "云杉木楼梯",
+    "translationKey": "tile.spruce_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 135,
+    "identifier": "minecraft:birch_stairs",
+    "previousName": "birch stairs",
+    "displayName": "白桦木楼梯",
+    "translationKey": "tile.birch_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 136,
+    "identifier": "minecraft:jungle_stairs",
+    "previousName": "jungle stairs",
+    "displayName": "丛林木楼梯",
+    "translationKey": "tile.jungle_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 137,
+    "identifier": "minecraft:command_block",
+    "previousName": "command block",
+    "displayName": "命令方块",
+    "translationKey": "tile.command_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 138,
+    "identifier": "minecraft:beacon",
+    "previousName": "beacon",
+    "displayName": "信标",
+    "translationKey": "tile.beacon.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 139,
+    "identifier": "minecraft:cobblestone_wall",
+    "previousName": "cobblestone wall",
+    "displayName": "圆石墙",
+    "translationKey": "tile.cobblestone_wall.normal.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 140,
+    "identifier": "minecraft:flower_pot",
+    "previousName": "flower pot",
+    "displayName": "花盆",
+    "translationKey": "tile.flower_pot.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 141,
+    "identifier": "minecraft:carrots",
+    "previousName": "carrots",
+    "displayName": "胡萝卜",
+    "translationKey": "tile.carrots.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 142,
+    "identifier": "minecraft:potatoes",
+    "previousName": "potatoes",
+    "displayName": "马铃薯",
+    "translationKey": "tile.potatoes.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 143,
+    "identifier": "minecraft:wooden_button",
+    "previousName": "wooden button",
+    "displayName": "橡木按钮",
+    "translationKey": "tile.wooden_button.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 144,
+    "identifier": "minecraft:skull",
+    "previousName": "skull",
+    "displayName": "生物头颅",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 145,
+    "identifier": "minecraft:anvil",
+    "previousName": "anvil",
+    "displayName": "铁砧",
+    "translationKey": "tile.anvil.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 146,
+    "identifier": "minecraft:trapped_chest",
+    "previousName": "trapped chest",
+    "displayName": "陷阱箱",
+    "translationKey": "tile.trapped_chest.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 147,
+    "identifier": "minecraft:light_weighted_pressure_plate",
+    "previousName": "light weighted pressure plate",
+    "displayName": "轻质测重压力板",
+    "translationKey": "tile.light_weighted_pressure_plate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 148,
+    "identifier": "minecraft:heavy_weighted_pressure_plate",
+    "previousName": "heavy weighted pressure plate",
+    "displayName": "重质测重压力板",
+    "translationKey": "tile.heavy_weighted_pressure_plate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 149,
+    "identifier": "minecraft:unpowered_comparator",
+    "previousName": "unpowered comparator",
+    "displayName": "红石比较器（未激活）",
+    "translationKey": "tile.unpowered_comparator.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 150,
+    "identifier": "minecraft:powered_comparator",
+    "previousName": "powered comparator",
+    "displayName": "红石比较器（已激活）",
+    "translationKey": "tile.powered_comparator.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 151,
+    "identifier": "minecraft:daylight_detector",
+    "previousName": "daylight detector",
+    "displayName": "阳光探测器",
+    "translationKey": "tile.daylight_detector.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 152,
+    "identifier": "minecraft:redstone_block",
+    "previousName": "redstone block",
+    "displayName": "红石块",
+    "translationKey": "tile.redstone_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 153,
+    "identifier": "minecraft:quartz_ore",
+    "previousName": "quartz ore",
+    "displayName": "下界石英矿石",
+    "translationKey": "tile.quartz_ore.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 154,
+    "identifier": "minecraft:hopper",
+    "previousName": "hopper",
+    "displayName": "漏斗",
+    "translationKey": "tile.hopper.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 155,
+    "identifier": "minecraft:quartz_block",
+    "previousName": "quartz block",
+    "displayName": "石英块",
+    "translationKey": "tile.quartz_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 156,
+    "identifier": "minecraft:quartz_stairs",
+    "previousName": "quartz stairs",
+    "displayName": "石英楼梯",
+    "translationKey": "tile.quartz_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 157,
+    "identifier": "minecraft:double_wooden_slab",
+    "previousName": "double wooden slab",
+    "displayName": "双层木台阶",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 158,
+    "identifier": "minecraft:wooden_slab",
+    "previousName": "wooden slab",
+    "displayName": "木台阶",
+    "translationKey": "tile.wooden_slab.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 159,
+    "identifier": "minecraft:stained_hardened_clay",
+    "previousName": "stained hardened clay",
+    "displayName": "染色陶瓦",
+    "translationKey": "tile.stained_hardened_clay.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 160,
+    "identifier": "minecraft:stained_glass_pane",
+    "previousName": "stained glass pane",
+    "displayName": "染色玻璃板",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 161,
+    "identifier": "minecraft:leaves2",
+    "previousName": "leaves 2",
+    "displayName": "树叶（第二组）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 162,
+    "identifier": "minecraft:log2",
+    "previousName": "log 2",
+    "displayName": "原木（第二组）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 163,
+    "identifier": "minecraft:acacia_stairs",
+    "previousName": "acacia stairs",
+    "displayName": "金合欢木楼梯",
+    "translationKey": "tile.acacia_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 164,
+    "identifier": "minecraft:dark_oak_stairs",
+    "previousName": "dark oak stairs",
+    "displayName": "深色橡木楼梯",
+    "translationKey": "tile.dark_oak_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 165,
+    "identifier": "minecraft:slime",
+    "previousName": "slime",
+    "displayName": "黏液块",
+    "translationKey": "tile.slime.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 166,
+    "identifier": "minecraft:unused_166",
+    "previousName": "未使用",
+    "displayName": "未使用",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 167,
+    "identifier": "minecraft:iron_trapdoor",
+    "previousName": "iron trapdoor",
+    "displayName": "铁活板门",
+    "translationKey": "tile.iron_trapdoor.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 168,
+    "identifier": "minecraft:prismarine",
+    "previousName": "prismarine",
+    "displayName": "海晶石",
+    "translationKey": "tile.prismarine.rough.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 169,
+    "identifier": "minecraft:seaLantern",
+    "previousName": "sea lantern",
+    "displayName": "海晶灯",
+    "translationKey": "tile.seaLantern.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 170,
+    "identifier": "minecraft:hay_block",
+    "previousName": "hay block",
+    "displayName": "干草块",
+    "translationKey": "tile.hay_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 171,
+    "identifier": "minecraft:carpet",
+    "previousName": "carpet",
+    "displayName": "地毯",
+    "translationKey": "tile.carpet.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 172,
+    "identifier": "minecraft:hardened_clay",
+    "previousName": "hardened clay",
+    "displayName": "陶瓦",
+    "translationKey": "tile.hardened_clay.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 173,
+    "identifier": "minecraft:coal_block",
+    "previousName": "coal block",
+    "displayName": "煤炭块",
+    "translationKey": "tile.coal_block.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 174,
+    "identifier": "minecraft:packed_ice",
+    "previousName": "packed ice",
+    "displayName": "浮冰",
+    "translationKey": "tile.packed_ice.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 175,
+    "identifier": "minecraft:double_plant",
+    "previousName": "double plant",
+    "displayName": "高花与高草丛",
+    "translationKey": "tile.double_plant.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 176,
+    "identifier": "minecraft:standing_banner",
+    "previousName": "standing banner",
+    "displayName": "旗帜",
+    "translationKey": "tile.standing_banner.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 177,
+    "identifier": "minecraft:wall_banner",
+    "previousName": "wall banner",
+    "displayName": "墙上的旗帜",
+    "translationKey": "tile.wall_banner.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 178,
+    "identifier": "minecraft:daylight_detector_inverted",
+    "previousName": "daylight detector inverted",
+    "displayName": "反向阳光探测器",
+    "translationKey": "tile.daylight_detector_inverted.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 179,
+    "identifier": "minecraft:red_sandstone",
+    "previousName": "red sandstone",
+    "displayName": "红砂岩",
+    "translationKey": "tile.red_sandstone.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 180,
+    "identifier": "minecraft:red_sandstone_stairs",
+    "previousName": "red sandstone stairs",
+    "displayName": "红砂岩楼梯",
+    "translationKey": "tile.red_sandstone_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 181,
+    "identifier": "minecraft:double_stone_slab2",
+    "previousName": "double stone slab 2",
+    "displayName": "双层石台阶（第二组）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 182,
+    "identifier": "minecraft:stone_slab2",
+    "previousName": "stone slab 2",
+    "displayName": "石台阶（第二组）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 183,
+    "identifier": "minecraft:spruce_fence_gate",
+    "previousName": "spruce fence gate",
+    "displayName": "云杉木栅栏门",
+    "translationKey": "tile.spruce_fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 184,
+    "identifier": "minecraft:birch_fence_gate",
+    "previousName": "birch fence gate",
+    "displayName": "白桦木栅栏门",
+    "translationKey": "tile.birch_fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 185,
+    "identifier": "minecraft:jungle_fence_gate",
+    "previousName": "jungle fence gate",
+    "displayName": "丛林木栅栏门",
+    "translationKey": "tile.jungle_fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 186,
+    "identifier": "minecraft:dark_oak_fence_gate",
+    "previousName": "dark oak fence gate",
+    "displayName": "深色橡木栅栏门",
+    "translationKey": "tile.dark_oak_fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 187,
+    "identifier": "minecraft:acacia_fence_gate",
+    "previousName": "acacia fence gate",
+    "displayName": "金合欢木栅栏门",
+    "translationKey": "tile.acacia_fence_gate.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 188,
+    "identifier": "minecraft:repeating_command_block",
+    "previousName": "repeating command block",
+    "displayName": "循环型命令方块",
+    "translationKey": "tile.repeating_command_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 189,
+    "identifier": "minecraft:chain_command_block",
+    "previousName": "chain command block",
+    "displayName": "锁链命令方块",
+    "translationKey": "tile.chain_command_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 190,
+    "identifier": "minecraft:hard_glass_pane",
+    "previousName": "hard glass pane",
+    "displayName": "强化玻璃板",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 191,
+    "identifier": "minecraft:hard_stained_glass_pane",
+    "previousName": "hard stained glass pane",
+    "displayName": "强化染色玻璃板",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 192,
+    "identifier": "minecraft:chemical_heat",
+    "previousName": "chemical heat",
+    "displayName": "加热块",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 193,
+    "identifier": "minecraft:spruce_door",
+    "previousName": "spruce door",
+    "displayName": "云杉木门",
+    "translationKey": "tile.spruce_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 194,
+    "identifier": "minecraft:birch_door",
+    "previousName": "birch door",
+    "displayName": "白桦木门",
+    "translationKey": "tile.birch_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 195,
+    "identifier": "minecraft:jungle_door",
+    "previousName": "jungle door",
+    "displayName": "丛林木门",
+    "translationKey": "tile.jungle_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 196,
+    "identifier": "minecraft:acacia_door",
+    "previousName": "acacia door",
+    "displayName": "金合欢木门",
+    "translationKey": "tile.acacia_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 197,
+    "identifier": "minecraft:dark_oak_door",
+    "previousName": "dark oak door",
+    "displayName": "深色橡木门",
+    "translationKey": "tile.dark_oak_door.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 198,
+    "identifier": "minecraft:grass_path",
+    "previousName": "grass path",
+    "displayName": "土径",
+    "translationKey": "tile.grass_path.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 199,
+    "identifier": "minecraft:frame",
+    "previousName": "frame",
+    "displayName": "物品展示框",
+    "translationKey": "tile.frame.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 200,
+    "identifier": "minecraft:chorus_flower",
+    "previousName": "chorus flower",
+    "displayName": "紫颂花",
+    "translationKey": "tile.chorus_flower.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 201,
+    "identifier": "minecraft:purpur_block",
+    "previousName": "purpur block",
+    "displayName": "紫珀块",
+    "translationKey": "tile.purpur_block.default.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 202,
+    "identifier": "minecraft:colored_torch_rg",
+    "previousName": "colored torch RG",
+    "displayName": "彩色火把（红、绿）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 203,
+    "identifier": "minecraft:purpur_stairs",
+    "previousName": "purpur stairs",
+    "displayName": "紫珀楼梯",
+    "translationKey": "tile.purpur_stairs.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 204,
+    "identifier": "minecraft:colored_torch_bp",
+    "previousName": "colored torch BP",
+    "displayName": "彩色火把（蓝、紫）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 205,
+    "identifier": "minecraft:undyed_shulker_box",
+    "previousName": "undyed shulker box",
+    "displayName": "潜影盒（未染色）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 206,
+    "identifier": "minecraft:end_bricks",
+    "previousName": "end bricks",
+    "displayName": "末地石砖",
+    "translationKey": "tile.end_bricks.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 207,
+    "identifier": "minecraft:frosted_ice",
+    "previousName": "frosted ice",
+    "displayName": "霜冰",
+    "translationKey": "tile.frosted_ice.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 208,
+    "identifier": "minecraft:end_rod",
+    "previousName": "end rod",
+    "displayName": "末地烛",
+    "translationKey": "tile.end_rod.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 209,
+    "identifier": "minecraft:end_gateway",
+    "previousName": "end gateway",
+    "displayName": "末地折跃门",
+    "translationKey": "tile.end_gateway.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 210,
+    "identifier": "minecraft:allow",
+    "previousName": "allow",
+    "displayName": "允许方块",
+    "translationKey": "tile.allow.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 211,
+    "identifier": "minecraft:deny",
+    "previousName": "deny",
+    "displayName": "拒绝方块",
+    "translationKey": "tile.deny.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 212,
+    "identifier": "minecraft:border_block",
+    "previousName": "border block",
+    "displayName": "边界方块",
+    "translationKey": "tile.border_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 213,
+    "identifier": "minecraft:magma",
+    "previousName": "magma",
+    "displayName": "岩浆块",
+    "translationKey": "tile.magma.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 214,
+    "identifier": "minecraft:nether_wart_block",
+    "previousName": "nether wart block",
+    "displayName": "下界疣块",
+    "translationKey": "tile.nether_wart_block.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 215,
+    "identifier": "minecraft:red_nether_brick",
+    "previousName": "red nether brick",
+    "displayName": "红色下界砖块",
+    "translationKey": "tile.red_nether_brick.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 216,
+    "identifier": "minecraft:bone_block",
+    "previousName": "bone block",
+    "displayName": "骨块",
+    "translationKey": "tile.bone_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 217,
+    "identifier": "minecraft:structure_void",
+    "previousName": "structure void",
+    "displayName": "结构空位",
+    "translationKey": "tile.structure_void.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 218,
+    "identifier": "minecraft:shulker_box",
+    "previousName": "shulker box",
+    "displayName": "潜影盒",
+    "translationKey": "tile.shulkerBox.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 219,
+    "identifier": "minecraft:purple_glazed_terracotta",
+    "previousName": "purple glazed terracotta",
+    "displayName": "紫色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.purple.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 220,
+    "identifier": "minecraft:white_glazed_terracotta",
+    "previousName": "white glazed terracotta",
+    "displayName": "白色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.white.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 221,
+    "identifier": "minecraft:orange_glazed_terracotta",
+    "previousName": "orange glazed terracotta",
+    "displayName": "橙色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.orange.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 222,
+    "identifier": "minecraft:magenta_glazed_terracotta",
+    "previousName": "magenta glazed terracotta",
+    "displayName": "品红色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.magenta.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 223,
+    "identifier": "minecraft:light_blue_glazed_terracotta",
+    "previousName": "light blue glazed terracotta",
+    "displayName": "淡蓝色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.light_blue.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 224,
+    "identifier": "minecraft:yellow_glazed_terracotta",
+    "previousName": "yellow glazed terracotta",
+    "displayName": "黄色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.yellow.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 225,
+    "identifier": "minecraft:lime_glazed_terracotta",
+    "previousName": "lime glazed terracotta",
+    "displayName": "黄绿色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.lime.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 226,
+    "identifier": "minecraft:pink_glazed_terracotta",
+    "previousName": "pink glazed terracotta",
+    "displayName": "粉红色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.pink.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 227,
+    "identifier": "minecraft:gray_glazed_terracotta",
+    "previousName": "gray glazed terracotta",
+    "displayName": "灰色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.gray.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 228,
+    "identifier": "minecraft:silver_glazed_terracotta",
+    "previousName": "silver glazed terracotta",
+    "displayName": "淡灰色带釉陶瓦",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 229,
+    "identifier": "minecraft:cyan_glazed_terracotta",
+    "previousName": "cyan glazed terracotta",
+    "displayName": "青色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.cyan.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 230,
+    "identifier": "minecraft:chalkboard",
+    "previousName": "chalkboard",
+    "displayName": "黑板",
+    "translationKey": "tile.chalkboard.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 231,
+    "identifier": "minecraft:blue_glazed_terracotta",
+    "previousName": "blue glazed terracotta",
+    "displayName": "蓝色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.blue.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 232,
+    "identifier": "minecraft:brown_glazed_terracotta",
+    "previousName": "brown glazed terracotta",
+    "displayName": "棕色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.brown.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 233,
+    "identifier": "minecraft:green_glazed_terracotta",
+    "previousName": "green glazed terracotta",
+    "displayName": "绿色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.green.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 234,
+    "identifier": "minecraft:red_glazed_terracotta",
+    "previousName": "red glazed terracotta",
+    "displayName": "红色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.red.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 235,
+    "identifier": "minecraft:black_glazed_terracotta",
+    "previousName": "black glazed terracotta",
+    "displayName": "黑色带釉陶瓦",
+    "translationKey": "tile.glazedTerracotta.black.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 236,
+    "identifier": "minecraft:concrete",
+    "previousName": "concrete",
+    "displayName": "混凝土",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 237,
+    "identifier": "minecraft:concretePowder",
+    "previousName": "concrete powder",
+    "displayName": "混凝土粉末",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 238,
+    "identifier": "minecraft:chemistry_table",
+    "previousName": "chemistry table",
+    "displayName": "化学工作台（旧版共用 ID）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 239,
+    "identifier": "minecraft:underwater_torch",
+    "previousName": "underwater torch",
+    "displayName": "水下火把",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 240,
+    "identifier": "minecraft:chorus_plant",
+    "previousName": "chorus plant",
+    "displayName": "紫颂植株",
+    "translationKey": "tile.chorus_plant.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 241,
+    "identifier": "minecraft:stained_glass",
+    "previousName": "stained glass",
+    "displayName": "染色玻璃",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 242,
+    "identifier": "minecraft:camera",
+    "previousName": "camera",
+    "displayName": "摄像机",
+    "translationKey": "tile.camera.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 243,
+    "identifier": "minecraft:podzol",
+    "previousName": "podzol",
+    "displayName": "灰化土",
+    "translationKey": "tile.podzol.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 244,
+    "identifier": "minecraft:beetroot",
+    "previousName": "beetroot",
+    "displayName": "甜菜根",
+    "translationKey": "tile.beetroot.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 245,
+    "identifier": "minecraft:stonecutter",
+    "previousName": "stonecutter",
+    "displayName": "切石机（旧版）",
+    "translationKey": "tile.stonecutter.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 246,
+    "identifier": "minecraft:glowingobsidian",
+    "previousName": "glowingobsidian",
+    "displayName": "发光的黑曜石",
+    "translationKey": "tile.glowingobsidian.name",
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 247,
+    "identifier": "minecraft:netherreactor",
+    "previousName": "netherreactor",
+    "displayName": "下界反应核",
+    "translationKey": "tile.netherreactor.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 248,
+    "identifier": "minecraft:info_update",
+    "previousName": "info update",
+    "displayName": "数据更新方块",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 249,
+    "identifier": "minecraft:info_update2",
+    "previousName": "info update2",
+    "displayName": "数据更新方块（第二种）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 250,
+    "identifier": "minecraft:movingBlock",
+    "previousName": "moving block",
+    "displayName": "活塞移动方块",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 251,
+    "identifier": "minecraft:observer",
+    "previousName": "observer",
+    "displayName": "侦测器",
+    "translationKey": "tile.observer.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 252,
+    "identifier": "minecraft:structure_block",
+    "previousName": "structure block",
+    "displayName": "结构方块",
+    "translationKey": "tile.structure_block.name",
+    "nameSource": "Mojang zh_CN.lang"
+  },
+  {
+    "id": 253,
+    "identifier": "minecraft:hard_glass",
+    "previousName": "hard glass",
+    "displayName": "强化玻璃",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 254,
+    "identifier": "minecraft:hard_stained_glass",
+    "previousName": "hard stained glass",
+    "displayName": "强化染色玻璃",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  },
+  {
+    "id": 255,
+    "identifier": "minecraft:reserved6",
+    "previousName": "reserved6",
+    "displayName": "未命名预留方块（reserved6）",
+    "translationKey": null,
+    "nameSource": "community terminology / legacy group description"
+  }
+]

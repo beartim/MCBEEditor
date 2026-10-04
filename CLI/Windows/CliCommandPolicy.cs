@@ -8,7 +8,9 @@ internal static class CliCommandPolicy
     {
         CliStructureFileRequest file => file.Core.Operation == StructureTemplateStructureOperationKind.Import,
         HelpCliCommand => false,
+        DimensionCommandRequest request => request.IsDestructive,
         GetBlockCommandRequest => false,
+        EntityQueryCommandRequest => false,
         BlockCommandRequest => true,
         StorageBiomeCommandRequest request => request.IsDestructive,
         TargetingCommandRequest request => request.IsDestructive,

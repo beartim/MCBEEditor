@@ -466,8 +466,8 @@ public sealed class NbtEditorWindow : Window
         {
             Title = "导出所选 NBT",
             Filter = documents.Length == 1
-                ? "NBT file (*.nbt)|*.nbt|JSON NBT (*.json)|*.json|mcstructure (*.mcstructure)|*.mcstructure"
-                : "连续 NBT (*.nbt)|*.nbt|JSON NBT (*.json)|*.json",
+                ? "NBT file (*.nbt)|*.nbt|JSON NBT (*.json)|*.json|MCBE-SNBT (.txt)|*.txt|mcstructure (*.mcstructure)|*.mcstructure"
+                : "连续 NBT (*.nbt)|*.nbt|JSON NBT (*.json)|*.json|MCBE-SNBT (.txt)|*.txt",
             FileName = $"nbt-selected-{documents.Length}.nbt",
             AddExtension = true
         };
@@ -477,6 +477,7 @@ public sealed class NbtEditorWindow : Window
             var extension = Path.GetExtension(dialog.FileName).ToLowerInvariant();
             byte[] data;
             if (extension == ".json") data = StandaloneNbtFileCodec.EncodeJson(documents);
+            else if (extension == ".txt") data = McbeSnbtCodec.Encode(documents);
             else if (extension == ".mcstructure") data = StandaloneNbtFileCodec.EncodeAsMcStructure(documents).Data;
             else data = StandaloneNbtFileCodec.Encode(documents, _fileEncoding);
             File.WriteAllBytes(dialog.FileName, data);
@@ -719,7 +720,7 @@ public sealed class NbtEditorWindow : Window
             MessageBox.Show(this, "请选择 Compound 或 List 作为导入目标。", "MCBEEditor", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        var dialog = new OpenFileDialog { Filter = "NBT / mcstructure / JSON (*.nbt;*.mcstructure;*.json;*.dat)|*.nbt;*.mcstructure;*.json;*.dat|All files (*.*)|*.*", CheckFileExists = true };
+        var dialog = new OpenFileDialog { Filter = "NBT / mcstructure / JSON / MCBE-SNBT|*.nbt;*.mcstructure;*.json;*.txt;*.dat|MCBE-SNBT (.txt)|*.txt|All files (*.*)|*.*", CheckFileExists = true };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
@@ -745,12 +746,18 @@ public sealed class NbtEditorWindow : Window
         if (_selected is null) return;
         var safeName = string.Join('_', (_selected.IsRoot ? "root" : _selected.Name).Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
         if (string.IsNullOrWhiteSpace(safeName)) safeName = "nbt";
-        var dialog = new SaveFileDialog { Filter = "NBT file (*.nbt)|*.nbt|All files (*.*)|*.*", FileName = safeName + ".nbt", AddExtension = true };
+        var dialog = new SaveFileDialog { Filter = "NBT file (*.nbt)|*.nbt|JSON NBT (*.json)|*.json|MCBE-SNBT (.txt)|*.txt|All files (*.*)|*.*", FileName = safeName + ".nbt", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
-            var document = new NbtDocument(_selected.IsRoot ? _rootName : _selected.Name, _selected.BuildValue());
-            File.WriteAllBytes(dialog.FileName, NbtFileCodec.Encode(document, _fileEncoding));
+            var document = DocumentForNode(_selected);
+            var data = Path.GetExtension(dialog.FileName).ToLowerInvariant() switch
+            {
+                ".txt" => McbeSnbtCodec.Encode([document]),
+                ".json" => StandaloneNbtFileCodec.EncodeJson([document]),
+                _ => NbtFileCodec.Encode(document, _fileEncoding)
+            };
+            File.WriteAllBytes(dialog.FileName, data);
             _hintText.Text = $"已导出：{dialog.FileName}";
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "导出 NBT 失败", MessageBoxButton.OK, MessageBoxImage.Error); }

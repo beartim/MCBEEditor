@@ -9,7 +9,8 @@ internal enum CliConversionFormat
     LittleEndian,
     LittleVarInt,
     Json,
-    Mcstructure
+    Mcstructure,
+    Txt
 }
 
 internal sealed record CliConversionRequest(
@@ -21,10 +22,10 @@ internal sealed record CliConversionRequest(
 internal static class CliFormatConverter
 {
     public const string Usage = """
-mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|little-varint|json|mcstructure --output "输出文件" [--overwrite]
+mcbe-cli --convert "输入.nbt|mcstructure|json|txt" --to big-endian|little-endian|little-varint|json|mcstructure|txt --output "输出文件" [--overwrite]
 
-输入自动识别 JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 与 GZip/Zlib 包装。
-输出 binary NBT 均为未压缩；JSON 保留 NBT 类型；mcstructure 仅支持单根结构 NBT，并可自动将 Java structure NBT 转为 Bedrock mcstructure。
+输入自动识别 MCBE-SNBT (.txt)、JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 与 GZip/Zlib 包装。
+输出 binary NBT 均为未压缩；JSON 和 MCBE-SNBT 保留 NBT 类型；txt 也接受 mcbe-snbt 别名，目标扩展名必须为 .txt；mcstructure 仅支持单根结构 NBT，并可自动将 Java structure NBT 转为 Bedrock mcstructure。
 """;
 
     public static int Run(string[] args, TextWriter output)
@@ -77,7 +78,8 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
             "little-varint" => CliConversionFormat.LittleVarInt,
             "json" => CliConversionFormat.Json,
             "mcstructure" => CliConversionFormat.Mcstructure,
-            _ => throw new CliInputException($"未知输出格式：{formatText}。支持 big-endian、little-endian、little-varint、json、mcstructure。")
+            "txt" or "mcbe-snbt" => CliConversionFormat.Txt,
+            _ => throw new CliInputException($"未知输出格式：{formatText}。支持 big-endian、little-endian、little-varint、json、mcstructure、txt (mcbe-snbt)。")
         };
         return new CliConversionRequest(Path.GetFullPath(input), Path.GetFullPath(output), format, overwrite);
     }
@@ -90,6 +92,7 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
         {
             CliConversionFormat.Json => ".json",
             CliConversionFormat.Mcstructure => ".mcstructure",
+            CliConversionFormat.Txt => ".txt",
             _ => ".nbt"
         };
         if (!Path.GetExtension(request.OutputPath).Equals(expectedExtension, StringComparison.OrdinalIgnoreCase))
@@ -108,6 +111,7 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
                 CliConversionFormat.LittleEndian => StandaloneNbtFileCodec.Encode(decoded.Documents, NbtEncoding.LittleEndian),
                 CliConversionFormat.LittleVarInt => StandaloneNbtFileCodec.Encode(decoded.Documents, NbtEncoding.LittleEndianVarInt),
                 CliConversionFormat.Json => StandaloneNbtFileCodec.EncodeJson(decoded.Documents),
+                CliConversionFormat.Txt => McbeSnbtCodec.Encode(decoded.Documents),
                 CliConversionFormat.Mcstructure => EncodeMcstructure(decoded.Documents, out conversion),
                 _ => throw new InvalidDataException("未知转换格式。")
             };
@@ -137,6 +141,7 @@ mcbe-cli --convert "输入.nbt|mcstructure|json" --to big-endian|little-endian|l
             CliConversionFormat.LittleVarInt => "Little Endian VarInt NBT",
             CliConversionFormat.Json => "JSON NBT",
             CliConversionFormat.Mcstructure => "Bedrock mcstructure",
+            CliConversionFormat.Txt => "MCBE-SNBT (.txt)",
             _ => request.Format.ToString()
         };
         var message = $"格式转换完成：{request.OutputPath}\n输入：{decoded.FormatDescription}\n输出：{target}；根标签={decoded.Documents.Count}";

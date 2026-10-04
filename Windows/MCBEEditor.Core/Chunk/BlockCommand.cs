@@ -27,7 +27,7 @@ public static class BlockCommandParser
         return command is "setblock" or "fill" or "clone" or "getblock";
     }
 
-    public static BlockCommandRequest Parse(string text)
+    public static BlockCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = TokenizeCommand(text);
         if (tokens.Count == 0) throw new InvalidDataException("命令不能为空。");
@@ -35,44 +35,44 @@ public static class BlockCommandParser
         var arguments = tokens.Skip(1).ToArray();
         return command switch
         {
-            "setblock" => ParseSetBlock(arguments),
-            "fill" => ParseFill(arguments),
-            "clone" => ParseClone(arguments),
-            "getblock" => ParseGetBlock(arguments),
+            "setblock" => ParseSetBlock(arguments, dimensionResolver),
+            "fill" => ParseFill(arguments, dimensionResolver),
+            "clone" => ParseClone(arguments, dimensionResolver),
+            "getblock" => ParseGetBlock(arguments, dimensionResolver),
             _ => throw new InvalidDataException("不存在的方块命令。\n" + Usage)
         };
     }
 
-    private static SetBlockCommandRequest ParseSetBlock(string[] args)
+    private static SetBlockCommandRequest ParseSetBlock(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length < 6 || (args.Length - 4) % 2 != 0) throw UsageError();
         var count = (args.Length - 4) / 2;
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("setblock 必须提供 1…255 个 storage。");
-        return new SetBlockCommandRequest(ParseDimension(args[0]), Coordinate(args, 1), ParseStorages(args, 4, count));
+        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), Coordinate(args, 1), ParseStorages(args, 4, count));
     }
 
-    private static FillBlockCommandRequest ParseFill(string[] args)
+    private static FillBlockCommandRequest ParseFill(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length < 9 || (args.Length - 7) % 2 != 0) throw UsageError();
         var count = (args.Length - 7) / 2;
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("fill 必须提供 1…255 个 storage。");
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
-        return new FillBlockCommandRequest(ParseDimension(args[0]), new BedrockBlockBox(first, second), ParseStorages(args, 7, count));
+        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count));
     }
 
-    private static CloneBlockCommandRequest ParseClone(string[] args)
+    private static CloneBlockCommandRequest ParseClone(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length != 11) throw UsageError();
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
-        return new CloneBlockCommandRequest(ParseDimension(args[0]), new BedrockBlockBox(first, second), ParseDimension(args[7]), Coordinate(args, 8));
+        return new CloneBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseDimension(args[7], dimensionResolver), Coordinate(args, 8));
     }
 
-    private static GetBlockCommandRequest ParseGetBlock(string[] args)
+    private static GetBlockCommandRequest ParseGetBlock(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length != 4) throw UsageError();
-        return new GetBlockCommandRequest(ParseDimension(args[0]), Coordinate(args, 1));
+        return new GetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), Coordinate(args, 1));
     }
 
     private static IReadOnlyList<BedrockBlockStorageSpec> ParseStorages(string[] args, int offset, int count)
@@ -98,13 +98,17 @@ public static class BlockCommandParser
         return tags;
     }
 
-    public static int ParseDimension(string text) => text.ToLowerInvariant() switch
+    public static int ParseDimension(string text, Func<string,int>? dimensionResolver = null)
     {
-        "overworld" => 0,
-        "nether" => 1,
-        "the_end" => 2,
-        _ => throw new InvalidDataException($"维度名称无效：{text}。只能使用 overworld、nether 或 the_end。")
-    };
+        if(dimensionResolver is not null) return dimensionResolver(text);
+        return text.ToLowerInvariant() switch
+        {
+            "overworld" or "minecraft:overworld"=>0,
+            "nether" or "minecraft:nether"=>1,
+            "the_end" or "minecraft:the_end"=>2,
+            _=>int.TryParse(text,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var id)?id:throw new InvalidDataException($"维度名称或Int32 ID无效：{text}")
+        };
+    }
 
     private static BedrockBlockCoordinate Coordinate(string[] args, int offset)
         => new(ParseInt(args[offset], "X"), ParseInt(args[offset + 1], "Y"), ParseInt(args[offset + 2], "Z"));
@@ -413,17 +417,23 @@ public static class BlockCommandNbtOutputFormatter
     }
 
     private static string ListDescriptor(NbtListValue list)
-        => "'List'" + ElementDescriptor(list.ElementType, list.Values);
+        => "'List'" + (CommonElementDescriptor(list.ElementType, list.Values) ?? "'List'");
 
-    private static string ElementDescriptor(NbtTagType type, IReadOnlyList<NbtValue> values)
+    private static string? CommonElementDescriptor(NbtTagType type, IReadOnlyList<NbtValue> values)
     {
         if (type != NbtTagType.List) return $"'{type}'";
-        var child = values.OfType<NbtListValue>().FirstOrDefault();
+        string? common = null;
+        foreach (var child in values.OfType<NbtListValue>())
+        {
+            var descriptor = CommonElementDescriptor(child.ElementType, child.Values);
+            if (descriptor is null || common is not null && descriptor != common) return null;
+            common = descriptor;
+        }
         // An empty List<List<...>> has no inner runtime value from which the
         // command-only descriptor can be recovered. Byte is a lossless
         // placeholder here because the outer empty list still keeps
         // ElementType=List after parsing.
-        return "'List'" + (child is null ? "'Byte'" : ElementDescriptor(child.ElementType, child.Values));
+        return "'List'" + (common ?? "'Byte'");
     }
 
     private static string ValueText(NbtValue value) => value switch
@@ -444,7 +454,14 @@ public static class BlockCommandNbtOutputFormatter
     };
 
     private static string ListPayload(IReadOnlyList<NbtValue> values, NbtTagType elementType, char terminator)
-        => string.Join(",", values.Select(value => ListElementText(value, elementType, terminator)));
+    {
+        // NBT List<List> children can declare different element types. Preserve
+        // each child's exact type when one shared descriptor would lose it.
+        var typedChildren = elementType == NbtTagType.List && CommonElementDescriptor(elementType, values) is null;
+        return string.Join(",", values.Select(value => typedChildren && value is NbtListValue child
+            ? $"[{ListDescriptor(child)}=[{ListPayload(child.Values, child.ElementType, ']')}]]"
+            : ListElementText(value, elementType, terminator)));
+    }
 
     private static string ListElementText(NbtValue value, NbtTagType elementType, char terminator)
     {

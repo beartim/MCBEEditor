@@ -711,6 +711,9 @@ final class BedrockWorldObjectScanner {
     let stableID: String
     if source == .modernActor {
       stableID = "actorprefix:\(storage.primaryKey.hexString):\(index)"
+    } else if source == .legacyChunkEntity {
+      // UniqueID may be edited or duplicated; each stored record stays visible.
+      stableID = "legacy:\(storage.primaryKey.hexString):\(index)"
     } else if let uniqueID = uniqueID {
       stableID = "actor:\(uniqueID)"
     } else if let position = position {
@@ -768,6 +771,9 @@ final class BedrockWorldObjectScanner {
           return definition
         }
         return "数字实体ID:\(numericID)"
+      }
+      if let definition = firstEntityDefinitionIdentifier(root: root) {
+        return definition
       }
     } else if let raw = root.stringValue(namedAny: primaryNames) {
       let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)

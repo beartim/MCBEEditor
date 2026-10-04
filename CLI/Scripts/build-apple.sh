@@ -72,6 +72,7 @@ if [[ "$CHECK" == --test ]]; then
   python3 "$ROOT/CLI/Tests/session_smoke.py" -- "$BINARY"
   python3 "$ROOT/CLI/Tests/environment_smoke.py" -- "$BINARY"
   python3 "$ROOT/CLI/Tests/nbt_conversion_smoke.py" -- "$BINARY"
+  python3 "$ROOT/CLI/Tests/mcbe_snbt_smoke.py" --backend cli -- "$BINARY"
   python3 "$ROOT/CLI/Tests/structure_file_smoke.py" -- "$BINARY"
   cmake --build "$NATIVE" --config Release --target mcbe_cli_create_test_db --parallel 3
   xcrun --sdk macosx swiftc "${swift_options[@]}" "${test_sources[@]}" \

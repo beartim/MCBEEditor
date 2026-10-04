@@ -10,12 +10,12 @@ namespace MCBEEditor.Desktop;
 
 internal static class StructureFileDialogs
 {
-    private const string ExportFilter = "Bedrock mcstructure|*.mcstructure|NBT · Big Endian|*.nbt|JSON NBT|*.json";
+    private const string ExportFilter = "Bedrock mcstructure|*.mcstructure|NBT · Big Endian|*.nbt|JSON NBT|*.json|MCBE-SNBT (.txt)|*.txt";
     private static TargetingCommandExecutionResult Cancelled => TargetingCommandExecutionResult.Success("已取消。", false);
 
     public static async Task<TargetingCommandExecutionResult> ImportAsync(Window owner, WorldDocument world, Func<Task> prepareMutation, string? name = null)
     {
-        var open = new OpenFileDialog { Title = "导入结构", Filter = "结构文件|*.mcstructure;*.nbt;*.json|所有文件|*.*", Multiselect = false };
+        var open = new OpenFileDialog { Title = "导入结构", Filter = "结构文件|*.mcstructure;*.nbt;*.json;*.txt|MCBE-SNBT (.txt)|*.txt|所有文件|*.*", Multiselect = false };
         if (open.ShowDialog(owner) != true) return Cancelled;
         var file = await Task.Run(() => StandaloneNbtFileCodec.Decode(File.ReadAllBytes(open.FileName), open.FileName));
         if (file.Documents.Count != 1) throw new InvalidDataException("结构文件必须只包含一个 NBT 根标签。");
@@ -81,7 +81,12 @@ internal static class StructureFileDialogs
     public static void ExportMany(Window owner, IReadOnlyList<StructureNbtRecord> records)
     {
         var choices = Enum.GetValues<StructureFileFormat>();
-        var selection = Choose(owner, "选择结构导出格式", choices.Select(f => new FormatChoice(f)).ToArray(), x => x.Format == StructureFileFormat.Nbt ? "NBT · Big Endian (.nbt)" : "." + Extension(x.Format));
+        var selection = Choose(owner, "选择结构导出格式", choices.Select(f => new FormatChoice(f)).ToArray(), x => x.Format switch
+        {
+            StructureFileFormat.Nbt => "NBT · Big Endian (.nbt)",
+            StructureFileFormat.Txt => "MCBE-SNBT (.txt)",
+            _ => "." + Extension(x.Format)
+        });
         if (selection is null) return;
         var format = selection.Format;
         // Validate all records before writing any selected structure.
@@ -109,7 +114,7 @@ internal static class StructureFileDialogs
         return string.IsNullOrEmpty(name) ? "structure" : name[..Math.Min(120, name.Length)];
     }
 
-    private static T? Choose<T>(Window owner, string title, IReadOnlyList<T> values, Func<T, string> label) where T : class
+    internal static T? Choose<T>(Window owner, string title, IReadOnlyList<T> values, Func<T, string> label) where T : class
     {
         var window = new Window { Owner = owner, Title = title, Width = 520, Height = 190, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var panel = new StackPanel { Margin = new Thickness(16) };

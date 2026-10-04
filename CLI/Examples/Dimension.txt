@@ -1,0 +1,17 @@
+dimension query
+dimension add bear 1003
+dimension add wzn:demo 1004
+setblock bear 0 64 0 minecraft:stone NULL
+getblock 1003 0 64 0
+fill wzn:demo 0 64 0 1 64 1 minecraft:stone NULL
+clone bear 0 64 0 0 64 0 wzn:demo 2 64 2
+storage query bear 0 64 0
+structure save wzn:dimension_demo bear 0 64 0 0 64 0
+structure load wzn:dimension_demo wzn:demo 4 64 4
+summon minecraft:pig wzn:demo 0 65 0 default Auto
+entity wzn:demo
+tickingarea add circle bear 0 0 1 Demo 0
+tickingarea list 1003
+dimension empty wzn:demo
+dimension purge bear
+dimension query

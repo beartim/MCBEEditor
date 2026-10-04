@@ -28,13 +28,15 @@ mcbe-cli --convert "input.nbt" --to little-endian --output "output-little.nbt"
 mcbe-cli --convert "input.nbt" --to little-varint --output "output-varint.nbt"
 mcbe-cli --convert "input.mcstructure" --to json --output "output.json"
 mcbe-cli --convert "java-structure.nbt" --to mcstructure --output "output.mcstructure"
+mcbe-cli --convert "input.nbt" --to txt --output "output.txt"
+mcbe-cli --convert "entity.txt" --to little-endian --output "entity.nbt"
 ```
 
-可用 `mcbe-cli --help convert` 查看同一说明。输出文件已存在时默认拒绝覆盖；显式加 `--overwrite` 才覆盖。输出扩展名必须与目标格式匹配：前三种二进制编码使用 `.nbt`，JSON 使用 `.json`，Bedrock structure 使用 `.mcstructure`。
+可用 `mcbe-cli --help convert` 查看同一说明。输出文件已存在时默认拒绝覆盖；显式加 `--overwrite` 才覆盖。输出扩展名必须与目标格式匹配：前三种二进制编码使用 `.nbt`，JSON 使用 `.json`，Bedrock structure 使用 `.mcstructure`，MCBE-SNBT 使用 `.txt`。
 
-输入由现有 `StandaloneNbtFileCodec` 自动识别：**Big Endian、Little Endian、Little Endian VarInt、JSON NBT、连续多根 NBT，以及 GZip/Zlib 包装的 NBT**。二进制输出统一为未压缩。多根 NBT 可在三种 NBT 编码和 JSON 之间互转；`.mcstructure` 只接受单根结构 NBT。Java structure NBT 转 `.mcstructure` 时继续复用现有 Java→Bedrock 转换器，因此兼容降级规则与 GUI 保持一致。
+输入由现有 `StandaloneNbtFileCodec` 自动识别：**Big Endian、Little Endian、Little Endian VarInt、JSON NBT、MCBE-SNBT (.txt)、连续多根 NBT，以及 GZip/Zlib 包装的 NBT**。二进制输出统一为未压缩。多根 NBT 可在三种 NBT 编码、JSON 和 MCBE-SNBT 之间互转；`.mcstructure` 只接受单根结构 NBT。Java structure NBT 转 `.mcstructure` 时继续复用现有 Java→Bedrock 转换器，因此兼容降级规则与 GUI 保持一致。
 
-目标格式名固定为：`big-endian`、`little-endian`、`little-varint`、`json`、`mcstructure`。转换入口复用已有数据层，Windows/Swift 两端只调用原 NBT codec 与 structure converter。
+目标格式名固定为：`big-endian`、`little-endian`、`little-varint`、`json`、`mcstructure`、`txt`（也接受 `mcbe-snbt`）。MCBE-SNBT 文本使用严格 UTF-8；语法和无损根包装见 [格式说明](../Docs/MCBE-SNBT.md)。转换入口复用已有数据层，Windows/Swift 两端只调用原 NBT codec 与 structure converter。
 
 ## structure 文件接口
 
@@ -44,13 +46,15 @@ CLI 不打开 GUI 文件选择器，使用显式路径：
 structure import my:house --file "D:\Structures\house file.mcstructure"
 structure import my:house --file "D:\Structures\house file.nbt" --overwrite
 structure import my:house --file "D:\Structures\house file.json"
+structure import my:house --file "D:\Structures\house file.txt"
 
 structure export mcstructure my:house --file "D:\Output\house.mcstructure"
 structure export nbt my:house --file "D:\Output\house.nbt"
 structure export json my:house --file "D:\Output\house.json" --overwrite
+structure export txt my:house --file "D:\Output\house.txt"
 ```
 
-支持 `.mcstructure`、Big Endian `.nbt` 和保留 NBT 类型信息的 `.json`。路径可包含空格，需在命令字符串内使用引号。导入同名结构或导出覆盖已有文件都必须显式 `--overwrite`。两端直接复用现有 Standalone NBT codec、Java→Bedrock 转换器和结构存储，不另写格式算法。导出前还会检查源世界、缓存、世界输出、脚本、同批结构输入，以及输出文件与父目录的冲突；`--overwrite` 不绕过这些路径保护。同批次重复导出到同一个文件时，后一次必须显式 `--overwrite`。多个结构文件与世界保存不构成统一事务，前序文件导出成功后不保证随后续命令失败而回滚。
+支持 `.mcstructure`、Big Endian `.nbt`、保留 NBT 类型信息的 `.json` 和 MCBE-SNBT `.txt`。路径可包含空格，需在命令字符串内使用引号。导入同名结构或导出覆盖已有文件都必须显式 `--overwrite`。两端直接复用现有 Standalone NBT codec、Java→Bedrock 转换器和结构存储，不另写格式算法。导出前还会检查源世界、缓存、世界输出、脚本、同批结构输入，以及输出文件与父目录的冲突；`--overwrite` 不绕过这些路径保护。同批次重复导出到同一个文件时，后一次必须显式 `--overwrite`。多个结构文件与世界保存不构成统一事务，前序文件导出成功后不保证随后续命令失败而回滚。
 
 一次性 `--command/--script` 模式下，structure import/export 的结构名和 `--file` 都必须完整提供；漏项在整批预检阶段失败。交互模式允许省略名称并按提示输入；export 会先列出已有结构。
 
@@ -114,6 +118,36 @@ mcbe-cli --world "世界.mcworld" --script "Commands/Command.txt" --in-place
 
 这不改变 `give` 数量等本来就是 Int64 的非坐标字段，也不改变实体浮点坐标、UniqueID/NBT Long 等原有范围。
 
+## entity 实体查询
+
+```text
+mcbe-cli --world "MyWorld" --command "entity"
+mcbe-cli --world "MyWorld" --command "entity overworld"
+mcbe-cli --world "MyWorld" --command "entity overworld -16 0 -16 16 128 16"
+```
+
+`entity [维度 [x1 y1 z1 x2 y2 z2]]` 为只读查询，无需 `--output` 或 `--in-place`。
+无参数列出全部维度普通实体；只写维度列出该维度全部实体；两角定义包含边界的长方体，支持小数、负数及反向角点，按实际实体坐标筛选。
+维度为 `overworld`、`nether`、`the_end`，不包含玩家或方块实体。缺少坐标的实体仍出现在无范围查询中。
+每个实体一行：`minecraft:pig=['String'"identifier"="minecraft:pig",'Long'"UniqueID"="12345678"]`。
+类型复用实体栏目的识别；NBT 使用 `getblock` 的完整递归格式，不补写推断出的标签。
+混合子类型的嵌套列表会给每个子列表显式标注类型；这种扩展展示用于完整查看 NBT，不作为命令输入格式。
+损坏记录及孤立 actor 等扫描诊断显示为“entity 扫描提示”。
+
+## summon UniqueID 与直接 NBT 输入
+
+```text
+summon minecraft:pig overworld 0 64 0 default Auto
+summon minecraft:pig overworld 0 64 0 default 9007199254740993
+summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"
+```
+
+第一种格式为 `summon 实体类型 维度 x y z NBT标签或default [UniqueID]`。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
+
+第二种格式直接保存标签、类型和顺序，不填充实体通用 NBT。必须包含三个可写入 Float 的有限数值组成的 `Pos`（或 `Position`）List；提供的 `UniqueID` 必须是非零 Long，缺少时自动追加。`DimensionId`（或 `Dimension`）应为 Int32 范围内的整数标签，缺少时存入主世界，不补写维度标签；追加 `'Int'"DimensionId"="1"` 可写入下界。关键字段及其别名不能重复。
+
+CLI 批处理的 `summon` 仍需 `--output` 或 `--in-place`。含有引号的 NBT 建议写入 UTF-8 命令文件，通过 `--script` 执行，避免外壳处理引号。
+
 ## 帮助、预检和退出码
 
 ```text
@@ -126,7 +160,7 @@ mcbe-cli --check "weather query"
 mcbe-cli --check-file "Commands/Command.txt"
 ```
 
-26 个根命令继续复用原解析器和存档业务逻辑。命令不需要 `/` 前缀。
+27 个根命令继续复用原解析器和存档业务逻辑。命令不需要 `/` 前缀。
 
 退出码：`0` 成功；`1` 命令运行失败；`2` 参数或整批预检失败；`3` 文件/编码/保存错误；`130` 取消。交互 Command.txt 的运行错误或预检错误会保留到最终退出状态，即使用户随后保存并正常 `:quit`。
 

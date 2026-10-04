@@ -88,7 +88,7 @@ public static class TargetingCommandParser
         return first is "setworldspawn" or "spawnpoint" or "clearspawnpoint" or "teleport" or "spread" or "experience";
     }
 
-    public static TargetingCommandRequest Parse(string text)
+    public static TargetingCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count == 0) throw new InvalidDataException("命令不能为空。");
@@ -97,9 +97,9 @@ public static class TargetingCommandParser
         return command switch
         {
             "setworldspawn" => ParseSetWorldSpawn(args),
-            "spawnpoint" => ParseSpawnPoint(args),
+            "spawnpoint" => ParseSpawnPoint(args, dimensionResolver),
             "clearspawnpoint" => ParseClearSpawnPoint(args),
-            "teleport" => ParseTeleport(args),
+            "teleport" => ParseTeleport(args, dimensionResolver),
             "spread" => ParseSpread(args),
             "experience" => ParseExperience(args),
             _ => throw new InvalidDataException("不存在的命令。\n" + Usage)
@@ -112,10 +112,10 @@ public static class TargetingCommandParser
         return new SetWorldSpawnTargetingCommandRequest(Coordinate(args, 0));
     }
 
-    private static TargetingCommandRequest ParseSpawnPoint(string[] args)
+    private static TargetingCommandRequest ParseSpawnPoint(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length != 5) throw UsageError();
-        return new SpawnPointTargetingCommandRequest(ParseTarget(args[0]), BlockCommandParser.ParseDimension(args[1]), Coordinate(args, 2));
+        return new SpawnPointTargetingCommandRequest(ParseTarget(args[0]), BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2));
     }
 
     private static TargetingCommandRequest ParseClearSpawnPoint(string[] args)
@@ -124,11 +124,11 @@ public static class TargetingCommandParser
         return new ClearSpawnPointTargetingCommandRequest(ParseTarget(args[0]));
     }
 
-    private static TargetingCommandRequest ParseTeleport(string[] args)
+    private static TargetingCommandRequest ParseTeleport(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length != 5) throw UsageError();
         return new TeleportTargetingCommandRequest(
-            ParseTarget(args[0]), BlockCommandParser.ParseDimension(args[1]),
+            ParseTarget(args[0]), BlockCommandParser.ParseDimension(args[1], dimensionResolver),
             ParseTeleportCoordinate(args[2], "X"), ParseTeleportY(args[3]), ParseTeleportCoordinate(args[4], "Z"));
     }
 
@@ -478,9 +478,8 @@ public sealed class TargetingCommandStore
     public TargetingCommandExecutionResult Spread(SpreadTargetingCommandRequest request)
     {
         var targets = ResolveTargets(request.Target);
-        var supported = new HashSet<int> { 0, 1, 2 };
         var summaries = new BedrockChunkStore(_database).ListChunks()
-            .Where(item => item.HasTerrain && supported.Contains(item.Position.Dimension)).ToArray();
+            .Where(item => item.HasTerrain).ToArray();
         var grouped = summaries.GroupBy(item => item.Position.Dimension)
             .ToDictionary(group => group.Key, group => group.Select(item => item.Position).ToArray());
         var dimensions = grouped.Keys.OrderBy(value => value).ToArray();

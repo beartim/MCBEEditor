@@ -1,0 +1,1 @@
+PASS MCBE-SNBT cli fixtures/atomicity: 48 cases, 101 real process invocations

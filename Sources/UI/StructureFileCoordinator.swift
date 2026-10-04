@@ -70,7 +70,7 @@ final class StructureFileCoordinator: NSObject, UIDocumentPickerDelegate {
         self.completion = completion
         let sheet = UIAlertController(title: "导出结构", message: "请选择文件格式。", preferredStyle: .actionSheet)
         for format in StructureFileFormat.allCases {
-            let title = format == .nbt ? "NBT · Big Endian (.nbt)" : ".\(format.rawValue)"
+            let title = format == .txt ? "MCBE-SNBT (.txt)" : format == .nbt ? "NBT · Big Endian (.nbt)" : ".\(format.rawValue)"
             sheet.addAction(UIAlertAction(title: title, style: .default) { _ in
                 self.writeExport(document: document, name: name, format: format)
             })
@@ -137,8 +137,8 @@ final class StructureFileCoordinator: NSObject, UIDocumentPickerDelegate {
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 do {
-                    guard ["nbt", "mcstructure", "json"].contains(url.pathExtension.lowercased()) else {
-                        throw MCBEEditorError.unsupported("请选择 .nbt、.mcstructure 或 .json 文件")
+                    guard ["nbt", "mcstructure", "json", "txt"].contains(url.pathExtension.lowercased()) else {
+                        throw MCBEEditorError.unsupported("请选择 .nbt、.mcstructure、.json 或 MCBE-SNBT .txt 文件")
                     }
                     let file = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: url), filename: url.lastPathComponent)
                     guard file.documents.count == 1, let document = file.documents.first else {

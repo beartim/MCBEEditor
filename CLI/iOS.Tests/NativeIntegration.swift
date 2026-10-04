@@ -142,9 +142,12 @@ enum NativeIntegration {
         let syntax = try invoke("syntax", 2, ["--script", invalid.path, "--in-place"])
         try expect(!manager.fileExists(atPath: syntax.cache.path) && syntax.error.contains("第 3 行") && syntax.error.contains("第 4 行"), "batch preflight or physical line numbers")
         try noWork(invoke("required-output", 2, ["--command", "time set 222"]))
+        try noWork(invoke("summon-id-required-output", 2, ["--command", "summon minecraft:pig overworld 0 64 0 default 12345678"]))
+        try noWork(invoke("summon-nbt-required-output", 2, ["--command", #"summon 'List''Float'"Pos"="0,64,0",'Long'"UniqueID"="12345678""#]))
         try noWork(invoke("unsupported-structure", 2, ["--command", "time set 222", "--command", "structure import cli:house", "--in-place"]))
-        let query = try invoke("queries", 0, ["--command", "help weather", "--command", "info", "--command", "weather query", "--command", "chunk query", "--command", "structure query"])
+        let query = try invoke("queries", 0, ["--command", "help weather", "--command", "info", "--command", "weather query", "--command", "chunk query", "--command", "structure query", "--command", "entity"])
         try expect(query.output.contains("doWeatherCycle=1") && query.output.contains("SubChunk v8") && query.output.contains("IsSlimeChunk=") && query.output.contains("Ticking="), "query formatting/defaults")
+        try expect(query.output.contains("entity：没有匹配的实体。"), "entity empty read-only query")
         try noWork(query)
 
         let commands = [
@@ -153,7 +156,9 @@ enum NativeIntegration {
             "setworldspawn 0 70 0", "spawnpoint @s overworld 0 70 0", "clearspawnpoint @s",
             "experience level @s 30", "experience percent @s 0.5", "experience query @s",
             "give @s Auto minecraft:diamond 3 NULL", "effect give @s strength 1000 255", "effect clear @s ALL", "clear @s",
-            "summon minecraft:pig overworld 0.5 65 0.5 default", "kill minecraft:pig 0", "kick @a",
+            "summon minecraft:pig overworld 0.5 65 0.5 default 9007199254740993", "entity overworld 0.5 65 0.5 0.5 65 0.5", "kill minecraft:pig 0", "kick @a",
+            #"summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678""#,
+            "entity overworld 0 64 0 0 64 0", "kill minecraft:cow 0",
             "fill overworld 0 65 0 3 65 0 minecraft:stone NULL", "setblock overworld 1 65 0 minecraft:dirt NULL",
             "clone overworld 0 65 0 2 65 0 overworld 1 65 0", "fillbiome overworld 0 0 0 15 127 15 9",
             "setblock the_end 35 200 5 minecraft:diamond_block NULL", "storage set the_end 3 220 5 254 minecraft:stone NULL",
@@ -166,7 +171,11 @@ enum NativeIntegration {
         let script = root.appendingPathComponent("命令 file.txt"), saved = root.appendingPathComponent("edited.mcworld")
         let scriptData = Data(("\u{FEFF}" + commands.joined(separator: "\r\n") + "\r\n").utf8)
         try scriptData.write(to: script)
-        try noWork(invoke("all-families", 0, ["--script", script.path, "--output", saved.path]))
+        let allFamilies = try invoke("all-families", 0, ["--script", script.path, "--output", saved.path])
+        try expect(allFamilies.output.contains("minecraft:pig=[") && allFamilies.output.contains("\"UniqueID\"="), "entity summoned NBT")
+        try expect(allFamilies.output.contains(#"'Long'"UniqueID"="9007199254740993""#), "summon explicit Long lost precision")
+        try expect(allFamilies.output.contains(#"minecraft:cow=['String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"]"#), "raw summon changed supplied NBT")
+        try noWork(allFamilies)
         try expect(try Data(contentsOf: script) == scriptData, "command script changed")
 
         let structureFolder = root.appendingPathComponent("structure files", isDirectory: true)
@@ -180,10 +189,12 @@ enum NativeIntegration {
         try expect(manager.fileExists(atPath: structureFile.path), "structure export did not create path-with-spaces file")
 
         let convertHelp = try invokeStandalone("convert-help", 0, ["--help", "convert"])
-        try expect(convertHelp.output.contains("little-varint") && convertHelp.output.contains("mcstructure"), "convert help is incomplete")
+        try expect(convertHelp.output.contains("little-varint") && convertHelp.output.contains("mcstructure")
+            && convertHelp.output.contains("mcbe-snbt"), "convert help is incomplete")
         let littleFile = structureFolder.appendingPathComponent("house little.nbt")
         let varIntFile = structureFolder.appendingPathComponent("house varint.nbt")
         let jsonFile = structureFolder.appendingPathComponent("house.json")
+        let txtFile = structureFolder.appendingPathComponent("house.TXT")
         let mcstructureFile = structureFolder.appendingPathComponent("house.mcstructure")
         _ = try invokeStandalone("convert-little", 0, ["--convert", structureFile.path, "--to", "little-endian", "--output", littleFile.path])
         try expect(try StandaloneNBTFileCodec.decode(data: Data(contentsOf: littleFile), filename: littleFile.lastPathComponent).originalEncoding == .littleEndian, "little-endian conversion encoding")
@@ -196,11 +207,23 @@ enum NativeIntegration {
         _ = try invokeStandalone("convert-no-overwrite", 3, ["--convert", structureFile.path, "--to", "json", "--output", jsonFile.path])
         _ = try invokeStandalone("convert-overwrite", 0, ["--convert", structureFile.path, "--to", "json", "--output", jsonFile.path, "--overwrite"])
         let rootDocument = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: structureFile), filename: structureFile.lastPathComponent).documents[0]
+        _ = try invokeStandalone("convert-txt-alias", 0, ["--convert", structureFile.path, "--to", "MCBE-SNBT", "--output", txtFile.path])
+        let txtDocument = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: txtFile), filename: txtFile.lastPathComponent)
+        try expect(txtDocument.originalWasMCBESNBT && txtDocument.documents.count == 1, "TXT format detection")
+        try expect(try StandaloneNBTFileCodec.encode(txtDocument.documents, encoding: .littleEndian)
+            == StandaloneNBTFileCodec.encode([rootDocument], encoding: .littleEndian), "TXT conversion lost NBT data")
+        _ = try invokeStandalone("convert-txt-no-overwrite", 3, ["--convert", structureFile.path, "--to", "txt", "--output", txtFile.path])
+        _ = try invokeStandalone("convert-txt-mcstructure", 0, ["--convert", txtFile.path, "--to", "mcstructure", "--output", mcstructureFile.path, "--overwrite"])
         let consecutiveFile = structureFolder.appendingPathComponent("two roots.nbt")
         try StandaloneNBTFileCodec.encode([rootDocument, rootDocument], encoding: .littleEndian).write(to: consecutiveFile)
         let consecutiveJson = structureFolder.appendingPathComponent("two roots.json")
+        let consecutiveTxt = structureFolder.appendingPathComponent("two roots.txt")
         _ = try invokeStandalone("convert-consecutive-json", 0, ["--convert", consecutiveFile.path, "--to", "json", "--output", consecutiveJson.path])
         try expect(try StandaloneNBTFileCodec.decode(data: Data(contentsOf: consecutiveJson), filename: consecutiveJson.lastPathComponent).documents.count == 2, "consecutive NBT conversion lost roots")
+        _ = try invokeStandalone("convert-consecutive-txt", 0, ["--convert", consecutiveFile.path, "--to", "TXT", "--output", consecutiveTxt.path])
+        let txtRoots = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: consecutiveTxt), filename: consecutiveTxt.lastPathComponent).documents
+        try expect(try StandaloneNBTFileCodec.encode(txtRoots, encoding: .littleEndian)
+            == Data(contentsOf: consecutiveFile), "consecutive TXT conversion lost root order or bytes")
         _ = try invokeStandalone("convert-consecutive-mcstructure", 3, ["--convert", consecutiveFile.path, "--to", "mcstructure", "--output", structureFolder.appendingPathComponent("invalid.mcstructure").path])
         let importedWorld = root.appendingPathComponent("structure-import.mcworld")
         try noWork(invoke("structure-file-import", 0, [
@@ -212,6 +235,36 @@ enum NativeIntegration {
             defer { importWorkspace.finish(preserve: false, notice: { _ in }) }
             try expect(try StructureNBTStore(session: importWorkspace.session).containsStructure(named: "cli:imported"), "structure import was not persisted")
         }
+        let txtExport = structureFolder.appendingPathComponent("structure roundtrip.TXT")
+        let txtWorld = root.appendingPathComponent("structure-txt-import.mcworld")
+        try noWork(invoke("structure-txt-import-export", 0, [
+            "--command", "structure import cli:txt --file \"\(txtFile.path)\"",
+            "--command", "structure export MCBE-SNBT cli:txt --file \"\(txtExport.path)\"",
+            "--output", txtWorld.path]))
+        let exportedTxt = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: txtExport), filename: txtExport.lastPathComponent)
+        try expect(exportedTxt.originalWasMCBESNBT && exportedTxt.documents.count == 1, "structure TXT export format")
+        let normalizedStructure = try StandaloneNBTFileCodec.encodeAsMCStructure([rootDocument]).data
+        try expect(try StandaloneNBTFileCodec.encode(exportedTxt.documents, encoding: .littleEndian)
+            == normalizedStructure, "structure TXT import/export lost persisted NBT")
+        let txtPaths = CliWorldPaths(source: txtWorld, cache: root.appendingPathComponent("VerifyTxtImport"), output: nil, isDirectory: false)
+        let txtWorkspace = try CliWorldWorkspace.open(txtPaths, inPlace: false)
+        do {
+            defer { txtWorkspace.finish(preserve: false, notice: { _ in }) }
+            try expect(try StructureNBTStore(session: txtWorkspace.session).containsStructure(named: "cli:txt"), "TXT structure was not persisted")
+        }
+        let protectedTxt = try Data(contentsOf: txtExport)
+        try noWork(invoke("structure-txt-no-overwrite", 2, [
+            "--command", "structure export txt cli:txt --file \"\(txtExport.path)\""], input: txtWorld))
+        try expect(try Data(contentsOf: txtExport) == protectedTxt, "TXT overwrite preflight changed existing output")
+        try noWork(invoke("structure-txt-overwrite", 0, [
+            "--command", "structure export TXT cli:txt --file \"\(txtExport.path)\" --overwrite"], input: txtWorld))
+        let invalidTxtExport = structureFolder.appendingPathComponent("wrong-extension.json")
+        let txtExtensionFailure = try invoke("structure-txt-extension-preflight", 2, [
+            "--command", "time set 222",
+            "--command", "structure export txt cli:txt --file \"\(invalidTxtExport.path)\"",
+            "--output", root.appendingPathComponent("invalid-txt-output.mcworld").path], input: txtWorld)
+        try expect(!manager.fileExists(atPath: txtExtensionFailure.cache.path)
+            && !manager.fileExists(atPath: invalidTxtExport.path), "TXT extension guard did not stop whole-batch preflight")
         let missingName = try invoke("structure-file-missing-name", 2, [
             "--command", "time set 222",
             "--command", "structure import --file \"\(structureFile.path)\"",

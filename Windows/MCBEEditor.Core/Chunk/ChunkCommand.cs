@@ -18,9 +18,9 @@ public static class ChunkCommandParser
         "chunk query [维度 [区块X 区块Z]]\n" +
         "chunk empty 维度 区块X 区块Z\n" +
         "chunk regenerate 维度 区块X 区块Z\n" +
-        "维度：overworld / nether / the_end";
+        "维度：存档登记名称或Int32 ID；原版名称overworld / nether / the_end";
 
-    public static ChunkCommandRequest Parse(string text)
+    public static ChunkCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("命令不能为空");
         var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -33,8 +33,8 @@ public static class ChunkCommandParser
             return parts.Length switch
             {
                 2 => new ChunkCommandRequest(ChunkCommandKind.Query, null, null, null),
-                3 => new ChunkCommandRequest(ChunkCommandKind.Query, ParseDimension(parts[2]), null, null),
-                5 => new ChunkCommandRequest(ChunkCommandKind.Query, ParseDimension(parts[2]), ParseCoordinate(parts[3], "区块 X"), ParseCoordinate(parts[4], "区块 Z")),
+                3 => new ChunkCommandRequest(ChunkCommandKind.Query, ParseDimension(parts[2], dimensionResolver), null, null),
+                5 => new ChunkCommandRequest(ChunkCommandKind.Query, ParseDimension(parts[2], dimensionResolver), ParseCoordinate(parts[3], "区块 X"), ParseCoordinate(parts[4], "区块 Z")),
                 _ => throw new InvalidDataException("参数格式错误。\n" + Usage)
             };
         }
@@ -44,7 +44,7 @@ public static class ChunkCommandParser
             if (parts.Length != 5) throw new InvalidDataException("参数格式错误。\n" + Usage);
             return new ChunkCommandRequest(
                 action == "empty" ? ChunkCommandKind.Empty : ChunkCommandKind.Regenerate,
-                ParseDimension(parts[2]),
+                ParseDimension(parts[2], dimensionResolver),
                 ParseCoordinate(parts[3], "区块 X"),
                 ParseCoordinate(parts[4], "区块 Z"));
         }
@@ -52,20 +52,15 @@ public static class ChunkCommandParser
         throw new InvalidDataException("不存在的 chunk 操作。\n" + Usage);
     }
 
-    public static int ParseDimension(string text) => text.ToLowerInvariant() switch
-    {
-        "overworld" => 0,
-        "nether" => 1,
-        "the_end" => 2,
-        _ => throw new InvalidDataException($"维度名称无效：{text}。只能使用 overworld、nether 或 the_end")
-    };
+    public static int ParseDimension(string text, Func<string,int>? dimensionResolver = null)
+        => BlockCommandParser.ParseDimension(text,dimensionResolver);
 
     public static string DimensionName(int dimension) => dimension switch
     {
         0 => "overworld",
         1 => "nether",
         2 => "the_end",
-        _ => $"unknown({dimension})"
+        _ => dimension.ToString(System.Globalization.CultureInfo.InvariantCulture)
     };
 
     private static int ParseCoordinate(string text, string name)

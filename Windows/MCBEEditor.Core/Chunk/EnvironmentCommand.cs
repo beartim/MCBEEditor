@@ -145,7 +145,7 @@ public static class EnvironmentCommandParser
         return first is "daylock" or "time" or "weather" or "tickingarea";
     }
 
-    public static EnvironmentCommandRequest Parse(string text)
+    public static EnvironmentCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count == 0) throw new InvalidDataException("命令不能为空。");
@@ -156,7 +156,7 @@ public static class EnvironmentCommandParser
             "daylock" => ParseDayLock(args),
             "time" => ParseTime(args),
             "weather" => ParseWeather(args),
-            "tickingarea" => ParseTickingArea(args),
+            "tickingarea" => ParseTickingArea(args, dimensionResolver),
             _ => throw UsageError()
         };
     }
@@ -195,20 +195,20 @@ public static class EnvironmentCommandParser
         throw UsageError();
     }
 
-    private static EnvironmentCommandRequest ParseTickingArea(string[] args)
+    private static EnvironmentCommandRequest ParseTickingArea(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length < 2) throw UsageError();
         var action = args[0].ToLowerInvariant();
         if (action == "delete" && args.Length == 2)
             return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.Delete, Name: args[1] == "ALL" ? null : ParseTickingAreaName(args[1]));
         if (action == "list" && args.Length == 2)
-            return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.List, Dimension: args[1] == "ALL" ? null : BlockCommandParser.ParseDimension(args[1]));
+            return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.List, Dimension: args[1] == "ALL" ? null : BlockCommandParser.ParseDimension(args[1], dimensionResolver));
         if (action != "add" || args.Length < 3) throw UsageError();
 
         var shape = args[1].ToLowerInvariant();
         if (shape == "square" && args.Length == 9)
         {
-            var dimension = BlockCommandParser.ParseDimension(args[2]);
+            var dimension = BlockCommandParser.ParseDimension(args[2], dimensionResolver);
             var x1 = ParseInt32(args[3], "X1");
             var z1 = ParseInt32(args[4], "Z1");
             var x2 = ParseInt32(args[5], "X2");
@@ -221,7 +221,7 @@ public static class EnvironmentCommandParser
         }
         if (shape == "circle" && args.Length == 8)
         {
-            var dimension = BlockCommandParser.ParseDimension(args[2]);
+            var dimension = BlockCommandParser.ParseDimension(args[2], dimensionResolver);
             var chunkX = ParseInt32(args[3], "中心区块 X");
             var chunkZ = ParseInt32(args[4], "中心区块 Z");
             var radius = ParseTickingAreaRadius(args[5]);
@@ -312,7 +312,6 @@ public static class EnvironmentCommandParser
     internal static void ValidateTickingAreaSpec(EnvironmentTickingAreaSpec area)
     {
         var value = area.Normalized;
-        if (value.Dimension is < 0 or > 2) throw new InvalidDataException($"不支持维度 {value.Dimension}。");
         if (value.IsCircle && value.Radius > 4) throw new InvalidDataException("圆形常加载区域半径最多为 4 个区块。");
         if (value.ChunkCount is <= 0 or > 100) throw new InvalidDataException("每个常加载区域最多包含 100 个区块。");
     }

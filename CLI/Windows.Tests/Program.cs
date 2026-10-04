@@ -19,7 +19,25 @@ internal static class Program
 
     private static int Main(string[] args)
     {
-        if (args.Length != 1 || !File.Exists(args[0]))
+        if (args.SequenceEqual(new[] { "--summon" }))
+        {
+            SummonCommandTests.RunParserTests();
+            return 0;
+        }
+        if (args.SequenceEqual(new[] { "--dimension" }))
+        {
+            DimensionCommandTests.RunParserTests();
+            return 0;
+        }
+
+        if (args.SequenceEqual(new[] { "--entity-query" }))
+        {
+            EntityQueryCommandTests.RunParserTests();
+            return 0;
+        }
+        var summonOnly = args.Length == 2 && args[0] == "--summon-native";
+        var fixtureTool = summonOnly ? args[1] : args.FirstOrDefault();
+        if ((!summonOnly && args.Length != 1) || !File.Exists(fixtureTool))
         {
             Console.Error.WriteLine("Pass the built mcbe_cli_create_test_db executable; these tests do not skip missing native dependencies.");
             return 2;
@@ -28,7 +46,13 @@ internal static class Program
         Directory.CreateDirectory(root);
         try
         {
-            RunTests(root, args[0]);
+            if (summonOnly)
+            {
+                SummonCommandTests.RunParserTests();
+                SummonCommandTests.RunNativeTests(root, fixtureTool!);
+                return 0;
+            }
+            RunTests(root, fixtureTool!);
             Console.WriteLine($"PASS C# CLI native integration: {_runs} invocation cases; real Mojang LevelDB, source integrity, export/reopen and failure recovery.");
             return 0;
         }
@@ -43,8 +67,15 @@ internal static class Program
 
     private static void RunTests(string root, string fixtureTool)
     {
+        DimensionCommandTests.RunParserTests();
+        EntityQueryCommandTests.RunParserTests();
+        DimensionCommandTests.RunNativeTests(root, fixtureTool);
+        EntityQueryCommandTests.RunNativeTests(root, fixtureTool);
+        SummonCommandTests.RunParserTests();
+        SummonCommandTests.RunNativeTests(root, fixtureTool);
         var source = WorldFixture.Create(root, fixtureTool);
         var original = WorldFixture.Snapshot(source);
+        McbeSnbtIntegrationTests.Run(root, source);
 
         var inheritedPortableRoot = Environment.GetEnvironmentVariable("MCBEEDITOR_PORTABLE_ROOT");
         var inheritedPortableCache = Environment.GetEnvironmentVariable("MCBEEDITOR_CACHE_ROOT");

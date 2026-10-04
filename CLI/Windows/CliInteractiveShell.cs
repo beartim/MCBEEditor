@@ -112,7 +112,10 @@ internal static class CliInteractiveShell
 
                     if (session is null) { terminal.WriteError("尚未打开世界。先使用 :open \"世界路径\"。"); continue; }
                     using var parseErrors = new StringWriter();
-                    var plan = CliCommandPlan.Parse([new CliCommandLine(1, line)], parseErrors, forExecution: true, allowInteractiveStructureName: true);
+                    CliCommandPlan? plan;
+                    using (var database = session.Document.OpenDatabase(readOnly: true))
+                        plan = CliCommandPlan.Parse([new CliCommandLine(1, line)], parseErrors, forExecution: true, allowInteractiveStructureName: true,
+                            dimensionContext: MCBEEditor.Core.World.DimensionCommandContext.FromDatabase(database));
                     if (plan is null) { terminal.WriteError(parseErrors.ToString().TrimEnd()); continue; }
                     CliStructureFileCommand.ValidateFiles(plan.Commands.Select(command => command.Request).OfType<CliStructureFileRequest>(), paths!,
                         CliSharedCommandStore.CommandFilePath(commandsDirectory ?? CliSharedCommandStore.DefaultDirectory));
@@ -123,7 +126,8 @@ internal static class CliInteractiveShell
                     var mutating = CliCommandPolicy.MayMutate(request);
                     try
                     {
-                        var result = new CliWorldCommandExecutor(session.Document).Execute(request);
+                        var executor = new CliWorldCommandExecutor(session.Document);
+                        var result = request is CliStructureFileRequest ? executor.Execute(request) : executor.Execute(line);
                         foreach (var row in result.Lines) terminal.WriteLine(row);
                         if (result.ChangedWorld) { dirty = true; inPlacePending = true; }
                     }
@@ -176,7 +180,10 @@ internal static class CliInteractiveShell
         }
 
         using var parseErrors = new StringWriter();
-        var plan = CliCommandPlan.Parse(lines, parseErrors, forExecution: true, allowInteractiveStructureName: false);
+        CliCommandPlan? plan;
+        using (var database = session.Document.OpenDatabase(readOnly: true))
+            plan = CliCommandPlan.Parse(lines, parseErrors, forExecution: true, allowInteractiveStructureName: false,
+                dimensionContext: MCBEEditor.Core.World.DimensionCommandContext.FromDatabase(database));
         if (plan is null)
         {
             var details = parseErrors.ToString().TrimEnd();
@@ -202,7 +209,7 @@ internal static class CliInteractiveShell
             var mutating = CliCommandPolicy.MayMutate(command.Request);
             try
             {
-                var result = executor.Execute(command.Request);
+                var result = executor.Execute(command.Text);
                 foreach (var row in result.Lines) terminal.WriteLine(row);
                 if (result.ChangedWorld) dirty = true;
             }

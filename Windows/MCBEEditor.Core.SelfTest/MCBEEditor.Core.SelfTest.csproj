@@ -9,5 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\MCBEEditor.Core\MCBEEditor.Core.csproj" />
     <None Include="..\..\Tests\Fixtures\end_missing_subchunks.json" Link="Fixtures\end_missing_subchunks.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\Tests\Fixtures\mcbe_snbt.json" Link="Fixtures\mcbe_snbt.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

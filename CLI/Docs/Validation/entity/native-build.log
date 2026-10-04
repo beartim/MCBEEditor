@@ -1,0 +1,95 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Looking for sys/types.h
+-- Looking for sys/types.h - found
+-- Looking for stdint.h
+-- Looking for stdint.h - found
+-- Looking for stddef.h
+-- Looking for stddef.h - found
+-- Check size of off64_t
+-- Check size of off64_t - done
+-- Looking for fseeko
+-- Looking for fseeko - found
+-- Looking for unistd.h
+-- Looking for unistd.h - found
+-- Renaming
+--     /workspace/scratch/eeb749bc8d93/source/CLI/build/deps/zlib/zconf.h
+-- to 'zconf.h.included' because this file is included with zlib
+-- but CMake generates it automatically in the build directory.
+-- Configuring done (0.7s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/scratch/eeb749bc8d93/native-build
+[  1%] Building C object zlib/CMakeFiles/zlibstatic.dir/adler32.c.o
+[  3%] Building C object zlib/CMakeFiles/zlibstatic.dir/compress.c.o
+[  5%] Building C object zlib/CMakeFiles/zlibstatic.dir/crc32.c.o
+[  6%] Building C object zlib/CMakeFiles/zlibstatic.dir/deflate.c.o
+[  8%] Building C object zlib/CMakeFiles/zlibstatic.dir/gzclose.c.o
+[ 10%] Building C object zlib/CMakeFiles/zlibstatic.dir/gzlib.c.o
+[ 11%] Building C object zlib/CMakeFiles/zlibstatic.dir/gzread.c.o
+[ 13%] Building C object zlib/CMakeFiles/zlibstatic.dir/gzwrite.c.o
+[ 15%] Building C object zlib/CMakeFiles/zlibstatic.dir/inflate.c.o
+[ 16%] Building C object zlib/CMakeFiles/zlibstatic.dir/infback.c.o
+[ 18%] Building C object zlib/CMakeFiles/zlibstatic.dir/inftrees.c.o
+[ 20%] Building C object zlib/CMakeFiles/zlibstatic.dir/inffast.c.o
+[ 21%] Building C object zlib/CMakeFiles/zlibstatic.dir/trees.c.o
+[ 23%] Building C object zlib/CMakeFiles/zlibstatic.dir/uncompr.c.o
+[ 25%] Building C object zlib/CMakeFiles/zlibstatic.dir/zutil.c.o
+[ 26%] Linking C static library libz.a
+[ 26%] Built target zlibstatic
+[ 30%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/db_impl.cc.o
+[ 30%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/builder.cc.o
+[ 31%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/db_iter.cc.o
+[ 33%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/dbformat.cc.o
+[ 35%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/filename.cc.o
+[ 36%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/log_reader.cc.o
+[ 38%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/log_writer.cc.o
+[ 40%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/memtable.cc.o
+[ 41%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/repair.cc.o
+[ 43%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/table_cache.cc.o
+[ 45%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/version_edit.cc.o
+[ 46%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/version_set.cc.o
+[ 48%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/write_batch.cc.o
+[ 50%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/db/zlib_compressor.cc.o
+[ 51%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/block.cc.o
+[ 53%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/block_builder.cc.o
+[ 55%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/filter_block.cc.o
+[ 56%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/format.cc.o
+[ 58%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/iterator.cc.o
+[ 60%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/merger.cc.o
+[ 61%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/table.cc.o
+[ 63%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/table_builder.cc.o
+[ 65%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/table/two_level_iterator.cc.o
+[ 66%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/arena.cc.o
+[ 68%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/bloom.cc.o
+[ 70%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/cache.cc.o
+[ 71%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/coding.cc.o
+[ 73%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/comparator.cc.o
+[ 75%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/crc32c.cc.o
+[ 76%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/env.cc.o
+[ 78%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/filter_policy.cc.o
+[ 80%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/hash.cc.o
+[ 81%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/histogram.cc.o
+[ 83%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/logging.cc.o
+[ 85%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/options.cc.o
+[ 86%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/status.cc.o
+[ 88%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/port/port_posix_sse.cc.o
+[ 90%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/port/port_posix.cc.o
+[ 91%] Building CXX object CMakeFiles/mcbe_leveldb_core.dir/workspace/scratch/eeb749bc8d93/source/CLI/build/deps/leveldb-mcpe/util/env_posix.cc.o
+[ 93%] Linking CXX static library libmcbe_leveldb_core.a
+[ 93%] Built target mcbe_leveldb_core
+[ 96%] Building CXX object CMakeFiles/mcbe_cli_create_test_db.dir/workspace/scratch/eeb749bc8d93/source/CLI/Tests/Native/CreateTestDatabase.cpp.o
+[ 96%] Building CXX object CMakeFiles/MCBEEditor.LevelDB.Native.dir/src/mcbe_leveldb.cpp.o
+[ 98%] Linking CXX executable /workspace/scratch/eeb749bc8d93/source/CLI/build/native-tests/mcbe_cli_create_test_db
+[ 98%] Built target mcbe_cli_create_test_db
+[100%] Linking CXX shared library /workspace/scratch/eeb749bc8d93/source/Windows/Native/bin/x64/libMCBEEditor.LevelDB.Native.so
+[100%] Built target MCBEEditor.LevelDB.Native

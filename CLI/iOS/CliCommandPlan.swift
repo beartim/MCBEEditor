@@ -12,11 +12,13 @@ struct CliCommandPlan {
 
     static func parse(_ lines: [CliCommandLine], forExecution: Bool,
                       allowInteractiveStructureName: Bool = false,
+                      dimensionContext: DimensionCommandContext? = nil,
                       error: (String) -> Void) -> CliCommandPlan? {
         var parsed = [CliPlannedCommand](), failures = 0
+        let dimensions = dimensionContext ?? DimensionCommandContext()
         for line in lines {
             do {
-                let parsedFile = try CliStructureFileCommand.parse(line.text)
+                let parsedFile = try CliStructureFileCommand.parse(line.text, dimensionResolver: dimensions.resolve)
                 let command = parsedFile.0
                 if forExecution, let file = parsedFile.1, !allowInteractiveStructureName {
                     switch file.operation {
@@ -32,6 +34,7 @@ struct CliCommandPlan {
                     default: break
                     }
                 }
+                try dimensions.apply(command)
                 parsed.append(CliPlannedCommand(line: line, command: command, structureFile: parsedFile.1))
             } catch let failure {
                 error("第 \(line.lineNumber) 行：\(failure.localizedDescription)")
@@ -47,10 +50,10 @@ struct CliCommandPlan {
 
     private static func mayMutate(_ command: ParsedWorldCommand) -> Bool {
         switch command {
-        case .help, .info, .getBlock, .weatherQuery: return false
+        case .help, .info, .dimensionQuery, .entity, .getBlock, .weatherQuery: return false
         case .chunk(.query), .storage(.query), .time(.query), .experience(.query),
              .structure(.query), .structure(.exportFile), .tickingArea(.list): return false
-        case .clear, .clearSpawnPoint, .give, .kill, .kick, .summon, .effect, .clone,
+        case .dimensionPurge, .dimensionEmpty, .dimensionAdd, .clear, .clearSpawnPoint, .give, .kill, .kick, .summon, .summonNBT, .effect, .clone,
              .fill, .fillBiome, .setBlock, .chunk, .storage, .setWorldSpawn, .spawnPoint,
              .teleport, .spread, .dayLock, .weather, .time, .experience, .structure, .tickingArea:
             return true

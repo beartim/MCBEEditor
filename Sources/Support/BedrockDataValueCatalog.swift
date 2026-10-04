@@ -1,5 +1,8 @@
 import Foundation
 
+// ID/reference audit: Bedrock 26.52; official content snapshot v1.26.50.4.
+// Provenance, legacy group labels and fixed data snapshots: Docs/CatalogSync.
+
 struct BedrockDataValueEntry: Hashable {
     let id: Int
     let identifier: String
@@ -53,7 +56,7 @@ enum BedrockDataValueCatalog {
         value(48, "minecraft:wither_skeleton", "凋灵骷髅"),
         value(49, "minecraft:guardian", "守卫者"),
         value(50, "minecraft:elder_guardian", "远古守卫者"),
-        value(51, "minecraft:npc", "NPC"),
+        value(51, "minecraft:npc", "非玩家角色（NPC）"),
         value(52, "minecraft:wither", "凋灵"),
         value(53, "minecraft:ender_dragon", "末影龙"),
         value(54, "minecraft:shulker", "潜影贝"),
@@ -317,8 +320,8 @@ enum BedrockDataValueCatalog {
         value(24, "lure", "饵钓"),
         value(25, "frost_walker", "冰霜行者"),
         value(26, "mending", "经验修补"),
-        value(27, "binding_curse", "绑定诅咒"),
-        value(28, "vanishing_curse", "消失诅咒"),
+        value(27, "binding", "绑定诅咒"),
+        value(28, "vanishing", "消失诅咒"),
         value(29, "impaling", "穿刺"),
         value(30, "riptide", "激流"),
         value(31, "loyalty", "忠诚"),
@@ -331,7 +334,7 @@ enum BedrockDataValueCatalog {
         value(38, "wind_burst", "风爆"),
         value(39, "density", "致密"),
         value(40, "breach", "破甲"),
-        value(41, "lunge", "突进"),
+        value(41, "lunge", "戳刺（突进）"),
     ]
 
     private static let entityEntriesByID: [Int: BedrockDataValueEntry] = {

@@ -120,14 +120,12 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
   }
 
   @objc private func shareRawData() {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(exportFilename)
-    do {
-      try rawData.write(to: url, options: .atomic)
-      let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-      activity.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItem
-      present(activity, animated: true)
-    } catch {
-      showError(error, title: "导出 NBT 原始数据失败")
-    }
+    NBTExportUI.presentFormatChooser(
+      from: self,
+      documents: [document],
+      baseFilename: URL(fileURLWithPath: exportFilename).deletingPathExtension().lastPathComponent,
+      originalFile: (filename: exportFilename, data: rawData),
+      barButtonItem: navigationItem.rightBarButtonItem
+    )
   }
 }

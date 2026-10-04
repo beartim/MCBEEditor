@@ -6,6 +6,28 @@
 
 2026-09-10 源码审查版：修正 NBT 状态配色、旧版数字编号转换、异常数据边界与命令文件读取，合并重复转换和解压逻辑。详细修改及验证范围见 [CHANGES_SOURCE_AUDIT_20260910.md](CHANGES_SOURCE_AUDIT_20260910.md)。版本仍为 1.0.0（100）；本次仅完成静态验证，Swift/Xcode 行为测试尚未运行。
 
+## summon UniqueID 与直接 NBT 输入
+
+```text
+summon minecraft:pig overworld 0 64 0 default Auto
+summon minecraft:pig overworld 0 64 0 default 9007199254740993
+summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"
+```
+
+第一种格式为 `summon 实体类型 维度 x y z NBT标签或default [UniqueID]`。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
+
+第二种格式直接保存标签、类型和顺序，不填充实体通用 NBT。必须包含三个可写入 Float 的有限数值组成的 `Pos`（或 `Position`）List；提供的 `UniqueID` 必须是非零 Long，缺少时自动追加。`DimensionId`（或 `Dimension`）应为 Int32 范围内的整数标签，缺少时存入主世界，不补写维度标签；追加 `'Int'"DimensionId"="1"` 可写入下界。关键字段及其别名不能重复。
+
+CLI 批处理的 `summon` 仍需 `--output` 或 `--in-place`。含有引号的 NBT 建议写入 UTF-8 命令文件，通过 `--script` 执行，避免外壳处理引号。
+
+## entity 实体查询（iOS / Windows 图形版与 CLI）
+
+- `entity`：列出全部维度的普通实体。
+- `entity overworld`：列出指定维度全部实体，也可用 `nether`、`the_end`。
+- `entity overworld -16 0 -16 16 128 16`：列出两角定义的闭合长方体内实体，支持小数及反向角点。
+- 每个实体一行，格式为 `实体类型=[全部 NBT 标签]`，类型与实体栏目一致，NBT 格式与 `getblock` 一致。
+- 查询不修改存档，不包含玩家或方块实体。版本保持 1.0.0。
+
 ## 1.0.0 命令层全 storage、getblock 与 storage 命令
 
 - 命令层对 v8 或更新的已知结构化 SubChunk 支持全部物理 storage；地图、方块 NBT、区域编辑等其他栏目仍只编辑 layer0/layer1。
@@ -537,3 +559,9 @@ build/output/MCBEEditor-iOS13-unsigned.ipa
 ## Windows 版
 
 Windows 10/11 x64 版本位于 `Windows/`，使用 WPF + .NET 10 与 `leveldb-mcpe` 原生数据库桥。Windows 最终发布为单一绿色 `MCBEEditor.exe`：来源世界只读，编辑发生在 EXE 同级 `Cache` 临时副本，主页“导出 .mcworld”是唯一持久化出口；`Textures`/`Commands` 也位于 EXE 同级。当前已经同步世界/NBT、SubChunk/LegacyTerrain、Y/X/Z 地图、对象与村庄图层、区块与区域编辑、实体、结构、独立 NBT/mcstructure 工具以及主要命令系统。`chunk query` 在 iOS 与 Windows 均输出 `IsSlimeChunk=True/False` 和 `Ticking=True/False`。Windows 构建入口见 `Windows/README.md` 与 `Windows/build.cmd`；当前同步差异见 `WINDOWS_PARITY_AUDIT.md`。
+
+## MCBE-SNBT 文本文件（本次新增）
+
+iOS、Windows 及两端 CLI 的 NBT 导入导出增加 `.txt` 文件。MCBE-SNBT 是带类型文本，例如 `'Int'"Age"="0"`；完整文件可无损保存根名称、类型、重复标签和连续多根。NBT/mcstructure 独立工具、选中/批量标签、实体、结构文件等入口使用同一格式。
+
+CLI 示例：`mcbe-cli --convert input.nbt --to txt --output output.txt`。`structure export txt my:house` 导出结构文本；CLI 再提供 `--file output.txt`。详细语法见 [Docs/MCBE-SNBT.md](Docs/MCBE-SNBT.md)。版本保持 1.0.0，已有 entity 和 summon 增强均保留。

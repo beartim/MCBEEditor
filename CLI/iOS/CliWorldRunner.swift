@@ -5,17 +5,23 @@ enum CliWorldRunner {
                     cancelled: () -> Bool) throws -> Int32 {
         let lines = try options.script.map(CliCommandFile.read)
             ?? options.commands.enumerated().map { CliCommandLine(lineNumber: $0.offset + 1, text: $0.element) }
-        guard let plan = CliCommandPlan.parse(lines, forExecution: true, error: error) else { return 2 }
-        if plan.mayMutate && options.output == nil && !options.inPlace {
+        guard let syntaxPlan = CliCommandPlan.parse(lines, forExecution: true, error: error) else { return 2 }
+        if syntaxPlan.mayMutate && options.output == nil && !options.inPlace {
             throw CliError.input("本次命令包含存档修改，必须指定 --in-place 原位更新或 --output 新文件.mcworld 另存为。")
         }
         let paths = try CliWorldPaths.validate(options)
-        try CliStructureFileCommand.validateFiles(plan.commands.compactMap(\.structureFile), paths: paths, script: options.script)
+        try CliStructureFileCommand.validateFiles(syntaxPlan.commands.compactMap(\.structureFile), paths: paths, script: options.script)
         if cancelled() { error("已取消。"); return 130 }
         let workspace = try CliWorldWorkspace.open(paths, inPlace: options.inPlace)
         var preserve = true
         defer { workspace.finish(preserve: preserve, notice: error) }
         error("工作副本：\(workspace.worldRoot.path)")
+        let dimensions = try DimensionCommandContext(database: workspace.session.database())
+        workspace.session.close()
+        guard let plan = CliCommandPlan.parse(lines, forExecution: true, dimensionContext: dimensions, error: error) else {
+            preserve = options.keepWork
+            return 2
+        }
         let executor = WorldCommandExecutor(session: workspace.session)
         var failures = 0
         for command in plan.commands {
@@ -28,7 +34,9 @@ enum CliWorldRunner {
                     if let structureFile = command.structureFile {
                         result = try CliStructureFileCommand.execute(structureFile, session: workspace.session)
                     } else {
-                        result = try executor.execute(command.command)
+                        let current = try WorldCommandParser.parse(command.line.text,
+                            dimensionResolver: DimensionStore(database: workspace.session.database()).resolve)
+                        result = try executor.execute(current)
                     }
                 }
                 let rows = result.outputLines.isEmpty ? result.message.components(separatedBy: "\n") : result.outputLines.map(\.text)

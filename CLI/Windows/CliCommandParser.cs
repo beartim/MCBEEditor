@@ -8,7 +8,7 @@ internal sealed record HelpCliCommand(string? Command);
 /// <summary>Routes to the GUI's actual parsers, preserving their typed requests.</summary>
 internal static class CliCommandParser
 {
-    public static object Parse(string text)
+    public static object Parse(string text, Func<string, int>? dimensionResolver = null)
     {
         var trimmed = text.Trim();
         if (trimmed.StartsWith('/'))
@@ -28,13 +28,15 @@ internal static class CliCommandParser
                     throw new InvalidDataException($"不存在的命令：{tokens[1]}");
                 return new HelpCliCommand(tokens.Length == 2 ? tokens[1] : null);
             }
-            if (BlockCommandParser.IsBlockCommand(trimmed)) return BlockCommandParser.Parse(trimmed);
-            if (StorageBiomeCommandParser.IsStorageBiomeCommand(trimmed)) return StorageBiomeCommandParser.Parse(trimmed);
-            if (TargetingCommandParser.IsTargetingCommand(trimmed)) return TargetingCommandParser.Parse(trimmed);
-            if (EntityActionCommandParser.IsEntityActionCommand(trimmed)) return EntityActionCommandParser.Parse(trimmed);
-            if (EnvironmentCommandParser.IsEnvironmentCommand(trimmed)) return EnvironmentCommandParser.Parse(trimmed);
-            if (StructureTemplateCommandParser.IsStructureTemplateCommand(trimmed)) return StructureTemplateCommandParser.Parse(trimmed);
-            return ChunkCommandParser.Parse(trimmed);
+            if (DimensionCommandParser.IsDimensionCommand(trimmed)) return DimensionCommandParser.Parse(trimmed);
+            if (BlockCommandParser.IsBlockCommand(trimmed)) return BlockCommandParser.Parse(trimmed, dimensionResolver);
+            if (StorageBiomeCommandParser.IsStorageBiomeCommand(trimmed)) return StorageBiomeCommandParser.Parse(trimmed, dimensionResolver);
+            if (TargetingCommandParser.IsTargetingCommand(trimmed)) return TargetingCommandParser.Parse(trimmed, dimensionResolver);
+            if (EntityActionCommandParser.IsEntityActionCommand(trimmed)) return EntityActionCommandParser.Parse(trimmed, dimensionResolver);
+            if (EntityQueryCommandParser.IsEntityQueryCommand(trimmed)) return EntityQueryCommandParser.Parse(trimmed, dimensionResolver);
+            if (EnvironmentCommandParser.IsEnvironmentCommand(trimmed)) return EnvironmentCommandParser.Parse(trimmed, dimensionResolver);
+            if (StructureTemplateCommandParser.IsStructureTemplateCommand(trimmed)) return StructureTemplateCommandParser.Parse(trimmed, dimensionResolver);
+            return ChunkCommandParser.Parse(trimmed, dimensionResolver);
         }
         catch (InvalidDataException error) when (error.Message.StartsWith("参数格式错误。", StringComparison.Ordinal))
         {

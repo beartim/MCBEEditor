@@ -221,6 +221,6 @@ Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
 
 修改 PNG 或 Colors.txt 后，在 MCBEEditor 中点击“重新加载纹理”或重新渲染地图即可刷新。
 
-注意：本 ReadMe.txt 由 MCBEEditor 自动生成，并会在程序启动时恢复为默认内容。
+注意：本 ReadMe.txt 是 MCBEEditor 内置的固定说明，并会在程序启动时恢复为默认内容。
 """;
 }

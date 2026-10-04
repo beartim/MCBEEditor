@@ -316,9 +316,9 @@ final class BedrockWorldObjectNBTStore {
 
     case .modernActor:
       let actorKey = makeActorKey(id: uniqueID)
-      guard try database.get(actorKey) == nil else {
+      guard try isActorStorageReferenceAvailable(uniqueID, database: database) else {
         throw MCBEEditorError.unsupported(
-          "Actor 存储引用与现有 actorprefix 键冲突，请改用其他 UniqueID。")
+          "Actor 存储引用已被 actorprefix 或 digp 占用，请改用其他 UniqueID。")
       }
       let actorValue = try BedrockNBTCodec.encode(document, encoding: .littleEndian)
       let digestKey = makeDigestKey(x: chunkX, z: chunkZ, dimension: dimension)
@@ -344,15 +344,18 @@ final class BedrockWorldObjectNBTStore {
     }
   }
 
-  func suggestedUniqueID() throws -> Int64 {
+  func suggestedUniqueID(
+    candidateGenerator: () -> Int64 = { Int64.random(in: 1...Int64.max) }
+  ) throws -> Int64 {
     let database = try session.database()
     for _ in 0..<128 {
-      let candidate = Int64.random(in: 1...Int64.max)
+      let candidate = candidateGenerator()
       // New Bedrock worlds can decouple the actorprefix storage reference from
       // the entity NBT UniqueID. A newly-created actor still uses the selected
       // ID as its storage reference, so both namespaces must be available.
-      if try isEntityUniqueIDAvailable(candidate, excluding: nil, database: database),
-        try database.get(makeActorKey(id: candidate)) == nil
+      if candidate != 0,
+        try isEntityUniqueIDAvailable(candidate, excluding: nil, database: database),
+        try isActorStorageReferenceAvailable(candidate, database: database)
       {
         return candidate
       }
@@ -450,9 +453,9 @@ final class BedrockWorldObjectNBTStore {
           let encoding = template?.storage.encoding ?? .littleEndian
         let actorValue = try BedrockNBTCodec.encode(document, encoding: encoding)
         let actorKey = makeActorKey(id: actorID)
-        guard try database.get(actorKey) == nil else {
+        guard try isActorStorageReferenceAvailable(actorID, database: database) else {
           throw MCBEEditorError.unsupported(
-            "Actor 存储引用与现有 actorprefix 键冲突，请改用其他 UniqueID。")
+            "Actor 存储引用已被 actorprefix 或 digp 占用，请改用其他 UniqueID。")
         }
         let digestKey = makeDigestKey(
           x: chunkX,
@@ -1096,6 +1099,27 @@ final class BedrockWorldObjectNBTStore {
       tags.append(NBTNamedTag(name: preferredName, value: value))
     }
     return .compound(tags)
+  }
+
+  private func isActorStorageReferenceAvailable(
+    _ reference: Int64, database: MojangLevelDB
+  ) throws -> Bool {
+    guard try database.get(makeActorKey(id: reference)) == nil else { return false }
+    // A dangling digest still owns its reference. Reusing it would make the
+    // new entity appear in an unrelated chunk or dimension when scanned.
+    let encodedReference = encodeActorIDs([reference])
+    for entry in try database.entries(prefix: Data("digp".utf8), includeValues: true, limit: 0) {
+      // Keep the scanner's compatibility with dimension keys carrying extra bytes.
+      guard entry.key.count == 12 || entry.key.count >= 16,
+        let data = entry.value
+      else { continue }
+      // Scanners use complete references even when a trailing fragment is invalid.
+      let usable = data.count - data.count % 8
+      for offset in stride(from: 0, to: usable, by: 8) {
+        if data.subdata(in: offset..<(offset + 8)) == encodedReference { return false }
+      }
+    }
+    return true
   }
 
   private func isEntityUniqueIDAvailable(

@@ -708,5 +708,451 @@
     "id": "parity-semantic-nbt",
     "command": "SuMmOn minecraft:pig OVERWORLD 0 64 0 'String'\"CustomName\"=\"MiXeD Value\"",
     "valid": true
+  },
+  {
+    "id": "entity-all",
+    "command": "entity",
+    "valid": true
+  },
+  {
+    "id": "entity-overworld",
+    "command": "entity overworld",
+    "valid": true
+  },
+  {
+    "id": "entity-nether",
+    "command": "entity nether",
+    "valid": true
+  },
+  {
+    "id": "entity-end",
+    "command": "entity the_end",
+    "valid": true
+  },
+  {
+    "id": "entity-bounds",
+    "command": "entity overworld -1 60 -2 10 90 20",
+    "valid": true
+  },
+  {
+    "id": "entity-reversed-float",
+    "command": "EnTiTy OvErWoRlD 1.5 65.25 10.5 -0.5 64.25 8.5",
+    "valid": true
+  },
+  {
+    "id": "entity-point",
+    "command": "entity nether 0 0 0 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "entity-float-range",
+    "command": "entity the_end -3e20 -3e20 -3e20 3e20 3e20 3e20",
+    "valid": true
+  },
+  {
+    "id": "entity-help",
+    "command": "help entity",
+    "valid": true
+  },
+  {
+    "id": "entity-unknown-dimension",
+    "command": "entity all",
+    "valid": false,
+    "valid_cli": true
+  },
+  {
+    "id": "entity-numeric-dimension",
+    "command": "entity 0",
+    "valid": true
+  },
+  {
+    "id": "entity-incomplete-point",
+    "command": "entity overworld 0 0 0",
+    "valid": false
+  },
+  {
+    "id": "entity-no-dimension-bounds",
+    "command": "entity 0 0 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "entity-extra-argument",
+    "command": "entity overworld 0 0 0 1 1 1 extra",
+    "valid": false
+  },
+  {
+    "id": "entity-nan",
+    "command": "entity overworld NaN 0 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "entity-infinity",
+    "command": "entity overworld 0 infinity 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "entity-float-overflow",
+    "command": "entity overworld 0 0 0 1 1 1e40",
+    "valid": false
+  },
+  {
+    "id": "entity-relative",
+    "command": "entity overworld ~ 0 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-true-00",
+    "command": "summon minecraft:pig overworld 0 64 0 default Auto",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-01",
+    "command": "summon minecraft:pig overworld 10.5 64.25 -3.75 default 9007199254740993",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-02",
+    "command": "summon minecraft:pig overworld 0 64 0 default -9223372036854775808",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-03",
+    "command": "summon minecraft:pig overworld 0 64 0 default 9223372036854775807",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-04",
+    "command": "summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\" Auto",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-05",
+    "command": "summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-06",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-07",
+    "command": "summon 'List''Double'\"Position\"=\"0.5,64.5,0.5\",'Int'\"DimensionId\"=\"1\",'Long'\"UniqueID\"=\"-12345678\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-08",
+    "command": "SuMmOn 'List''Int'\"pOs\"=\"0,64,0\",'Short'\"DIMENSION\"=\"2\",'Long'\"uniqueid\"=\"5\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-09",
+    "command": "summon 'List''String'\"definitions\"=\"+minecraft:cow\",'List''Float'\"Pos\"=\"0,64,0\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-true-10",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Compound'\"Nested\"=\"{'String'\"Name\"=\"two words\",'LongArray'\"Data\"=\"[1,-2]\"}\"",
+    "valid": true
+  },
+  {
+    "id": "summon-extension-false-00",
+    "command": "summon minecraft:pig overworld 0 64 0 default 9223372036854775808",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-01",
+    "command": "summon minecraft:pig overworld 0 64 0 default -9223372036854775809",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-02",
+    "command": "summon minecraft:pig overworld 0 64 0 default 0",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-03",
+    "command": "summon minecraft:pig overworld 0 64 0 default 1.5",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-04",
+    "command": "summon minecraft:pig overworld 0 64 0 default auto",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-05",
+    "command": "summon minecraft:pig overworld 0 64 0 default Auto 5",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-06",
+    "command": "summon 'String'\"identifier\"=\"minecraft:cow\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-07",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-08",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0,1\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-09",
+    "command": "summon 'List''String'\"Pos\"=\"0,64,0\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-10",
+    "command": "summon 'List''Double'\"Pos\"=\"0,NaN,0\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-11",
+    "command": "summon 'List''Double'\"Pos\"=\"0,1e100,0\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-12",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Int'\"UniqueID\"=\"5\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-13",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Long'\"UniqueID\"=\"0\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-14",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'String'\"UniqueID\"=\"Auto\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-15",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Long'\"UniqueID\"=\"5\",'Long'\"uniqueid\"=\"6\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-16",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'List''Float'\"Position\"=\"1,64,0\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-17",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'String'\"DimensionId\"=\"nether\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-18",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Float'\"DimensionId\"=\"1\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-19",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Long'\"DimensionId\"=\"2147483648\"",
+    "valid": false
+  },
+  {
+    "id": "summon-extension-false-20",
+    "command": "summon 'List''Float'\"Pos\"=\"0,64,0\",'Int'\"DimensionId\"=\"0\",'Int'\"Dimension\"=\"1\"",
+    "valid": false
+  },
+  {
+    "id": "structure-txt",
+    "command": "structure export txt my:house",
+    "valid": true
+  },
+  {
+    "id": "structure-txt-upper",
+    "command": "structure export TXT my:house",
+    "valid": true
+  },
+  {
+    "id": "structure-txt-no-name",
+    "command": "structure export txt",
+    "valid": true
+  },
+  {
+    "id": "structure-mcbe-snbt-alias",
+    "command": "structure export mcbe-snbt my:house",
+    "valid": true
+  },
+  {
+    "id": "structure-mcbe-snbt-upper",
+    "command": "structure export MCBE-SNBT my:house",
+    "valid": true
+  },
+  {
+    "id": "structure-format-unknown",
+    "command": "structure export nonsense my:house",
+    "valid": false
+  },
+  {
+    "id": "dimension-query",
+    "command": "dimension query",
+    "valid": true
+  },
+  {
+    "id": "dimension-query-case",
+    "command": "DiMeNsIoN QuErY",
+    "valid": true
+  },
+  {
+    "id": "dimension-query-extra",
+    "command": "dimension query extra",
+    "valid": false
+  },
+  {
+    "id": "dimension-missing-subcommand",
+    "command": "dimension",
+    "valid": false
+  },
+  {
+    "id": "dimension-add-custom",
+    "command": "dimension add wzn:bear 1000",
+    "valid": true
+  },
+  {
+    "id": "dimension-add-plain",
+    "command": "dimension add bear 1003",
+    "valid": true
+  },
+  {
+    "id": "dimension-add-vanilla",
+    "command": "dimension add nether 1",
+    "valid": true
+  },
+  {
+    "id": "dimension-add-overflow",
+    "command": "dimension add bear 2147483648",
+    "valid": false
+  },
+  {
+    "id": "dimension-add-vanilla-wrong-id",
+    "command": "dimension add overworld 1000",
+    "valid": false
+  },
+  {
+    "id": "dimension-add-reserved",
+    "command": "dimension add scoreboard 1000",
+    "valid": false
+  },
+  {
+    "id": "dimension-add-numeric-name",
+    "command": "dimension add 123 1000",
+    "valid": false
+  },
+  {
+    "id": "dimension-empty-name",
+    "command": "dimension empty wzn:cat",
+    "valid": true
+  },
+  {
+    "id": "dimension-empty-id",
+    "command": "dimension empty 1001",
+    "valid": true
+  },
+  {
+    "id": "dimension-empty-missing",
+    "command": "dimension empty",
+    "valid": false
+  },
+  {
+    "id": "dimension-purge-0",
+    "command": "dimension purge wzn:bear",
+    "valid": true
+  },
+  {
+    "id": "dimension-purge-1",
+    "command": "dimension purge -2147483648",
+    "valid": true
+  },
+  {
+    "id": "dimension-purge-2",
+    "command": "dimension purge",
+    "valid": false
+  },
+  {
+    "id": "dimension-purge-3",
+    "command": "dimension purge 1000 extra",
+    "valid": false
+  },
+  {
+    "id": "arbitrary-numeric-entity",
+    "command": "entity 2147483647",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-chunk",
+    "command": "chunk query 2147483647",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-fill",
+    "command": "fill -2147483648 0 64 0 0 64 0 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-clone",
+    "command": "clone 2147483647 0 0 0 0 0 0 -2147483648 1 1 1",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-fillbiome",
+    "command": "fillbiome -2147483648 0 0 0 0 0 0 minecraft:plains",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-getblock",
+    "command": "getblock 2147483647 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-setblock",
+    "command": "setblock -2147483648 0 64 0 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-storage",
+    "command": "storage query 2147483647 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-structure",
+    "command": "structure save demo:test -2147483648 0 0 0 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-spawnpoint",
+    "command": "spawnpoint @a 2147483647 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-teleport",
+    "command": "teleport @a -2147483648 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-summon",
+    "command": "summon minecraft:pig 2147483647 0 64 0 default Auto",
+    "valid": true
+  },
+  {
+    "id": "arbitrary-numeric-tickingarea",
+    "command": "tickingarea list -2147483648",
+    "valid": true
+  },
+  {
+    "id": "dimension-token-overflow",
+    "command": "getblock 2147483648 0 0 0",
+    "valid": false
+  },
+  {
+    "id": "dimension-token-underflow",
+    "command": "getblock -2147483649 0 0 0",
+    "valid": false
   }
 ]

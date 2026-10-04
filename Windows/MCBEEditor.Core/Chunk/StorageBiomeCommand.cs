@@ -45,7 +45,7 @@ public static class StorageBiomeCommandParser
         return token is "storage" or "fillbiome" or "info";
     }
 
-    public static StorageBiomeCommandRequest Parse(string text)
+    public static StorageBiomeCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count == 0) throw new InvalidDataException("命令不能为空。");
@@ -54,8 +54,8 @@ public static class StorageBiomeCommandParser
         return command switch
         {
             "info" => ParseInfo(args),
-            "storage" => ParseStorage(args),
-            "fillbiome" => ParseFillBiome(args),
+            "storage" => ParseStorage(args, dimensionResolver),
+            "fillbiome" => ParseFillBiome(args, dimensionResolver),
             _ => throw new InvalidDataException("不存在的命令。\n" + Usage)
         };
     }
@@ -66,29 +66,29 @@ public static class StorageBiomeCommandParser
         return new InfoStorageBiomeCommandRequest();
     }
 
-    private static StorageBiomeCommandRequest ParseStorage(string[] args)
+    private static StorageBiomeCommandRequest ParseStorage(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length == 0) throw UsageError();
         var operation = args[0].ToLowerInvariant();
         return operation switch
         {
             "query" when args.Length == 5 => new StorageQueryStorageBiomeCommandRequest(
-                BlockCommandParser.ParseDimension(args[1]), Coordinate(args, 2)),
+                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2)),
             "set" when args.Length == 8 => new StorageSetStorageBiomeCommandRequest(
-                BlockCommandParser.ParseDimension(args[1]), Coordinate(args, 2), ParseLayer(args[5]), ParseBlock(args[6], args[7])),
+                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseLayer(args[5]), ParseBlock(args[6], args[7])),
             "delete" when args.Length == 6 => new StorageDeleteStorageBiomeCommandRequest(
-                BlockCommandParser.ParseDimension(args[1]), Coordinate(args, 2), ParseLayer(args[5])),
+                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseLayer(args[5])),
             "clear" when args.Length == 6 => new StorageClearStorageBiomeCommandRequest(
-                BlockCommandParser.ParseDimension(args[1]), Coordinate(args, 2), ParseKeepLayer(args[5])),
+                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseKeepLayer(args[5])),
             "add" => throw new InvalidDataException("storage 不支持 add；仅支持 query、set、delete、clear。"),
             _ => throw UsageError()
         };
     }
 
-    private static StorageBiomeCommandRequest ParseFillBiome(string[] args)
+    private static StorageBiomeCommandRequest ParseFillBiome(string[] args, Func<string,int>? dimensionResolver)
     {
         if (args.Length != 8) throw UsageError();
-        var dimension = BlockCommandParser.ParseDimension(args[0]);
+        var dimension = BlockCommandParser.ParseDimension(args[0], dimensionResolver);
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
         var (id, display) = BedrockBiomeCatalog.Parse(args[7]);

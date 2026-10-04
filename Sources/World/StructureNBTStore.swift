@@ -157,17 +157,14 @@ final class StructureNBTStore {
         return target == record.key
     }
 
-    /// Imports standard NBT in the same formats recognized by prismarine-nbt:
-    /// Big Endian, Little Endian, Little Endian VarInt, plus gzip/zlib wrapped data.
+    /// Imports single-root binary NBT, JSON NBT or MCBE-SNBT (.txt).
     /// Java structure NBT is semantically converted into the Bedrock mcstructure schema;
     /// existing mcstructure data is normalized to uncompressed Little Endian.
     @discardableResult
-    func importStructure(data: Data, named name: String, overwrite: Bool) throws -> StructureImportResult {
-        let decoded = decode(data)
-        guard let document = decoded.document else {
-            throw MCBEEditorError.malformedData(
-                "文件不是可识别的 NBT／mcstructure（支持 Big Endian、Little Endian、Little Endian VarInt、GZip 和 Zlib）：\(decoded.error ?? "未知 NBT 编码")"
-            )
+    func importStructure(data: Data, filename: String = "structure.nbt", named name: String, overwrite: Bool) throws -> StructureImportResult {
+        let decoded = try StandaloneNBTFileCodec.decode(data: data, filename: filename)
+        guard decoded.documents.count == 1, let document = decoded.documents.first else {
+            throw MCBEEditorError.malformedData("结构文件必须只包含一个 NBT 根标签")
         }
         return try save(document: document, named: name, overwrite: overwrite)
     }

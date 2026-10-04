@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bash "$ROOT/Scripts/test_mcbe_snbt.sh"
 bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
@@ -337,7 +338,7 @@ struct Main {
         _ = try WorldCommandParser.parse("structure query")
         _ = try WorldCommandParser.parse("structure import")
         _ = try WorldCommandParser.parse("structure import demo:house")
-        for format in ["nbt", "mcstructure", "json"] {
+        for format in ["nbt", "mcstructure", "json", "txt", "TXT", "mcbe-snbt", "MCBE-SNBT"] {
             _ = try WorldCommandParser.parse("structure export \(format)")
             _ = try WorldCommandParser.parse("structure export \(format) demo:house")
         }
@@ -502,6 +503,7 @@ swiftc \
   "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
   "$ROOT/Sources/NBT/NBTTypes.swift" \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
+  "$ROOT/Sources/NBT/MCBESNBTCodec.swift" \
   "$ROOT/Sources/NBT/NBTClipboardCodec.swift" \
   "$ROOT/Sources/NBT/BinaryCursor.swift" \
   "$ROOT/Sources/NBT/BedrockNBTCodec.swift" \
@@ -512,6 +514,7 @@ swiftc \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Sources/Chunk/BedrockMapRegion.swift" \
   "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Command/DimensionNameRules.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
   -parse-as-library "$TMP/main.swift" -o "$TMP/core-tests"
 
@@ -727,7 +730,7 @@ for label in '实体ID' '生物群系ID' '状态效果ID' '魔咒ID'; do
 done
 grep -qF 'override func numberOfSections(in tableView: UITableView) -> Int { 3 }' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF 'return "NBT工具"' "$ROOT/Sources/UI/WorldListViewController.swift" && \
-grep -qF 'cell.textLabel?.text = "NBT/mcstructure/JSON读取修改和转换"' "$ROOT/Sources/UI/WorldListViewController.swift" && \
+grep -qF 'cell.textLabel?.text = "NBT/mcstructure/JSON/TXT读取修改和转换"' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF 'cell.imageView?.image = NBTTagIcon.toolImage()' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF 'return "基岩版数据值"' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF 'showBedrockDataValues(row: indexPath.row)' "$ROOT/Sources/UI/WorldListViewController.swift" || {
@@ -1632,7 +1635,7 @@ struct StructureNBTTest {
             try store.save(document: decoded.documents[0], named: "test:" + format.rawValue, overwrite: false)
         }
         let allFormats = try store.records()
-        precondition(allFormats.count == 4)
+        precondition(allFormats.count == 1 + StructureFileFormat.allCases.count)
         let legacyNestedJSON = Data(#"{"documents":[{"name":"lists","type":"list","value":{"type":"list","value":[{"type":"int","value":[1,2]},{"type":"int","value":[]}]}}]}"#.utf8)
         let legacyNested = try NBTJSONCodec.decode(legacyNestedJSON)
         if case .list(.list, let lists) = legacyNested[0].root {
@@ -1657,7 +1660,7 @@ struct StructureNBTTest {
                 print("Windows JSON structure imported successfully by iOS codec")
             }
         }
-        print("Structure mcstructure/Big Endian NBT/typed JSON export and reimport passed")
+        print("Structure mcstructure/Big Endian NBT/typed JSON/MCBE-SNBT export and reimport passed")
         print("Structure NBT discovery, endian conversion, rename and delete tests passed")
     }
 }
@@ -1674,6 +1677,7 @@ swiftc \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
   "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
+  "$ROOT/Sources/NBT/MCBESNBTCodec.swift" \
   "$ROOT/Sources/World/StandaloneNBTFile.swift" \
   -parse-as-library "$TMP/structure_nbt_test.swift" -o "$TMP/structure-nbt-tests"
 "$TMP/structure-nbt-tests"
@@ -3492,9 +3496,9 @@ grep -q 'static func decodeBatch' "$NBT_CLIPBOARD_CODEC" || {
   exit 1
 }
 
-grep -q '导入 NBT／mcstructure／JSON…' "$NBT_EDITING_UI" && \
+grep -q '导入 NBT／mcstructure／JSON／MCBE-SNBT (.txt)…' "$NBT_EDITING_UI" && \
 grep -q 'StandaloneNBTFileCodec.decode' "$NBT_EDITING_UI" && \
-grep -q 'ext == "nbt" || ext == "mcstructure" || ext == "json"' "$NBT_EDITING_UI" && \
+grep -q 'ext == "nbt" || ext == "mcstructure" || ext == "json" || ext == "txt"' "$NBT_EDITING_UI" && \
 grep -q 'completion: @escaping (\[NBTDocument\]) -> Void' "$NBT_EDITING_UI" && \
 grep -q 'append(contentsOf: documents)' "$STANDALONE_LIST" && \
 grep -q 'documents.map' "$METADATA_UI" || {
@@ -3570,7 +3574,11 @@ echo 'World-aware entity storage, legacy numeric block NBT editing and exact blo
 
 # v1.1.11: local-player map center, integrated terminal input and entity selectors.
 for required in \
+  "$ROOT/Sources/Command/DimensionNameRules.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
+  "$ROOT/Sources/Command/DimensionCommandContext.swift" \
+  "$ROOT/Scripts/Tests/DimensionCommandResolverTests.swift" \
+  "$ROOT/Sources/World/DimensionContentPlan.swift" "$ROOT/Sources/World/DimensionStore.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Sources/UI/WorldCommandViewController.swift"; do
@@ -4181,7 +4189,7 @@ struct EffectCommandTest {
         session.db.values[key("player_server_2002")] = try player(2002)
         session.db.values[key("player_server_9002")] = other
         let deleted = ["player_server_2002_meta", "player_data_2002", "player_storage_2002:inventory", "player_2002/extra"]
-        let kept = ["player_server_9002_meta_2002", "player_data_9002:2002", "player_storage_9002_2002_meta", "player_data_12002", "player_data_20020", "unrelated_2002"]
+        let kept = ["player_server_9002_meta_2002", "player_data_9002:2002", "player_storage_9002_2002_meta", "player_data_12002", "player_data_20020", "unrelated_control_2002"]
         for name in deleted + kept { session.db.values[key(name)] = Data([1, 2, 3]) }
         let result = try executor.execute(try WorldCommandParser.parse("kick 2002"))
         precondition(result.changedWorld && session.db.values[key("player_server_2002")] == nil)
@@ -4207,7 +4215,7 @@ struct EffectCommandTest {
         for command in ["teleport @s overworld 9223372036854775808 Auto 0", "teleport @s overworld 0 Auto 9223372036854775808", "spread @s", "teleport 987654 overworld 0 64 0"] {
             var rejected = false
             do { _ = try executor.execute(try WorldCommandParser.parse(command)) } catch { rejected = true }
-            precondition(rejected && session.db.values == before, "invalid targeting command changed player data")
+            precondition(rejected && session.db.values == before, "invalid targeting command changed player data: \(command)")
         }
     }
     static func verifyGiveInventoryAudit() throws {
@@ -4307,6 +4315,10 @@ struct EffectCommandTest {
         return name
     }
     static func main() throws {
+        try DimensionCliPreflightRegression.run()
+        try DimensionCommandResolverTests.run()
+        try SummonCommandRegression.run()
+        try EntityCommandRegression.run()
         try verifyGiveInventoryAudit()
         try verifySpawnPointScopeAudit()
         try verifyPlayerTargetingAudit()
@@ -4961,14 +4973,27 @@ swiftc -j 4 \
   "$ROOT/Sources/World/WorldInspector.swift" \
   "$ROOT/Sources/World/JavaStructureConverter.swift" \
   "$ROOT/Sources/World/StructureNBTStore.swift" \
+  "$ROOT/Sources/World/StandaloneNBTFile.swift" \
+  "$ROOT/Sources/NBT/NBTJSONCodec.swift" \
+  "$ROOT/Sources/NBT/MCBESNBTCodec.swift" \
   "$ROOT/Sources/World/TickingAreaStore.swift" \
   "$ROOT/Sources/World/WeatherStore.swift" \
   "$ROOT/Sources/World/TimeStore.swift" \
   "$ROOT/Sources/World/PlayerNBTStore.swift" \
   "$ROOT/Sources/World/ExperienceStore.swift" \
+  "$ROOT/Sources/Command/DimensionNameRules.swift" \
   "$ROOT/Sources/Command/WorldCommand.swift" \
+  "$ROOT/Sources/Command/DimensionCommandContext.swift" \
+  "$ROOT/Scripts/Tests/DimensionCommandResolverTests.swift" \
+  "$ROOT/Scripts/Tests/DimensionCliPreflightRegression.swift" \
+  "$ROOT/CLI/iOS/CliCommandFile.swift" \
+  "$ROOT/CLI/iOS/CliCommandPlan.swift" \
+  "$ROOT/CLI/iOS/CliStructureFileCommand.swift" \
+  "$ROOT/Sources/World/DimensionContentPlan.swift" "$ROOT/Sources/World/DimensionStore.swift" \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
+  "$ROOT/Scripts/Tests/EntityCommandRegression.swift" \
+  "$ROOT/Scripts/Tests/SummonCommandRegression.swift" \
   "$TMP/EffectCommandStubs.swift" \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"

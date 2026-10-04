@@ -57,6 +57,25 @@ final class WorldCommandExecutor {
         switch command {
         case .help(let target):
             return WorldCommandExecutionResult(message: WorldCommandParser.helpText(for: target), changedWorld: false)
+        case .dimensionAdd(let name, let id):
+            try DimensionStore(database: session.database()).add(name: name, id: id)
+            return WorldCommandExecutionResult(message: "dimension add 完成：\(name)=\(id)。", changedWorld: true)
+        case .dimensionEmpty(let target):
+            let store = try DimensionStore(database: session.database())
+            let id = try store.resolve(target)
+            let result = try store.empty(id: id)
+            return WorldCommandExecutionResult(message: "dimension empty 完成：ID=\(id)；删除键=\(result.deletedKeyCount)，actor=\(result.removedActorCount)；维度已保留。", changedWorld: true)
+        case .dimensionPurge(let target):
+            let store = try DimensionStore(database: session.database())
+            let id = try store.resolve(target)
+            let result = try store.purge(id: id)
+            return WorldCommandExecutionResult(message: "dimension purge 完成：ID=\(id)；删除键=\(result.deletedKeyCount)，actor=\(result.removedActorCount)，迁移玩家记录=\(result.affectedPlayerCount)；维度已删除。迁移坐标：当前位置(0.5,65.62,0.5)，重生点(0,64,0)。", changedWorld: true)
+        case .dimensionQuery:
+            let rows = try DimensionStore(database: session.database()).snapshot()
+            let message = "dimension query：找到 \(rows.count) 个维度。"
+            let lines = rows.map { WorldCommandOutputLine(text: $0.queryText, style: .success) }
+            return WorldCommandExecutionResult(message: message, changedWorld: false,
+                outputLines: lines.isEmpty ? [WorldCommandOutputLine(text: message, style: .success)] : lines)
         case .info:
             let rows = try WorldInspector().inspect(session: session)
             let lines = rows.map {
@@ -67,6 +86,8 @@ final class WorldCommandExecutor {
                 changedWorld: false,
                 outputLines: lines
             )
+        case .entity(let dimension, let region):
+            return try executeEntity(dimension: dimension, region: region)
         case .clear(let target):
             return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
         case .clearSpawnPoint(let target):
@@ -81,11 +102,13 @@ final class WorldCommandExecutor {
             )
         case .kick(let target):
             return WorldCommandExecutionResult(message: try kick(target: target), changedWorld: true)
-        case .summon(let identifier, let dimension, let position, let additions):
+        case .summon(let identifier, let dimension, let position, let additions, let uniqueID):
             return WorldCommandExecutionResult(
-                message: try summon(identifier: identifier, dimension: dimension, position: position, additions: additions),
+                message: try summon(identifier: identifier, dimension: dimension, position: position, additions: additions, requestedUniqueID: uniqueID),
                 changedWorld: true
             )
+        case .summonNBT(let tags):
+            return WorldCommandExecutionResult(message: try summonNBT(tags), changedWorld: true)
         case .effect(let operation, let target, let selection):
             let result = try effect(operation: operation, target: target, selection: selection)
             return WorldCommandExecutionResult(message: result.message, changedWorld: result.changed)
@@ -174,6 +197,33 @@ final class WorldCommandExecutor {
 
     // MARK: block/storage query and direct storage editing
 
+    private func executeEntity(dimension: Int32?, region: CommandEntityBox?) throws -> WorldCommandExecutionResult {
+        // Scan before filtering: the NBT dimension can differ from its stored
+        // chunk/digp location. An explicit all-entity query has no GUI result cap.
+        let scan = try BedrockWorldObjectScanner(database: session.database()).scanAll(
+            dimensions: nil, includeEntities: true, includeBlockEntities: false, maximumObjects: Int.max
+        )
+        var lines = scan.objects.filter { object in
+            guard dimension == nil || object.dimension == dimension else { return false }
+            guard let region = region else { return true }
+            guard let position = object.position else { return false }
+            return region.contains(x: position.x, y: position.y, z: position.z)
+        }.map { object in
+            WorldCommandOutputLine(
+                text: "\(object.identifier)=[\(CommandNBTOutputFormatter.root(object.document.root))]", style: .entity
+            )
+        }
+        if lines.isEmpty {
+            lines.append(WorldCommandOutputLine(text: "entity：没有匹配的实体。", style: .entity))
+        }
+        lines.append(contentsOf: scan.diagnostics.map {
+            WorldCommandOutputLine(text: "entity 扫描提示：\($0)", style: .entity)
+        })
+        return WorldCommandExecutionResult(
+            message: lines.map(\.text).joined(separator: "\n"), changedWorld: false, outputLines: lines
+        )
+    }
+
     private func executeGetBlock(
         dimension: Int32,
         position: CommandBlockCoordinate
@@ -212,7 +262,7 @@ final class WorldCommandExecutor {
             if let dimension = dimension, let x = x, let z = z {
                 summaries = [try store.summary(at: ChunkPosition(x: x, z: z, dimension: dimension))]
             } else {
-                let allowedDimensions: [Int32] = dimension.map { [$0] } ?? [0, 1, 2]
+                let allowedDimensions: [Int32] = try dimension.map { [$0] } ?? DimensionStore(database: session.database()).snapshot().map(\.id)
                 let allowedSet = Set(allowedDimensions)
                 summaries = try store.listChunks()
                     .filter { allowedSet.contains($0.position.dimension) }
@@ -534,9 +584,8 @@ final class WorldCommandExecutor {
 
     private func spread(target: CommandTarget) throws -> WorldCommandExecutionResult {
         let targets = try resolveTargets(target)
-        let supportedDimensions: Set<Int32> = [0, 1, 2]
         let summaries = try BedrockChunkStore(session: session).listChunks().filter {
-            $0.hasTerrain && supportedDimensions.contains($0.position.dimension)
+            $0.hasTerrain
         }
         let grouped = Dictionary(grouping: summaries, by: { $0.position.dimension })
             .mapValues { $0.map(\.position) }
@@ -966,10 +1015,11 @@ final class WorldCommandExecutor {
         identifier: String,
         dimension: Int32,
         position: CommandEntityCoordinate,
-        additions: [NBTNamedTag]
+        additions: [NBTNamedTag],
+        requestedUniqueID: Int64?
     ) throws -> String {
         let store = BedrockWorldObjectNBTStore(session: session)
-        let uniqueID = try store.suggestedUniqueID()
+        let uniqueID = try requestedUniqueID ?? store.suggestedUniqueID()
         let worldPosition = BedrockWorldObjectPosition(
             x: position.x,
             y: position.y,
@@ -994,6 +1044,21 @@ final class WorldCommandExecutor {
             templateDocument: NBTDocument(rootName: "", root: root)
         )
         return "summon 完成：创建 \(identifier)，维度 \(WorldCommandParser.dimensionName(for: dimension))，坐标 \(WorldCommandParser.coordinateText(position.x)) \(WorldCommandParser.coordinateText(position.y)) \(WorldCommandParser.coordinateText(position.z))，UniqueID \(uniqueID)，存储方式 \(result.source.rawValue)。"
+    }
+
+    private func summonNBT(_ sourceTags: [NBTNamedTag]) throws -> String {
+        let metadata = try WorldCommandParser.summonNBTMetadata(sourceTags)
+        let store = BedrockWorldObjectNBTStore(session: session)
+        let uniqueID = try metadata.uniqueID ?? store.suggestedUniqueID()
+        var tags = sourceTags
+        if metadata.uniqueID == nil {
+            tags.append(NBTNamedTag(name: "UniqueID", value: .long(uniqueID)))
+        }
+        let result = try store.createEntity(
+            from: NBTDocument(rootName: "", root: .compound(tags)), fallbackDimension: metadata.dimension
+        )
+        let position = metadata.position
+        return "summon 完成：按完整 NBT 创建实体，维度 \(WorldCommandParser.dimensionName(for: metadata.dimension))，坐标 \(WorldCommandParser.coordinateText(position.x)) \(WorldCommandParser.coordinateText(position.y)) \(WorldCommandParser.coordinateText(position.z))，UniqueID \(uniqueID)，存储方式 \(result.source.rawValue)。"
     }
 
 
@@ -1869,7 +1934,7 @@ private enum CommandNBTOutputFormatter {
         case .compound(let tags):
             return "'Compound'\"\(name)\"=\"{\(namedTags(tags))}\""
         case .list(let elementType, let values):
-            return "'List''\(elementType.displayName)'\"\(name)\"=\"\(listPayload(values, elementType: elementType))\""
+            return "\(listDescriptor(elementType, values: values))\"\(name)\"=\"\(listPayload(values, elementType: elementType, terminator: "\""))\""
         case .string(let value):
             return "'String'\"\(name)\"=\"\(escape(NBTRawStringCodec.displayText(for: value)))\""
         default:
@@ -1887,19 +1952,47 @@ private enum CommandNBTOutputFormatter {
         case .double(let value): return String(value)
         case .byteArray(let data):
             return "[" + data.map { String(Int8(bitPattern: $0)) }.joined(separator: ",") + "]"
-        case .string(let value): return NBTRawStringCodec.displayText(for: value)
-        case .list(let elementType, let values): return listPayload(values, elementType: elementType)
+        case .string(let value): return escape(NBTRawStringCodec.displayText(for: value))
+        case .list(let elementType, let values): return listPayload(values, elementType: elementType, terminator: "]")
         case .compound(let tags): return "{" + namedTags(tags) + "}"
         case .intArray(let values): return "[" + values.map(String.init).joined(separator: ",") + "]"
         case .longArray(let values): return "[" + values.map(String.init).joined(separator: ",") + "]"
         }
     }
 
-    private static func listPayload(_ values: [NBTValue], elementType: NBTTagType) -> String {
+    private static func listDescriptor(_ type: NBTTagType, values: [NBTValue]) -> String {
+        "'List'" + (commonElementDescriptor(type, values: values) ?? "'List'")
+    }
+
+    /// A List<List> may contain differently typed child lists. A shared
+    /// descriptor is truthful only when every child's recursive shape agrees.
+    private static func commonElementDescriptor(_ type: NBTTagType, values: [NBTValue]) -> String? {
+        guard type == .list else { return "'\(type.displayName)'" }
+        var common: String?
+        for value in values {
+            guard case .list(let childType, let children) = value,
+                  let descriptor = commonElementDescriptor(childType, values: children) else { return nil }
+            if let previous = common, previous != descriptor { return nil }
+            common = descriptor
+        }
+        return "'List'" + (common ?? "'Byte'")
+    }
+
+    private static func listPayload(_ values: [NBTValue], elementType: NBTTagType, terminator: Character) -> String {
         guard !values.isEmpty else { return "" }
+        let typedChildren = elementType == .list && commonElementDescriptor(elementType, values: values) == nil
         return values.map { value in
             switch value {
+            case .list(let childType, let children):
+                let payload = listPayload(children, elementType: childType, terminator: "]")
+                if typedChildren {
+                    return "[" + listDescriptor(childType, values: children) + "=[" + payload + "]]"
+                }
+                return "[" + payload + "]"
             case .compound(let tags): return "{" + namedTags(tags) + "}"
+            case .string(let text):
+                let escaped = escape(NBTRawStringCodec.displayText(for: text)).replacingOccurrences(of: ",", with: "\\,")
+                return terminator == "]" ? escaped.replacingOccurrences(of: "]", with: "\\]") : escaped
             default: return valueText(value)
             }
         }.joined(separator: ",")
@@ -1910,6 +2003,7 @@ private enum CommandNBTOutputFormatter {
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
     }
 }
 

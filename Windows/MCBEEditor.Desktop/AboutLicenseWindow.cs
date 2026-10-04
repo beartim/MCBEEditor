@@ -35,7 +35,7 @@ public sealed class AboutLicenseWindow : Window
 
         var description = new TextBlock
         {
-            Text = "Windows 10/11 x64 版。支持 Bedrock 世界、NBT/mcstructure/JSON 文件读取修改、Java 结构转换、连续多根 NBT、地图与 LevelDB 编辑。来源世界保持只读，修改发生在 Cache 工作副本中。GNU AGPL-3.0-or-later，无任何担保。",
+            Text = "Windows 10/11 x64 版。支持 Bedrock 世界、NBT/mcstructure/JSON/MCBE-SNBT (.txt) 文件读取修改、Java 结构转换、连续多根 NBT、地图与 LevelDB 编辑。来源世界保持只读，修改发生在 Cache 工作副本中。GNU AGPL-3.0-or-later，无任何担保。",
             TextWrapping = TextWrapping.Wrap,
             Foreground = Brushes.DimGray,
             Margin = new Thickness(0, 8, 0, 12)

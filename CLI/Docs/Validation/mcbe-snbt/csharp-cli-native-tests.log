@@ -1,0 +1,8 @@
+CLI entity parser and read-only policy regressions passed.
+CLI entity native queries: all dimensions, exact bounds, identifier variants, full NBT, diagnostics and read-only execution passed.
+CLI summon parsing and mutation policy passed.
+CLI summon native tests passed: dispatch, export/reopen, exact Long IDs, source integrity, legacy storage and atomic ID/reference rejection.
+CLI MCBE-SNBT native tests passed: 10 cases; TXT aliases, byte-exact export/reopen, structure loading and preflight/invalid-input protection.
+SKIP: Windows FileShare replacement-lock scenario; POSIX rename permits replacement.
+SKIP: Windows in-place FileShare replacement-lock scenario; POSIX rename permits replacement.
+PASS C# CLI native integration: 44 invocation cases; real Mojang LevelDB, source integrity, export/reopen and failure recovery.

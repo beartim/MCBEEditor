@@ -1,0 +1,3 @@
+dimension add nether 1
+dimension add the_end 2
+dimension query

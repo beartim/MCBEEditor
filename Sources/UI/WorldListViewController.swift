@@ -162,7 +162,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
     private func showAbout() {
         let alert = UIAlertController(
             title: "MCBEEditor 1.0.0",
-            message: "原生 iOS 13 版。支持 Bedrock 世界、NBT/mcstructure/JSON 文件读取修改、Java 结构转换、连续多根 NBT、地图与 LevelDB 编辑。当前固定版本 1.0.0。导入内容会复制到 App 沙盒。GNU AGPL-3.0-or-later，无任何担保。",
+            message: "原生 iOS 13 版。支持 Bedrock 世界、NBT/mcstructure/JSON/MCBE-SNBT (.txt) 文件读取修改、Java 结构转换、连续多根 NBT、地图与 LevelDB 编辑。当前固定版本 1.0.0。导入内容会复制到 App 沙盒。GNU AGPL-3.0-or-later，无任何担保。",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "查看许可证", style: .default) { [weak self] _ in
@@ -212,7 +212,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
 
     func handleExternalURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
-        let nbtExtensions: Set<String> = ["nbt", "mcstructure", "json"]
+        let nbtExtensions: Set<String> = ["nbt", "mcstructure", "json", "txt"]
         if urls.count == 1, let url = urls.first,
            nbtExtensions.contains(url.pathExtension.lowercased()) {
             openStandaloneNBTFile(url, presentConversion: false)
@@ -223,7 +223,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
 
     private func openStandaloneNBTFile(_ url: URL, presentConversion: Bool) {
         loadViewIfNeeded()
-        let overlay = showBusy("读取并识别 NBT/JSON 格式…")
+        let overlay = showBusy("读取并识别 NBT/JSON/MCBE-SNBT 格式…")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
@@ -242,7 +242,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             } catch {
                 DispatchQueue.main.async {
                     overlay.removeFromSuperview()
-                    self?.showError(error, title: "无法读取 NBT/JSON 文件")
+                    self?.showError(error, title: "无法读取 NBT/JSON/MCBE-SNBT 文件")
                 }
             }
         }
@@ -362,7 +362,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         switch section {
         case 1:
-            return "无需导入世界即可读取、修改并转换 NBT、mcstructure 和连续多根 NBT 文件。"
+            return "无需导入世界即可读取、修改并转换 NBT、mcstructure、JSON、MCBE-SNBT (.txt) 和连续多根 NBT 文件。"
         case 2:
             return "无需选择或导入世界即可查询数字 ID。"
         default:
@@ -374,9 +374,9 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
         if indexPath.section == 1 {
             let cell = tableView.dequeueReusableCell(withIdentifier: "NBTFileToolCell")
                 ?? UITableViewCell(style: .subtitle, reuseIdentifier: "NBTFileToolCell")
-            cell.textLabel?.text = "NBT/mcstructure/JSON读取修改和转换"
+            cell.textLabel?.text = "NBT/mcstructure/JSON/TXT读取修改和转换"
             cell.textLabel?.textColor = .label
-            cell.detailTextLabel?.text = "自动识别 JSON、字节序、压缩和连续根标签，并支持格式转换"
+            cell.detailTextLabel?.text = "支持 MCBE-SNBT (.txt)、JSON、三种字节序、压缩和连续根标签"
             cell.detailTextLabel?.textColor = .secondaryLabel
             cell.imageView?.image = NBTTagIcon.toolImage()
             cell.imageView?.contentMode = .center

@@ -27,7 +27,7 @@ public static class StructureTemplateCommandParser
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public const string Usage =
-        "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json [名称]\n" +
+        "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json|txt [名称]\n" +
         "structure save 名称 维度 x1 y1 z1 x2 y2 z2\n" +
         "structure load 名称 维度 x y z\n" +
         "structure delete 名称或ALL\n" +
@@ -36,7 +36,7 @@ public static class StructureTemplateCommandParser
     public static bool IsStructureTemplateCommand(string text)
         => FirstToken(text).Equals("structure", StringComparison.OrdinalIgnoreCase);
 
-    public static StructureTemplateStructureCommandRequest Parse(string text)
+    public static StructureTemplateStructureCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count < 2 || !tokens[0].Equals("structure", StringComparison.OrdinalIgnoreCase)) throw UsageError();
@@ -52,6 +52,7 @@ public static class StructureTemplateCommandParser
                 "mcstructure" => StructureFileFormat.Mcstructure,
                 "nbt" => StructureFileFormat.Nbt,
                 "json" => StructureFileFormat.Json,
+                "txt" or "mcbe-snbt" => StructureFileFormat.Txt,
                 _ => throw UsageError()
             };
             return new(StructureTemplateStructureOperationKind.Export, tokens.Count == 4 ? tokens[3] : null, Format: format);
@@ -59,7 +60,7 @@ public static class StructureTemplateCommandParser
         if (action == "save" && tokens.Count == 10)
         {
             var name = ParseName(tokens[2]);
-            var dimension = BlockCommandParser.ParseDimension(tokens[3]);
+            var dimension = BlockCommandParser.ParseDimension(tokens[3], dimensionResolver);
             var first = new BedrockBlockCoordinate(ParseInt32(tokens[4], "x1"), ParseInt32(tokens[5], "y1"), ParseInt32(tokens[6], "z1"));
             var second = new BedrockBlockCoordinate(ParseInt32(tokens[7], "x2"), ParseInt32(tokens[8], "y2"), ParseInt32(tokens[9], "z2"));
             return new StructureTemplateStructureCommandRequest(StructureTemplateStructureOperationKind.Save, name, dimension, new BedrockBlockBox(first, second));
@@ -67,7 +68,7 @@ public static class StructureTemplateCommandParser
         if (action == "load" && tokens.Count == 7)
         {
             var name = ParseName(tokens[2]);
-            var dimension = BlockCommandParser.ParseDimension(tokens[3]);
+            var dimension = BlockCommandParser.ParseDimension(tokens[3], dimensionResolver);
             var destination = new BedrockBlockCoordinate(ParseInt32(tokens[4], "x"), ParseInt32(tokens[5], "y"), ParseInt32(tokens[6], "z"));
             return new StructureTemplateStructureCommandRequest(StructureTemplateStructureOperationKind.Load, name, dimension, Destination: destination);
         }

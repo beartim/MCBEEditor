@@ -97,7 +97,11 @@ enum CliInteractiveShell {
             }
 
             guard let workspace = workspace else { terminal.writeError("尚未打开世界。先使用 :open \"世界路径\"。"); continue }
-            guard let plan = CliCommandPlan.parse([CliCommandLine(lineNumber: 1, text: line)], forExecution: true, allowInteractiveStructureName: true, error: terminal.writeError),
+            let dimensions: DimensionCommandContext
+            do { dimensions = try DimensionCommandContext(database: workspace.session.database()); workspace.session.close() }
+            catch { terminal.writeError(error.localizedDescription); continue }
+            guard let plan = CliCommandPlan.parse([CliCommandLine(lineNumber: 1, text: line)], forExecution: true, allowInteractiveStructureName: true,
+                                                  dimensionContext: dimensions, error: terminal.writeError),
                   let command = plan.commands.first else { continue }
             do {
                 guard let paths = paths else { continue }
@@ -123,7 +127,10 @@ enum CliInteractiveShell {
                 let result: WorldCommandExecutionResult
                 defer { workspace.session.close() }
                 if let request = structureFile { result = try CliStructureFileCommand.execute(request, session: workspace.session) }
-                else { result = try WorldCommandExecutor(session: workspace.session).execute(command.command) }
+                else {
+                    let current = try WorldCommandParser.parse(line, dimensionResolver: DimensionStore(database: workspace.session.database()).resolve)
+                    result = try WorldCommandExecutor(session: workspace.session).execute(current)
+                }
                 if result.outputLines.isEmpty {
                     result.message.components(separatedBy: "\n").forEach { terminal.writeLine(WorldCommandOutputLine(text: $0, style: .success)) }
                 } else {
@@ -160,8 +167,11 @@ enum CliInteractiveShell {
             return
         }
         var parseMessages = [String]()
+        let dimensions: DimensionCommandContext
+        do { dimensions = try DimensionCommandContext(database: workspace.session.database()); workspace.session.close() }
+        catch { terminal.writeError(error.localizedDescription); batchExitStatus = max(batchExitStatus, 2); return }
         guard let plan = CliCommandPlan.parse(lines, forExecution: true, allowInteractiveStructureName: false,
-                                              error: { parseMessages.append($0) }) else {
+                                              dimensionContext: dimensions, error: { parseMessages.append($0) }) else {
             parseMessages.forEach(terminal.writeError)
             terminal.writeError("Command.txt 语法检查失败；本次没有执行任何命令。")
             batchExitStatus = max(batchExitStatus, 2)
@@ -184,7 +194,9 @@ enum CliInteractiveShell {
                 if let request = planned.structureFile {
                     result = try CliStructureFileCommand.execute(request, session: workspace.session)
                 } else {
-                    result = try WorldCommandExecutor(session: workspace.session).execute(planned.command)
+                    let current = try WorldCommandParser.parse(planned.line.text,
+                        dimensionResolver: DimensionStore(database: workspace.session.database()).resolve)
+                    result = try WorldCommandExecutor(session: workspace.session).execute(current)
                 }
                 if result.outputLines.isEmpty {
                     result.message.components(separatedBy: "\n").forEach {

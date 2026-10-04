@@ -115,20 +115,19 @@ final class WorldDetailTabBarController: UITabBarController, UITabBarControllerD
             parsed.reserveCapacity(lines.count)
             var syntaxErrors = [(lineNumber: Int, rawText: String, message: String)]()
 
-            for line in lines {
-                do {
-                    parsed.append(ValidatedSharedWorldCommand(
-                        lineNumber: line.lineNumber,
-                        rawText: line.text,
-                        command: try WorldCommandParser.parse(line.text)
-                    ))
-                } catch {
-                    syntaxErrors.append((
-                        lineNumber: line.lineNumber,
-                        rawText: line.text,
-                        message: error.localizedDescription
-                    ))
+            do {
+                let dimensions = try DimensionCommandContext(database: self.session.database())
+                for line in lines {
+                    do {
+                        let command = try WorldCommandParser.parse(line.text, dimensionResolver: dimensions.resolve)
+                        try dimensions.apply(command)
+                        parsed.append(ValidatedSharedWorldCommand(lineNumber: line.lineNumber, rawText: line.text, command: command))
+                    } catch {
+                        syntaxErrors.append((lineNumber: line.lineNumber, rawText: line.text, message: error.localizedDescription))
+                    }
                 }
+            } catch {
+                syntaxErrors.append((lineNumber: 0, rawText: "读取当前存档维度", message: error.localizedDescription))
             }
 
             DispatchQueue.main.async { [weak self] in

@@ -1,0 +1,250 @@
+{
+  "format": "mcbe-snbt-fixtures",
+  "cases": [
+    {
+      "id": "age-shorthand",
+      "valid": true,
+      "text": " 'Int'\"Age\"=\"0\" ",
+      "little_endian_hex": "0a00000303004167650000000000"
+    },
+    {
+      "id": "summon-example",
+      "valid": true,
+      "text": " 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\" ",
+      "little_endian_hex": "0a0000080a006964656e7469666965720d006d696e6563726166743a636f77090300506f730503000000000000000000804200000000040800556e6971756549444e61bc000000000000"
+    },
+    {
+      "id": "empty-compound",
+      "valid": true,
+      "text": "{}",
+      "little_endian_hex": "0a000000"
+    },
+    {
+      "id": "named-scalar-multiple-roots",
+      "valid": true,
+      "text": "[\n'Compound'\"root\"=\"{'Int'\"Age\"=\"0\"}\",\n'Long'\"odd\"=\"9007199254740993\",\n'String'\"\"=\"\"\n]",
+      "little_endian_hex": "0a0400726f6f7403030041676500000000000403006f646401000000000020000800000000"
+    },
+    {
+      "id": "duplicate-and-empty-tag-names",
+      "valid": true,
+      "text": "['Compound'\"root\"=\"{'Int'\"x\"=\"1\",'Int'\"x\"=\"2\",'String'\"\"=\"empty name\"}\"]",
+      "little_endian_hex": "0a0400726f6f74030100780100000003010078020000000800000a00656d707479206e616d6500"
+    },
+    {
+      "id": "all-arrays-and-integer-limits",
+      "valid": true,
+      "text": " 'Byte'\"byte\"=\"-128\",'Short'\"short\"=\"-32768\",'Int'\"int\"=\"-2147483648\",'Long'\"min\"=\"-9223372036854775808\",'Long'\"max\"=\"9223372036854775807\",'ByteArray'\"ba\"=\"[-128,-1,0,127]\",'IntArray'\"ia\"=\"[-2147483648,0,2147483647]\",'LongArray'\"la\"=\"[-9223372036854775808,9007199254740993,9223372036854775807]\" ",
+      "little_endian_hex": "0a0000010400627974658002050073686f72740080030300696e74000000800403006d696e00000000000000800403006d6178ffffffffffffff7f07020062610400000080ff007f0b02006961030000000000008000000000ffffff7f0c02006c610300000000000000000000800100000000002000ffffffffffffff7f00"
+    },
+    {
+      "id": "finite-floats-and-negative-zero",
+      "valid": true,
+      "text": " 'Float'\"f\"=\"1.25\",'Double'\"d\"=\"-2.5\",'Float'\"fz\"=\"-0.0\",'Double'\"dz\"=\"-0.0\" ",
+      "little_endian_hex": "0a0000050100660000a03f0601006400000000000004c0050200667a00000080060200647a000000000000008000"
+    },
+    {
+      "id": "unicode-and-escapes",
+      "valid": true,
+      "text": " 'String'\"名\\\"\\\\\"=\"line\\nnext\\r\\t\\b\\f\\u0000\\uD83D\\uDE80\\'\\,\\[\\]\\{\\}中文\" ",
+      "little_endian_hex": "0a0000080500e5908d225c1e006c696e650a6e6578740d09080c00f09f9a80272c5b5d7b7de4b8ade6968700"
+    },
+    {
+      "id": "typed-string-elements",
+      "valid": true,
+      "text": " 'List''String'\"names\"=\"['String'=\"\"],['String'=\" a,b ] \\\" \\\\ \\n \"]\" ",
+      "little_endian_hex": "0a00000905006e616d6573080200000000000d0020612c62205d2022205c200a2000"
+    },
+    {
+      "id": "compact-string-elements",
+      "valid": true,
+      "text": " 'List''String'\"names\"=\"first,second\\,part,line\\nnext\" ",
+      "little_endian_hex": "0a00000905006e616d65730803000000050066697273740b007365636f6e642c7061727409006c696e650a6e65787400"
+    },
+    {
+      "id": "compact-deep-list",
+      "valid": true,
+      "text": " 'List''List''Int'\"nested\"=\"[1,2],[],[3]\" ",
+      "little_endian_hex": "0a00000906006e6573746564090300000003020000000100000002000000030000000003010000000300000000"
+    },
+    {
+      "id": "typed-mixed-child-lists",
+      "valid": true,
+      "text": " 'List''List'\"mixed\"=\"['List''Int'=\"1,2\"],['List''String'=\"['String'=\"x\"]\"],['List''End'=\"\"]\" ",
+      "little_endian_hex": "0a00000905006d697865640903000000030200000001000000020000000801000000010078000000000000"
+    },
+    {
+      "id": "legacy-mixed-child-lists",
+      "valid": true,
+      "text": " 'List''List'\"mixed\"=\"['List''Int'=[1]],['List''String'=[two]]\" ",
+      "little_endian_hex": "0a00000905006d6978656409020000000301000000010000000801000000030074776f00"
+    },
+    {
+      "id": "compound-and-array-lists",
+      "valid": true,
+      "text": " 'List''Compound'\"c\"=\"{'Int'\"x\"=\"1\"},{'String'\"x\"=\"2\"}\",'List''IntArray'\"a\"=\"[1,2],[]\",'List''LongArray'\"l\"=\"[-9223372036854775808,9223372036854775807]\" ",
+      "little_endian_hex": "0a0000090100630a020000000301007801000000000801007801003200090100610b02000000020000000100000002000000000000000901006c0c01000000020000000000000000000080ffffffffffffff7f00"
+    },
+    {
+      "id": "typed-numeric-elements",
+      "valid": true,
+      "text": " 'List''Int'\"n\"=\"['Int'=\"1\"],['Int'=\"2\"]\" ",
+      "little_endian_hex": "0a00000901006e0302000000010000000200000000"
+    },
+    {
+      "id": "all-empty-values",
+      "valid": true,
+      "text": " 'String'\"s\"=\"\",'ByteArray'\"b\"=\"[]\",'IntArray'\"i\"=\"[]\",'LongArray'\"l\"=\"[]\",'List''End'\"end\"=\"\",'List''List'\"list\"=\"\",'List''String'\"strings\"=\"\",'Compound'\"c\"=\"{}\" ",
+      "little_endian_hex": "0a000008010073000007010062000000000b010069000000000c01006c00000000090300656e6400000000000904006c6973740900000000090700737472696e677308000000000a0100630000"
+    },
+    {
+      "id": "whitespace-bom",
+      "valid": true,
+      "text": "﻿[\r\n 'Int'  \"root\"  =  \"42\" \r\n]",
+      "little_endian_hex": "030400726f6f742a000000"
+    },
+    {
+      "id": "special-float-bits",
+      "valid": true,
+      "text": " 'Float'\"f\"=\"bits:7fc00001\",'Double'\"d\"=\"bits:7ff8000000000001\",'Float'\"inf\"=\"Infinity\" ",
+      "little_endian_hex": "0a0000050100660100c07f06010064010000000000f87f050300696e660000807f00"
+    },
+    {
+      "id": "raw-binary-string",
+      "valid": true,
+      "binary_only": true,
+      "little_endian_hex": "0a0500ff726f6f74080500fe6e616d650400f0288c2800"
+    },
+    {
+      "id": "empty",
+      "valid": false,
+      "text": ""
+    },
+    {
+      "id": "empty-roots",
+      "valid": false,
+      "text": "[]"
+    },
+    {
+      "id": "null",
+      "valid": false,
+      "text": "NULL"
+    },
+    {
+      "id": "end-root",
+      "valid": false,
+      "text": "['End'\"x\"=\"\"]"
+    },
+    {
+      "id": "unknown-type",
+      "valid": false,
+      "text": " 'Integer'\"x\"=\"1\" "
+    },
+    {
+      "id": "missing-close",
+      "valid": false,
+      "text": " 'Int'\"Age\"=\"0 "
+    },
+    {
+      "id": "trailing-comma",
+      "valid": false,
+      "text": " 'Int'\"Age\"=\"0\", "
+    },
+    {
+      "id": "trailing-garbage",
+      "valid": false,
+      "text": " ['Int'\"x\"=\"1\"] garbage "
+    },
+    {
+      "id": "byte-overflow",
+      "valid": false,
+      "text": " 'Byte'\"x\"=\"128\" "
+    },
+    {
+      "id": "long-overflow",
+      "valid": false,
+      "text": " 'Long'\"x\"=\"9223372036854775808\" "
+    },
+    {
+      "id": "array-overflow",
+      "valid": false,
+      "text": " 'ByteArray'\"x\"=\"[256]\" "
+    },
+    {
+      "id": "float-overflow",
+      "valid": false,
+      "text": " 'Float'\"x\"=\"1e99\" "
+    },
+    {
+      "id": "double-overflow",
+      "valid": false,
+      "text": " 'Double'\"x\"=\"1e999\" "
+    },
+    {
+      "id": "invalid-bits",
+      "valid": false,
+      "text": " 'Float'\"x\"=\"bits:123\" "
+    },
+    {
+      "id": "invalid-escape",
+      "valid": false,
+      "text": " 'String'\"x\"=\"\\q\" "
+    },
+    {
+      "id": "unpaired-high-surrogate",
+      "valid": false,
+      "text": " 'String'\"x\"=\"\\uD800\" "
+    },
+    {
+      "id": "unpaired-low-surrogate",
+      "valid": false,
+      "text": " 'String'\"x\"=\"\\uDC00\" "
+    },
+    {
+      "id": "truncated-unicode",
+      "valid": false,
+      "text": " 'String'\"x\"=\"\\u12\" "
+    },
+    {
+      "id": "mixed-list-type",
+      "valid": false,
+      "text": " 'List''Int'\"x\"=\"['String'=\"bad\"]\" "
+    },
+    {
+      "id": "nonempty-end-list",
+      "valid": false,
+      "text": " 'List''End'\"x\"=\"1\" "
+    },
+    {
+      "id": "list-trailing-comma",
+      "valid": false,
+      "text": " 'List''Int'\"x\"=\"1,\" "
+    },
+    {
+      "id": "list-missing-element-type",
+      "valid": false,
+      "text": " 'List'\"x\"=\"1\" "
+    },
+    {
+      "id": "root-missing-comma",
+      "valid": false,
+      "text": " ['Int'\"a\"=\"1\" 'Int'\"b\"=\"2\"] "
+    },
+    {
+      "id": "compact-string-escaped-edges",
+      "valid": true,
+      "text": "'List''String'\"names\"=\"\\nhello\\t,\\n,\\u0020x\\u0020,tail \"",
+      "little_endian_hex": "0a00000905006e616d6573080400000007000a68656c6c6f0901000a030020782005007461696c2000"
+    },
+    {
+      "id": "compact-string-empty-leading",
+      "valid": false,
+      "text": "'List''String'\"names\"=\",value\""
+    },
+    {
+      "id": "compact-string-empty-middle",
+      "valid": false,
+      "text": "'List''String'\"names\"=\"value,,second\""
+    }
+  ]
+}

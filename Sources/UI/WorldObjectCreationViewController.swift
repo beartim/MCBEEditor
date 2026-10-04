@@ -108,7 +108,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         noticeLabel.translatesAutoresizingMaskIntoConstraints = false
         if template == nil {
             noticeLabel.text = kind == .entity
-                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。点击“创建”的空白实体仍使用通用 NBT 模板；从实体 NBT／JSON 文件导入时不会补充默认标签，只修改 Pos 和 UniqueID。文件缺少 DimensionId 时会在最终导入前选择写入维度。"
+                ? "会自动识别世界的实体存储格式：旧式世界写入区块 Entity(0x32)，现代世界写入 actorprefix/digp。点击“创建”的空白实体仍使用通用 NBT 模板；从实体 NBT／JSON／MCBE-SNBT (.txt) 文件导入时不会补充默认标签，只修改 Pos 和 UniqueID。文件缺少 DimensionId 时会在最终导入前选择写入维度。"
                 : "方块实体会写入目标区块的 BlockEntity(0x31) 记录。请确保目标坐标的方块类型与方块实体 ID 相匹配。"
         } else {
             noticeLabel.text = "将完整复制“\(template?.displayName ?? kind.displayName)”的 NBT，并根据目标世界及原对象自动选择区块 Entity 或 actorprefix；原对象不会被修改。"
@@ -123,7 +123,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         selectedButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
         selectedButton.translatesAutoresizingMaskIntoConstraints = false
 
-        importNBTButton.setTitle("从实体 NBT／JSON 文件导入…", for: .normal)
+        importNBTButton.setTitle("从实体 NBT／JSON／MCBE-SNBT (.txt) 文件导入…", for: .normal)
         importNBTButton.setImage(UIImage(systemName: "doc.badge.plus"), for: .normal)
         importNBTButton.addTarget(self, action: #selector(selectEntityNBTFile), for: .touchUpInside)
         importNBTButton.backgroundColor = .secondarySystemGroupedBackground
@@ -246,8 +246,8 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
         let fileExtension = url.pathExtension.lowercased()
-        guard fileExtension == "nbt" || fileExtension == "json" else {
-            showError(MCBEEditorError.unsupported("请选择 .nbt 或 .json 实体文件。"), title: "文件格式错误")
+        guard fileExtension == "nbt" || fileExtension == "json" || fileExtension == "txt" else {
+            showError(MCBEEditorError.unsupported("请选择 .nbt、.json 或 MCBE-SNBT .txt 实体文件。"), title: "文件格式错误")
             return
         }
         do {
@@ -304,7 +304,7 @@ final class WorldObjectCreationViewController: UIViewController, UITextFieldDele
         uniqueID: Int64
     ) {
         guard kind == .entity, template == nil else {
-            throw MCBEEditorError.unsupported("只有空白新建实体支持从 NBT／JSON 文件导入。")
+            throw MCBEEditorError.unsupported("只有空白新建实体支持从 NBT／JSON／MCBE-SNBT (.txt) 文件导入。")
         }
         guard let x = Double(xField.text ?? ""),
               let y = Double(yField.text ?? ""),

@@ -1,0 +1,1 @@
+PASS dimension fixture smoke: 27 real CLI invocations; lifecycle, names/IDs, vanilla recreation, byte collisions, example script, export/reopen and source integrity

@@ -59,9 +59,19 @@ struct BedrockWorldObjectPosition {
     let y: Double
     let z: Double
 
-    var blockX: Int64 { Int64(floor(x)) }
-    var blockY: Int32 { Int32(clamping: Int64(floor(y))) }
-    var blockZ: Int64 { Int64(floor(z)) }
+    var blockX: Int64 { Self.floorToInt64(x) }
+    var blockY: Int32 { Int32(clamping: Self.floorToInt64(y)) }
+    var blockZ: Int64 { Self.floorToInt64(z) }
+
+    // Preserve original Pos doubles for queries/NBT. Integer projections are
+    // only used by chunk lookup and sorting, and must never trap on stored data.
+    private static func floorToInt64(_ value: Double) -> Int64 {
+        if value.isNaN { return 0 }
+        let rounded = floor(value)
+        if rounded <= Double(Int64.min) { return Int64.min }
+        if rounded >= Double(Int64.max) { return Int64.max }
+        return Int64(rounded)
+    }
 }
 
 struct BedrockWorldObject {
@@ -99,7 +109,7 @@ struct BedrockWorldObject {
     }
 
     private func format(_ value: Double) -> String {
-        if value.rounded() == value { return String(Int64(value)) }
+        if value.isFinite && value.rounded() == value { return String(format: "%.0f", value) }
         return String(format: "%.2f", value)
     }
 }

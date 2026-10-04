@@ -189,7 +189,7 @@ Colors.txt 有效条目 > 对应 PNG > MCBEEditor 内置方块颜色。
 
 修改 PNG 或 Colors.txt 后返回 MCBEEditor 并重新渲染地图即可刷新。
 
-注意：本 ReadMe.txt 由 MCBEEditor 自动生成，并会在程序启动/重新激活时恢复为默认内容。
+注意：本 ReadMe.txt 是 MCBEEditor 内置的固定说明，并会在程序启动/重新激活时恢复为默认内容。
 """
 
     private static func writeReadMe(in directory: URL) throws {

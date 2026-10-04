@@ -18,6 +18,10 @@ internal static class CliWorldRunner
         {
             session = CliWorldSession.Open(paths, options.InPlace);
             error.WriteLine($"工作副本：{session.WorkingRoot}");
+            using (var database = session.Document.OpenDatabase(readOnly: true))
+                plan = CliCommandPlan.Parse(lines, error, forExecution: true,
+                    dimensionContext: MCBEEditor.Core.World.DimensionCommandContext.FromDatabase(database));
+            if (plan is null) { session.Complete(options.KeepWork); return 2; }
             var executor = new CliWorldCommandExecutor(session.Document);
             var failures = 0;
             foreach (var command in plan.Commands)
@@ -27,7 +31,7 @@ internal static class CliWorldRunner
                 output.Flush();
                 try
                 {
-                    var result = executor.Execute(command.Request);
+                    var result = executor.Execute(command.Text);
                     foreach (var line in result.Lines) output.WriteLine(line.Text);
                 }
                 catch (Exception exception) when (IsCommandFailure(exception))

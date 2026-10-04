@@ -14,7 +14,7 @@ internal static class CommandExtensionTests
     {
         var weather = EnvironmentCommandParser.Parse("weather query");
         Check(weather is WeatherQueryEnvironmentCommandRequest && !weather.IsDestructive, "weather query is read-only");
-        foreach (var text in new[] { "structure query", "structure export nbt", "structure export json demo:house", "structure export mcstructure demo:house" })
+        foreach (var text in new[] { "structure query", "structure export nbt", "structure export json demo:house", "structure export txt demo:house", "structure export mcbe-snbt demo:house", "structure export mcstructure demo:house" })
             Check(!StructureTemplateCommandParser.Parse(text).IsDestructive, "read-only parse: " + text);
         Check(StructureTemplateCommandParser.Parse("structure import").Operation == StructureTemplateStructureOperationKind.Import, "import dialog parse");
         Check(StructureTemplateCommandParser.Parse("structure import demo:house").Name == "demo:house", "import name parse");
@@ -91,7 +91,7 @@ internal static class CommandExtensionTests
             Check(decoded.Documents.Count == 1 && decoded.Documents[0].Root.IntValue("format_version") == 1, "export round trip " + format);
             stores.Import(bytes, filename, "test:" + format.ToString().ToLowerInvariant(), false);
         }
-        Check(stores.Records().Count == 5, "all three formats imported as structures");
+        Check(stores.Records().Count == Enum.GetValues<StructureFileFormat>().Length + 2, "all file formats imported as structures");
         var legacyNested = NbtJsonCodec.Decode(Encoding.UTF8.GetBytes("""
             {"documents":[{"name":"lists","type":"list","value":{"type":"list","value":[{"type":"int","value":[1,2]},{"type":"int","value":[]}]}}]}
             """));

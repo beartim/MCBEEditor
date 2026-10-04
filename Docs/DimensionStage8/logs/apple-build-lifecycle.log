@@ -1,0 +1,1 @@
+PASS: real Apple build shell retains prior binary on compile/architecture/platform/sign/verify failure and publishes on success (tool doubles only)

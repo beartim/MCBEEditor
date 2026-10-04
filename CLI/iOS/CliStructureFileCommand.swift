@@ -8,18 +8,18 @@ struct CliStructureFileRequest {
 
 enum CliStructureFileCommand {
     static let usage = """
-structure import 名称 --file "路径.mcstructure|nbt|json" [--overwrite]
-structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
+structure import 名称 --file "路径.mcstructure|nbt|json|txt" [--overwrite]
+structure export mcstructure|nbt|json|txt|mcbe-snbt 名称 --file "输出路径" [--overwrite]
 非交互模式名称和 --file 均必填；交互模式可省略名称后按提示输入。
 """
-    static func parse(_ text: String) throws -> (ParsedWorldCommand, CliStructureFileRequest?) {
+    static func parse(_ text: String, dimensionResolver: ((String) throws -> Int32)? = nil) throws -> (ParsedWorldCommand, CliStructureFileRequest?) {
         let tokens = try tokenize(text)
         guard tokens.count >= 2, tokens[0].lowercased() == "structure",
               ["import", "export"].contains(tokens[1].lowercased()) else {
-            return (try WorldCommandParser.parse(text), nil)
+            return (try WorldCommandParser.parse(text, dimensionResolver: dimensionResolver), nil)
         }
         guard let fileIndex = tokens.firstIndex(where: { $0.lowercased() == "--file" }) else {
-            return (try WorldCommandParser.parse(text), nil)
+            return (try WorldCommandParser.parse(text, dimensionResolver: dimensionResolver), nil)
         }
         guard fileIndex + 1 < tokens.count, !tokens[fileIndex + 1].hasPrefix("--") else { throw CliError.input("structure import/export 的 --file 缺少路径。") }
         let fileFlags = tokens.filter { $0.lowercased() == "--file" }.count
@@ -35,7 +35,7 @@ structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
             if tokens[index].lowercased() == "--overwrite" { index += 1; continue }
             coreTokens.append(tokens[index]); index += 1
         }
-        let command = try WorldCommandParser.parse(coreTokens.joined(separator: " "))
+        let command = try WorldCommandParser.parse(coreTokens.joined(separator: " "), dimensionResolver: dimensionResolver)
         guard case .structure(let operation) = command else { throw CliError.input("structure 文件操作解析失败。") }
         return (command, CliStructureFileRequest(operation: operation,
             file: CliWorldPaths.canonical(tokens[fileIndex + 1]), overwrite: overwriteFlags == 1))
@@ -51,8 +51,8 @@ structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
             let destination = request.file
             if case .importFile = request.operation {
                 guard FileManager.default.fileExists(atPath: destination.path), !CliFileSystem.isDirectory(destination),
-                      ["nbt", "json", "mcstructure"].contains(destination.pathExtension.lowercased()) else {
-                    throw CliError.input("结构输入必须是已存在的 .mcstructure、.nbt 或 .json 文件。")
+                      ["nbt", "json", "mcstructure", "txt"].contains(destination.pathExtension.lowercased()) else {
+                    throw CliError.input("结构输入必须是已存在的 .mcstructure、.nbt、.json 或 MCBE-SNBT .txt 文件。")
                 }
                 continue
             }
@@ -93,8 +93,8 @@ structure export mcstructure|nbt|json 名称 --file "输出路径" [--overwrite]
         case .importFile(let optionalName):
             guard let name = optionalName else { throw CliError.input("非交互 structure import 必须指定结构名称；交互会话可省略后按提示输入。") }
             guard manager.fileExists(atPath: request.file.path) else { throw CliError.file("找不到结构文件：\(request.file.path)") }
-            guard ["mcstructure", "nbt", "json"].contains(request.file.pathExtension.lowercased()) else {
-                throw CliError.file("structure import 仅支持 .mcstructure、.nbt 或 .json 文件。")
+            guard ["mcstructure", "nbt", "json", "txt"].contains(request.file.pathExtension.lowercased()) else {
+                throw CliError.file("structure import 仅支持 .mcstructure、.nbt、.json 或 MCBE-SNBT .txt 文件。")
             }
             let file = try StandaloneNBTFileCodec.decode(data: Data(contentsOf: request.file), filename: request.file.lastPathComponent)
             guard file.documents.count == 1, let document = file.documents.first else {

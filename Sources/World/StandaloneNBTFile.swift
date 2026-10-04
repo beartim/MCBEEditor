@@ -10,6 +10,7 @@ final class StandaloneNBTFile {
     let originalExtension: String
     let originalEncoding: NBTEncoding
     let originalWasJSON: Bool
+    let originalWasMCBESNBT: Bool
     var storageKind: StorageKind { documents.count == 1 ? .single : .consecutive }
     let wasCompressed: Bool
     var documents: [NBTDocument]
@@ -20,6 +21,7 @@ final class StandaloneNBTFile {
         originalExtension: String,
         originalEncoding: NBTEncoding,
         originalWasJSON: Bool = false,
+        originalWasMCBESNBT: Bool = false,
         storageKind _: StorageKind,
         wasCompressed: Bool,
         documents: [NBTDocument]
@@ -28,6 +30,7 @@ final class StandaloneNBTFile {
         self.originalExtension = originalExtension
         self.originalEncoding = originalEncoding
         self.originalWasJSON = originalWasJSON
+        self.originalWasMCBESNBT = originalWasMCBESNBT
         self.wasCompressed = wasCompressed
         self.documents = documents
     }
@@ -35,6 +38,7 @@ final class StandaloneNBTFile {
     var formatDescription: String {
         let layout = storageKind == .single ? "单根 NBT" : "连续 NBT（\(documents.count) 个根标签）"
         if originalWasJSON { return "\(layout) · JSON NBT" }
+        if originalWasMCBESNBT { return "\(layout) · MCBE-SNBT (.txt)" }
         let compression = wasCompressed ? " · 原文件为 GZip/Zlib" : ""
         return "\(layout) · \(Self.description(of: originalEncoding))\(compression)"
     }
@@ -57,12 +61,16 @@ enum StandaloneNBTFileCodec {
 
     static func decode(data originalData: Data, filename: String) throws -> StandaloneNBTFile {
         guard !originalData.isEmpty else {
-            throw MCBEEditorError.malformedData("NBT/JSON 文件为空")
+            throw MCBEEditorError.malformedData("NBT/JSON/MCBE-SNBT 文件为空")
         }
 
         let ext = URL(fileURLWithPath: filename).pathExtension.lowercased()
-        let firstNonWhitespace = originalData.first { byte in
+        let textData = originalData.starts(with: [0xEF, 0xBB, 0xBF]) ? originalData.dropFirst(3) : originalData[...]
+        let firstNonWhitespace = textData.first { byte in
             byte != 0x20 && byte != 0x09 && byte != 0x0A && byte != 0x0D
+        }
+        if ext == "txt" {
+            return try decodeMCBESNBT(originalData, filename: filename, fileExtension: ext)
         }
         if ext == "json" || firstNonWhitespace == 0x7B || firstNonWhitespace == 0x5B {
             do {
@@ -81,6 +89,11 @@ enum StandaloneNBTFileCodec {
             } catch {
                 // A binary NBT file can start with a byte that resembles JSON; continue binary detection.
             }
+        }
+
+        if firstNonWhitespace == 0x27 || firstNonWhitespace == 0x7B || firstNonWhitespace == 0x5B,
+           let textFile = try? decodeMCBESNBT(originalData, filename: filename, fileExtension: ext) {
+            return textFile
         }
 
         var payloads = [(data: originalData, compressed: false)]
@@ -115,7 +128,20 @@ enum StandaloneNBTFileCodec {
             }
         }
         throw MCBEEditorError.malformedData(
-            "无法识别该文件。支持 JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 以及 GZip/Zlib。\n" + failures.prefix(6).joined(separator: "\n")
+            "无法识别该文件。支持 MCBE-SNBT (.txt)、JSON NBT、Big Endian、Little Endian、Little Endian VarInt、连续多根 NBT 以及 GZip/Zlib。\n" + failures.prefix(6).joined(separator: "\n")
+        )
+    }
+
+    private static func decodeMCBESNBT(_ data: Data, filename: String, fileExtension ext: String) throws -> StandaloneNBTFile {
+        let documents = try MCBESNBTCodec.decode(data)
+        return StandaloneNBTFile(
+            originalFilename: filename,
+            originalExtension: ext,
+            originalEncoding: .littleEndian,
+            originalWasMCBESNBT: true,
+            storageKind: documents.count == 1 ? .single : .consecutive,
+            wasCompressed: false,
+            documents: documents
         )
     }
 
@@ -124,11 +150,16 @@ enum StandaloneNBTFileCodec {
         case .mcstructure: return try encodeAsMCStructure([document]).data
         case .nbt: return try encode([document], encoding: .bigEndian)
         case .json: return try encodeJSON([document])
+        case .txt: return try encodeMCBESNBT([document])
         }
     }
 
     static func encodeJSON(_ documents: [NBTDocument]) throws -> Data {
         try NBTJSONCodec.encode(documents)
+    }
+
+    static func encodeMCBESNBT(_ documents: [NBTDocument]) throws -> Data {
+        try MCBESNBTCodec.encode(documents)
     }
 
     static func encode(_ documents: [NBTDocument], encoding: NBTEncoding) throws -> Data {

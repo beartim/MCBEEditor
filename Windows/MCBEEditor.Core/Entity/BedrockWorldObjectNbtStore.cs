@@ -232,7 +232,7 @@ public sealed class BedrockWorldObjectNbtStore
             var candidate = Random.Shared.NextInt64(1, long.MaxValue);
             if (!IsEntityUniqueIdAvailable(candidate)) continue;
             var reference = ActorReference(candidate);
-            if (_database.Get(BedrockWorldObjectScanner.ActorKey(reference)) is null) return candidate;
+            if (IsActorStorageReferenceAvailable(reference)) return candidate;
         }
         throw new InvalidOperationException("无法生成未占用的实体 UniqueID，请手动填写。");
     }
@@ -505,8 +505,8 @@ public sealed class BedrockWorldObjectNbtStore
 
         var reference = ActorReference(uniqueId);
         var actorKey = BedrockWorldObjectScanner.ActorKey(reference);
-        if (_database.Get(actorKey) is not null)
-            throw new InvalidOperationException("Actor 存储引用与现有 actorprefix 键冲突，请改用其他 UniqueID。");
+        if (!IsActorStorageReferenceAvailable(reference))
+            throw new InvalidOperationException("Actor 存储引用与现有 actorprefix 键或 digp 引用冲突，请改用其他 UniqueID。");
         var digestKey = FindExistingDigestKey(chunkX, chunkZ, dimension)
             ?? BedrockWorldObjectScanner.DigestKey(chunkX, chunkZ, dimension);
         var digestRaw = _database.Get(digestKey);
@@ -672,6 +672,23 @@ public sealed class BedrockWorldObjectNbtStore
     {
         if (!IsEntityUniqueIdAvailable(uniqueId))
             throw new InvalidOperationException($"UniqueID {uniqueId} 已被其他实体占用。");
+    }
+
+    private bool IsActorStorageReferenceAvailable(byte[] reference)
+    {
+        if (_database.Get(BedrockWorldObjectScanner.ActorKey(reference)) is not null) return false;
+        // A dangling digp still owns its reference: reusing it would silently
+        // attach the new actor to that old chunk or dimension as well.
+        foreach (var entry in _database.Entries("digp"u8.ToArray(), includeValues: true))
+        {
+            if (!BedrockChunkStore.TryParseActorDigestKey(entry.Key, out _)
+                || entry.Value is not { } digest) continue;
+            // Scanners still use complete references before a trailing fragment.
+            var usable = digest.Length - (digest.Length & 7);
+            for (var offset = 0; offset < usable; offset += 8)
+                if (digest.AsSpan(offset, 8).SequenceEqual(reference)) return false;
+        }
+        return true;
     }
 
     private bool IsEntityUniqueIdAvailable(long uniqueId)

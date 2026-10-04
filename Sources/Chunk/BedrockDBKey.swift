@@ -82,11 +82,11 @@ struct BedrockDBKey: Hashable {
     let subChunkIndex: Int8?
 
     static func parse(_ data: Data) -> BedrockDBKey? {
-        guard data.count >= 9,
+        guard (9...11).contains(data.count) || (13...15).contains(data.count),
               let x = try? data.littleEndianInt32(at: 0),
               let z = try? data.littleEndianInt32(at: 4) else { return nil }
 
-        if let type = ChunkRecordType(rawValue: data[8]) {
+        if data.count <= 11, let type = ChunkRecordType(rawValue: data[8]) {
             let subIndex: Int8? = type == .subChunk && data.count >= 10 ? Int8(bitPattern: data[9]) : nil
             return BedrockDBKey(position: ChunkPosition(x: x, z: z, dimension: 0), recordType: type, subChunkIndex: subIndex)
         }
@@ -138,6 +138,17 @@ extension BedrockDBKey: CustomStringConvertible {
 /// Android MCBEEditor `removeFullChunk` implementation and deliberately
 /// does not depend on a whitelist of currently known tags.
 enum BedrockRawChunkKey {
+    static func position(from key: Data) -> ChunkPosition? {
+        guard (9...11).contains(key.count) || (13...15).contains(key.count),
+              let x = try? key.littleEndianInt32(at: 0), let z = try? key.littleEndianInt32(at: 4) else { return nil }
+        let dimension: Int32
+        if key.count >= 13 {
+            guard let id = try? key.littleEndianInt32(at: 8) else { return nil }
+            dimension = id
+        } else { dimension = 0 }
+        return ChunkPosition(x: x, z: z, dimension: dimension)
+    }
+
     static func prefixes(for position: ChunkPosition) -> [Data] {
         var modern = Data()
         modern.appendLE(position.x)

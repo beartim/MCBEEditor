@@ -92,11 +92,11 @@ public readonly record struct BedrockDbKey(ChunkPosition Position, ChunkRecordTy
     public static bool TryParse(ReadOnlySpan<byte> data, out BedrockDbKey key)
     {
         key = default;
-        if (data.Length < 9) return false;
+        if (data.Length is not (>= 9 and <= 11) and not (>= 13 and <= 15)) return false;
         var x = BinaryPrimitives.ReadInt32LittleEndian(data[..4]);
         var z = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(4, 4));
 
-        if (Enum.IsDefined(typeof(ChunkRecordType), data[8]))
+        if (data.Length <= 11 && Enum.IsDefined(typeof(ChunkRecordType), data[8]))
         {
             var type = (ChunkRecordType)data[8];
             sbyte? sub = type == ChunkRecordType.SubChunk && data.Length >= 10 ? unchecked((sbyte)data[9]) : null;
@@ -143,6 +143,16 @@ public readonly record struct BedrockDbKey(ChunkPosition Position, ChunkRecordTy
 
 public static class BedrockRawChunkKey
 {
+    public static bool TryParsePosition(ReadOnlySpan<byte> key, out ChunkPosition position)
+    {
+        position=default;
+        if(key.Length is not (>=9 and <=11) and not (>=13 and <=15)) return false;
+        position=new ChunkPosition(BinaryPrimitives.ReadInt32LittleEndian(key[..4]),
+            BinaryPrimitives.ReadInt32LittleEndian(key.Slice(4,4)),
+            key.Length>=13 ? BinaryPrimitives.ReadInt32LittleEndian(key.Slice(8,4)) : 0);
+        return true;
+    }
+
     public static IReadOnlyList<byte[]> Prefixes(ChunkPosition position)
     {
         var modern = new byte[12];

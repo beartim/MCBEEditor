@@ -1,0 +1,17 @@
+{
+  "stage": 1,
+  "runtime_code_changed": false,
+  "next_stage": 2,
+  "inputs": [
+    {
+      "filename": "MCBEEditor-iOS-Windows-CLI-v1.0.0-MCBE-SNBT(1).zip",
+      "sha256": "3ec78bf923b1eb2679c1bfdccdbf5ae776c5849926b1111771a92ec81fce248a",
+      "bytes": 3301256
+    },
+    {
+      "filename": "custom_dimensions.mcworld",
+      "sha256": "b2b229bc4cc8c9937da461c08b5117501b12bb38791599eca5a6c7b6f63bdcd4",
+      "bytes": 163646
+    }
+  ]
+}

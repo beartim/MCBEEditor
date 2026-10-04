@@ -63,7 +63,7 @@ def main():
 
     cases = json.loads((ROOT / "CLI/Shared/parser-cases.json").read_text(encoding="utf-8"))
     for case in cases:
-        valid = case.get("expected_by_backend", {}).get(args.backend, case["valid"])
+        valid = case.get("valid_cli", case["valid"])
         out, _ = invoke(["--check", case["command"]], 0 if valid else 2, label=case["id"])
         if valid:
             assert "1 条命令" in out and "未执行任何命令" in out
@@ -117,7 +117,7 @@ def main():
         invoke(["--convert", str(big), "--to", "json", "--output", str(roundtrip)], 3)
         invoke(["--convert", str(big), "--to", "json", "--output", str(roundtrip), "--overwrite"])
 
-    print(f"PASS {args.backend}: {checks} process checks; {len(cases)} parser cases; 26 commands")
+    print(f"PASS {args.backend}: {checks} process checks; {len(cases)} parser cases; {len(names)} commands")
 
 
 if __name__ == "__main__":

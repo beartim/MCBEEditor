@@ -241,7 +241,9 @@ public sealed class BedrockWorldObjectScanner
 
         var stable = source == BedrockWorldObjectSource.ModernActor
             ? $"actorprefix:{Convert.ToHexString(storageKey)}:{index}"
-            : uniqueId.HasValue
+            : source == BedrockWorldObjectSource.LegacyChunkEntity
+                ? $"legacy:{Convert.ToHexString(storageKey)}:{index}"
+                : uniqueId.HasValue
                 ? $"actor:{uniqueId.Value}"
                 : position is not null
                     ? $"{kind}:{dimension}:{position.BlockX}:{position.BlockY}:{position.BlockZ}:{identifier}:{index}"
@@ -319,6 +321,7 @@ public sealed class BedrockWorldObjectScanner
             var alternative = root.CompoundValueIgnoreCase("EntityType", "entityType", "EntityID", "entityID")?.IntegerValue();
             if (alternative.HasValue)
                 return BedrockEntityCatalog.IdentifierForNumericId(alternative.Value) ?? FirstDefinition(root) ?? $"数字实体ID:{alternative.Value}";
+            if (FirstDefinition(root) is string definition) return definition;
         }
         else if (direct is NbtStringValue blockEntityText && !string.IsNullOrWhiteSpace(blockEntityText.Value))
             return blockEntityText.Value.Trim();

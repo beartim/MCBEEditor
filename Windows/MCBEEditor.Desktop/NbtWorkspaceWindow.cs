@@ -578,30 +578,42 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
             }
             if (selectedRows.Length > 1)
             {
-                var folder = new OpenFolderDialog { Title = $"选择目录以导出 {selectedRows.Length} 个原始 NBT", Multiselect = false };
+                var formats = new[] { "原始 NBT (.nbt)", "JSON NBT (.json)", "MCBE-SNBT (.txt)" };
+                var format = StructureFileDialogs.Choose(this, "选择 NBT 导出格式", formats, value => value);
+                if (format is null) return;
+                var extension = format == formats[1] ? ".json" : format == formats[2] ? ".txt" : ".nbt";
+                // Parse and encode every record before writing any file in a batch.
+                var payloads = selectedRows.Select(row => ExportPayload(row, extension)).ToArray();
+                var folder = new OpenFolderDialog { Title = $"选择目录以导出 {selectedRows.Length} 个 NBT 文件", Multiselect = false };
                 if (folder.ShowDialog(this) != true) return;
                 var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var row in selectedRows)
+                foreach (var (data, defaultName) in payloads)
                 {
-                    var (data, defaultName) = ExportPayload(row);
                     var candidate = defaultName;
                     var stem = Path.GetFileNameWithoutExtension(defaultName);
                     var ext = Path.GetExtension(defaultName);
-                    for (var suffix = 2; !used.Add(candidate); suffix++) candidate = stem + "-" + suffix.ToString(CultureInfo.InvariantCulture) + ext;
+                    for (var suffix = 2; used.Contains(candidate) || File.Exists(Path.Combine(folder.FolderName, candidate)); suffix++)
+                        candidate = stem + "-" + suffix.ToString(CultureInfo.InvariantCulture) + ext;
+                    used.Add(candidate);
                     File.WriteAllBytes(Path.Combine(folder.FolderName, candidate), data);
                 }
-                _status.Text = $"已导出 {selectedRows.Length:N0} 个原始 NBT 文件。";
+                _status.Text = $"已导出 {selectedRows.Length:N0} 个 NBT 文件 · {format}。";
                 return;
             }
 
-            var (singleData, singleName) = ExportPayload(selectedRows[0]);
+            var (_, singleName) = ExportPayload(selectedRows[0]);
             var save = new SaveFileDialog
             {
-                Title = "导出原始 NBT",
-                Filter = "NBT 文件|*.nbt;*.mcstructure|所有文件|*.*",
-                FileName = singleName
+                Title = "导出 NBT",
+                Filter = "原始 NBT 文件|*.nbt|JSON NBT|*.json|MCBE-SNBT (.txt)|*.txt|所有文件|*.*",
+                FileName = singleName,
+                AddExtension = true
             };
-            if (save.ShowDialog(this) == true) File.WriteAllBytes(save.FileName, singleData);
+            if (save.ShowDialog(this) == true)
+            {
+                var (data, _) = ExportPayload(selectedRows[0], Path.GetExtension(save.FileName).ToLowerInvariant());
+                File.WriteAllBytes(save.FileName, data);
+            }
         }
         catch (Exception ex)
         {
@@ -609,14 +621,26 @@ public sealed class NbtWorkspaceWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private static (byte[] Data, string DefaultName) ExportPayload(NbtWorkspaceRow row)
-        => row.Payload switch
+    private static (byte[] Data, string DefaultName) ExportPayload(NbtWorkspaceRow row, string extension = ".nbt")
+    {
+        var original = row.Payload switch
         {
             PlayerNbtRecord player => (player.RawData, SafeFileName(player.DisplayName) + ".nbt"),
             VillageNbtRecord village => (BedrockNbtCodec.Encode(village.Document, village.Encoding), SafeFileName(village.VillageDisplayName + "-" + village.DisplayName) + ".nbt"),
             MetadataNbtRecord metadata => (metadata.RawData, SafeFileName(metadata.KeyText) + ".nbt"),
             _ => throw new InvalidDataException("无法导出所选记录。")
         };
+        if (extension is not (".txt" or ".json")) return original;
+        IReadOnlyList<NbtDocument> documents = row.Payload switch
+        {
+            PlayerNbtRecord player => [player.Document],
+            VillageNbtRecord village => [village.Document],
+            MetadataNbtRecord { Roots: not null } metadata => metadata.Roots.Select(root => root.Document).ToArray(),
+            _ => throw new InvalidDataException("所选记录无法解析为 NBT；只能导出原始二进制数据。")
+        };
+        var data = extension == ".txt" ? McbeSnbtCodec.Encode(documents) : StandaloneNbtFileCodec.EncodeJson(documents);
+        return (data, Path.ChangeExtension(original.Item2, extension));
+    }
 
     private static string SafeFileName(string value)
     {
@@ -830,8 +854,20 @@ public sealed class ConsecutiveNbtWindow : Window
 
     private void ExportAll()
     {
-        var save = new SaveFileDialog { Title = "导出连续 NBT", Filter = "NBT 文件 (*.nbt)|*.nbt|所有文件|*.*", FileName = "metadata.nbt" };
-        if (save.ShowDialog(this) == true) File.WriteAllBytes(save.FileName, ConsecutiveNbtCodec.Encode(_roots));
+        var save = new SaveFileDialog { Title = "导出连续 NBT", Filter = "NBT 文件 (*.nbt)|*.nbt|JSON NBT|*.json|MCBE-SNBT (.txt)|*.txt|所有文件|*.*", FileName = "metadata.nbt", AddExtension = true };
+        if (save.ShowDialog(this) != true) return;
+        try
+        {
+            var documents = _roots.Select(root => root.Document).ToArray();
+            var data = Path.GetExtension(save.FileName).ToLowerInvariant() switch
+            {
+                ".txt" => McbeSnbtCodec.Encode(documents),
+                ".json" => StandaloneNbtFileCodec.EncodeJson(documents),
+                _ => ConsecutiveNbtCodec.Encode(_roots)
+            };
+            File.WriteAllBytes(save.FileName, data);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "导出失败", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 }
 

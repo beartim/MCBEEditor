@@ -1,0 +1,16 @@
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.61
+Unhandled exception. System.Exception: entities 51: catalog differs from audited reference
+   at Program.<Main>$(String[] args) in /tmp/mcbe-catalog-sync-f9u5k8ke/Program.cs:line 23
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/dimension-final/Scripts/test_catalog_sync.py", line 66, in <module>
+    run(dotnet, str(work / "bin/Debug/net10.0/Catalog.dll"), str(REFERENCE))
+  File "/workspace/scratch/b1b811844258/dimension-final/Scripts/test_catalog_sync.py", line 19, in run
+    subprocess.run(args, check=True)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '('/workspace/scratch/b1b811844258/.toolchains/dotnet/dotnet', '/tmp/mcbe-catalog-sync-f9u5k8ke/bin/Debug/net10.0/Catalog.dll', '/workspace/scratch/b1b811844258/dimension-final/Docs/CatalogSync/catalog-reference.json')' died with <Signals.SIGABRT: 6>.

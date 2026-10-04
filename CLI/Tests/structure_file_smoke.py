@@ -68,6 +68,22 @@ def main():
         assert script.read_text(encoding="utf-8") == text
         invoke(["structure export json audit:one --file --overwrite"])
         assert not (source / "output.json").exists()
+        # TXT keeps the same preflight protections as the existing file formats.
+        def export_txt(path, overwrite=False):
+            return f'structure export txt audit:one --file "{path}"' + (" --overwrite" if overwrite else "")
+        for path in (source / "output.txt", cache / "output.txt", parent_file / "output.txt"):
+            invoke([export_txt(path, True)])
+        text_sentinel = root / "existing.txt"
+        text_sentinel.write_bytes(b"keep original text")
+        invoke([export_txt(text_sentinel)])
+        assert text_sentinel.read_bytes() == b"keep original text"
+        txt_input = root / "input.txt"
+        txt_input.write_text("{}", encoding="utf-8")
+        invoke([export_txt(txt_input, True), f'structure import audit:other --file "{txt_input}"'])
+        assert txt_input.read_text(encoding="utf-8") == "{}"
+        txt_repeated = root / "repeated.txt"
+        invoke([export_txt(txt_repeated), export_txt(txt_repeated)])
+        assert not txt_repeated.exists()
     print(f"PASS structure file preflight: {calls} real CLI invocations")
 
 

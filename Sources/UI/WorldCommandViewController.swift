@@ -384,7 +384,7 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
         setRunning(true)
 
         do {
-            executeParsedCommand(try WorldCommandParser.parse(raw)) { result in
+            executeParsedCommand(try WorldCommandParser.parse(raw, dimensionResolver: DimensionStore(database: session.database()).resolve)) { result in
                 switch result {
                 case .success(let value):
                     if value.changedWorld { self.session.notifyAfterDatabaseMutation() }
@@ -439,7 +439,17 @@ final class WorldCommandViewController: UIViewController, UITextFieldDelegate {
             }
             let item = commands[index]
             self.appendOutput("[第 \(item.lineNumber) 行] > \(item.rawText)")
-            self.executeParsedCommand(item.command) { result in
+            let command: ParsedWorldCommand
+            do {
+                command = try WorldCommandParser.parse(item.rawText,
+                    dimensionResolver: DimensionStore(database: self.session.database()).resolve)
+            } catch {
+                failureCount += 1
+                self.appendOutput("错误：\(error.localizedDescription)", color: .systemRed)
+                DispatchQueue.main.async { next(index + 1) }
+                return
+            }
+            self.executeParsedCommand(command) { result in
                 switch result {
                 case .success(let value):
                     changedWorld = changedWorld || value.changedWorld

@@ -4,7 +4,7 @@ struct MCBEEditorCli {
     static let version = "MCBEEditor CLI 1.0.0"
     private static let usage = """
 MCBEEditor CLI 1.0.0
-命令执行、原位更新、另存为与 NBT/mcstructure 格式转换。
+命令执行、原位更新、另存为与 NBT/mcstructure/JSON/MCBE-SNBT (.txt) 格式转换。
 
 mcbe-cli --help [命令]
 mcbe-cli --list-commands
@@ -29,7 +29,7 @@ mcbe-cli --world 路径 --script 命令文件
 执行前整批预检，运行时出错后继续后续命令。
 先在工作副本执行；原位模式仅全部成功后提交，失败保留副本。
 structure import/export 使用 --file 路径；持续会话使用 --interactive。
-独立 NBT/mcstructure 格式转换不需要 --world，也不会编辑 NBT 内容。
+独立 NBT/mcstructure/JSON/MCBE-SNBT (.txt) 格式转换不需要 --world，也不会编辑 NBT 内容。
 退出码：0 成功；1 执行失败；2 参数或预检错误；3 文件或编码错误；130 取消。
 """
 

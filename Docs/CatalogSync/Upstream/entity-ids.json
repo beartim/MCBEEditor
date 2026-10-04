@@ -1,0 +1,707 @@
+[
+  {
+    "identifier": "minecraft:agent",
+    "fullId": 312,
+    "shortId": 56
+  },
+  {
+    "identifier": "minecraft:allay",
+    "fullId": 390,
+    "shortId": 134
+  },
+  {
+    "identifier": "minecraft:area_effect_cloud",
+    "fullId": 95,
+    "shortId": 95
+  },
+  {
+    "identifier": "minecraft:armadillo",
+    "fullId": 5006,
+    "shortId": 142
+  },
+  {
+    "identifier": "minecraft:armor_stand",
+    "fullId": 317,
+    "shortId": 61
+  },
+  {
+    "identifier": "minecraft:arrow",
+    "fullId": 12582992,
+    "shortId": 80
+  },
+  {
+    "identifier": "minecraft:axolotl",
+    "fullId": 4994,
+    "shortId": 130
+  },
+  {
+    "identifier": "minecraft:balloon",
+    "fullId": 107,
+    "shortId": 107
+  },
+  {
+    "identifier": "minecraft:bat",
+    "fullId": 33043,
+    "shortId": 19
+  },
+  {
+    "identifier": "minecraft:bee",
+    "fullId": 378,
+    "shortId": 122
+  },
+  {
+    "identifier": "minecraft:blaze",
+    "fullId": 2859,
+    "shortId": 43
+  },
+  {
+    "identifier": "minecraft:boat",
+    "fullId": 90,
+    "shortId": 90
+  },
+  {
+    "identifier": "minecraft:bogged",
+    "fullId": 1117072,
+    "shortId": 144
+  },
+  {
+    "identifier": "minecraft:breeze",
+    "fullId": 2956,
+    "shortId": 140
+  },
+  {
+    "identifier": "minecraft:breeze_wind_charge_projectile",
+    "fullId": 4194445,
+    "shortId": 141
+  },
+  {
+    "identifier": "minecraft:camel",
+    "fullId": 5002,
+    "shortId": 138
+  },
+  {
+    "identifier": "minecraft:camel_husk",
+    "fullId": 70552,
+    "shortId": 152
+  },
+  {
+    "identifier": "minecraft:cat",
+    "fullId": 21323,
+    "shortId": 75
+  },
+  {
+    "identifier": "minecraft:cave_spider",
+    "fullId": 265000,
+    "shortId": 40
+  },
+  {
+    "identifier": "minecraft:chalkboard",
+    "fullId": 78,
+    "shortId": 78
+  },
+  {
+    "identifier": "minecraft:chest_boat",
+    "fullId": 218,
+    "shortId": 218
+  },
+  {
+    "identifier": "minecraft:chest_minecart",
+    "fullId": 524386,
+    "shortId": 98
+  },
+  {
+    "identifier": "minecraft:chicken",
+    "fullId": 4874,
+    "shortId": 10
+  },
+  {
+    "identifier": "minecraft:cod",
+    "fullId": 9072,
+    "shortId": 112
+  },
+  {
+    "identifier": "minecraft:command_block_minecart",
+    "fullId": 524388,
+    "shortId": 100
+  },
+  {
+    "identifier": "minecraft:copper_golem",
+    "fullId": 916,
+    "shortId": 148
+  },
+  {
+    "identifier": "minecraft:cow",
+    "fullId": 4875,
+    "shortId": 11
+  },
+  {
+    "identifier": "minecraft:creaking",
+    "fullId": 2962,
+    "shortId": 146
+  },
+  {
+    "identifier": "minecraft:creeper",
+    "fullId": 2849,
+    "shortId": 33
+  },
+  {
+    "identifier": "minecraft:cushion",
+    "fullId": 154,
+    "shortId": 154
+  },
+  {
+    "identifier": "minecraft:dolphin",
+    "fullId": 8991,
+    "shortId": 31
+  },
+  {
+    "identifier": "minecraft:donkey",
+    "fullId": 2118424,
+    "shortId": 24
+  },
+  {
+    "identifier": "minecraft:dragon_fireball",
+    "fullId": 4194383,
+    "shortId": 79
+  },
+  {
+    "identifier": "minecraft:drowned",
+    "fullId": 199534,
+    "shortId": 110
+  },
+  {
+    "identifier": "minecraft:egg",
+    "fullId": 4194386,
+    "shortId": 82
+  },
+  {
+    "identifier": "minecraft:elder_guardian",
+    "fullId": 2866,
+    "shortId": 50
+  },
+  {
+    "identifier": "minecraft:elder_guardian_ghost",
+    "fullId": 2936,
+    "shortId": 120
+  },
+  {
+    "identifier": "minecraft:ender_crystal",
+    "fullId": 71,
+    "shortId": 71
+  },
+  {
+    "identifier": "minecraft:ender_dragon",
+    "fullId": 2869,
+    "shortId": 53
+  },
+  {
+    "identifier": "minecraft:ender_pearl",
+    "fullId": 4194391,
+    "shortId": 87
+  },
+  {
+    "identifier": "minecraft:enderman",
+    "fullId": 2854,
+    "shortId": 38
+  },
+  {
+    "identifier": "minecraft:endermite",
+    "fullId": 265015,
+    "shortId": 55
+  },
+  {
+    "identifier": "minecraft:evocation_fang",
+    "fullId": 4194407,
+    "shortId": 103
+  },
+  {
+    "identifier": "minecraft:evocation_illager",
+    "fullId": 2920,
+    "shortId": 104
+  },
+  {
+    "identifier": "minecraft:eye_of_ender_signal",
+    "fullId": 70,
+    "shortId": 70
+  },
+  {
+    "identifier": "minecraft:falling_block",
+    "fullId": 66,
+    "shortId": 66
+  },
+  {
+    "identifier": "minecraft:fireball",
+    "fullId": 4194389,
+    "shortId": 85
+  },
+  {
+    "identifier": "minecraft:fireworks_rocket",
+    "fullId": 72,
+    "shortId": 72
+  },
+  {
+    "identifier": "minecraft:fishing_hook",
+    "fullId": 77,
+    "shortId": 77
+  },
+  {
+    "identifier": "minecraft:fox",
+    "fullId": 4985,
+    "shortId": 121
+  },
+  {
+    "identifier": "minecraft:frog",
+    "fullId": 4996,
+    "shortId": 132
+  },
+  {
+    "identifier": "minecraft:ghast",
+    "fullId": 2857,
+    "shortId": 41
+  },
+  {
+    "identifier": "minecraft:glow_squid",
+    "fullId": 9089,
+    "shortId": 129
+  },
+  {
+    "identifier": "minecraft:goat",
+    "fullId": 4992,
+    "shortId": 128
+  },
+  {
+    "identifier": "minecraft:guardian",
+    "fullId": 2865,
+    "shortId": 49
+  },
+  {
+    "identifier": "minecraft:happy_ghast",
+    "fullId": 5011,
+    "shortId": 147
+  },
+  {
+    "identifier": "minecraft:hoglin",
+    "fullId": 4988,
+    "shortId": 124
+  },
+  {
+    "identifier": "minecraft:hopper_minecart",
+    "fullId": 524384,
+    "shortId": 96
+  },
+  {
+    "identifier": "minecraft:horse",
+    "fullId": 2118423,
+    "shortId": 23
+  },
+  {
+    "identifier": "minecraft:husk",
+    "fullId": 199471,
+    "shortId": 47
+  },
+  {
+    "identifier": "minecraft:ice_bomb",
+    "fullId": 4194410,
+    "shortId": 106
+  },
+  {
+    "identifier": "minecraft:iron_golem",
+    "fullId": 788,
+    "shortId": 20
+  },
+  {
+    "identifier": "minecraft:item",
+    "fullId": 64,
+    "shortId": 64
+  },
+  {
+    "identifier": "minecraft:leash_knot",
+    "fullId": 88,
+    "shortId": 88
+  },
+  {
+    "identifier": "minecraft:lightning_bolt",
+    "fullId": 93,
+    "shortId": 93
+  },
+  {
+    "identifier": "minecraft:lingering_potion",
+    "fullId": 4194405,
+    "shortId": 101
+  },
+  {
+    "identifier": "minecraft:llama",
+    "fullId": 4893,
+    "shortId": 29
+  },
+  {
+    "identifier": "minecraft:llama_spit",
+    "fullId": 4194406,
+    "shortId": 102
+  },
+  {
+    "identifier": "minecraft:magma_cube",
+    "fullId": 2858,
+    "shortId": 42
+  },
+  {
+    "identifier": "minecraft:minecart",
+    "fullId": 524372,
+    "shortId": 84
+  },
+  {
+    "identifier": "minecraft:mooshroom",
+    "fullId": 4880,
+    "shortId": 16
+  },
+  {
+    "identifier": "minecraft:moving_block",
+    "fullId": 67,
+    "shortId": 67
+  },
+  {
+    "identifier": "minecraft:mule",
+    "fullId": 2118425,
+    "shortId": 25
+  },
+  {
+    "identifier": "minecraft:nautilus",
+    "fullId": 9109,
+    "shortId": 149
+  },
+  {
+    "identifier": "minecraft:npc",
+    "fullId": 307,
+    "shortId": 51
+  },
+  {
+    "identifier": "minecraft:ocelot",
+    "fullId": 21270,
+    "shortId": 22
+  },
+  {
+    "identifier": "minecraft:ominous_item_spawner",
+    "fullId": 145,
+    "shortId": 145
+  },
+  {
+    "identifier": "minecraft:painting",
+    "fullId": 83,
+    "shortId": 83
+  },
+  {
+    "identifier": "minecraft:panda",
+    "fullId": 4977,
+    "shortId": 113
+  },
+  {
+    "identifier": "minecraft:parched",
+    "fullId": 1117079,
+    "shortId": 151
+  },
+  {
+    "identifier": "minecraft:parrot",
+    "fullId": 21278,
+    "shortId": 30
+  },
+  {
+    "identifier": "minecraft:phantom",
+    "fullId": 68410,
+    "shortId": 58
+  },
+  {
+    "identifier": "minecraft:pig",
+    "fullId": 4876,
+    "shortId": 12
+  },
+  {
+    "identifier": "minecraft:piglin",
+    "fullId": 379,
+    "shortId": 123
+  },
+  {
+    "identifier": "minecraft:piglin_brute",
+    "fullId": 383,
+    "shortId": 127
+  },
+  {
+    "identifier": "minecraft:pillager",
+    "fullId": 2930,
+    "shortId": 114
+  },
+  {
+    "identifier": "minecraft:player",
+    "fullId": 319,
+    "shortId": 63
+  },
+  {
+    "identifier": "minecraft:polar_bear",
+    "fullId": 4892,
+    "shortId": 28
+  },
+  {
+    "identifier": "minecraft:pufferfish",
+    "fullId": 9068,
+    "shortId": 108
+  },
+  {
+    "identifier": "minecraft:rabbit",
+    "fullId": 4882,
+    "shortId": 18
+  },
+  {
+    "identifier": "minecraft:ravager",
+    "fullId": 2875,
+    "shortId": 59
+  },
+  {
+    "identifier": "minecraft:salmon",
+    "fullId": 9069,
+    "shortId": 109
+  },
+  {
+    "identifier": "minecraft:sheep",
+    "fullId": 4877,
+    "shortId": 13
+  },
+  {
+    "identifier": "minecraft:shield",
+    "fullId": 117,
+    "shortId": 117
+  },
+  {
+    "identifier": "minecraft:shulker",
+    "fullId": 2870,
+    "shortId": 54
+  },
+  {
+    "identifier": "minecraft:shulker_bullet",
+    "fullId": 4194380,
+    "shortId": 76
+  },
+  {
+    "identifier": "minecraft:silverfish",
+    "fullId": 264999,
+    "shortId": 39
+  },
+  {
+    "identifier": "minecraft:skeleton",
+    "fullId": 1116962,
+    "shortId": 34
+  },
+  {
+    "identifier": "minecraft:skeleton_horse",
+    "fullId": 2183962,
+    "shortId": 26
+  },
+  {
+    "identifier": "minecraft:slime",
+    "fullId": 2853,
+    "shortId": 37
+  },
+  {
+    "identifier": "minecraft:small_fireball",
+    "fullId": 4194398,
+    "shortId": 94
+  },
+  {
+    "identifier": "minecraft:sniffer",
+    "fullId": 5003,
+    "shortId": 139
+  },
+  {
+    "identifier": "minecraft:snow_golem",
+    "fullId": 789,
+    "shortId": 21
+  },
+  {
+    "identifier": "minecraft:snowball",
+    "fullId": 4194385,
+    "shortId": 81
+  },
+  {
+    "identifier": "minecraft:spider",
+    "fullId": 264995,
+    "shortId": 35
+  },
+  {
+    "identifier": "minecraft:splash_potion",
+    "fullId": 4194390,
+    "shortId": 86
+  },
+  {
+    "identifier": "minecraft:squid",
+    "fullId": 8977,
+    "shortId": 17
+  },
+  {
+    "identifier": "minecraft:stray",
+    "fullId": 1116974,
+    "shortId": 46
+  },
+  {
+    "identifier": "minecraft:strider",
+    "fullId": 4989,
+    "shortId": 125
+  },
+  {
+    "identifier": "minecraft:sulfur_cube",
+    "fullId": 921,
+    "shortId": 153
+  },
+  {
+    "identifier": "minecraft:tadpole",
+    "fullId": 9093,
+    "shortId": 133
+  },
+  {
+    "identifier": "minecraft:thrown_trident",
+    "fullId": 12582985,
+    "shortId": 73
+  },
+  {
+    "identifier": "minecraft:tnt",
+    "fullId": 65,
+    "shortId": 65
+  },
+  {
+    "identifier": "minecraft:tnt_minecart",
+    "fullId": 524385,
+    "shortId": 97
+  },
+  {
+    "identifier": "minecraft:trader_llama",
+    "fullId": 5021,
+    "shortId": 157
+  },
+  {
+    "identifier": "minecraft:tripod_camera",
+    "fullId": 318,
+    "shortId": 62
+  },
+  {
+    "identifier": "minecraft:tropicalfish",
+    "fullId": 9071,
+    "shortId": 111
+  },
+  {
+    "identifier": "minecraft:turtle",
+    "fullId": 4938,
+    "shortId": 74
+  },
+  {
+    "identifier": "minecraft:undefined_test_only",
+    "fullId": 1,
+    "shortId": 1
+  },
+  {
+    "identifier": "minecraft:vex",
+    "fullId": 2921,
+    "shortId": 105
+  },
+  {
+    "identifier": "minecraft:villager",
+    "fullId": 16777999,
+    "shortId": 15
+  },
+  {
+    "identifier": "minecraft:villager_v2",
+    "fullId": 16778099,
+    "shortId": 115
+  },
+  {
+    "identifier": "minecraft:vindicator",
+    "fullId": 2873,
+    "shortId": 57
+  },
+  {
+    "identifier": "minecraft:wandering_trader",
+    "fullId": 886,
+    "shortId": 118
+  },
+  {
+    "identifier": "minecraft:warden",
+    "fullId": 2947,
+    "shortId": 131
+  },
+  {
+    "identifier": "minecraft:wind_charge_projectile",
+    "fullId": 4194447,
+    "shortId": 143
+  },
+  {
+    "identifier": "minecraft:witch",
+    "fullId": 2861,
+    "shortId": 45
+  },
+  {
+    "identifier": "minecraft:wither",
+    "fullId": 68404,
+    "shortId": 52
+  },
+  {
+    "identifier": "minecraft:wither_skeleton",
+    "fullId": 1116976,
+    "shortId": 48
+  },
+  {
+    "identifier": "minecraft:wither_skull",
+    "fullId": 4194393,
+    "shortId": 89
+  },
+  {
+    "identifier": "minecraft:wither_skull_dangerous",
+    "fullId": 4194395,
+    "shortId": 91
+  },
+  {
+    "identifier": "minecraft:wolf",
+    "fullId": 21262,
+    "shortId": 14
+  },
+  {
+    "identifier": "minecraft:xp_bottle",
+    "fullId": 4194372,
+    "shortId": 68
+  },
+  {
+    "identifier": "minecraft:xp_orb",
+    "fullId": 69,
+    "shortId": 69
+  },
+  {
+    "identifier": "minecraft:zoglin",
+    "fullId": 68478,
+    "shortId": 126
+  },
+  {
+    "identifier": "minecraft:zombie",
+    "fullId": 199456,
+    "shortId": 32
+  },
+  {
+    "identifier": "minecraft:zombie_horse",
+    "fullId": 2183963,
+    "shortId": 27
+  },
+  {
+    "identifier": "minecraft:zombie_nautilus",
+    "fullId": 74646,
+    "shortId": 150
+  },
+  {
+    "identifier": "minecraft:zombie_pigman",
+    "fullId": 68388,
+    "shortId": 36
+  },
+  {
+    "identifier": "minecraft:zombie_villager",
+    "fullId": 199468,
+    "shortId": 44
+  },
+  {
+    "identifier": "minecraft:zombie_villager_v2",
+    "fullId": 199540,
+    "shortId": 116
+  }
+]

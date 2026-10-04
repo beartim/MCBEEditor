@@ -7,6 +7,14 @@ namespace MCBEEditor.Cli;
 /// <summary>Headless dispatch over the same stores used by the Windows command tab.</summary>
 internal sealed class CliWorldCommandExecutor(WorldDocument document)
 {
+    public CliCommandResult Execute(string text)
+    {
+        object request;
+        using (var database = document.OpenDatabase(readOnly: true))
+            request = CliCommandParser.Parse(text, new DimensionStore(database).Resolve);
+        return Execute(request);
+    }
+
     public CliCommandResult Execute(object command)
     {
         CliCommandPolicy.RequireExecutable(command);
@@ -30,7 +38,9 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
         using var database = document.OpenDatabase(readOnly: !CliCommandPolicy.MayMutate(command));
         return command switch
         {
+            DimensionCommandRequest dimension => CliCommandResult.FromCore(new DimensionCommandStore(database).Execute(dimension)),
             GetBlockCommandRequest get => GetBlock(database, get),
+            EntityQueryCommandRequest entity => CliCommandResult.FromCore(new EntityQueryCommandStore(database).Execute(entity)),
             SetBlockCommandRequest set => BlockMutation(new BedrockRegionBlockStore(database)
                 .SetBlock(set.Dimension, set.Position, set.Storages)),
             FillBlockCommandRequest fill => BlockMutation(new BedrockRegionBlockStore(database)
@@ -58,6 +68,7 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
             KillEntityActionCommandRequest kill => CliCommandResult.FromCore(new EntityActionCommandStore(database).Kill(kill)),
             KickEntityActionCommandRequest kick => CliCommandResult.FromCore(new EntityActionCommandStore(database).Kick(kick)),
             SummonEntityActionCommandRequest summon => CliCommandResult.FromCore(new EntityActionCommandStore(database).Summon(summon)),
+            SummonNbtEntityActionCommandRequest summon => CliCommandResult.FromCore(new EntityActionCommandStore(database).Summon(summon)),
             EffectEntityActionCommandRequest effect => CliCommandResult.FromCore(new EntityActionCommandStore(database).Effect(effect)),
 
             EnvironmentCommandRequest environment => CliCommandResult.FromCore(new EnvironmentCommandStore(document, database).Execute(environment)),
@@ -108,7 +119,8 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
                 summaries = [store.SummaryAt(new ChunkPosition(request.X.Value, request.Z.Value, request.Dimension.Value))];
             else
             {
-                var dimensions = request.Dimension.HasValue ? new[] { request.Dimension.Value } : new[] { 0, 1, 2 };
+                var dimensions = request.Dimension.HasValue ? new[] { request.Dimension.Value }
+                    : new DimensionStore(database).Snapshot().Select(row => row.Id).ToArray();
                 var order = dimensions.Select((value, index) => (value, index)).ToDictionary(item => item.value, item => item.index);
                 summaries = store.ListChunks().Where(item => order.ContainsKey(item.Position.Dimension))
                     .OrderBy(item => order[item.Position.Dimension]).ThenBy(item => item.Position.Z).ThenBy(item => item.Position.X).ToArray();

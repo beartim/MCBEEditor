@@ -2,7 +2,12 @@ import Foundation
 
 /// File extension and encoding for structure exports; .nbt uses standard Big Endian.
 enum StructureFileFormat: String, CaseIterable {
-    case mcstructure, nbt, json
+    case mcstructure, nbt, json, txt
+
+    init?(token: String) {
+        let normalized = token.lowercased()
+        self.init(rawValue: normalized == "mcbe-snbt" ? "txt" : normalized)
+    }
 }
 
 

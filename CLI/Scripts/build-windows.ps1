@@ -35,6 +35,8 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'CLI level.dat environment/batch checks failed.' }
     & python (Join-Path $root 'CLI\Tests\nbt_conversion_smoke.py') -- $binary
     if ($LASTEXITCODE -ne 0) { throw 'CLI NBT conversion matrix failed.' }
+    & python (Join-Path $root 'CLI\Tests\mcbe_snbt_smoke.py') --backend cli -- $binary
+    if ($LASTEXITCODE -ne 0) { throw 'CLI MCBE-SNBT roundtrip and invalid-input checks failed.' }
     & python (Join-Path $root 'CLI\Tests\structure_file_smoke.py') -- $binary
     if ($LASTEXITCODE -ne 0) { throw 'CLI structure file preflight failed.' }
     & dotnet run --project (Join-Path $root 'Windows\MCBEEditor.Core.SelfTest\MCBEEditor.Core.SelfTest.csproj') --configuration Release -- --cli-regression

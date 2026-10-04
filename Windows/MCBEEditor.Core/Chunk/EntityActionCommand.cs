@@ -24,7 +24,8 @@ public sealed record ClearEntityActionCommandRequest(TargetingCommandTarget Targ
 public sealed record GiveEntityActionCommandRequest(TargetingCommandTarget Target, EntityActionGiveSlot Slot, string ItemIdentifier, long Count, IReadOnlyList<NbtNamedTag> ItemTags) : EntityActionCommandRequest;
 public sealed record KillEntityActionCommandRequest(TargetingCommandTarget Target, bool KillCreativePlayers) : EntityActionCommandRequest;
 public sealed record KickEntityActionCommandRequest(TargetingCommandTarget Target) : EntityActionCommandRequest;
-public sealed record SummonEntityActionCommandRequest(string Identifier, int Dimension, double X, double Y, double Z, IReadOnlyList<NbtNamedTag> Additions) : EntityActionCommandRequest;
+public sealed record SummonEntityActionCommandRequest(string Identifier, int Dimension, double X, double Y, double Z, IReadOnlyList<NbtNamedTag> Additions, long? UniqueId = null) : EntityActionCommandRequest;
+public sealed record SummonNbtEntityActionCommandRequest(IReadOnlyList<NbtNamedTag> Tags) : EntityActionCommandRequest;
 public sealed record EffectEntityActionCommandRequest(EntityActionEffectOperationKind Operation, TargetingCommandTarget Target, EntityActionEffectSelection Selection, int Duration = 0, byte AmplifierRaw = 0) : EntityActionCommandRequest;
 
 public static class EntityActionCommandParser
@@ -47,7 +48,8 @@ public static class EntityActionCommandParser
         "give 目标 Slot 物品 数目 物品标签\n" +
         "kill 目标 是否杀死创造模式玩家\n" +
         "kick 在线玩家UniqueID或@a\n" +
-        "summon 实体类型 维度 x y z NBT标签或default\n" +
+        "summon 实体类型 维度 x y z NBT标签或default [UniqueID或Auto]\n" +
+        "summon 完整NBT标签\n" +
         "effect give 目标 状态效果ID或ALL 持续时间 效果等级\n" +
         "effect clear 目标 状态效果ID或ALL\n" +
         "目标支持非零 UniqueID、@s、@a、@e 或完整实体 identifier。";
@@ -58,7 +60,7 @@ public static class EntityActionCommandParser
         return first is "clear" or "give" or "kill" or "kick" or "summon" or "effect";
     }
 
-    public static EntityActionCommandRequest Parse(string text)
+    public static EntityActionCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
         if (tokens.Count == 0) throw new InvalidDataException("命令不能为空。");
@@ -70,7 +72,7 @@ public static class EntityActionCommandParser
             "give" => ParseGive(args),
             "kill" => ParseKill(args),
             "kick" => ParseKick(args),
-            "summon" => ParseSummon(args),
+            "summon" => ParseSummon(args, dimensionResolver),
             "effect" => ParseEffect(args),
             _ => throw new InvalidDataException("不存在的命令。\n" + Usage)
         };
@@ -104,11 +106,17 @@ public static class EntityActionCommandParser
         return new KickEntityActionCommandRequest(target);
     }
 
-    private static EntityActionCommandRequest ParseSummon(string[] args)
+    private static EntityActionCommandRequest ParseSummon(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length != 6) throw UsageError();
+        if (args.Length == 1)
+        {
+            var tags = BlockCommandParser.ParseStates(args[0]);
+            _ = SummonNbtMetadata(tags);
+            return new SummonNbtEntityActionCommandRequest(tags);
+        }
+        if (args.Length is not (6 or 7)) throw UsageError();
         var identifier = ParseIdentifier(args[0], "实体");
-        var dimension = BlockCommandParser.ParseDimension(args[1]);
+        var dimension = BlockCommandParser.ParseDimension(args[1], dimensionResolver);
         var x = ParseEntityCoordinate(args[2], "X");
         var y = ParseEntityCoordinate(args[3], "Y");
         var z = ParseEntityCoordinate(args[4], "Z");
@@ -117,12 +125,59 @@ public static class EntityActionCommandParser
         else
         {
             additions = BlockCommandParser.ParseStates(args[5]);
-            if (additions.Count == 0) throw new InvalidDataException("summon 的最后一个参数只能是 default 或非空 NBT 标签。");
+            if (additions.Count == 0) throw new InvalidDataException("summon 的 NBT 参数只能是 default 或非空 NBT 标签。");
         }
-        var protectedNames = new HashSet<string>(["uniqueid", "pos", "dimensionid", "dimension", "identifier", "id", "definitions"], StringComparer.OrdinalIgnoreCase);
+        var protectedNames = new HashSet<string>(["uniqueid", "pos", "position", "dimensionid", "dimension", "identifier", "id", "definitions"], StringComparer.OrdinalIgnoreCase);
         var invalid = additions.FirstOrDefault(tag => protectedNames.Contains(tag.Name));
         if (invalid is not null) throw new InvalidDataException($"summon 不能覆盖由命令控制的标签：{invalid.Name}");
-        return new SummonEntityActionCommandRequest(identifier, dimension, x, y, z, additions);
+        var uniqueId = args.Length == 7 ? ParseSummonUniqueId(args[6]) : null;
+        return new SummonEntityActionCommandRequest(identifier, dimension, x, y, z, additions, uniqueId);
+    }
+
+    private static long? ParseSummonUniqueId(string text)
+    {
+        if (text == "Auto") return null;
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var uniqueId) || uniqueId == 0)
+            throw new InvalidDataException("summon 的 UniqueID 必须是 Auto 或非零 Long 整数。");
+        return uniqueId;
+    }
+
+    internal static (BedrockWorldObjectPosition Position, int Dimension, long? UniqueId) SummonNbtMetadata(IReadOnlyList<NbtNamedTag> tags)
+    {
+        var positionTag = SummonReservedTag(tags, "Pos", "Position");
+        if (positionTag?.Value is not NbtListValue { Values.Count: 3 } position
+            || position.ElementType is not (NbtTagType.Byte or NbtTagType.Short or NbtTagType.Int or NbtTagType.Long or NbtTagType.Float or NbtTagType.Double)
+            || position.Values.Any(value => value.Type != position.ElementType
+                || !PlayerNbtStore.TryNumber(value, out var coordinate) || coordinate < -float.MaxValue || coordinate > float.MaxValue))
+            throw new InvalidDataException("summon 的完整 NBT 必须包含 Pos：恰好三个可写入 Float 的有限数字组成的 List。");
+        _ = PlayerNbtStore.TryNumber(position.Values[0], out var x);
+        _ = PlayerNbtStore.TryNumber(position.Values[1], out var y);
+        _ = PlayerNbtStore.TryNumber(position.Values[2], out var z);
+        var dimensionTag = SummonReservedTag(tags, "DimensionId", "Dimension");
+        var dimension = 0;
+        if (dimensionTag is not null)
+        {
+            if (dimensionTag.Value is not (NbtByteValue or NbtShortValue or NbtIntValue or NbtLongValue)
+                || dimensionTag.Value.IntegerValue() is not long number || number < int.MinValue || number > int.MaxValue)
+                throw new InvalidDataException("summon 的 DimensionId/Dimension 必须是 Int32 范围内的整数 NBT 标签。");
+            dimension = (int)number;
+        }
+        var uniqueIdTag = SummonReservedTag(tags, "UniqueID");
+        long? uniqueId = null;
+        if (uniqueIdTag is not null)
+        {
+            if (uniqueIdTag.Value is not NbtLongValue { Value: not 0 } id)
+                throw new InvalidDataException("summon 的 UniqueID 必须是非零 Long 标签。");
+            uniqueId = id.Value;
+        }
+        return (new BedrockWorldObjectPosition(x, y, z), dimension, uniqueId);
+    }
+
+    private static NbtNamedTag? SummonReservedTag(IReadOnlyList<NbtNamedTag> tags, params string[] names)
+    {
+        var matches = tags.Where(tag => names.Contains(tag.Name, StringComparer.OrdinalIgnoreCase)).ToArray();
+        if (matches.Length > 1) throw new InvalidDataException($"summon 的 {names[0]} 标签重复或存在多个别名。");
+        return matches.FirstOrDefault();
     }
 
     private static EntityActionCommandRequest ParseEffect(string[] args)
@@ -167,10 +222,10 @@ public static class EntityActionCommandParser
         return text;
     }
 
-    private static double ParseEntityCoordinate(string text, string name)
+    internal static double ParseEntityCoordinate(string text, string name, string command = "summon")
     {
         if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value) || value < -float.MaxValue || value > float.MaxValue)
-            throw new InvalidDataException($"summon 的 {name} 坐标必须是可写入 Float 的有限整数或浮点数：{text}");
+            throw new InvalidDataException($"{command} 的 {name} 坐标必须是可写入 Float 的有限整数或浮点数：{text}");
         return value;
     }
 
@@ -302,7 +357,7 @@ public sealed class EntityActionCommandStore
     public TargetingCommandExecutionResult Summon(SummonEntityActionCommandRequest request)
     {
         var store = new BedrockWorldObjectNbtStore(_database);
-        var uniqueId = store.SuggestedUniqueId();
+        var uniqueId = request.UniqueId ?? store.SuggestedUniqueId();
         var position = new BedrockWorldObjectPosition(request.X, request.Y, request.Z);
         var tags = new List<NbtNamedTag> { new("identifier", new NbtStringValue(request.Identifier)) };
         tags.AddRange(BedrockEntityCommonNbt.Tags(request.Identifier, position, request.Dimension, uniqueId)
@@ -312,6 +367,19 @@ public sealed class EntityActionCommandStore
         var result = store.CreateEntityFromDocument(document, request.Dimension);
         return TargetingCommandExecutionResult.Success(
             $"summon 完成：创建 {request.Identifier}，维度 {DimensionToken(request.Dimension)}，坐标 {TargetingCommandParser.CoordinateText(request.X)} {TargetingCommandParser.CoordinateText(request.Y)} {TargetingCommandParser.CoordinateText(request.Z)}，UniqueID {uniqueId}，存储方式 {SourceText(result.Source)}。", true);
+    }
+
+    public TargetingCommandExecutionResult Summon(SummonNbtEntityActionCommandRequest request)
+    {
+        var metadata = EntityActionCommandParser.SummonNbtMetadata(request.Tags);
+        var store = new BedrockWorldObjectNbtStore(_database);
+        var uniqueId = metadata.UniqueId ?? store.SuggestedUniqueId();
+        var tags = request.Tags.Select(tag => new NbtNamedTag(tag.Name, NbtDocumentTools.DeepClone(tag.Value))).ToList();
+        if (!metadata.UniqueId.HasValue) tags.Add(new NbtNamedTag("UniqueID", new NbtLongValue(uniqueId)));
+        var document = new NbtDocument(string.Empty, new NbtCompoundValue(tags));
+        var result = store.CreateEntityFromDocument(document, metadata.Dimension);
+        return TargetingCommandExecutionResult.Success(
+            $"summon 完成：按完整 NBT 创建实体，维度 {DimensionToken(metadata.Dimension)}，坐标 {TargetingCommandParser.CoordinateText(metadata.Position.X)} {TargetingCommandParser.CoordinateText(metadata.Position.Y)} {TargetingCommandParser.CoordinateText(metadata.Position.Z)}，UniqueID {uniqueId}，存储方式 {SourceText(result.Source)}。", true);
     }
 
     public TargetingCommandExecutionResult Effect(EffectEntityActionCommandRequest request)

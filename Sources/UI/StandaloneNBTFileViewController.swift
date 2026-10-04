@@ -75,7 +75,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         if file.storageKind == .consecutive {
             return "支持多个 NBT 根标签连续存储的文件。根标签序号从 0 开始；可新建、修改或重命名，导出时会重新连续编码全部记录。"
         }
-        return "点按进入完整 NBT 编辑器；右上角可导出 JSON、三种 NBT 编码或 Bedrock mcstructure。"
+        return "点按进入完整 NBT 编辑器；右上角可导出 MCBE-SNBT (.txt)、JSON、三种 NBT 编码或 Bedrock mcstructure。"
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -356,14 +356,17 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
     @objc private func showExportMenu() {
         let sheet = UIAlertController(
             title: "导出与格式转换",
-            message: "修改保存在当前会话中。请选择输出格式后通过“文件”或分享菜单保存。支持 JSON 与三种 NBT 编码；压缩输入会导出为未压缩数据。",
+            message: "修改保存在当前会话中。请选择输出格式后通过“文件”或分享菜单保存。支持 MCBE-SNBT (.txt)、JSON 与三种 NBT 编码；压缩输入会导出为未压缩数据。",
             preferredStyle: .actionSheet
         )
         sheet.addAction(UIAlertAction(
-            title: file.originalWasJSON ? "原格式 · JSON NBT" : "原编码 · \(StandaloneNBTFile.description(of: file.originalEncoding))",
+            title: file.originalWasMCBESNBT ? "原格式 · MCBE-SNBT (.txt)" : file.originalWasJSON ? "原格式 · JSON NBT" : "原编码 · \(StandaloneNBTFile.description(of: file.originalEncoding))",
             style: .default
         ) { [weak self] _ in
             self?.exportOriginalFormat()
+        })
+        sheet.addAction(UIAlertAction(title: "MCBE-SNBT (.txt)", style: .default) { [weak self] _ in
+            self?.exportMCBESNBT()
         })
         sheet.addAction(UIAlertAction(title: "JSON NBT", style: .default) { [weak self] _ in
             self?.exportJSON()
@@ -387,6 +390,10 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
 
     private func exportOriginalFormat() {
         let documents = file.documents
+        if file.originalWasMCBESNBT {
+            exportMCBESNBT()
+            return
+        }
         if file.originalWasJSON {
             exportInBackground(filename: safeFilename(baseFilename()) + ".json") {
                 try StandaloneNBTFileCodec.encodeJSON(documents)
@@ -404,6 +411,13 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         let documents = file.documents
         exportInBackground(filename: safeFilename(baseFilename()) + ".json") {
             try StandaloneNBTFileCodec.encodeJSON(documents)
+        }
+    }
+
+    private func exportMCBESNBT() {
+        let documents = file.documents
+        exportInBackground(filename: safeFilename(baseFilename()) + ".txt") {
+            try StandaloneNBTFileCodec.encodeMCBESNBT(documents)
         }
     }
 
