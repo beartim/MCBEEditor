@@ -1,0 +1,10 @@
+[
+  {
+    "check": "cross-swift-to-csharp",
+    "exit_code": 0
+  },
+  {
+    "check": "cross-csharp-to-swift",
+    "exit_code": 0
+  }
+]

@@ -147,9 +147,9 @@ internal static class Program
             "experience level @s 30", "experience percent @s 0.5", "experience query @s",
             "give @s Auto minecraft:diamond 3 NULL", "effect give @s strength 1000 255", "effect clear @s ALL", "clear @s",
             "summon minecraft:pig overworld 0.5 65 0.5 default", "kill minecraft:pig 0", "kick @a",
-            "fill overworld 0 65 0 3 65 0 minecraft:stone NULL", "setblock overworld 1 65 0 minecraft:dirt NULL",
+            "fill overworld 0 65 0 3 65 0 minecraft:stone NULL empty", "setblock overworld 1 65 0 minecraft:dirt NULL empty",
             "clone overworld 0 65 0 2 65 0 overworld 1 65 0", "fillbiome overworld 0 0 0 15 127 15 9",
-            "setblock the_end 35 200 5 minecraft:diamond_block NULL", "storage set the_end 3 220 5 254 minecraft:stone NULL",
+            "setblock the_end 35 200 5 minecraft:diamond_block NULL empty", "storage set the_end 3 220 5 254 minecraft:stone NULL",
             "storage query the_end 3 220 5", "storage set the_end 3 240 5 2 minecraft:stone NULL",
             "storage delete the_end 3 240 5 2", "storage clear the_end 3 240 5 0",
             "structure save cli:house overworld 0 65 0 3 65 0", "structure query", "structure load cli:house overworld 0 70 0",
@@ -409,7 +409,7 @@ internal static class Program
         using (var candidate = PortableWorldWorkspace.Create(Path.Combine(root, "InPlaceInputs"), source))
         {
             var target = candidate.WorkingRootPath;
-            var savedFolder = Invoke("in-place-folder", 0, ["--command", "time set 6789", "--command", "setblock the_end 35 200 5 minecraft:diamond_block NULL", "--in-place"], target + Path.DirectorySeparatorChar);
+            var savedFolder = Invoke("in-place-folder", 0, ["--command", "time set 6789", "--command", "setblock the_end 35 200 5 minecraft:diamond_block NULL empty", "--in-place"], target + Path.DirectorySeparatorChar);
             Check(Directory.GetDirectories(savedFolder.Cache).Length == 0, "successful in-place folder leaked its working copy");
             Check(WorldTimeStore.Read(new WorldDocument(target)).Time == 6789, "folder in-place time not persisted");
             using (var db = new WorldDocument(target).OpenDatabase())

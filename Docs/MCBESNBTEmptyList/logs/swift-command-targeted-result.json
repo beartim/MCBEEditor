@@ -1,0 +1,4 @@
+{
+  "check": "swift-command-targeted",
+  "exit_code": 0
+}

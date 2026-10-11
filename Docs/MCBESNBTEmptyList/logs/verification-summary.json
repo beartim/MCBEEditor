@@ -1,0 +1,114 @@
+{
+  "status": "PASS",
+  "shared_file_fixtures": 68,
+  "valid_file_fixtures": 34,
+  "invalid_file_fixtures": 34,
+  "shared_parser_cases": 246,
+  "cli_process_checks": 308,
+  "cli_snbt": {
+    "cases": 71,
+    "process_invocations": 152
+  },
+  "swift_probe": {
+    "cases": 71,
+    "process_invocations": 138
+  },
+  "cross_language": {
+    "directions": 2,
+    "cases_per_direction": 34
+  },
+  "native_main_invocation_cases": 44,
+  "native_structure_snbt_cases": 10,
+  "native_skips": [
+    "Windows FileShare replacement-lock",
+    "Windows in-place FileShare replacement-lock"
+  ],
+  "checks": {
+    "csharp-results.json": [
+      {
+        "check": "csharp-core-build",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-codec-green",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-output-green",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-core-full",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-cli-build",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-cli-process",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-cli-conversion",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-cli-snbt",
+        "exit_code": 0
+      },
+      {
+        "check": "csharp-cli-native",
+        "exit_code": 0
+      }
+    ],
+    "swift-core-result.json": {
+      "check": "swift-core-full",
+      "exit_code": 0,
+      "total_output_lines": 88,
+      "last_gate_present": true
+    },
+    "swift-command-targeted-result.json": {
+      "check": "swift-command-targeted",
+      "exit_code": 0
+    },
+    "swift-probe-results.json": [
+      {
+        "check": "swift-probe-build",
+        "exit_code": 0
+      },
+      {
+        "check": "swift-probe-fixtures",
+        "exit_code": 0
+      }
+    ],
+    "audit-results.json": [
+      {
+        "check": "source-audit",
+        "exit_code": 0
+      },
+      {
+        "check": "build-audit",
+        "exit_code": 0
+      },
+      {
+        "check": "fixed-readme",
+        "exit_code": 0
+      },
+      {
+        "check": "git-diff-check",
+        "exit_code": 0
+      }
+    ],
+    "cross-results.json": [
+      {
+        "check": "cross-swift-to-csharp",
+        "exit_code": 0
+      },
+      {
+        "check": "cross-csharp-to-swift",
+        "exit_code": 0
+      }
+    ]
+  }
+}

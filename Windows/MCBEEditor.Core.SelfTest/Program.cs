@@ -7,6 +7,12 @@ using MCBEEditor.Core.Nbt;
 using MCBEEditor.Core.LevelDB;
 using MCBEEditor.Core.World;
 
+if (args.SequenceEqual(new[] { "--fill-setblock-block-entity" }))
+{
+    FillSetblockBlockEntityTests.Run();
+    return;
+}
+
 if (args.SequenceEqual(new[] { "--dimension" }))
 {
     DimensionTests.Run();
@@ -52,6 +58,7 @@ if (args.SequenceEqual(new[] { "--cli-regression" }))
     EntityGiveAuditTests.Run();
     PlayerTargetingAuditTests.Run();
     BlockCommandAuditTests.Run();
+    FillSetblockBlockEntityTests.Run();
     StorageAuditTests.Run();
     RegionAuditTests.Run();
     NbtConversionAuditTests.Run();
@@ -847,7 +854,7 @@ using (var blockEntityRejectDb = new SelfTestWorldDatabase())
 Console.WriteLine("MCBEEditor.Core self-test passed; modern palette edits, legacy 0x34 storage, and atomic block-entity/block relocation matched expectations.");
 
 // region commands, bulk SubChunk edits, overlap-safe clone and BlockEntity snapshot semantics.
-var parsedFill = BlockCommandParser.Parse("fill overworld 0 64 0 1 64 1 minecraft:planks 'String'\"wood_type\"=\"oak\"");
+var parsedFill = BlockCommandParser.Parse("fill overworld 0 64 0 1 64 1 minecraft:planks 'String'\"wood_type\"=\"oak\" empty");
 Assert(parsedFill is FillBlockCommandRequest parsedFillRequest
        && parsedFillRequest.Region.Volume == 4
        && parsedFillRequest.Storages.Count == 1
@@ -2684,6 +2691,7 @@ CommandExtensionTests.Run();
 EntityGiveAuditTests.Run();
 PlayerTargetingAuditTests.Run();
 BlockCommandAuditTests.Run();
+FillSetblockBlockEntityTests.Run();
 StorageAuditTests.Run();
 RegionAuditTests.Run();
 NbtConversionAuditTests.Run();

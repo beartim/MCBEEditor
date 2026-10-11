@@ -2,6 +2,8 @@
 
 当前 CLI 版本为 **1.0.0**。Windows x64 继续发布绿色单 `mcbe-cli.exe`，iOS 继续发布最低 iOS 13 arm64 裸二进制；独立 NBT/mcstructure 格式转换保持为工具功能，不加入 NBT 编辑器功能。
 
+`fill`、`setblock` 现在必须在全部方块名/states 配对后填写方块实体参数：`preserve` 保留、`empty` 清空，或完整 MCBE-SNBT 标签设定实体。NBT 根 x/y/z 必须与第一组输入坐标相同；`fill` 为范围内每个位置复制模板并改写根坐标。允许任意 id，包括与方块类型不同的实体；未指定元素类型的空 List 使用 `'List'''"Items"=""`。省略末尾参数会报错。可直接使用 [完整示例](Examples/FillSetblockBlockEntity.txt)。
+
 收尾检查的当前轮次、已运行验证和未完成范围统一见 [FINAL_REVIEW.md](Docs/FINAL_REVIEW.md)。命令覆盖与兼容限制见 [COMMAND_PARITY.md](Docs/COMMAND_PARITY.md)；功能接线不等于所有边界场景均已通过平台或游戏验证。
 
 ## 一次性执行与保存
@@ -37,6 +39,8 @@ mcbe-cli --convert "entity.txt" --to little-endian --output "entity.nbt"
 输入由现有 `StandaloneNbtFileCodec` 自动识别：**Big Endian、Little Endian、Little Endian VarInt、JSON NBT、MCBE-SNBT (.txt)、连续多根 NBT，以及 GZip/Zlib 包装的 NBT**。二进制输出统一为未压缩。多根 NBT 可在三种 NBT 编码、JSON 和 MCBE-SNBT 之间互转；`.mcstructure` 只接受单根结构 NBT。Java structure NBT 转 `.mcstructure` 时继续复用现有 Java→Bedrock 转换器，因此兼容降级规则与 GUI 保持一致。
 
 目标格式名固定为：`big-endian`、`little-endian`、`little-varint`、`json`、`mcstructure`、`txt`（也接受 `mcbe-snbt`）。MCBE-SNBT 文本使用严格 UTF-8；语法和无损根包装见 [格式说明](../Docs/MCBE-SNBT.md)。转换入口复用已有数据层，Windows/Swift 两端只调用原 NBT codec 与 structure converter。
+
+未指定元素类型的空 List 统一输出并接受 `'List'''"Items"=""`，TXT 转换、NBT/结构导入导出和命令查询均遵循此规则；已指定类型的空 List 保留类型。`summon` 等 NBT 命令输入也支持这一空类型标记及嵌套空子列表；非空 List 仍需具体元素类型。
 
 ## structure 文件接口
 

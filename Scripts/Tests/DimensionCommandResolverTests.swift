@@ -6,7 +6,7 @@ enum DimensionCommandResolverTests {
         try store.add(name: "wzn:bear", id: 1000)
         try store.add(name: "bear", id: 1001)
         func parse(_ command: String) throws -> ParsedWorldCommand { try WorldCommandParser.parse(command, dimensionResolver: store.resolve) }
-        guard case .setBlock(let id, _, _) = try parse("setblock wzn:bear 0 64 0 minecraft:stone NULL"), id == 1000 else { preconditionFailure("setblock name") }
+        guard case .setBlock(let id, _, _, _) = try parse("setblock wzn:bear 0 64 0 minecraft:stone NULL empty"), id == 1000 else { preconditionFailure("setblock name") }
         guard case .clone(let source, _, let target, _) = try parse("clone wzn:bear 0 0 0 1 1 1 bear 2 2 2"), source == 1000, target == 1001 else { preconditionFailure("clone names") }
         guard case .entity(let id, _) = try parse("entity bear"), id == 1001 else { preconditionFailure("entity name") }
         _ = try parse("storage query bear 0 64 0")

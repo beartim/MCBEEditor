@@ -3,6 +3,6 @@ daylock 1
 time set 6000
 weather clear 0
 setworldspawn 0 80 0
-setblock overworld 0 79 0 minecraft:stone NULL
+setblock overworld 0 79 0 minecraft:stone NULL empty
 getblock overworld 0 79 0
 chunk query overworld 0 0

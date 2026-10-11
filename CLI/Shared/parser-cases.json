@@ -106,12 +106,12 @@
   },
   {
     "id": "fill-example-022",
-    "command": "fill overworld 0 64 0 15 64 15 minecraft:stone NULL",
+    "command": "fill overworld 0 64 0 15 64 15 minecraft:stone NULL empty",
     "valid": true
   },
   {
     "id": "fill-example-023",
-    "command": "fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL",
+    "command": "fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL empty",
     "valid": true
   },
   {
@@ -161,12 +161,12 @@
   },
   {
     "id": "setblock-example-033",
-    "command": "setblock overworld 0 64 0 minecraft:stone NULL",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL empty",
     "valid": true
   },
   {
     "id": "setblock-example-034",
-    "command": "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL empty",
     "valid": true
   },
   {
@@ -421,7 +421,7 @@
   },
   {
     "id": "case-085",
-    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL",
+    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL empty",
     "valid": true
   },
   {
@@ -571,12 +571,12 @@
   },
   {
     "id": "case-115",
-    "command": "setblock overworld 0 64 0 minecraft:stone",
+    "command": "setblock overworld 0 64 0 minecraft:stone empty",
     "valid": false
   },
   {
     "id": "case-116",
-    "command": "fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:water",
+    "command": "fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:water empty",
     "valid": false
   },
   {
@@ -666,7 +666,7 @@
   },
   {
     "id": "case-134",
-    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL",
+    "command": "setblock the_end 0 256 0 minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL minecraft:stone NULL empty",
     "valid": false
   },
   {
@@ -1092,7 +1092,7 @@
   },
   {
     "id": "arbitrary-numeric-fill",
-    "command": "fill -2147483648 0 64 0 0 64 0 minecraft:stone NULL",
+    "command": "fill -2147483648 0 64 0 0 64 0 minecraft:stone NULL empty",
     "valid": true
   },
   {
@@ -1112,7 +1112,7 @@
   },
   {
     "id": "arbitrary-numeric-setblock",
-    "command": "setblock -2147483648 0 64 0 minecraft:stone NULL",
+    "command": "setblock -2147483648 0 64 0 minecraft:stone NULL empty",
     "valid": true
   },
   {
@@ -1154,5 +1154,140 @@
     "id": "dimension-token-underflow",
     "command": "getblock -2147483649 0 0 0",
     "valid": false
+  },
+  {
+    "id": "summon-untyped-empty-patch",
+    "command": "summon minecraft:cow overworld 0 64 0 'List'''\"Items\"=\"\" Auto",
+    "valid": true
+  },
+  {
+    "id": "summon-untyped-empty-raw",
+    "command": "summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0,64,0\",'List'''\"Items\"=\"\"",
+    "valid": true
+  },
+  {
+    "id": "summon-untyped-nested",
+    "command": "summon minecraft:cow overworld 0 64 0 'List''List'''\"Nested\"=\"[],[]\" Auto",
+    "valid": true
+  },
+  {
+    "id": "summon-untyped-mixed",
+    "command": "summon minecraft:cow overworld 0 64 0 'List''List'\"Mixed\"=\"['List'''=[]],['List''Int'=[1]]\" Auto",
+    "valid": true
+  },
+  {
+    "id": "give-untyped-empty-tag",
+    "command": "give @a Auto minecraft:stone 1 'List'''\"Items\"=\"\"",
+    "valid": true
+  },
+  {
+    "id": "setblock-untyped-empty-state",
+    "command": "setblock overworld 0 64 0 minecraft:chest 'List'''\"Items\"=\"\" empty",
+    "valid": true
+  },
+  {
+    "id": "summon-reject-untyped-nonempty",
+    "command": "summon minecraft:cow overworld 0 64 0 'List'''\"Items\"=\"1\" Auto",
+    "valid": false
+  },
+  {
+    "id": "summon-reject-blank-value-type",
+    "command": "summon minecraft:cow overworld 0 64 0 ''\"Items\"=\"\" Auto",
+    "valid": false
+  },
+  {
+    "id": "summon-reject-untyped-nonempty-nested",
+    "command": "summon minecraft:cow overworld 0 64 0 'List''List'''\"Items\"=\"[1]\" Auto",
+    "valid": false
+  },
+  {
+    "id": "give-nested-apostrophe-string",
+    "command": "give @a Auto minecraft:stone 1 'List''List''String'\"X\"=\"['hello']\"",
+    "valid": true
+  },
+  {
+    "id": "give-deep-apostrophe-string",
+    "command": "give @a Auto minecraft:stone 1 'List''List''List''String'\"X\"=\"[['hello']]\"",
+    "valid": true
+  },
+  {
+    "id": "give-nested-type-name-strings",
+    "command": "give @a Auto minecraft:stone 1 'List''List''String'\"X\"=\"['List','String','List''Int'=\\[1\\]]\"",
+    "valid": true
+  },
+  {
+    "id": "give-untyped-mixed-apostrophe-string",
+    "command": "give @a Auto minecraft:stone 1 'List''List'\"X\"=\"['List'''=[]],['List''String'=['hello']]\"",
+    "valid": true
+  },
+  {
+    "id": "give-first-type-looking-string-int",
+    "command": "give @a Auto minecraft:stone 1 'List''List''String'\"X\"=\"['List''Int'=[1\\]]\"",
+    "valid": true
+  },
+  {
+    "id": "give-first-type-looking-string-string",
+    "command": "give @a Auto minecraft:stone 1 'List''List''String'\"X\"=\"['List''String'=[abc\\]]\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-setblock-preserve",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL preserve",
+    "valid": true
+  },
+  {
+    "id": "block-entity-setblock-required",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL",
+    "valid": false
+  },
+  {
+    "id": "block-entity-fill-required",
+    "command": "fill overworld 0 64 0 16 64 0 minecraft:stone NULL",
+    "valid": false
+  },
+  {
+    "id": "block-entity-setblock-user-example",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-fill-template",
+    "command": "fill -1000 0 64 0 -17 63 -1 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-fill-template-first",
+    "command": "fill overworld 1 64 0 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
+    "valid": false
+  },
+  {
+    "id": "block-entity-setblock-coordinate-mismatch",
+    "command": "setblock overworld 1 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
+    "valid": false
+  },
+  {
+    "id": "block-entity-setblock-missing-coordinate",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\"",
+    "valid": false
+  },
+  {
+    "id": "block-entity-setblock-coordinate-duplicate",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\",'Int'\"X\"=\"0\"",
+    "valid": false
+  },
+  {
+    "id": "block-entity-setblock-null-mode",
+    "command": "setblock overworld 0 64 0 minecraft:stone NULL NULL",
+    "valid": false
+  },
+  {
+    "id": "block-entity-fill-empty",
+    "command": "fill overworld 0 64 0 16 64 0 minecraft:stone NULL empty",
+    "valid": true
+  },
+  {
+    "id": "block-entity-fill-preserve",
+    "command": "fill overworld 0 64 0 16 64 0 minecraft:stone NULL preserve",
+    "valid": true
   }
 ]

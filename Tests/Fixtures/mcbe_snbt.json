@@ -71,7 +71,10 @@
       "id": "typed-mixed-child-lists",
       "valid": true,
       "text": " 'List''List'\"mixed\"=\"['List''Int'=\"1,2\"],['List''String'=\"['String'=\"x\"]\"],['List''End'=\"\"]\" ",
-      "little_endian_hex": "0a00000905006d697865640903000000030200000001000000020000000801000000010078000000000000"
+      "little_endian_hex": "0a00000905006d697865640903000000030200000001000000020000000801000000010078000000000000",
+      "canonical_fragments": [
+        "['List'''=\"\"]"
+      ]
     },
     {
       "id": "legacy-mixed-child-lists",
@@ -95,7 +98,10 @@
       "id": "all-empty-values",
       "valid": true,
       "text": " 'String'\"s\"=\"\",'ByteArray'\"b\"=\"[]\",'IntArray'\"i\"=\"[]\",'LongArray'\"l\"=\"[]\",'List''End'\"end\"=\"\",'List''List'\"list\"=\"\",'List''String'\"strings\"=\"\",'Compound'\"c\"=\"{}\" ",
-      "little_endian_hex": "0a000008010073000007010062000000000b010069000000000c01006c00000000090300656e6400000000000904006c6973740900000000090700737472696e677308000000000a0100630000"
+      "little_endian_hex": "0a000008010073000007010062000000000b010069000000000c01006c00000000090300656e6400000000000904006c6973740900000000090700737472696e677308000000000a0100630000",
+      "canonical_fragments": [
+        "'List'''\"end\"=\"\""
+      ]
     },
     {
       "id": "whitespace-bom",
@@ -245,6 +251,173 @@
       "id": "compact-string-empty-middle",
       "valid": false,
       "text": "'List''String'\"names\"=\"value,,second\""
+    },
+    {
+      "id": "untyped-empty-list",
+      "valid": true,
+      "text": "'List'''\"Items\"=\"\"",
+      "little_endian_hex": "0a00000905004974656d73000000000000",
+      "canonical_fragments": [
+        "'List'''\"Items\"=\"\""
+      ]
+    },
+    {
+      "id": "untyped-empty-root",
+      "valid": true,
+      "text": "['List'''\"Items\"=\"\"]",
+      "little_endian_hex": "0905004974656d730000000000",
+      "canonical_fragments": [
+        "'List'''\"Items\"=\"\""
+      ]
+    },
+    {
+      "id": "untyped-empty-whitespace",
+      "valid": true,
+      "text": " 'List' '' \"Items\" = \"\" ",
+      "little_endian_hex": "0a00000905004974656d73000000000000",
+      "canonical_fragments": [
+        "'List'''\"Items\"=\"\""
+      ]
+    },
+    {
+      "id": "untyped-empty-in-compound",
+      "valid": true,
+      "text": "'Compound'\"Outer\"=\"{'List'''\"Items\"=\"\"}\"",
+      "little_endian_hex": "0a00000a05004f757465720905004974656d7300000000000000",
+      "canonical_fragments": [
+        "'List'''\"Items\"=\"\""
+      ]
+    },
+    {
+      "id": "untyped-empty-in-list",
+      "valid": true,
+      "text": "'List''List'''\"nested\"=\"[],[]\"",
+      "little_endian_hex": "0a00000906006e657374656409020000000000000000000000000000",
+      "canonical_fragments": [
+        "['List'''=\"\"]"
+      ]
+    },
+    {
+      "id": "untyped-empty-list-mixed",
+      "valid": true,
+      "text": "'List''List'\"mixed\"=\"['List'''=\"\"],['List''Int'=\"1\"]\"",
+      "little_endian_hex": "0a00000905006d697865640902000000000000000003010000000100000000",
+      "canonical_fragments": [
+        "['List'''=\"\"]"
+      ]
+    },
+    {
+      "id": "untyped-empty-list-mixed-legacy",
+      "valid": true,
+      "text": "'List''List'\"mixed\"=\"['List'''=[]],['List''Int'=[1]]\"",
+      "little_endian_hex": "0a00000905006d697865640902000000000000000003010000000100000000",
+      "canonical_fragments": [
+        "['List'''=\"\"]"
+      ]
+    },
+    {
+      "id": "untyped-empty-nested-depth-two",
+      "valid": true,
+      "text": "'List''List'\"deep\"=\"['List''List'=\"['List'''=\"\"]\"]\"",
+      "little_endian_hex": "0a00000904006465657009010000000901000000000000000000",
+      "canonical_fragments": [
+        "['List'''=\"\"]"
+      ]
+    },
+    {
+      "id": "typed-empty-list-types",
+      "valid": true,
+      "text": "'List''Byte'\"Byte\"=\"\",'List''Short'\"Short\"=\"\",'List''Int'\"Int\"=\"\",'List''Long'\"Long\"=\"\",'List''Float'\"Float\"=\"\",'List''Double'\"Double\"=\"\",'List''ByteArray'\"ByteArray\"=\"\",'List''String'\"String\"=\"\",'List''List'\"List\"=\"\",'List''Compound'\"Compound\"=\"\",'List''IntArray'\"IntArray\"=\"\",'List''LongArray'\"LongArray\"=\"\"",
+      "little_endian_hex": "0a000009040042797465010000000009050053686f72740200000000090300496e7403000000000904004c6f6e670400000000090500466c6f61740500000000090600446f75626c6506000000000909004279746541727261790700000000090600537472696e6708000000000904004c6973740900000000090800436f6d706f756e640a00000000090800496e7441727261790b000000000909004c6f6e6741727261790c0000000000",
+      "canonical_fragments": [
+        "'List''Byte'\"Byte\"=\"\"",
+        "'List''Short'\"Short\"=\"\"",
+        "'List''Int'\"Int\"=\"\"",
+        "'List''Long'\"Long\"=\"\"",
+        "'List''Float'\"Float\"=\"\"",
+        "'List''Double'\"Double\"=\"\"",
+        "'List''ByteArray'\"ByteArray\"=\"\"",
+        "'List''String'\"String\"=\"\"",
+        "'List''List'\"List\"=\"\"",
+        "'List''Compound'\"Compound\"=\"\"",
+        "'List''IntArray'\"IntArray\"=\"\"",
+        "'List''LongArray'\"LongArray\"=\"\""
+      ]
+    },
+    {
+      "id": "blank-type-root",
+      "valid": false,
+      "text": "[''\"x\"=\"\"]"
+    },
+    {
+      "id": "blank-type-named-tag",
+      "valid": false,
+      "text": "''\"x\"=\"\""
+    },
+    {
+      "id": "blank-list-nonempty-scalar",
+      "valid": false,
+      "text": "'List'''\"x\"=\"1\""
+    },
+    {
+      "id": "blank-list-nonempty-compound",
+      "valid": false,
+      "text": "'List'''\"x\"=\"{}\""
+    },
+    {
+      "id": "blank-list-nonempty-bracket",
+      "valid": false,
+      "text": "'List'''\"x\"=\"[]\""
+    },
+    {
+      "id": "blank-list-nonempty-typed",
+      "valid": false,
+      "text": "'List'''\"x\"=\"['Int'=\"1\"]\""
+    },
+    {
+      "id": "blank-nested-nonempty",
+      "valid": false,
+      "text": "'List''List'''\"x\"=\"[1]\""
+    },
+    {
+      "id": "blank-type-extra-descriptor",
+      "valid": false,
+      "text": "'List''''Int'\"x\"=\"\""
+    },
+    {
+      "id": "blank-type-whitespace-token",
+      "valid": false,
+      "text": "'List'' '\"x\"=\"\""
+    },
+    {
+      "id": "compact-nested-apostrophe-strings",
+      "valid": true,
+      "text": "'List''List''String'\"X\"=\"['hello','List','String','List''Int'=\\[1\\]]\"",
+      "little_endian_hex": "0a0000090100580901000000080400000007002768656c6c6f270600274c69737427080027537472696e67270f00274c6973742727496e74273d5b315d00"
+    },
+    {
+      "id": "compact-deep-apostrophe-string",
+      "valid": true,
+      "text": "'List''List''List''String'\"X\"=\"[['hello']]\"",
+      "little_endian_hex": "0a00000901005809010000000901000000080100000007002768656c6c6f2700"
+    },
+    {
+      "id": "untyped-mixed-apostrophe-string",
+      "valid": true,
+      "text": "'List''List'\"X\"=\"['List'''=[]],['List''String'=['hello']]\"",
+      "little_endian_hex": "0a00000901005809020000000000000000080100000007002768656c6c6f2700"
+    },
+    {
+      "id": "compact-first-type-looking-string-int",
+      "valid": true,
+      "text": "'List''List''String'\"X\"=\"['List''Int'=[1\\]]\"",
+      "little_endian_hex": "0a000009010058090100000008010000000f00274c6973742727496e74273d5b315d00"
+    },
+    {
+      "id": "compact-first-type-looking-string-string",
+      "valid": true,
+      "text": "'List''List''String'\"X\"=\"['List''String'=[abc\\]]\"",
+      "little_endian_hex": "0a000009010058090100000008010000001400274c6973742727537472696e67273d5b6162635d00"
     }
   ]
 }

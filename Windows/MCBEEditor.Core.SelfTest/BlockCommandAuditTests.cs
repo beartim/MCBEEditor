@@ -30,7 +30,7 @@ internal static class BlockCommandAuditTests
 
         byte[] Record(int? x, string marker)
         {
-            var tags = new List<NbtNamedTag> { new("id", new NbtStringValue("Chest")), new("Marker", new NbtStringValue(marker)) };
+            var tags = new List<NbtNamedTag> { new("id", new NbtStringValue("Chest")), new("Marker", new NbtStringValue(marker)), new("Items", new NbtListValue(NbtTagType.End, [])) };
             if (x.HasValue) tags.AddRange([new("x", new NbtIntValue(x.Value)), new("y", new NbtIntValue(0)), new("z", new NbtIntValue(0))]);
             return BedrockNbtCodec.Encode(new NbtDocument("", new NbtCompoundValue(tags)), NbtEncoding.LittleEndian);
         }
@@ -41,6 +41,8 @@ internal static class BlockCommandAuditTests
         var kept = first.Concat(orphan).Concat(second).ToArray();
         db.Put(key, first.Concat(Record(0, "target-a")).Concat(orphan).Concat(second).Concat(Record(0, "target-b")).ToArray());
         Check(store.GetBlockText(0, new(1, 0, 0)).Contains("first-outside"), "getblock duplicate-coordinate lookup must use the first stored record");
+        Check(store.GetBlockText(0, new(1, 0, 0)).Contains("'List'''\"Items\"=\"\"", StringComparison.Ordinal),
+            "getblock must print an unspecified empty block-entity List with an empty element-type marker");
         var changed = store.SetBlock(0, new(0, 0, 0), [new("minecraft:stone", [])]);
         Check(changed.RemovedBlockEntities == 2 && db.Get(key)!.SequenceEqual(kept), "fill lost outside duplicates, coordinate-less records or record order");
         store.SetBlock(0, new(2, 0, 0), [new("minecraft:stone", [])]);

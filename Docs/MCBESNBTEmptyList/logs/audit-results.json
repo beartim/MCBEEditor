@@ -1,0 +1,18 @@
+[
+  {
+    "check": "source-audit",
+    "exit_code": 0
+  },
+  {
+    "check": "build-audit",
+    "exit_code": 0
+  },
+  {
+    "check": "fixed-readme",
+    "exit_code": 0
+  },
+  {
+    "check": "git-diff-check",
+    "exit_code": 0
+  }
+]

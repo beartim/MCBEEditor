@@ -1,0 +1,8 @@
+{
+  "exit_code": 132,
+  "lines": 112,
+  "command": [
+    "bash",
+    "Scripts/run_core_tests.sh"
+  ]
+}

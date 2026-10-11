@@ -1,0 +1,8 @@
+Swift CLI dimension preflight passed: actual parser/plan, projected state and no writes
+Dimension command resolver tests passed.
+Swift shared parser fixtures passed: 246
+Summon regression passed: exact Long, Auto, raw NBT, legacy/modern storage and atomic collision rejection
+Entity query regression passed: scopes, exact NBT, mixed lists, extreme positions and read-only storage
+Spawn-point scope audit passed: only player root tags removed; custom data preserved
+Command persistence tests passed: atomic legacy rejection and explicit empty v8 val storages
+Effect, entity-import and world command executor tests passed

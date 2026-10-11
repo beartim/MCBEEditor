@@ -67,3 +67,5 @@ MCBEEditor 只保留 **Minecraft Bedrock 世界格式本身**所需的兼容读�
 `MCBEEditor.Core.SelfTest` 覆盖 NBT 编码、DB key、SubChunk/LegacyTerrain、地图/剖面、方块与区域事务、对象/实体存储、命令、结构、便携工作副本与 `.mcworld` 导出、独立 NBT 转换、地图动态采样和 X/Z 投影等核心路径。构建脚本会在生成最终单 EXE 前自动运行这些回归测试。
 
 更详细的当前同步状态见根目录 `PORT_STATUS.md`；尚未同步项目见 `WINDOWS_PARITY_AUDIT.md`。
+
+`fill`、`setblock` 的末尾方块实体参数现在必填：`preserve`、`empty` 或完整 MCBE-SNBT。NBT 坐标必须匹配第一组输入坐标，`fill` 逐坐标复制模板；允许任意 id。见 [说明与验证](../Docs/FillSetblockBlockEntity/README.md)。

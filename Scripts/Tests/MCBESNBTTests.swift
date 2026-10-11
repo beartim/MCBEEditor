@@ -50,6 +50,16 @@ struct MCBESNBTTests {
             documents.append(NBTDocument(rootName: "double", root: .double(Double(bitPattern: bits))))
         }
         let encoded = try MCBESNBTCodec.encode(documents)
+        let text = String(decoding: encoded, as: UTF8.self)
+        expect(text.contains(#"'List'''"endList"="""#), "unspecified empty List must export an empty element-type marker")
+        expect(text.contains(#"['List'''=""]"#), "anonymous empty child List must export an empty element-type marker")
+        expect(text.contains(#"'List''Compound'"emptyList"="""#), "typed empty List must retain Compound element type")
+        let emptyInput = try MCBESNBTCodec.decode(text: #"'List'''"Items"="""#)
+        guard case .list(.end, let emptyValues)? = emptyInput[0].root.compoundValue(named: "Items") else {
+            preconditionFailure("empty element-type marker must decode to an unspecified List")
+        }
+        expect(emptyValues.isEmpty, "unspecified List must remain empty")
+        for invalid in [#"''"x"="""#, #"'Int'''"x"="""#, #"'List'''"x"="1""#, #"'List'''"x"="[]""#, #"'List''List'''"x"="[1]""#] { rejects(invalid) }
         let decoded = try MCBESNBTCodec.decode(encoded)
         let expected = try bytes(documents)
         let actual = try bytes(decoded)

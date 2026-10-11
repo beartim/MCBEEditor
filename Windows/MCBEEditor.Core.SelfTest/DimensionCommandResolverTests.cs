@@ -7,7 +7,7 @@ static class DimensionCommandResolverTests
     {
         using var db=new SelfTestWorldDatabase();var store=new DimensionStore(db);store.Add("wzn:bear",1000);store.Add("bear",1001);
         Func<string, int> resolver=store.Resolve;
-        Check(BlockCommandParser.Parse("setblock wzn:bear 0 64 0 minecraft:stone NULL",resolver) is SetBlockCommandRequest {Dimension:1000},"setblock custom name");
+        Check(BlockCommandParser.Parse("setblock wzn:bear 0 64 0 minecraft:stone NULL empty",resolver) is SetBlockCommandRequest {Dimension:1000},"setblock custom name");
         Check(BlockCommandParser.Parse("clone wzn:bear 0 0 0 1 1 1 bear 2 2 2",resolver) is CloneBlockCommandRequest {SourceDimension:1000,TargetDimension:1001},"cross dimension clone");
         Check(StorageBiomeCommandParser.Parse("storage query bear 0 64 0",resolver) is StorageQueryStorageBiomeCommandRequest {Dimension:1001},"storage plain name");
         Check(TargetingCommandParser.Parse("teleport @s wzn:bear 0 Auto 0",resolver) is TeleportTargetingCommandRequest {Dimension:1000},"teleport custom name");

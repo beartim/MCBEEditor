@@ -2260,8 +2260,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var store = new BedrockRegionBlockStore(database);
                 return request switch
                 {
-                    SetBlockCommandRequest set => store.SetBlock(set.Dimension, set.Position, set.Storages),
-                    FillBlockCommandRequest fill => store.Fill(fill.Dimension, fill.Region, fill.Storages),
+                    SetBlockCommandRequest set => store.SetBlock(set.Dimension, set.Position, set.Storages, set.BlockEntity),
+                    FillBlockCommandRequest fill => store.Fill(fill.Dimension, fill.Region, fill.Storages, fill.BlockEntity),
                     CloneBlockCommandRequest clone => store.Clone(clone.SourceDimension, clone.Source, clone.TargetDimension, clone.Destination),
                     _ => throw new InvalidOperationException("无法执行未知方块命令。")
                 };
@@ -2273,7 +2273,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var entityText = result.CopiedBlockEntities > 0 || result.RemovedBlockEntities > 0
-            ? $"；BlockEntity 删除 {result.RemovedBlockEntities}、复制 {result.CopiedBlockEntities}"
+            ? $"；BlockEntity 删除 {result.RemovedBlockEntities}、写入 {result.CopiedBlockEntities}"
             : string.Empty;
         var message = $"完成：处理 {result.ChangedBlockPositions:N0} 个方块位置，写入 {result.TouchedSubChunks:N0} 个 SubChunk / {result.TouchedChunks:N0} 个区块；WriteBatch 项 Put={result.PutCount}, Delete={result.DeleteCount}{entityText}。";
         CommandOutputRows.Add(new CommandOutputLine(message, Brushes.ForestGreen));
@@ -2288,7 +2288,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         0 => "overworld",
         1 => "nether",
         2 => "the_end",
-        _ => throw new InvalidDataException($"不支持的维度：{dimension}")
+        _ => dimension.ToString(CultureInfo.InvariantCulture)
     };
 
     private async Task InitializeLocalPlayerCenterAsync()
@@ -4202,6 +4202,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var command = FormattableString.Invariant($"fill {CommandDimensionToken(selection.Dimension)} {selection.MinimumX} {dialog.MinimumY} {selection.MinimumZ} {selection.MaximumX} {dialog.MaximumY} {selection.MaximumZ} {dialog.Block0} {dialog.States0}");
         if (dialog.Block1 is not null)
             command += $" {dialog.Block1} {dialog.States1}";
+        command += " empty";
         CommandInput.Text = command;
         await ExecuteCommandAsync();
     }

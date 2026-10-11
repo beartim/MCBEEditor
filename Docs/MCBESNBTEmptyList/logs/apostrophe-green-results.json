@@ -1,0 +1,14 @@
+[
+  {
+    "check": "apostrophe-core-build-green",
+    "exit_code": 0
+  },
+  {
+    "check": "apostrophe-codec-green",
+    "exit_code": 0
+  },
+  {
+    "check": "apostrophe-output-green",
+    "exit_code": 0
+  }
+]

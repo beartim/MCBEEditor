@@ -74,6 +74,8 @@ def main():
                     invoke('encode', binary, exported)
                     text = exported.read_text(encoding='utf-8')
                     assert text.strip().startswith('[') and text.strip().endswith(']'), name
+                    for fragment in case.get('canonical_fragments', []):
+                        assert fragment in text, (name, 'canonical empty-list spelling', fragment, text)
                     canonical[name] = text
                     roundtrip = root / (name + '-roundtrip.nbt')
                     invoke('decode', exported, roundtrip)

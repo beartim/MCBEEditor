@@ -1,0 +1,9 @@
+  MCBEEditor.Core -> /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/bin/Release/net10.0/MCBEEditor.Core.dll
+  MCBEEditor.Cli -> /workspace/scratch/b1b811844258/ios-lifecycle-fix/CLI/Windows/bin/Release/net10.0/mcbe-cli.dll
+  MCBEEditor.Cli.Tests -> /workspace/scratch/b1b811844258/ios-lifecycle-fix/CLI/Windows.Tests/bin/Release/net10.0/MCBEEditor.Cli.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.00

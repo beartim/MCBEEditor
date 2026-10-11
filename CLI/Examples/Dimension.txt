@@ -1,9 +1,9 @@
 dimension query
 dimension add bear 1003
 dimension add wzn:demo 1004
-setblock bear 0 64 0 minecraft:stone NULL
+setblock bear 0 64 0 minecraft:stone NULL empty
 getblock 1003 0 64 0
-fill wzn:demo 0 64 0 1 64 1 minecraft:stone NULL
+fill wzn:demo 0 64 0 1 64 1 minecraft:stone NULL empty
 clone bear 0 64 0 0 64 0 wzn:demo 2 64 2
 storage query bear 0 64 0
 structure save wzn:dimension_demo bear 0 64 0 0 64 0

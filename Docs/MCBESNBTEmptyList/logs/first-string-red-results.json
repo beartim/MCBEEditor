@@ -1,0 +1,10 @@
+[
+  {
+    "check": "first-string-build-red",
+    "exit_code": 0
+  },
+  {
+    "check": "first-string-output-red",
+    "exit_code": -6
+  }
+]

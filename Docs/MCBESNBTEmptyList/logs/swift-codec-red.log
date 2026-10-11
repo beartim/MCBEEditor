@@ -1,0 +1,53 @@
+main/MCBESNBTTests.swift:6: Precondition failed: unspecified empty List must export an empty element-type marker
+swift-runtime: failed to suspend thread 1562 while processing a crash; backtraces will be missing information
+
+*** Signal 4: Backtracing from 0x7f8e139f9628... done ***
+
+*** Program crashed: Illegal instruction at 0x00007f8e139f9628 ***
+
+Platform: x86_64 Linux (Ubuntu 24.04.3 LTS)
+
+Thread 0 "tokio-rt-worker" crashed:
+
+  0      0x00007f8e139f9628
+  1 [ra] 0x000055b47a7f05c4
+  2 [ra] 0x000055b47a7f2810
+  3 [ra] 0x000055b47a7f03ef
+  4 [ra] 0x000055b47a7f53d6
+  5 [ra] 0x00007f8e122891ca
+  6 [ra] 0x00007f8e1228928b
+...
+
+
+Registers:
+
+rax 0x0000000000000000  0
+rdx 0x0000000000000002  2
+rcx 0x0000000000000007  7
+rbx 0x000055b1e9b233e0  94222618342368
+rsi 0x800055b47a7fd0e0  9223466270492446944
+rdi 0x000055b4b2f90be0  00 00 00 00 00 00 00 00 61 00 00 00 00 00 00 00  ········a·······
+rbp 0x00007fff674c7970  e0 79 4c 67 ff 7f 00 00 c4 05 7f 7a b4 55 00 00  àyLgÿ···Ä··z´U··
+rsp 0x00007fff674c7900  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x000055b4b2f7b010  02 00 02 00 04 00 07 00 07 00 03 00 01 00 03 00  ················
+ r9 0x0000000000000007  7
+r10 0x000055b4b2f90bf0  e0 33 b2 e9 b1 55 00 00 4e 91 ba 39 47 29 c0 49  à3²é±U··N·º9G)ÀI
+r11 0x49c0294739ba914e  5314292946185130318
+r12 0x0000000000000000  0
+r13 0x00007fff674c79f0  cf 05 00 00 00 00 00 30 c8 89 4c 67 ff 7f 00 00  Ï······0È·Lgÿ···
+r14 0x000055b47a7fadc8  54 c6 7f 7a b4 55 00 00 00 00 00 00 00 00 00 00  TÆ·z´U··········
+r15 0x00007f8e13e90000  e0 12 e9 13 8e 7f 00 00 16 00 00 00 00 00 00 00  à·é·············
+rip 0x00007f8e139f9628  0f 0b 48 8d 35 7f 0c fb ff 48 8d 55 a0 45 31 e4  ··H·5··ûÿH·U E1ä
+
+rflags 0x0000000000010206  PF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s
+
+Scripts/test_mcbe_snbt.sh: line 15:   127 Illegal instruction     "$TMP/mcbe-snbt-tests"

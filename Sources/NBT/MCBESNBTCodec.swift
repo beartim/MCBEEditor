@@ -33,7 +33,7 @@ enum MCBESNBTCodec {
     }
 
     private static func descriptor(_ value: NBTValue) -> String {
-        if case .list(let type, _) = value { return "'List''\(type.displayName)'" }
+        if case .list(let type, _) = value { return "'List''\(type == .end ? "" : type.displayName)'" }
         return "'\(value.type.displayName)'"
     }
 
@@ -177,6 +177,9 @@ enum MCBESNBTCodec {
         private mutating func typeDescriptor(level: Int = 0) throws -> Descriptor {
             try MCBESNBTCodec.checkDepth(level)
             let name = try quoted("'")
+            // An explicit empty descriptor is valid only directly after List.
+            // NBT stores an unspecified empty List with element type End (0).
+            if name.isEmpty, level > 0 { return .value(.end) }
             guard let type = NBTTagType.allCases.first(where: { $0.displayName == name }) else { throw error("未知类型：\(name)") }
             if type == .list {
                 whitespace()
@@ -213,7 +216,7 @@ enum MCBESNBTCodec {
         private mutating func list(element: Descriptor, terminator: Unicode.Scalar, depth: Int) throws -> [NBTValue] {
             whitespace()
             if peek == terminator { return [] }
-            guard element.type != .end else { throw error("End List 必须为空") }
+            guard element.type != .end else { throw error("未指定元素类型的 List 必须为空") }
             var result = [NBTValue]()
             while true {
                 result.append(try listElement(element, terminator: terminator, depth: depth))
@@ -232,25 +235,30 @@ enum MCBESNBTCodec {
                 let saved = offset
                 offset += 1
                 whitespace()
-                if peek == "'" {
-                    let actual = try typeDescriptor()
-                    guard actual.type == kind.type else { throw error("匿名元素类型与 List 声明不一致") }
-                    try expect("=")
-                    let value: NBTValue
-                    whitespace()
-                    if peek == "\"" {
-                        offset += 1
-                        value = try payload(actual, terminator: "\"", depth: depth)
-                        try expect("\"")
-                    } else {
-                        // Legacy entity/getblock output: ['List''Int'=[1,2]].
-                        guard case .list = actual else { throw error("匿名元素缺少值引号") }
-                        try expect("[")
-                        value = try payload(actual, terminator: "]", depth: depth)
+                if startsAnonymousValue() {
+                    do {
+                        let actual = try typeDescriptor()
+                        guard actual.type == kind.type else { throw error("匿名元素类型与 List 声明不一致") }
+                        try expect("=")
+                        let value: NBTValue
+                        whitespace()
+                        if peek == "\"" {
+                            offset += 1
+                            value = try payload(actual, terminator: "\"", depth: depth)
+                            try expect("\"")
+                        } else {
+                            // Legacy entity/getblock output: ['List''Int'=[1,2]].
+                            guard case .list = actual else { throw error("匿名元素缺少值引号") }
+                            try expect("[")
+                            value = try payload(actual, terminator: "]", depth: depth)
+                            try expect("]")
+                        }
                         try expect("]")
+                        return value
+                    } catch {
+                        // Keep type-looking text in legacy compact String lists.
+                        guard case .list(.some(.value(.string))) = kind else { throw error }
                     }
-                    try expect("]")
-                    return value
                 }
                 offset = saved
             }
@@ -271,6 +279,16 @@ enum MCBESNBTCodec {
                 default: return try scalar(type, raw: read(until: [",", terminator]))
                 }
             }
+        }
+
+        private func startsAnonymousValue() -> Bool {
+            var probe = self
+            guard probe.peek == "'", (try? probe.typeDescriptor()) != nil else { return false }
+            probe.whitespace()
+            guard probe.peek == "=" else { return false }
+            probe.offset += 1
+            probe.whitespace()
+            return probe.peek == "\"" || probe.peek == "["
         }
 
         private mutating func numericArray<T>(type: NBTTagType, convert: (String) -> T?) throws -> [T] {

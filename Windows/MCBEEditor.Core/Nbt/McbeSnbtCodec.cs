@@ -84,7 +84,7 @@ public static class McbeSnbtCodec
         {
             if (!Enum.IsDefined(list.ElementType) || list.ElementType == NbtTagType.End && list.Values.Count != 0)
                 throw new InvalidDataException("MCBE-SNBT List 元素类型无效。");
-            output.Append('\'').Append(list.ElementType).Append('\'');
+            output.Append('\'').Append(list.ElementType == NbtTagType.End ? string.Empty : list.ElementType.ToString()).Append('\'');
         }
     }
 
@@ -218,7 +218,10 @@ public static class McbeSnbtCodec
                 while (_position < text.Length && Current != '\'') _position++;
                 if (_position == text.Length) throw Error("类型引号未闭合。");
                 var name = text[start.._position++];
-                if (!Enum.TryParse<NbtTagType>(name, false, out var type) || type.ToString() != name)
+                NbtTagType type;
+                // Empty type names belong to List element descriptors only.
+                if (name.Length == 0 && types.Count != 0 && types[^1] == NbtTagType.List) type = NbtTagType.End;
+                else if (!Enum.TryParse(name, false, out type) || type.ToString() != name)
                     throw Error($"未知标签类型：{name}。");
                 if (types.Count != 0 && types[^1] != NbtTagType.List) throw Error("只有 List 可以声明元素类型。");
                 types.Add(type);
@@ -287,7 +290,7 @@ public static class McbeSnbtCodec
             var values = new List<NbtValue>();
             SkipSpace();
             if (Current == closing) return new(spec.Element.Type, values);
-            if (spec.Element.Type == NbtTagType.End) throw Error("End List 必须为空。");
+            if (spec.Element.Type == NbtTagType.End) throw Error("未指定元素类型的 List 必须为空。");
             while (true)
             {
                 values.Add(ReadListElement(spec.Element, closing, depth + 1));
@@ -308,25 +311,31 @@ public static class McbeSnbtCodec
             {
                 var next = _position + 1;
                 while (next < text.Length && char.IsWhiteSpace(text[next])) next++;
-                if (next < text.Length && text[next] == '\'')
+                if (next < text.Length && text[next] == '\'' && StartsAnonymousValue(next))
                 {
-                    _position++;
-                    var anonymous = ReadDescriptor();
-                    if (anonymous.Type != spec.Type || anonymous.Type == NbtTagType.End)
-                        throw Error("匿名值类型与 List 声明类型不一致。");
-                    Expect('=');
-                    SkipSpace();
-                    NbtValue value;
-                    if (Current == '[' && anonymous.Type == NbtTagType.List)
+                    var saved = _position;
+                    try
                     {
-                        // Older entity/getblock output encloses a typed List payload in brackets.
                         _position++;
-                        value = ReadList(anonymous, ']', depth);
+                        var anonymous = ReadDescriptor();
+                        if (anonymous.Type != spec.Type || anonymous.Type == NbtTagType.End)
+                            throw Error("匿名值类型与 List 声明类型不一致。");
+                        Expect('=');
+                        SkipSpace();
+                        NbtValue value;
+                        if (Current == '[' && anonymous.Type == NbtTagType.List)
+                        {
+                            // Older entity/getblock output encloses a typed List payload in brackets.
+                            _position++;
+                            value = ReadList(anonymous, ']', depth);
+                            Expect(']');
+                        }
+                        else value = ReadQuotedPayload(anonymous, depth);
                         Expect(']');
+                        return value;
                     }
-                    else value = ReadQuotedPayload(anonymous, depth);
-                    Expect(']');
-                    return value;
+                    // Only a complete wrapper overrides legacy compact String text.
+                    catch (InvalidDataException) when (spec.Element?.Type == NbtTagType.String) { _position = saved; }
                 }
             }
             if (spec.Type == NbtTagType.Compound) return ReadCompound(depth);
@@ -347,6 +356,23 @@ public static class McbeSnbtCodec
                 return new NbtStringValue(value);
             }
             return ReadScalar(spec.Type, ReadToken(closing, commaTerminates: true));
+        }
+
+        private bool StartsAnonymousValue(int position)
+        {
+            var saved = _position;
+            try
+            {
+                _position = position;
+                _ = ReadDescriptor();
+                SkipSpace();
+                if (Current != '=') return false;
+                _position++;
+                SkipSpace();
+                return Current is '"' or '[';
+            }
+            catch (InvalidDataException) { return false; }
+            finally { _position = saved; }
         }
 
         private NbtValue ReadArray(NbtTagType type)

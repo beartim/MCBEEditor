@@ -61,13 +61,13 @@ def main():
         assert result[1001] == ("wzn:cat", 0) and result[1] == ("nether", 0) and result[2] == ("the_end", 0)
         assert dimensions(invoke(restored, ["dimension query"])) == result
         custom = root / "custom.mcworld"
-        text = invoke(source, ["dimension add bear 1003", "setblock bear 0 64 0 minecraft:stone NULL", "getblock bear 0 64 0", "dimension query"], custom)
+        text = invoke(source, ["dimension add bear 1003", "setblock bear 0 64 0 minecraft:stone NULL empty", "getblock bear 0 64 0", "dimension query"], custom)
         assert "minecraft:stone" in text and dimensions(text)[1003] == ("bear", 1)
         assert "minecraft:stone" in invoke(custom, ["getblock bear 0 64 0"])
         for id in (43, 44, 47, 118, -2147483648, 2147483647):
             destination = root / f"collision-{id}.mcworld"
             name = f"collision_{id}"
-            text = invoke(source, [f"dimension add {name} {id}", f"setblock {name} 0 64 0 minecraft:stone NULL", "dimension query"], destination)
+            text = invoke(source, [f"dimension add {name} {id}", f"setblock {name} 0 64 0 minecraft:stone NULL empty", "dimension query"], destination)
             assert dimensions(text)[id] == (name, 1)
             assert "minecraft:stone" in invoke(destination, [f"getblock {id} 0 64 0"])
         rejected = root / "rejected.mcworld"

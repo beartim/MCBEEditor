@@ -121,10 +121,9 @@ final class WorldCommandExecutor {
                 destination: destination
             )
             return WorldCommandExecutionResult(message: result, changedWorld: true)
-        case .fill(let targetDimension, let region, let storages):
-            let result = try CommandBlockStore(session: session, dimension: targetDimension)
-                .fill(region: region, storages: storages)
-            return WorldCommandExecutionResult(message: result, changedWorld: true)
+        case .fill(let targetDimension, let region, let storages, let blockEntity):
+            return try CommandBlockStore(session: session, dimension: targetDimension)
+                .fill(region: region, storages: storages, blockEntity: blockEntity)
         case .fillBiome(let targetDimension, let region, let biome):
             let horizontalRegion = BedrockMapRegion(
                 minimumX: region.minimum.x,
@@ -140,13 +139,13 @@ final class WorldCommandExecutor {
             )
             let message = "fillbiome 完成：ID \(biome.displayText)，修改 \(result.changedChunkCount) 个区块、\(result.detailCount) 个生物群系位置；跳过 \(result.skippedChunkCount) 个无记录区块。"
             return WorldCommandExecutionResult(message: message, changedWorld: true)
-        case .setBlock(let targetDimension, let position, let storages):
+        case .setBlock(let targetDimension, let position, let storages, let blockEntity):
             let region = CommandBlockBox(position, position)
             let result = try CommandBlockStore(session: session, dimension: targetDimension)
-                .fill(region: region, storages: storages)
+                .fill(region: region, storages: storages, blockEntity: blockEntity)
             return WorldCommandExecutionResult(
-                message: result.replacingOccurrences(of: "fill 完成", with: "setblock 完成"),
-                changedWorld: true
+                message: result.message.replacingOccurrences(of: "fill 完成", with: "setblock 完成"),
+                changedWorld: result.changedWorld
             )
         case .getBlock(let targetDimension, let position):
             return try executeGetBlock(dimension: targetDimension, position: position)
@@ -1967,7 +1966,7 @@ private enum CommandNBTOutputFormatter {
     /// A List<List> may contain differently typed child lists. A shared
     /// descriptor is truthful only when every child's recursive shape agrees.
     private static func commonElementDescriptor(_ type: NBTTagType, values: [NBTValue]) -> String? {
-        guard type == .list else { return "'\(type.displayName)'" }
+        guard type == .list else { return "'\(type == .end ? "" : type.displayName)'" }
         var common: String?
         for value in values {
             guard case .list(let childType, let children) = value,
@@ -2493,11 +2492,12 @@ private final class CommandBlockStore {
         return value
     }
 
-    func fill(region: CommandBlockBox, storages storageSpecs: [CommandBlockStateSpec]) throws -> String {
+    func fill(region: CommandBlockBox, storages storageSpecs: [CommandBlockStateSpec], blockEntity: CommandBlockEntitySpec) throws -> WorldCommandExecutionResult {
         guard !storageSpecs.isEmpty, storageSpecs.count <= Int(UInt8.max) else {
             throw MCBEEditorError.malformedData("fill/setblock 必须提供 1…255 个 storage")
         }
         try validateVolume(region)
+        try blockEntity.validate(in: region)
         let requestedChunks = chunks(in: region)
         let generatedCount = try ensureGenerated(requestedChunks)
         var changedBlocks: UInt64 = 0
@@ -2536,12 +2536,12 @@ private final class CommandBlockStore {
             x += 1
         }
 
-        let entityResult = try removeBlockEntities(in: region, onlyLoadedChunks: false)
+        let entityResult = try fillBlockEntities(in: region, spec: blockEntity)
         let written = try commit(extraPuts: entityResult.puts, extraDeletes: entityResult.deletes)
-        guard written > 0 || entityResult.changedCount > 0 || generatedCount > 0 else {
-            throw MCBEEditorError.unsupported("区域内没有产生任何方块变化")
-        }
-        return "fill 完成：修改 \(changedBlocks) 个方块位置，命令包含 \(storageSpecs.count) 个 storage，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体；处理 \(touchedChunks.count) 个区块，其中先生成 \(generatedCount) 个空气区块。"
+        return WorldCommandExecutionResult(
+            message: "fill 完成：修改 \(changedBlocks) 个方块位置，命令包含 \(storageSpecs.count) 个 storage，写入 \(written) 个 SubChunk，移除 \(entityResult.changedCount) 个原方块实体、写入 \(entityResult.writtenCount) 个方块实体；处理 \(touchedChunks.count) 个区块，其中先生成 \(generatedCount) 个空气区块。",
+            changedWorld: written > 0 || entityResult.changedCount > 0 || entityResult.writtenCount > 0 || generatedCount > 0
+        )
     }
 
     static func clone(
@@ -3122,6 +3122,48 @@ private final class CommandBlockStore {
         return (puts, deletes)
     }
 
+    private func fillBlockEntities(
+        in region: CommandBlockBox,
+        spec: CommandBlockEntitySpec
+    ) throws -> (puts: [(key: Data, value: Data)], deletes: [Data], changedCount: Int, writtenCount: Int) {
+        if case .preserve = spec { return ([], [], 0, 0) }
+        if case .empty = spec {
+            let result = try removeBlockEntities(in: region, onlyLoadedChunks: false)
+            return (result.puts, result.deletes, result.changedCount, 0)
+        }
+        var puts = [(key: Data, value: Data)]()
+        var removed = 0
+        var written = 0
+        for chunk in chunks(in: region) {
+            let key = BedrockDBKey(position: chunk, recordType: .blockEntity, subChunkIndex: nil).encoded()
+            let records = try database.get(key).map { try ConsecutiveNBTCodec.decode($0) } ?? []
+            var payload = Data()
+            for record in records {
+                if let coordinate = blockEntityCoordinate(record.document.root),
+                   region.contains(CommandBlockCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)) {
+                    removed += 1
+                } else {
+                    // Preserve little-endian peers byte-for-byte. Canonicalize
+                    // a legacy single VarInt fallback before appending records.
+                    if record.encoding == .littleEndian { payload.append(record.rawData) }
+                    else { payload.append(try BedrockNBTCodec.encode(record.document, encoding: .littleEndian)) }
+                }
+            }
+            let minX = max(region.minimum.x, Int64(chunk.x) * 16)
+            let maxX = min(region.maximum.x, Int64(chunk.x) * 16 + 15)
+            let minZ = max(region.minimum.z, Int64(chunk.z) * 16)
+            let maxZ = min(region.maximum.z, Int64(chunk.z) * 16 + 15)
+            for x in minX...maxX { for z in minZ...maxZ {
+                for y in Int64(region.minimum.y)...Int64(region.maximum.y) {
+                    payload.append(try BedrockNBTCodec.encode(spec.document(at: CommandBlockCoordinate(x: x, y: Int32(y), z: z)), encoding: .littleEndian))
+                    written += 1
+                }
+            } }
+            puts.append((key, payload))
+        }
+        return (puts, [], removed, written)
+    }
+
     private func removeBlockEntities(
         in region: CommandBlockBox,
         onlyLoadedChunks: Bool
@@ -3149,16 +3191,8 @@ private final class CommandBlockStore {
     }
 
     private func blockEntityCoordinate(_ root: NBTValue) -> BlockEntityCoordinate? {
-        guard case .compound(let tags) = root else { return nil }
-        func number(_ names: Set<String>) -> Int64? {
-            for tag in tags where names.contains(tag.name.lowercased()) {
-                if let value = tag.value.integerValue() { return value }
-            }
-            return nil
-        }
-        guard let x = number(["x"]), let y = number(["y"]), let z = number(["z"]),
-              let y32 = Int32(exactly: y) else { return nil }
-        return BlockEntityCoordinate(x: x, y: y32, z: z)
+        guard let coordinate = CommandBlockEntitySpec.coordinate(in: root) else { return nil }
+        return BlockEntityCoordinate(x: coordinate.x, y: coordinate.y, z: coordinate.z)
     }
 
     private func offsetBlockEntity(_ document: NBTDocument, to coordinate: CommandBlockCoordinate) -> NBTDocument {

@@ -1,0 +1,1 @@
+NBT list output regressions passed: homogeneous compatibility, mixed recursive types, empty children and escaped strings.

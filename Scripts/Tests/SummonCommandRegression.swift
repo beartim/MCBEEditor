@@ -83,6 +83,48 @@ enum SummonCommandRegression {
         try failsWithoutWrites("summon minecraft:cow overworld 0 64 0 default 7788")
         try failsWithoutWrites(#"summon 'List''Float'"Pos"="0,64,0",'Long'"UniqueID"="9988""#)
 
+        let emptyLists = #"'List'''"Items"="",'Compound'"Nested"="{'List'''"Empty"=""}",'List''List'''"Homogeneous"="[],[]",'List''List'"Mixed"="['List'''=[]],['List''Int'=[1]],['List''String'=['hello']]",'List''List''String'"Strings"="['hello','List','String','List''Int'=\[1\]]",'List''List''List''String'"DeepStrings"="[['hello']]",'List''List''String'"TypeLikeInt"="['List''Int'=[1\]]",'List''List''String'"TypeLikeString"="['List''String'=[abc\]]""#
+        _ = try run(#"summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="8,64,8",'Long'"UniqueID"="7201","# + emptyLists)
+        let emptyCow = try object(7201)
+        guard case .list(.end, let items)? = emptyCow.document.root.compoundValue(named: "Items") else {
+            preconditionFailure("raw summon must preserve an unspecified List")
+        }
+        precondition(items.isEmpty)
+        let queried = try run("entity overworld 8 64 8 8 64 8")
+        let prefix = "minecraft:cow=["
+        guard let entityLine = queried.outputLines.first(where: { $0.text.hasPrefix(prefix) })?.text else {
+            preconditionFailure("entity must return the cow tags: \(queried.message)")
+        }
+        precondition(entityLine.hasSuffix("]") && !queried.changedWorld)
+        let tagText = String(entityLine.dropFirst(prefix.count).dropLast())
+        precondition(tagText.contains(#"'List'''"Items"="""#) && tagText.contains(#"['List'''=[]]"#))
+        let queriedDocument = NBTDocument(rootName: "", root: .compound(try WorldCommandParser.parseStates(tagText)))
+        let queriedBytes = try BedrockNBTCodec.encode(queriedDocument)
+        let cowBytes = try BedrockNBTCodec.encode(emptyCow.document)
+        precondition(queriedBytes == cowBytes, "entity text must roundtrip unspecified and nested List types")
+        _ = try run("summon minecraft:pig overworld 9 64 9 " + emptyLists + " 7202")
+        guard case .list(.end, let patchedItems)? = try object(7202).document.root.compoundValue(named: "Items") else {
+            preconditionFailure("normal summon patch must preserve an unspecified List")
+        }
+        precondition(patchedItems.isEmpty)
+        try failsWithoutWrites(#"summon minecraft:pig overworld 10 64 10 'List'''"Items"="1" 7203"#)
+        _ = try run("setblock overworld 8 64 8 minecraft:chest NULL empty")
+        let chest = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "id", value: .string("Chest")), NBTNamedTag(name: "x", value: .int(8)),
+            NBTNamedTag(name: "y", value: .int(64)), NBTNamedTag(name: "z", value: .int(8)),
+            NBTNamedTag(name: "Items", value: .list(.end, []))
+        ]))
+        let chestBytes = try BedrockNBTCodec.encode(chest)
+        try session.db.put(chestBytes, for: BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: 0), recordType: .blockEntity, subChunkIndex: nil).encoded())
+        let block = try run("getblock overworld 8 64 8")
+        let blockPrefix = "BlockEntity=["
+        guard let blockLine = block.outputLines.first(where: { $0.text.hasPrefix(blockPrefix) })?.text else {
+            preconditionFailure("getblock must return the block-entity tags")
+        }
+        let blockTags = try WorldCommandParser.parseStates(String(blockLine.dropFirst(blockPrefix.count).dropLast()))
+        let blockBytes = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(blockTags)))
+        precondition(blockLine.contains(#"'List'''"Items"="""#) && blockBytes == chestBytes && !block.changedWorld)
+
         let legacy = WorldSession()
         let legacyKey = BedrockDBKey(position: ChunkPosition(x: 0, z: 0, dimension: 0), recordType: .entity, subChunkIndex: nil).encoded()
         try legacy.db.put(Data(), for: legacyKey)

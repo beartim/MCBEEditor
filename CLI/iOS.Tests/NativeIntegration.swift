@@ -159,9 +159,9 @@ enum NativeIntegration {
             "summon minecraft:pig overworld 0.5 65 0.5 default 9007199254740993", "entity overworld 0.5 65 0.5 0.5 65 0.5", "kill minecraft:pig 0", "kick @a",
             #"summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678""#,
             "entity overworld 0 64 0 0 64 0", "kill minecraft:cow 0",
-            "fill overworld 0 65 0 3 65 0 minecraft:stone NULL", "setblock overworld 1 65 0 minecraft:dirt NULL",
+            "fill overworld 0 65 0 3 65 0 minecraft:stone NULL empty", "setblock overworld 1 65 0 minecraft:dirt NULL empty",
             "clone overworld 0 65 0 2 65 0 overworld 1 65 0", "fillbiome overworld 0 0 0 15 127 15 9",
-            "setblock the_end 35 200 5 minecraft:diamond_block NULL", "storage set the_end 3 220 5 254 minecraft:stone NULL",
+            "setblock the_end 35 200 5 minecraft:diamond_block NULL empty", "storage set the_end 3 220 5 254 minecraft:stone NULL",
             "storage query the_end 3 220 5", "storage set the_end 3 240 5 2 minecraft:stone NULL",
             "storage delete the_end 3 240 5 2", "storage clear the_end 3 240 5 0",
             "structure save cli:house overworld 0 65 0 3 65 0", "structure query", "structure load cli:house overworld 0 70 0",
@@ -377,7 +377,7 @@ enum NativeIntegration {
 
         let inplace = root.appendingPathComponent("原位文件夹", isDirectory: true)
         try CliFileSystem.copyWorld(source, to: inplace)
-        try noWork(invoke("in-place-folder", 0, ["--command", "time set 6789", "--command", "setblock the_end 35 200 5 minecraft:diamond_block NULL", "--in-place"], input: inplace))
+        try noWork(invoke("in-place-folder", 0, ["--command", "time set 6789", "--command", "setblock the_end 35 200 5 minecraft:diamond_block NULL empty", "--in-place"], input: inplace))
         let inplaceSession = WorldSession(rootURL: inplace, displayName: "in-place")
         try expect(try BedrockTimeStore.read(session: inplaceSession).time == 6789, "folder in-place time")
         try expect(try BedrockBlockReader(database: inplaceSession.database()).block(blockX: 35, y: 200, blockZ: 5, dimension: 2).name == "minecraft:diamond_block", "folder in-place LevelDB")
@@ -440,7 +440,7 @@ enum NativeIntegration {
             try CliFileSystem.copyWorld(source, to: target)
             let x = Int64(coordinates[0]) * 16, z = Int64(coordinates[1]) * 16
             var arguments = ["--in-place"]
-            for y in [160, 200, 255] { arguments += ["--command", "setblock the_end \(x) \(y) \(z) minecraft:diamond_block NULL"] }
+            for y in [160, 200, 255] { arguments += ["--command", "setblock the_end \(x) \(y) \(z) minecraft:diamond_block NULL empty"] }
             _ = try invoke("end-\(coordinates[0])-\(coordinates[1])", 0, arguments, input: target)
             let session = WorldSession(rootURL: target, displayName: "end")
             defer { session.close() }

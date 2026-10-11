@@ -1,0 +1,18 @@
+[
+  {
+    "check": "first-string-build-green",
+    "exit_code": 0
+  },
+  {
+    "check": "first-string-output-green",
+    "exit_code": 0
+  },
+  {
+    "check": "first-string-codec-green",
+    "exit_code": 0
+  },
+  {
+    "check": "cli-build-sequential",
+    "exit_code": 0
+  }
+]

@@ -1,0 +1,30 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "toolchains": {
+    "swift": [
+      "Swift version 6.2.3 (swift-6.2.3-RELEASE)",
+      "Target: x86_64-unknown-linux-gnu"
+    ],
+    "dotnet": [
+      "10.0.401"
+    ],
+    "cxx": [
+      "c++ (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+      "Copyright (C) 2023 Free Software Foundation, Inc."
+    ],
+    "bash": [
+      "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)",
+      "Copyright (C) 2022 Free Software Foundation, Inc."
+    ],
+    "python": [
+      "Python 3.12.14"
+    ]
+  },
+  "swift_parallel_jobs": 1,
+  "ios_minimum": "13.0",
+  "application_version": "1.0.0",
+  "unavailable_runtime_validation": [
+    "iOS SDK/device",
+    "Windows GUI and Windows FileShare runtime"
+  ]
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "check": "apostrophe-test-build-red",
+    "exit_code": 0
+  },
+  {
+    "check": "apostrophe-output-red",
+    "exit_code": -6
+  },
+  {
+    "check": "apostrophe-command-red",
+    "exit_code": 2
+  }
+]

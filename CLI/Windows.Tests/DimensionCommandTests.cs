@@ -101,7 +101,7 @@ internal static class DimensionCommandTests
         var export=Path.Combine(root,"dimension-batch.mcworld");
         using var output=new StringWriter(); using var errors=new StringWriter();
         var code=MCBEEditor.Cli.Program.Run(["--world",source,"--cache-dir",Path.Combine(root,"dimension-batch-cache"),
-            "--output",export,"--command","dimension add bear 1000","--command","setblock bear 0 64 0 minecraft:stone NULL",
+            "--output",export,"--command","dimension add bear 1000","--command","setblock bear 0 64 0 minecraft:stone NULL empty",
             "--command","getblock bear 0 64 0","--command","dimension empty bear","--command","dimension query"],output,errors);
         if(code!=0 || !output.ToString().Contains("bear=1000") || !output.ToString().Contains("minecraft:stone"))
             throw new InvalidOperationException("native dimension batch failed: "+output+errors);

@@ -9,7 +9,7 @@ namespace MCBEEditor.Cli.Tests;
 
 internal static class SummonCommandTests
 {
-    private const string RawExample = "summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\"";
+    private const string RawExample = "summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\",'List'''\"Items\"=\"\",'List''List'\"Mixed\"=\"['List'''=[]],['List''Int'=[1]]\"";
     public static void RunParserTests()
     {
         foreach (var command in new[] { RawExample, "summon minecraft:pig overworld 0 64 0 default",
@@ -52,6 +52,14 @@ internal static class SummonCommandTests
             Check(exit == 0, "native CLI must dispatch and export both summon forms: " + error);
         }
         Check(WorldFixture.SameSnapshot(original, WorldFixture.Snapshot(source)), "summon changed source-world files");
+        using (var output = new StringWriter())
+        using (var error = new StringWriter())
+        {
+            var exit = MCBEEditor.Cli.Program.Run(["--world", archive, "--cache-dir", Path.Combine(root, "summon-query-cache"),
+                "--command", "entity overworld 0 64 0 0 64 0"], output, error);
+            Check(exit == 0 && output.ToString().Contains("'List'''\"Items\"=\"\"", StringComparison.Ordinal)
+                && output.ToString().Contains("['List'''=[]]", StringComparison.Ordinal), "entity must print canonical empty and nested lists: " + error);
+        }
         using (var verification = PortableWorldWorkspace.Create(Path.Combine(root, "summon-verify"), archive))
         {
             var world = new WorldDocument(verification.WorkingRootPath);
@@ -60,12 +68,17 @@ internal static class SummonCommandTests
                 var expected = Encode(new NbtDocument("", new NbtCompoundValue([
                     new("identifier", new NbtStringValue("minecraft:cow")),
                     new("Pos", new NbtListValue(NbtTagType.Float, [new NbtFloatValue(0), new NbtFloatValue(64), new NbtFloatValue(0)])),
-                    new("UniqueID", new NbtLongValue(12345678))
+                    new("UniqueID", new NbtLongValue(12345678)),
+                    new("Items", new NbtListValue(NbtTagType.End, [])),
+                    new("Mixed", new NbtListValue(NbtTagType.List, [new NbtListValue(NbtTagType.End, []), new NbtListValue(NbtTagType.Int, [new NbtIntValue(1)])]))
                 ])));
                 Check(db.Get(ActorKey(12345678))!.SequenceEqual(expected), "raw example must survive export/reopen byte-for-byte");
                 var entities = new BedrockWorldObjectScanner(db).ScanRegion(0, 0, 0, 0, true, false).Objects;
                 Check(entities.Count == 7 && entities.All(item => item.UniqueId is not null and not 0)
                     && entities.Select(item => item.UniqueId).Distinct().Count() == 7, "all seven summons need distinct nonzero IDs");
+                var cowText = BlockCommandNbtOutputFormatter.Root(entities.Single(item => item.UniqueId == 12345678).Document.Root);
+                Check(Encode(new NbtDocument("", new NbtCompoundValue(BlockCommandParser.ParseStates(cowText)))).SequenceEqual(expected),
+                    "entity output must be accepted again without losing empty or nested List types");
                 foreach (var id in new long[] { long.MinValue, long.MaxValue, 9007199254740993 })
                     Check(entities.Single(item => item.UniqueId == id).Document.Root.CompoundValue("UniqueID") is NbtLongValue exact && exact.Value == id, "Long ID exactness after export");
                 var definitions = (NbtCompoundValue)entities.Single(item => item.Identifier == "minecraft:chicken").Document.Root;

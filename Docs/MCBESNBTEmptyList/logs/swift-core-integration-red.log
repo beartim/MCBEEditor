@@ -1,0 +1,112 @@
+MCBE-SNBT Swift codec: byte-exact roundtrip, canonical text, legacy forms, malformed input and depth checks passed
+PASS MCBE-SNBT probe fixtures/atomicity: 66 cases, 123 real process invocations
+PASS: 12 production projection coordinate cases
+Release metadata passed: version=1.0.0 build=100
+Xcode version Broken-pipe regression check passed
+iOS 13-only project configuration passed
+LevelDB bridge header configuration passed
+Enhanced feature configuration passed
+MCBEEditor core tests passed
+iOS 13 document import compatibility passed
+WorldStore interrupted-deletion recovery tests passed
+World list management enhancements passed
+Code-audit shared implementation and safety checks passed
+LevelDB optional read regression passed
+Adaptive map sampling tests passed
+Shared NBT tree traversal tests passed
+Infinite map panning, cache and layer enhancements passed
+Entity and block-entity scanner tests passed
+Pinch zoom and entity/block-entity enhancements passed
+Minimum-zoom panning and pixel-sharp overlay fixes passed
+Player NBT read/write tests passed
+Vine color, player NBT editing, map selection and blinking focus passed
+Structure mcstructure/Big Endian NBT/typed JSON/MCBE-SNBT export and reimport passed
+Structure NBT discovery, endian conversion, rename and delete tests passed
+Editable structure NBT and restored block inspector passed
+Six-tab navigation, command terminal, peer NBT menu and structure NBT browser passed
+Entity/block-entity create, atomic multi-delete, UniqueID, storage mode and position migration tests passed
+Editable entity and block-entity NBT with index-safe migration passed
+Editable block NBT, linked legacy ID validation and bulk layer operations passed
+LegacyTerrain and SubChunk v0-v9 persistence tests passed
+SubChunk v0-v9 compatibility extension tests passed
+Persistence compatibility matrix passed: numeric/v1/v8/v9, val/states, missing chunks/slices and empty layers
+End missing-SubChunk fixture tests passed: actual map templates, v1/v8 creation, layer 1 and byte-preserved neighbors
+Compact map layout and NBT-style per-layer search/replace passed
+Numeric entity ID mapping, selected-position filters and chunk batch processing passed
+Zoom-driven chunk expansion and coordinated layered replacement passed
+Session-only map viewport, radius layout and spread output colors passed
+No-backup policy and bulk layer replacement passed
+Chunk clear and seed-based regeneration passed
+Raw chunk key deletion coverage passed
+Crash-safe chunk clear and complete seed regeneration passed
+Biome and HardcodedSpawners codec tests passed
+Biome map, HardcodedSpawners overlay and ID/name lookup passed
+Editable village NBT and map long-press chunk menu passed
+NBT icons, per-village grouping and editable village/spawner map overlays passed
+Village X0/Z0 boundary, Dwellers-based resident resolution, overlap chooser and POI arrows passed
+Interactive map-region selection, editing, copy, biome, spawner, clear and regeneration passed
+Improved selection gestures, region bulk replacement, chunk tab and world-wide entity range filters passed
+Unified NBT mutation, editable block layers, chunk management and com.wzn bundle identity passed
+Native tickingarea_ storage and map/chunk contextual editing passed
+Tickingarea chunk-radius conversion and batch NBT conflict paste passed
+Atomic multi-tag clipboard and NBT/mcstructure/json tag import passed
+Canonical actor digest repair, orphan filtering and numeric block ID correspondence passed
+World-aware entity storage, legacy numeric block NBT editing and exact block viewport centering passed
+Local-player map center, integrated terminal, target selectors and Y-safe clone passed
+Common entity NBT, entity import/export, summon, generated chunks and safe command refresh passed
+Recursive command NBT and give item tags passed
+World spawn, setblock, structure, tickingarea, teleport, spread, daylock, time, experience and weather command support passed
+Status-effect give/clear/ALL command support passed
+main/SummonCommandRegression.swift:95: Precondition failed
+swift-runtime: failed to suspend thread 8248 while processing a crash; backtraces will be missing information
+
+*** Signal 4: Backtracing from 0x7fcdf5f4c628... done ***
+
+*** Program crashed: Illegal instruction at 0x00007fcdf5f4c628 ***
+
+Platform: x86_64 Linux (Ubuntu 24.04.3 LTS)
+
+Thread 0 crashed:
+
+  0      0x00007fcdf5f4c628
+  1 [ra] 0x00005651ba8b865f
+  2 [ra] 0x00005651ba8e7eae
+  3 [ra] 0x00005651ba8cc61f
+  4 [ra] 0x00005651ba95c656
+  5 [ra] 0x00007fcdf47dc1ca
+  6 [ra] 0x00007fcdf47dc28b
+...
+
+
+Registers:
+
+rax 0x0000000000000000  0
+rdx 0x0000000000000002  2
+rcx 0x0000000000000007  7
+rbx 0x00005654aeaac5e7  94921707668967
+rsi 0x8000000000000000  9223372036854775808
+rdi 0x00005651cbb774a0  40 bb dc f5 cd 7f 00 00 21 00 00 00 00 00 00 00  @»ÜõÍ···!·······
+rbp 0x00007ffe8123a380  d0 d4 23 81 fe 7f 00 00 5f 86 8b ba 51 56 00 00  ÐÔ#·þ···_··ºQV··
+rsp 0x00007ffe8123a310  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x00005651cbb0a010  07 00 07 00 07 00 06 00 04 00 07 00 02 00 04 00  ················
+ r9 0x0000000000000007  7
+r10 0x00005651cbb774b0  e7 c5 aa ae 54 56 00 00 df 72 ba bf c0 84 62 ef  çÅª®TV··ßrº¿À·bï
+r11 0xef6284c0bfba72df  17249495486167675615
+r12 0x0000000000000000  0
+r13 0x00007ffe8123c968  f0 0b 24 f6 cd 7f 00 00 f0 0b 24 f6 cd 7f 00 00  ð·$öÍ···ð·$öÍ···
+r14 0x00005651ba995050  60 ee 99 ba 51 56 00 00 00 00 00 00 00 00 00 00  `î·ºQV··········
+r15 0x00007fcdf63e3000  e0 42 3e f6 cd 7f 00 00 16 00 00 00 00 00 00 00  àB>öÍ···········
+rip 0x00007fcdf5f4c628  0f 0b 48 8d 35 7f 0c fb ff 48 8d 55 a0 45 31 e4  ··H·5··ûÿH·U E1ä
+
+rflags 0x0000000000010202
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s
+
+Scripts/run_core_tests.sh: line 4999:  2101 Illegal instruction     "$TMP/effect-command-tests"

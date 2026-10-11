@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-11",
+  "product_version": "1.0.0",
+  "minimum_ios": "13.0",
+  "baseline_commit": "3d1709f",
+  "checks": [
+    {
+      "name": "C# core SelfTest",
+      "exit_code": 0,
+      "log": "csharp-core.log"
+    },
+    {
+      "name": "Swift full core regression",
+      "exit_code": 0,
+      "shared_parser_fixtures": 258,
+      "source_checks": 98,
+      "log": "swift-core-full.log"
+    },
+    {
+      "name": "Windows CLI build",
+      "exit_code": 0,
+      "warnings": 0,
+      "errors": 0,
+      "log": "windows-cli-build.log"
+    },
+    {
+      "name": "Windows GUI cross-build",
+      "exit_code": 0,
+      "warnings": 0,
+      "errors": 0,
+      "log": "windows-gui-build.log"
+    },
+    {
+      "name": "Real Windows CLI parser/help",
+      "exit_code": 0,
+      "process_checks": 320,
+      "parser_fixtures": 258,
+      "command_families": 28,
+      "log": "cli-parser-smoke.log"
+    },
+    {
+      "name": "Real native CLI block entities and reopen",
+      "exit_code": 0,
+      "process_checks": 17,
+      "fill_positions": 72,
+      "log": "cli-block-entities.log"
+    },
+    {
+      "name": "Full Mojang LevelDB CLI integration",
+      "exit_code": 0,
+      "main_invocations": 44,
+      "structure_txt_regressions": 10,
+      "platform_skips": 2,
+      "log": "cli-native.log"
+    },
+    {
+      "name": "CLI session",
+      "exit_code": 0,
+      "cases": 14,
+      "log": "cli-session.log"
+    },
+    {
+      "name": "Dimension fixture integration",
+      "exit_code": 0,
+      "process_checks": 27,
+      "log": "cli-dimension.log"
+    },
+    {
+      "name": "Fixed ReadMe production writers",
+      "exit_code": 0,
+      "writers": 4,
+      "log": "fixed-readme.log"
+    },
+    {
+      "name": "Source/build/GUI contracts and Apple build lifecycle tool doubles",
+      "exit_code": 0,
+      "log": "source-build-audit.log"
+    }
+  ],
+  "review": {
+    "critical_or_important_remaining": 0,
+    "resolved": [
+      "root integer coordinate vs auxiliary Pos",
+      "legacy Apple CLI integration command tails",
+      "Swift successful no-op result",
+      "Windows arbitrary Int32 dimension formatting"
+    ]
+  },
+  "limitations": [
+    "iOS/UIKit device and Apple native CLI not run",
+    "Windows GUI cross-built but not run",
+    "Two Windows FileShare checks skipped on POSIX",
+    "Minecraft in-game load not tested"
+  ],
+  "fixture_sha256": "b2b229bc4cc8c9937da461c08b5117501b12bb38791599eca5a6c7b6f63bdcd4"
+}

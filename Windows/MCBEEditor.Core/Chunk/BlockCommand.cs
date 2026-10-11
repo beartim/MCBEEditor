@@ -5,8 +5,8 @@ using MCBEEditor.Core.Nbt;
 namespace MCBEEditor.Core.Chunk;
 
 public abstract record BlockCommandRequest;
-public sealed record SetBlockCommandRequest(int Dimension, BedrockBlockCoordinate Position, IReadOnlyList<BedrockBlockStorageSpec> Storages) : BlockCommandRequest;
-public sealed record FillBlockCommandRequest(int Dimension, BedrockBlockBox Region, IReadOnlyList<BedrockBlockStorageSpec> Storages) : BlockCommandRequest;
+public sealed record SetBlockCommandRequest(int Dimension, BedrockBlockCoordinate Position, IReadOnlyList<BedrockBlockStorageSpec> Storages, BlockEntityCommandSpec BlockEntity) : BlockCommandRequest;
+public sealed record FillBlockCommandRequest(int Dimension, BedrockBlockBox Region, IReadOnlyList<BedrockBlockStorageSpec> Storages, BlockEntityCommandSpec BlockEntity) : BlockCommandRequest;
 public sealed record CloneBlockCommandRequest(int SourceDimension, BedrockBlockBox Source, int TargetDimension, BedrockBlockCoordinate Destination) : BlockCommandRequest;
 public sealed record GetBlockCommandRequest(int Dimension, BedrockBlockCoordinate Position) : BlockCommandRequest;
 
@@ -15,11 +15,11 @@ public static class BlockCommandParser
     private static readonly Regex BlockNamePattern = new("^[a-z0-9_.-]+:[a-z0-9_./-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public const string Usage =
-        "setblock 维度 x y z 方块名 states [方块名 states ...]\n" +
-        "fill 维度 x1 y1 z1 x2 y2 z2 方块名 states [方块名 states ...]\n" +
+        "setblock 维度 x y z 方块名 states [方块名 states ...] 方块实体\n" +
+        "fill 维度 x1 y1 z1 x2 y2 z2 方块名 states [方块名 states ...] 方块实体\n" +
         "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n" +
         "getblock 维度 x y z\n" +
-        "states 可用 NULL，或 iOS 版同格式 typed NBT，例如 'String'\"wood_type\"=\"oak\"。";
+        "states 可用 NULL，或 iOS 版同格式 typed NBT，例如 'String'\"wood_type\"=\"oak\"。方块实体必填 preserve、empty 或完整 MCBE-SNBT 标签；NBT 的 x/y/z 必须等于第一组坐标，fill 逐坐标复制模板。";
 
     public static bool IsBlockCommand(string text)
     {
@@ -45,20 +45,21 @@ public static class BlockCommandParser
 
     private static SetBlockCommandRequest ParseSetBlock(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length < 6 || (args.Length - 4) % 2 != 0) throw UsageError();
-        var count = (args.Length - 4) / 2;
+        if (args.Length < 7 || (args.Length - 5) % 2 != 0) throw UsageError();
+        var count = (args.Length - 5) / 2;
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("setblock 必须提供 1…255 个 storage。");
-        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), Coordinate(args, 1), ParseStorages(args, 4, count));
+        var position = Coordinate(args, 1);
+        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), position, ParseStorages(args, 4, count), BlockEntityCommandSpec.Parse(args[^1], position));
     }
 
     private static FillBlockCommandRequest ParseFill(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length < 9 || (args.Length - 7) % 2 != 0) throw UsageError();
-        var count = (args.Length - 7) / 2;
+        if (args.Length < 10 || (args.Length - 8) % 2 != 0) throw UsageError();
+        var count = (args.Length - 8) / 2;
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("fill 必须提供 1…255 个 storage。");
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
-        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count));
+        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count), BlockEntityCommandSpec.Parse(args[^1], first));
     }
 
     private static CloneBlockCommandRequest ParseClone(string[] args, Func<string,int>? dimensionResolver)
@@ -202,9 +203,10 @@ public static class BlockCommandParser
             return new NbtNamedTag(name, value);
         }
 
-        private TypeDescriptor ParseTypeDescriptor()
+        private TypeDescriptor ParseTypeDescriptor(bool listElement = false)
         {
             var name = ParseQuotedString('\'');
+            if (name.Length == 0 && listElement) return new TypeDescriptor(NbtTagType.End, null);
             var type = name switch
             {
                 "Byte" => NbtTagType.Byte, "Short" => NbtTagType.Short, "Int" => NbtTagType.Int,
@@ -214,7 +216,9 @@ public static class BlockCommandParser
                 _ => NbtTagType.End
             };
             if (type == NbtTagType.End) throw new InvalidDataException("不支持的 NBT 类型：" + name);
-            return type == NbtTagType.List ? new TypeDescriptor(type, ParseTypeDescriptor()) : new TypeDescriptor(type, null);
+            if (type != NbtTagType.List) return new TypeDescriptor(type, null);
+            if (listElement && Peek != '\'') return new TypeDescriptor(type, null);
+            return new TypeDescriptor(type, ParseTypeDescriptor(listElement: true));
         }
 
         private NbtValue ParsePayload(TypeDescriptor descriptor, char listTerminator)
@@ -253,6 +257,7 @@ public static class BlockCommandParser
         {
             SkipWhitespace();
             if (Peek == terminator) return [];
+            if (element.Type == NbtTagType.End) throw new InvalidDataException("未指定元素类型的 List 必须为空。");
             var values = new List<NbtValue>();
             while (true)
             {
@@ -268,6 +273,29 @@ public static class BlockCommandParser
 
         private NbtValue ParseListElement(TypeDescriptor descriptor, char terminator)
         {
+            if (descriptor.Type == NbtTagType.List && Peek == '[')
+            {
+                var saved = Position;
+                Advance(); SkipWhitespace();
+                if (StartsAnonymousValue())
+                {
+                    try
+                    {
+                        var actual = ParseTypeDescriptor();
+                        if (actual.Type != NbtTagType.List) throw new InvalidDataException("匿名元素类型与 List 声明不一致。");
+                        Expect('=');
+                        var closing = Peek == '"' ? '"' : ']';
+                        Expect(closing == '"' ? '"' : '[');
+                        var value = ParsePayload(actual, closing);
+                        Expect(closing); Expect(']');
+                        return value;
+                    }
+                    // Preserve legacy compact String children that resemble a
+                    // descriptor but do not form a complete anonymous wrapper.
+                    catch (InvalidDataException) when (descriptor.Child?.Type == NbtTagType.String) { }
+                }
+                Position = saved;
+            }
             if (descriptor.Type == NbtTagType.List)
             {
                 var child = descriptor.Child ?? throw new InvalidDataException("List 缺少元素类型。");
@@ -290,6 +318,22 @@ public static class BlockCommandParser
                 NbtTagType.Double => new NbtDoubleValue(ParseDouble(raw, "Double")),
                 _ => throw new InvalidDataException("List 元素类型无效。")
             };
+        }
+
+        private bool StartsAnonymousValue()
+        {
+            // Compact String children can start with apostrophes or type names.
+            var saved = Position;
+            try
+            {
+                if (Peek != '\'') return false;
+                _ = ParseTypeDescriptor();
+                if (Peek != '=') return false;
+                Advance();
+                return Peek is '"' or '[';
+            }
+            catch (InvalidDataException) { return false; }
+            finally { Position = saved; }
         }
 
         private List<T> ParseNumericArray<T>(string type, Func<string, T> convert)
@@ -421,7 +465,7 @@ public static class BlockCommandNbtOutputFormatter
 
     private static string? CommonElementDescriptor(NbtTagType type, IReadOnlyList<NbtValue> values)
     {
-        if (type != NbtTagType.List) return $"'{type}'";
+        if (type != NbtTagType.List) return $"'{(type == NbtTagType.End ? string.Empty : type.ToString())}'";
         string? common = null;
         foreach (var child in values.OfType<NbtListValue>())
         {

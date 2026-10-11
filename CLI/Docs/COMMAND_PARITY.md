@@ -1,11 +1,12 @@
 # MCBEEditor CLI 命令覆盖对照
 
-当前共 27 个根命令，双端都有解析和执行入口。本清单描述当前路由和必须保留的行为，不是验收通过清单；当前轮次与未完成项见 [FINAL_REVIEW.md](FINAL_REVIEW.md)。
+当前共 28 个根命令，双端都有解析和执行入口。本清单描述当前路由和必须保留的行为，不是验收通过清单；当前轮次与未完成项见 [FINAL_REVIEW.md](FINAL_REVIEW.md)。
 
 | 命令 | 必须保留的范围 | Windows 原始解析器 |
 | --- | --- | --- |
 | `help` | 全部帮助；单命令帮助；未知命令提示 | CLI 的 help 路由，帮助复用原目录 |
 | `info` | 世界信息逐行输出 | StorageBiomeCommandParser |
+| `dimension` | query/add/empty/purge；原版与自定义维度 | DimensionCommandParser |
 | `clear` | 目标选择器；清除物品 | EntityActionCommandParser |
 | `clearspawnpoint` | 玩家出生点清除 | TargetingCommandParser |
 | `clone` | 跨维度；重叠复制；现代格式全部 storage，旧数字格式 layer0/layer1 | BlockCommandParser |
@@ -14,13 +15,13 @@
 | `effect` | give；clear；ALL；原始 Byte 等级 | EntityActionCommandParser |
 | `entity` | 全维度/指定维度/闭合浮点范围；实体类型与完整 NBT；只读 | EntityQueryCommandParser |
 | `experience` | add；addlevel；level；percent；query；set；等级 0 至 24791 | TargetingCommandParser |
-| `fill` | 多 storage；省略 storage 保留；255 storage | BlockCommandParser |
+| `fill` | 多 storage；省略 storage 保留；255 storage；必填 preserve/empty/方块实体模板；逐坐标实体填充 | BlockCommandParser |
 | `fillbiome` | 数字或字符串 ID；Data2D 和 Data3D | StorageBiomeCommandParser |
 | `getblock` | 全部 storage；BlockEntity | BlockCommandParser |
 | `give` | Auto 或 Slot 0 至 35；必填物品标签或 NULL；嵌套 NBT；已有 Mainhand | EntityActionCommandParser |
 | `kill` | 创造模式开关 | EntityActionCommandParser |
 | `kick` | 在线玩家 UniqueID 或 @a | EntityActionCommandParser |
-| `setblock` | 多 storage；未生成区块和子区块 | BlockCommandParser |
+| `setblock` | 多 storage；未生成区块和子区块；必填 preserve/empty/方块实体模板 | BlockCommandParser |
 | `setworldspawn` | 世界出生点 | TargetingCommandParser |
 | `spawnpoint` | 玩家出生点和维度 | TargetingCommandParser |
 | `spread` | 已加载区块随机分散；Auto Y | TargetingCommandParser |
@@ -72,3 +73,5 @@ Swift 全部调用 `Sources/Command/WorldCommand.swift` 的 `WorldCommandParser`
 - `Windows/MCBEEditor.Core.SelfTest` / `Scripts/run_core_tests.sh`：现有平台核心回归。
 
 源码检查和托管自测不能替代平台原生构建、设备测试或 Minecraft 读档验证。
+
+`fill` / `setblock` 现在必须在最后填写 `preserve`、`empty` 或完整 MCBE-SNBT 标签。模板根坐标匹配第一组输入，`fill` 为每个位置改写根坐标后复制，任意 id 均可使用。详见 [本次说明与验证](../../Docs/FillSetblockBlockEntity/README.md)。

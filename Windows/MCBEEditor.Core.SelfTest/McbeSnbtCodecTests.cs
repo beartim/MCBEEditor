@@ -38,6 +38,12 @@ internal static class McbeSnbtCodecTests
                 : McbeSnbtCodec.Decode(Encoding.UTF8.GetBytes(item.GetProperty("text").GetString()!));
             Check(StandaloneNbtFileCodec.Encode(documents, NbtEncoding.LittleEndian).SequenceEqual(expected), id + " typed binary fixture");
             var canonical = McbeSnbtCodec.Encode(documents);
+            if (item.TryGetProperty("canonical_fragments", out var fragments))
+            {
+                var canonicalText = Encoding.UTF8.GetString(canonical);
+                foreach (var fragment in fragments.EnumerateArray())
+                    Check(canonicalText.Contains(fragment.GetString()!, StringComparison.Ordinal), id + " canonical empty-list spelling");
+            }
             var standalone = StandaloneNbtFileCodec.Decode(canonical, "fixture.TXT");
             Check(standalone.OriginalWasSnbt && !standalone.OriginalWasJson && !standalone.WasCompressed
                 && standalone.FormatDescription.Contains("MCBE-SNBT"), id + " standalone TXT identity");
@@ -60,8 +66,11 @@ internal static class McbeSnbtCodecTests
             new("double", new NbtDoubleValue(BitConverter.UInt64BitsToDouble(0xFFF8000000000123))),
             new("negative-zero", new NbtDoubleValue(BitConverter.Int64BitsToDouble(long.MinValue))),
             new("list", new NbtListValue(NbtTagType.String, [new NbtStringValue(""), new NbtStringValue(" a,b ")])),
-            new("empty", new NbtListValue(NbtTagType.Compound, []))
+            new("empty", new NbtListValue(NbtTagType.Compound, [])),
+            new("Items", new NbtListValue(NbtTagType.End, []))
         };
+        Check(Encoding.UTF8.GetString(McbeSnbtCodec.Encode(typedRoots)).Contains("'List'''\"Items\"=\"\"", StringComparison.Ordinal),
+            "unspecified root List must use the empty element-type marker");
         var typedCopy = McbeSnbtCodec.Decode(McbeSnbtCodec.Encode(typedRoots));
         Check(StandaloneNbtFileCodec.Encode(typedCopy, NbtEncoding.LittleEndian)
             .SequenceEqual(StandaloneNbtFileCodec.Encode(typedRoots, NbtEncoding.LittleEndian)), "typed scalar roots and NaN bit patterns");

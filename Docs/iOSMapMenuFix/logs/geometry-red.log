@@ -1,0 +1,17 @@
+FAIL: Visible entity missed at 3.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible entity missed at 5.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible entity missed at 12.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible entity missed at 17.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: entity menu arrow targets map center instead of marker; chunks=5, scale=0.001, axis=y
+FAIL: Visible blockEntity missed at 3.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible blockEntity missed at 5.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible blockEntity missed at 12.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: Visible blockEntity missed at 17.0 screen points; chunks=5, scale=0.001, axis=y
+FAIL: blockEntity menu arrow targets map center instead of marker; chunks=5, scale=0.001, axis=y
+FAIL: Player menu arrow targets map center instead of star; chunks=5, scale=0.001, axis=y
+FAIL: Player menu arrow targets map center instead of star; chunks=5, scale=0.001, axis=y
+FAIL: Nearby markers selected a quantized block cell instead of the closest glyph; chunks=5, scale=0.001, axis=y
+FAIL: entity menu arrow targets map center instead of marker; chunks=5, scale=0.001, axis=x
+FAIL: blockEntity menu arrow targets map center instead of marker; chunks=5, scale=0.001, axis=x
+FAIL: Player menu arrow targets map center instead of star; chunks=5, scale=0.001, axis=x
+FAILED: 425 of 1740 production map hit/anchor checks

@@ -1,0 +1,10 @@
+[
+  {
+    "check": "swift-probe-build",
+    "exit_code": 0
+  },
+  {
+    "check": "swift-probe-fixtures",
+    "exit_code": 0
+  }
+]

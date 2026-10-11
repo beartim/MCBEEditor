@@ -1,0 +1,14 @@
+Unhandled exception. System.IO.InvalidDataException: Int 值无效：1]
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseInt32(String raw, String type) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 415
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseListElement(TypeDescriptor descriptor, Char terminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 308
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseListValues(TypeDescriptor element, Char terminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 263
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParsePayload(TypeDescriptor descriptor, Char listTerminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 228
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseListElement(TypeDescriptor descriptor, Char terminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 286
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseListValues(TypeDescriptor element, Char terminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 263
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParsePayload(TypeDescriptor descriptor, Char listTerminator) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 228
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseNamedTag() in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 200
+   at MCBEEditor.Core.Chunk.BlockCommandParser.CommandNbtTextParser.ParseNamedTags(Nullable`1 closing) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 176
+   at MCBEEditor.Core.Chunk.BlockCommandParser.ParseStates(String text) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core/Chunk/BlockCommand.cs:line 95
+   at NbtOutputListTests.CheckRoundtrip(NbtListValue value, String text) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/NbtOutputListTests.cs:line 78
+   at NbtOutputListTests.Run() in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/NbtOutputListTests.cs:line 53
+   at Program.<Main>$(String[] args) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/Program.cs:line 35

@@ -1565,7 +1565,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       target: self, action: #selector(mapTwoFingerTapped(_:)))
     twoFingerTap.numberOfTouchesRequired = 2
     mapTap.require(toFail: doubleTap)
-    imageView.addGestureRecognizer(mapTap)
+    // Markers have a fixed screen size and can extend beyond the zoomed image.
+    // Receive taps across the same viewport in which the overlay draws them.
+    scrollView.addGestureRecognizer(mapTap)
     imageView.addGestureRecognizer(mapLongPress)
     imageView.addGestureRecognizer(doubleTap)
     imageView.addGestureRecognizer(twoFingerTap)
@@ -3861,8 +3863,17 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     )
   }
 
-  private func crossSectionWorldObjectHit(at imagePoint: CGPoint) -> MapWorldObjectHit? {
-    guard currentSliceAxis != .y, lastRenderedImage != nil,
+  private func mapObjectOverlayPoint(localX: CGFloat, localZ: CGFloat) -> CGPoint {
+    let sideBlocks = CGFloat(renderedSideChunks * 16)
+    let point = CGPoint(
+      x: localX / sideBlocks * imageView.bounds.width,
+      y: localZ / sideBlocks * imageView.bounds.height
+    )
+    return imageView.convert(point, to: objectOverlayView)
+  }
+
+  private func mapWorldObjectHit(at imagePoint: CGPoint) -> MapWorldObjectHit? {
+    guard lastRenderedImage != nil,
       imageView.bounds.width > 0, imageView.bounds.height > 0
     else { return nil }
     let sideBlocks = CGFloat(renderedSideChunks * 16)
@@ -3870,11 +3881,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let tapPoint = imageView.convert(imagePoint, to: objectOverlayView)
     var best: (hit: MapWorldObjectHit, distance: CGFloat)?
     for hit in lastWorldObjectHits where hit.isNormallyVisible {
-      let projectedInImage = CGPoint(
-        x: hit.localX / sideBlocks * imageView.bounds.width,
-        y: hit.localZ / sideBlocks * imageView.bounds.height
-      )
-      let projected = imageView.convert(projectedInImage, to: objectOverlayView)
+      let projected = mapObjectOverlayPoint(localX: hit.localX, localZ: hit.localZ)
       let dx = projected.x - tapPoint.x
       let dy = projected.y - tapPoint.y
       let distance = sqrt(dx * dx + dy * dy)
@@ -4570,20 +4577,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     let imagePoint = recognizer.location(in: imageView)
     guard !isSelectionMode else { return }
     if currentSliceAxis != .y {
-      if let hit = crossSectionWorldObjectHit(at: imagePoint) {
+      if let hit = mapWorldObjectHit(at: imagePoint) {
         selectWorldObject(hit.object)
-        showWorldObjectDetails(hit.object)
+        showWorldObjectDetails(hit)
         return
       }
       if let player = mapPlayerHits(at: imagePoint).first {
-        showPlayerDetails(player.player)
+        showPlayerDetails(player)
         return
       }
       if let spawn = spawnPointHits(at: imagePoint).first {
         showSpawnInformation(spawn.spawn)
         return
       }
-      guard let blockPosition = crossSectionPosition(at: imagePoint) else { return }
+      guard imageView.bounds.contains(imagePoint),
+        let blockPosition = crossSectionPosition(at: imagePoint)
+      else { return }
       if let spawner = crossSectionHardcodedSpawnerHit(at: blockPosition) {
         openHardcodedSpawnerEditor(spawner)
         return
@@ -4591,7 +4600,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       showBlockAxisLine(at: blockPosition)
       return
     }
-    guard let position = mapPosition(at: imagePoint) else { return }
     selectedVillageID = nil
     selectedVillageEntityIDs.removeAll()
     selectedSpawnerID = nil
@@ -4636,13 +4644,22 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       return
     }
     if let hit = playerHits.first {
-      showPlayerDetails(hit.player)
+      showPlayerDetails(hit)
       return
     }
     if let hit = spawnHits.first {
       showSpawnInformation(hit.spawn)
       return
     }
+
+    if !chunkSelectionSwitch.isOn, let hit = mapWorldObjectHit(at: imagePoint) {
+      selectWorldObject(hit.object)
+      showWorldObjectDetails(hit)
+      return
+    }
+
+    guard imageView.bounds.contains(imagePoint), let position = mapPosition(at: imagePoint)
+    else { return }
 
     if chunkSelectionSwitch.isOn {
       let dimension = BedrockDimension.allCases[dimensionControl.selectedSegmentIndex].rawValue
@@ -4652,14 +4669,6 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
           z: MapCoordinate.chunk(fromBlock: position.absoluteZ),
           dimension: dimension
         ), centerMap: false)
-      return
-    }
-
-    if let hit = nearestWorldObject(
-      localX: CGFloat(position.localX) + 0.5, localZ: CGFloat(position.localZ) + 0.5)
-    {
-      selectWorldObject(hit.object)
-      showWorldObjectDetails(hit.object)
       return
     }
 
@@ -4749,14 +4758,9 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
 
   private func mapPlayerHits(at imagePoint: CGPoint) -> [MapPlayerHit] {
     guard showPlayers, imageView.bounds.width > 0, imageView.bounds.height > 0 else { return [] }
-    let sideBlocks = CGFloat(renderedSideChunks * 16)
     let tap = imageView.convert(imagePoint, to: objectOverlayView)
     return lastPlayerHits.compactMap { hit -> (MapPlayerHit, CGFloat)? in
-      let candidateInImage = CGPoint(
-        x: hit.localX / sideBlocks * imageView.bounds.width,
-        y: hit.localZ / sideBlocks * imageView.bounds.height
-      )
-      let candidate = imageView.convert(candidateInImage, to: objectOverlayView)
+      let candidate = mapObjectOverlayPoint(localX: hit.localX, localZ: hit.localZ)
       let distance = hypot(candidate.x - tap.x, candidate.y - tap.y)
       return distance <= 15 ? (hit, distance) : nil
     }
@@ -4821,7 +4825,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       alert.addAction(
         UIAlertAction(title: "查看\(role) · \(hit.player.record.displayName)", style: .default) {
           [weak self] _ in
-          self?.showPlayerDetails(hit.player)
+          self?.showPlayerDetails(hit)
         })
     }
     for hit in spawnHits.prefix(12) {
@@ -4832,14 +4836,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         })
     }
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = imageView
-      popover.sourceRect = CGRect(x: sourcePoint.x, y: sourcePoint.y, width: 1, height: 1)
-    }
+    configureMapPopover(alert, overlayPoint: imageView.convert(sourcePoint, to: objectOverlayView))
     present(alert, animated: true)
   }
 
-  private func showPlayerDetails(_ player: MapPlayerCoordinate) {
+  private func showPlayerDetails(_ hit: MapPlayerHit) {
+    let player = hit.player
+    clearSelectedWorldObject()
     let position = player.position
     let dimension =
       BedrockDimension(rawValue: position.dimension)?.displayName ?? "维度 \(position.dimension)"
@@ -4875,11 +4878,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         UIPasteboard.general.string = coordinateText
       })
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = imageView
-      popover.sourceRect = CGRect(
-        x: imageView.bounds.midX, y: imageView.bounds.midY, width: 1, height: 1)
-    }
+    configureMapObjectPopover(alert, localX: hit.localX, localZ: hit.localZ)
     present(alert, animated: true)
   }
 
@@ -5390,25 +5389,29 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     zoom(to: proposedScale, around: point, animated: true)
   }
 
-  private func nearestWorldObject(localX: CGFloat, localZ: CGFloat) -> MapWorldObjectHit? {
-    let nearest = lastWorldObjectHits.filter(\.isNormallyVisible).min { lhs, rhs in
-      worldObjectDistance(lhs, fromX: localX, z: localZ)
-        < worldObjectDistance(rhs, fromX: localX, z: localZ)
-    }
-    guard let nearest = nearest, worldObjectDistance(nearest, fromX: localX, z: localZ) <= 1.8
-    else { return nil }
-    return nearest
+  private func configureMapPopover(_ alert: UIAlertController, overlayPoint: CGPoint) {
+    guard let popover = alert.popoverPresentationController else { return }
+    let anchorBounds = objectOverlayView.bounds.insetBy(dx: 0.5, dy: 0.5)
+    // A partly clipped glyph may have its center just outside the viewport.
+    // Keep the arrow at the nearest visible point in that case.
+    let center = CGPoint(
+      x: min(anchorBounds.maxX, max(anchorBounds.minX, overlayPoint.x)),
+      y: min(anchorBounds.maxY, max(anchorBounds.minY, overlayPoint.y))
+    )
+    popover.sourceView = objectOverlayView
+    popover.sourceRect = CGRect(x: center.x - 0.5, y: center.y - 0.5, width: 1, height: 1)
   }
 
-  private func worldObjectDistance(_ hit: MapWorldObjectHit, fromX x: CGFloat, z: CGFloat)
-    -> CGFloat
-  {
-    let dx = hit.localX - x
-    let dz = hit.localZ - z
-    return sqrt(dx * dx + dz * dz)
+  private func configureMapObjectPopover(
+    _ alert: UIAlertController, localX: CGFloat, localZ: CGFloat
+  ) {
+    view.layoutIfNeeded()
+    configureMapPopover(
+      alert, overlayPoint: mapObjectOverlayPoint(localX: localX, localZ: localZ))
   }
 
-  private func showWorldObjectDetails(_ object: BedrockWorldObject) {
+  private func showWorldObjectDetails(_ hit: MapWorldObjectHit) {
+    let object = hit.object
     let dimension =
       BedrockDimension(rawValue: object.dimension)?.displayName ?? "维度 \(object.dimension)"
     var message =
@@ -5436,11 +5439,7 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
         UIPasteboard.general.string = object.coordinateText
       })
     alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = imageView
-      popover.sourceRect = CGRect(
-        x: imageView.bounds.midX, y: imageView.bounds.midY, width: 1, height: 1)
-    }
+    configureMapObjectPopover(alert, localX: hit.localX, localZ: hit.localZ)
     present(alert, animated: true)
   }
 

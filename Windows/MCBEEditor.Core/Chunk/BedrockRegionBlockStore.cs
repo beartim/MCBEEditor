@@ -24,13 +24,15 @@ public sealed class BedrockRegionBlockStore
         _access = new BedrockChunkSubChunkAccess(database);
     }
 
-    public BedrockRegionMutationResult SetBlock(int dimension, BedrockBlockCoordinate position, IReadOnlyList<BedrockBlockStorageSpec> storages)
-        => Fill(dimension, new BedrockBlockBox(position, position), storages);
+    public BedrockRegionMutationResult SetBlock(int dimension, BedrockBlockCoordinate position, IReadOnlyList<BedrockBlockStorageSpec> storages, BlockEntityCommandSpec? blockEntity = null)
+        => Fill(dimension, new BedrockBlockBox(position, position), storages, blockEntity);
 
-    public BedrockRegionMutationResult Fill(int dimension, BedrockBlockBox region, IReadOnlyList<BedrockBlockStorageSpec> storages)
+    public BedrockRegionMutationResult Fill(int dimension, BedrockBlockBox region, IReadOnlyList<BedrockBlockStorageSpec> storages, BlockEntityCommandSpec? blockEntity = null)
     {
         ValidateRegion(region);
         ValidateStorages(storages);
+        blockEntity ??= BlockEntityCommandSpec.Empty;
+        blockEntity.Validate(region);
         var cache = new RegionEditCache(_database, _access, dimension);
         long changed = 0;
 
@@ -54,8 +56,8 @@ public sealed class BedrockRegionBlockStore
             if (!ReferenceEquals(before, working)) changed += slice.Volume;
         }
 
-        var blockEntityEdits = PlanRemoveBlockEntities(dimension, region);
-        return Commit(cache, blockEntityEdits.Puts, blockEntityEdits.Deletes, changed, blockEntityEdits.Removed, 0);
+        var blockEntityEdits = PlanFillBlockEntities(dimension, region, blockEntity);
+        return Commit(cache, blockEntityEdits.Puts, blockEntityEdits.Deletes, changed, blockEntityEdits.Removed, blockEntityEdits.Copied);
     }
 
     public BedrockRegionMutationResult Clone(
@@ -213,7 +215,7 @@ public sealed class BedrockRegionBlockStore
             if (raw is null) continue;
             foreach (var record in ConsecutiveNbtCodec.Decode(raw))
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 if (pos is null || !region.Contains(pos.BlockX, pos.BlockY, pos.BlockZ)) continue;
                 var flat = checked((pos.BlockX - region.Minimum.X) * sizeY * sizeZ + (pos.BlockY - region.Minimum.Y) * sizeZ + (pos.BlockZ - region.Minimum.Z));
                 if (!entityPositions.Add(flat)) throw new InvalidDataException("structure save 源区域包含重复坐标的方块实体。");
@@ -324,7 +326,7 @@ public sealed class BedrockRegionBlockStore
             var kept = new List<ConsecutiveNbtRecord>();
             foreach (var record in records)
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 var coordinate = pos is null ? (BedrockBlockCoordinate?)null : new BedrockBlockCoordinate(pos.BlockX, pos.BlockY, pos.BlockZ);
                 if (coordinate.HasValue && written.Contains(coordinate.Value)) { removed++; touched.Add(chunk); }
                 else kept.Add(record);
@@ -496,7 +498,7 @@ public sealed class BedrockRegionBlockStore
         {
             foreach (var record in ConsecutiveNbtCodec.Decode(raw))
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 if (pos?.BlockX == position.X && pos.BlockY == position.Y && pos.BlockZ == position.Z)
                 {
                     blockEntityText = "BlockEntity=[" + BlockCommandNbtOutputFormatter.Root(record.Document.Root) + "]";
@@ -528,28 +530,57 @@ public sealed class BedrockRegionBlockStore
             removedBlockEntities, copiedBlockEntities, finalPuts.Count, finalDeletes.Length);
     }
 
-    private BlockEntityMutation PlanRemoveBlockEntities(int dimension, BedrockBlockBox region)
+    private static BedrockWorldObjectPosition? BlockEntityPosition(NbtValue root)
+    {
+        var coordinate = BlockEntityCommandSpec.Coordinate(root);
+        return coordinate is { } position ? new BedrockWorldObjectPosition(position.X, position.Y, position.Z) : null;
+    }
+
+    private BlockEntityMutation PlanFillBlockEntities(int dimension, BedrockBlockBox region, BlockEntityCommandSpec spec)
     {
         var puts = new List<WorldDatabasePut>();
         var deletes = new List<byte[]>();
+        if (spec.Mode == BlockEntityCommandMode.Preserve) return new BlockEntityMutation(puts, deletes, 0, 0);
         var removed = 0;
+        var written = 0;
         foreach (var chunk in EnumerateChunks(dimension, region))
         {
             var key = new BedrockDbKey(chunk, ChunkRecordType.BlockEntity, null).Encode();
             var raw = _database.Get(key);
-            if (raw is null) continue;
-            var records = ConsecutiveNbtCodec.Decode(raw).ToList();
+            if (raw is null && spec.Mode == BlockEntityCommandMode.Empty) continue;
+            var records = raw is null ? [] : ConsecutiveNbtCodec.Decode(raw).ToList();
             var kept = new List<ConsecutiveNbtRecord>(records.Count);
             foreach (var record in records)
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 if (pos is not null && region.Contains(pos.BlockX, pos.BlockY, pos.BlockZ)) removed++;
                 else kept.Add(record);
             }
-            if (kept.Count == records.Count) continue;
-            if (kept.Count == 0) deletes.Add(key); else puts.Add(new WorldDatabasePut(key, ConsecutiveNbtCodec.Encode(kept)));
+            if (spec.Mode == BlockEntityCommandMode.Empty && kept.Count == records.Count) continue;
+            using var payload = new MemoryStream();
+            foreach (var record in kept)
+            {
+                // Bedrock BlockEntity streams use little-endian NBT. Keep peer
+                // records byte-for-byte; canonicalize a legacy single VarInt
+                // fallback before appending, so the result remains readable.
+                payload.Write(record.Encoding == NbtEncoding.LittleEndian ? record.RawData : BedrockNbtCodec.Encode(record.Document, NbtEncoding.LittleEndian));
+            }
+            if (spec.Mode == BlockEntityCommandMode.Template)
+            {
+                var minX = Math.Max(region.Minimum.X, (long)chunk.X * 16);
+                var maxX = Math.Min(region.Maximum.X, (long)chunk.X * 16 + 15);
+                var minZ = Math.Max(region.Minimum.Z, (long)chunk.Z * 16);
+                var maxZ = Math.Min(region.Maximum.Z, (long)chunk.Z * 16 + 15);
+                for (var x = minX; x <= maxX; x++) for (var z = minZ; z <= maxZ; z++)
+                    for (var y = (long)region.Minimum.Y; y <= region.Maximum.Y; y++)
+                    {
+                        payload.Write(BedrockNbtCodec.Encode(spec.DocumentAt(new((int)x, (int)y, (int)z)), NbtEncoding.LittleEndian));
+                        written++;
+                    }
+            }
+            if (payload.Length == 0) deletes.Add(key); else puts.Add(new WorldDatabasePut(key, payload.ToArray()));
         }
-        return new BlockEntityMutation(puts, deletes, removed, 0);
+        return new BlockEntityMutation(puts, deletes, removed, written);
     }
 
     private BlockEntityMutation PlanCloneBlockEntities(
@@ -568,7 +599,7 @@ public sealed class BedrockRegionBlockStore
             if (raw is null) continue;
             foreach (var record in ConsecutiveNbtCodec.Decode(raw))
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 if (pos is null || !source.Contains(pos.BlockX, pos.BlockY, pos.BlockZ)) continue;
                 var coordinate = new BedrockBlockCoordinate(pos.BlockX, pos.BlockY, pos.BlockZ);
                 if (!sourceCoordinates.Add(coordinate))
@@ -599,7 +630,7 @@ public sealed class BedrockRegionBlockStore
             var kept = new List<ConsecutiveNbtRecord>();
             foreach (var record in records)
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity);
+                var pos = BlockEntityPosition(record.Document.Root);
                 if (pos is not null && target.Contains(pos.BlockX, pos.BlockY, pos.BlockZ)) removed++;
                 else kept.Add(record);
             }
@@ -614,7 +645,7 @@ public sealed class BedrockRegionBlockStore
             var dz = destination.Z - source.Minimum.Z;
             foreach (var record in sourceRecords)
             {
-                var pos = BedrockWorldObjectScanner.ExtractPosition(record.Document.Root, BedrockWorldObjectKind.BlockEntity)!;
+                var pos = BlockEntityPosition(record.Document.Root)!;
                 var x = pos.BlockX + dx;
                 var y = pos.BlockY + dy;
                 var z = pos.BlockZ + dz;

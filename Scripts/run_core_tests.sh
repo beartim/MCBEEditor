@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash "$ROOT/Scripts/test_mcbe_snbt.sh"
 bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
+python3 "$ROOT/Scripts/test_ios_map_object_interaction.py"
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
@@ -209,14 +210,14 @@ struct Main {
         precondition(mapColor("minecraft:planks", 5, 5) == 0x4B3422)
         precondition(!BedrockBlockIdentifier.isWater("minecraft:waterlily"))
 
-        let fillCommand = try WorldCommandParser.parse("fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\"")
-        if case .fill(let dimension, let box, let storages) = fillCommand {
+        let fillCommand = try WorldCommandParser.parse("fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\",'Byte'\"persistent_bit\"=\"0\",'Byte'\"update_bit\"=\"0\" minecraft:chest 'Int'\"facing_direction\"=\"3\" empty")
+        if case .fill(let dimension, let box, let storages, _) = fillCommand {
             precondition(dimension == 2)
             precondition(box.minimum.x == 0 && box.maximum.y == 200 && box.maximum.z == 16)
             precondition(storages.count == 2)
             precondition(storages[0].name == "minecraft:leaves" && storages[0].states.count == 3)
             precondition(storages[1].name == "minecraft:chest" && storages[1].states.count == 1)
-            precondition((try? WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL")) != nil)
+            precondition((try? WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL empty")) != nil)
             let biomeByName = try WorldCommandParser.parse("fillbiome overworld 0 -64 0 15 31 15 minecraft:plains")
             if case .fillBiome(let dimension, let region, let biome) = biomeByName {
                 precondition(dimension == 0)
@@ -230,15 +231,15 @@ struct Main {
             precondition((try? WorldCommandParser.parse("fillbiome overworld 0 0 0 1 1 1 minecraft:not_a_real_biome")) == nil)
             precondition((try? WorldCommandParser.parse("info")) != nil)
             precondition((try? WorldCommandParser.parse("info extra")) == nil)
-            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 minecraft:stone NULL")) != nil)
+            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 minecraft:stone NULL empty")) != nil)
             precondition((try? WorldCommandParser.parse("getblock overworld 0 64 0")) != nil)
             precondition((try? WorldCommandParser.parse("storage query overworld 0 64 0")) != nil)
             precondition((try? WorldCommandParser.parse("storage set overworld 0 64 0 8 minecraft:water NULL")) != nil)
             precondition((try? WorldCommandParser.parse("storage add overworld 0 64 0 8 minecraft:water NULL")) == nil)
             let maxStoragePairs = Array(repeating: "minecraft:air NULL", count: 255).joined(separator: " ")
-            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 \(maxStoragePairs)")) != nil)
+            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 \(maxStoragePairs) empty")) != nil)
             let tooManyStoragePairs = Array(repeating: "minecraft:air NULL", count: 256).joined(separator: " ")
-            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 \(tooManyStoragePairs)")) == nil)
+            precondition((try? WorldCommandParser.parse("setblock overworld 0 64 0 \(tooManyStoragePairs) empty")) == nil)
             precondition((try? WorldCommandParser.parse("storage set overworld 0 64 0 254 minecraft:water NULL")) != nil)
             precondition((try? WorldCommandParser.parse("storage set overworld 0 64 0 255 minecraft:water NULL")) == nil)
             precondition((try? WorldCommandParser.parse("storage clear overworld 0 64 0 255")) != nil)
@@ -304,7 +305,7 @@ struct Main {
         guard case .effect(.clear, .allEntities, .all) = effectClear else {
             preconditionFailure("effect clear parsed as wrong command")
         }
-        _ = try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL")
+        _ = try WorldCommandParser.parse("setblock overworld 1 64 2 minecraft:stone NULL minecraft:air NULL empty")
         _ = try WorldCommandParser.parse("chunk query")
         _ = try WorldCommandParser.parse("chunk query overworld")
         _ = try WorldCommandParser.parse("chunk query overworld 0 0")
@@ -481,7 +482,7 @@ struct Main {
             preconditionFailure("kick must reject non-player selectors")
         } catch {}
         do {
-            _ = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air")
+            _ = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air empty")
             preconditionFailure("fill must reject missing layer 1 states")
         } catch {}
         do {
@@ -3811,7 +3812,7 @@ grep -qF 'hasWritableMainhandTag(' "$COMMAND_EXECUTOR" && \
 
 # Fixed v1.0.0: world/structure/tickingarea plus teleport, spread, daylock,
 # time and weather commands.
-grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case spread(target:' "$COMMAND_PARSER" && grep -qF 'case dayLock(locked:' "$COMMAND_PARSER" && grep -qF 'case experience(operation:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count >= 6, (arguments.count - 4) % 2 == 0 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'randomSpreadDestination' "$COMMAND_EXECUTOR" && grep -qF 'setTopLevelTag(name: "dodaylightcycle"' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'executeExperience(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case spread(target:' "$COMMAND_PARSER" && grep -qF 'case dayLock(locked:' "$COMMAND_PARSER" && grep -qF 'case experience(operation:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count >= 7, (arguments.count - 5) % 2 == 0 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'randomSpreadDestination' "$COMMAND_EXECUTOR" && grep -qF 'setTopLevelTag(name: "dodaylightcycle"' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'executeExperience(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
   echo 'error: world/structure/tickingarea/teleport/spread/daylock/time/weather command support is incomplete' >&2
   exit 1
 }
@@ -3949,7 +3950,7 @@ struct EffectCommandTest {
             if let x = x { tags += [NBTNamedTag(name: "x", value: .byte(x)), NBTNamedTag(name: "y", value: .byte(0)), NBTNamedTag(name: "z", value: .byte(0))] }
             return try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
         }
-        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL")
+        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL empty")
         session.db.values[key(0)] = try record(0, "source")
         try run("structure save audit:one overworld 0 0 0 0 0 0")
         let outside = try record(5, "outside-a") + record(nil, "orphan") + record(5, "outside-b")
@@ -3981,8 +3982,8 @@ struct EffectCommandTest {
         let session = WorldSession()
         let executor = WorldCommandExecutor(session: session)
         func run(_ text: String) throws { _ = try executor.execute(try WorldCommandParser.parse(text)) }
-        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL")
-        try run("setblock overworld 1 0 0 minecraft:dirt NULL")
+        try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL empty")
+        try run("setblock overworld 1 0 0 minecraft:dirt NULL empty")
         try run("clone overworld 0 0 0 1 0 0 overworld 1 0 0")
         let overlap = try BedrockSubChunk.decode(session.db.values[BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)]!, keyYIndex: 0)
         precondition(overlap.storages[0].blockState(x: 2, y: 0, z: 0)!.name == "minecraft:dirt", "overlap must use the original source")
@@ -4086,16 +4087,16 @@ struct EffectCommandTest {
             return sub.storages.map { $0.blockState(x: localX, y: 0, z: 15)! }
         }
         for x in [-17, -16, -1, 0, 15, 16, 17] {
-            try run("setblock overworld \(x) 64 -1 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL")
+            try run("setblock overworld \(x) 64 -1 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL empty")
         }
-        try run("fill overworld -17 64 -1 16 64 -1 minecraft:dirt NULL")
+        try run("fill overworld -17 64 -1 16 64 -1 minecraft:dirt NULL empty")
         for x in [Int64(-17), -16, -1, 0, 15, 16] {
             let states = try layers(x)
             precondition(states.map(\.name) == ["minecraft:dirt", "minecraft:water", "minecraft:diamond_block"])
         }
         let neighbor = try layers(17)
         precondition(neighbor[0].name == "minecraft:stone")
-        try run("setblock overworld -1 64 -1 minecraft:dirt NULL minecraft:air NULL")
+        try run("setblock overworld -1 64 -1 minecraft:dirt NULL minecraft:air NULL empty")
         let cleared = try layers(-1)
         precondition(cleared[1].isAir && cleared[2].name == "minecraft:diamond_block")
         let query = try executor.execute(try WorldCommandParser.parse("getblock overworld -1 64 -1"))
@@ -4119,15 +4120,15 @@ struct EffectCommandTest {
         let entityQuery = try executor.execute(try WorldCommandParser.parse("getblock overworld 1 0 0"))
         precondition(entityQuery.message.contains("first-outside") && !entityQuery.message.contains("second-outside"))
         precondition(!entityQuery.changedWorld && session.db.values == beforeQuery)
-        try run("setblock overworld 0 0 0 minecraft:stone NULL")
+        try run("setblock overworld 0 0 0 minecraft:stone NULL empty")
         precondition(session.db.values[key] == kept, "fill discarded outside/coordinate-less block entities")
-        try run("setblock overworld 2 0 0 minecraft:stone NULL")
+        try run("setblock overworld 2 0 0 minecraft:stone NULL empty")
         precondition(session.db.values[key] == kept, "unmatched block entities were rewritten")
         let brokenKey = BedrockDBKey(position: ChunkPosition(x: 1, z: 0, dimension: 0), recordType: .blockEntity, subChunkIndex: nil).encoded()
         session.db.values[brokenKey] = Data([10, 0, 0, 3])
         let beforeBroken = session.db.values
         var brokenRejected = false
-        do { try run("fill overworld 0 0 0 16 0 0 minecraft:dirt NULL") } catch { brokenRejected = true }
+        do { try run("fill overworld 0 0 0 16 0 0 minecraft:dirt NULL empty") } catch { brokenRejected = true }
         precondition(brokenRejected && session.db.values == beforeBroken, "malformed block entity left a partial fill")
         let legacy = WorldSession()
         legacy.db.values[BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)] = try BedrockSubChunk.emptyLegacy(version: 7, yIndex: 0).encodePersistent()
@@ -4135,7 +4136,7 @@ struct EffectCommandTest {
         let before = legacy.db.values
         for suffix in ["minecraft:not_in_old_game NULL", "minecraft:stone NULL minecraft:air NULL minecraft:air NULL"] {
             var rejected = false
-            do { _ = try WorldCommandExecutor(session: legacy).execute(try WorldCommandParser.parse("setblock overworld 64 64 64 \(suffix)")) } catch { rejected = true }
+            do { _ = try WorldCommandExecutor(session: legacy).execute(try WorldCommandParser.parse("setblock overworld 64 64 64 \(suffix) empty")) } catch { rejected = true }
             precondition(rejected && legacy.db.values == before, "legacy rejection wrote partial data")
         }
     }
@@ -4317,6 +4318,7 @@ struct EffectCommandTest {
     static func main() throws {
         try DimensionCliPreflightRegression.run()
         try DimensionCommandResolverTests.run()
+        try FillSetblockBlockEntityRegression.run()
         try SummonCommandRegression.run()
         try EntityCommandRegression.run()
         try verifyGiveInventoryAudit()
@@ -4654,7 +4656,7 @@ struct EffectCommandTest {
         let pigWithoutChest = giveEntities.first { $0.document.root.int64Value(namedAny: ["UniqueID"]) == 3 }!.document.root
         precondition(itemName(in: pigWithoutChest, container: "Mainhand") == nil)
 
-        let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL"))
+        let setBlock = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:stone NULL minecraft:air NULL empty"))
         precondition(setBlock.changedWorld)
         let sourceKey = BedrockDBKey.subChunk(x: 0, z: 0, dimension: 0, index: 0)
         let sourceRaw = try session.db.get(sourceKey)!
@@ -4666,7 +4668,7 @@ struct EffectCommandTest {
         // UInt8 storage-count limit, storage query/set/delete/clear exposes the
         // physical v8/v9 layers, and clone copies every storage at the position.
         let multiSet = try executor.execute(try WorldCommandParser.parse(
-            "setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL"
+            "setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL minecraft:diamond_block NULL empty"
         ))
         precondition(multiSet.changedWorld)
         var multiSub = try BedrockSubChunk.decode(try session.db.get(sourceKey)!, keyYIndex: 0)
@@ -4674,7 +4676,7 @@ struct EffectCommandTest {
         precondition(multiSub.storages[2].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:diamond_block")
 
         // Omitting layer1+ must preserve those storages instead of forcing air.
-        _ = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:dirt NULL"))
+        _ = try executor.execute(try WorldCommandParser.parse("setblock overworld 0 0 0 minecraft:dirt NULL empty"))
         multiSub = try BedrockSubChunk.decode(try session.db.get(sourceKey)!, keyYIndex: 0)
         precondition(multiSub.storages.count == 3)
         precondition(multiSub.storages[1].blockState(x: 0, y: 0, z: 0)?.name == "minecraft:water")
@@ -4907,7 +4909,7 @@ struct EffectCommandTest {
         let beforeRejected = legacySession.db.values
         do {
             _ = try WorldCommandExecutor(session: legacySession).execute(try WorldCommandParser.parse(
-                "setblock overworld 64 200 64 minecraft:not_in_old_game NULL"))
+                "setblock overworld 64 200 64 minecraft:not_in_old_game NULL empty"))
             preconditionFailure("unrepresentable legacy block accepted")
         } catch { }
         precondition(legacySession.db.values == beforeRejected)
@@ -4926,7 +4928,7 @@ struct EffectCommandTest {
         }
         precondition(valSession.db.values == beforeAbsent)
         _ = try valExecutor.execute(try WorldCommandParser.parse(
-            "setblock overworld 64 200 64 minecraft:diamond_block NULL minecraft:air NULL minecraft:air NULL"))
+            "setblock overworld 64 200 64 minecraft:diamond_block NULL minecraft:air NULL minecraft:air NULL empty"))
         let valRaw = try valSession.db.get(BedrockDBKey.subChunk(x: 4, z: 4, dimension: 0, index: 12))!
         let valSaved = try BedrockSubChunk.decode(valRaw, keyYIndex: 12)
         precondition(valSaved.version == 8 && valSaved.storages.count == 3)
@@ -4994,6 +4996,7 @@ swiftc -j 4 \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Scripts/Tests/EntityCommandRegression.swift" \
   "$ROOT/Scripts/Tests/SummonCommandRegression.swift" \
+  "$ROOT/Scripts/Tests/FillSetblockBlockEntityRegression.swift" \
   "$TMP/EffectCommandStubs.swift" \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"

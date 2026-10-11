@@ -28,11 +28,17 @@ CLI 批处理的 `summon` 仍需 `--output` 或 `--in-place`。含有引号的 N
 - 每个实体一行，格式为 `实体类型=[全部 NBT 标签]`，类型与实体栏目一致，NBT 格式与 `getblock` 一致。
 - 查询不修改存档，不包含玩家或方块实体。版本保持 1.0.0。
 
+## fill / setblock 方块实体参数
+
+`fill` 和 `setblock` 必须在所有方块名/states 配对后填写方块实体参数：`preserve` 保留原实体，`empty` 清空目标实体，或完整 MCBE-SNBT 标签设定实体。允许任意 id，包括与方块类型不同的实体。
+
+NBT 根 x/y/z 必须各有一个整数标签，并与命令第一组三坐标相同；`fill` 按原始第一组坐标校验模板，再逐位置复制并改写根坐标。其余标签保持不变，坐标保留原整数类型，范围超出类型容量时整条拒绝。缺少末尾参数、坐标错误或无法安全解码时，方块与实体均不会留下部分修改。详见 [说明与验证](Docs/FillSetblockBlockEntity/README.md)，可直接使用 [命令示例](CLI/Examples/FillSetblockBlockEntity.txt)。版本仍为 1.0.0。
+
 ## 1.0.0 命令层全 storage、getblock 与 storage 命令
 
 - 命令层对 v8 或更新的已知结构化 SubChunk 支持全部物理 storage；地图、方块 NBT、区域编辑等其他栏目仍只编辑 layer0/layer1。
 - `clone` 会复制源位置的全部 storage，并清空目标位置多出来的 storage 内容；重叠复制仍使用命令开始时的源快照。
-- `setblock` / `fill` 至少只需提供 storage0，layer1 不再必填；后续按“方块名 + states”成对追加，最多 255 个 storage。未提供的高层保持原值。
+- `setblock` / `fill` 至少只需提供 storage0，layer1 不再必填；后续按“方块名 + states”成对追加，最多 255 个 storage，最后必须填写方块实体参数。未提供的高层保持原值。
 - 新增 `getblock 维度 x y z`：蓝色 `Block` 行显示该位置全部 storage，紫色 `BlockEntity` 行显示完整方块实体 NBT；没有方块实体时显示 `BlockEntity=NULL`。
 - 新增 `storage query/set/delete/clear` 四个子命令。`set` 的 storage 索引为 0～254；`clear N` 保留 storage0…storageN，参数接受 UInt8 0～255。不存在 `storage add` 别名。
 - `effect give` 的 Duration 支持完整 Int32 负数；Amplifier 接受 -128～255，并按 Bedrock Byte 原始位模式保存。

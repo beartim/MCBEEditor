@@ -1,0 +1,22 @@
+[
+  {
+    "check": "csharp-test-build-red",
+    "exit_code": 0,
+    "expected": "zero"
+  },
+  {
+    "check": "csharp-codec-red",
+    "exit_code": -6,
+    "expected": "nonzero"
+  },
+  {
+    "check": "csharp-output-red",
+    "exit_code": -6,
+    "expected": "nonzero"
+  },
+  {
+    "check": "swift-codec-red",
+    "exit_code": 132,
+    "expected": "nonzero"
+  }
+]

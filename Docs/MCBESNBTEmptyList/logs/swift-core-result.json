@@ -1,0 +1,6 @@
+{
+  "check": "swift-core-full",
+  "exit_code": 0,
+  "total_output_lines": 88,
+  "last_gate_present": true
+}

@@ -42,9 +42,9 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
             GetBlockCommandRequest get => GetBlock(database, get),
             EntityQueryCommandRequest entity => CliCommandResult.FromCore(new EntityQueryCommandStore(database).Execute(entity)),
             SetBlockCommandRequest set => BlockMutation(new BedrockRegionBlockStore(database)
-                .SetBlock(set.Dimension, set.Position, set.Storages)),
+                .SetBlock(set.Dimension, set.Position, set.Storages, set.BlockEntity)),
             FillBlockCommandRequest fill => BlockMutation(new BedrockRegionBlockStore(database)
-                .Fill(fill.Dimension, fill.Region, fill.Storages)),
+                .Fill(fill.Dimension, fill.Region, fill.Storages, fill.BlockEntity)),
             CloneBlockCommandRequest clone => BlockMutation(new BedrockRegionBlockStore(database)
                 .Clone(clone.SourceDimension, clone.Source, clone.TargetDimension, clone.Destination)),
 
@@ -88,7 +88,7 @@ internal sealed class CliWorldCommandExecutor(WorldDocument document)
     private static CliCommandResult BlockMutation(BedrockRegionMutationResult result)
     {
         var entities = result.CopiedBlockEntities > 0 || result.RemovedBlockEntities > 0
-            ? $"；BlockEntity 删除 {result.RemovedBlockEntities}、复制 {result.CopiedBlockEntities}" : string.Empty;
+            ? $"；BlockEntity 删除 {result.RemovedBlockEntities}、写入 {result.CopiedBlockEntities}" : string.Empty;
         return CliCommandResult.Text(
             $"完成：处理 {result.ChangedBlockPositions:N0} 个方块位置，写入 {result.TouchedSubChunks:N0} 个 SubChunk / {result.TouchedChunks:N0} 个区块；WriteBatch 项 Put={result.PutCount}, Delete={result.DeleteCount}{entities}。",
             result.PutCount > 0 || result.DeleteCount > 0);

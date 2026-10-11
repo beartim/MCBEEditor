@@ -1,0 +1,25 @@
+{
+  "base_archive_sha256": "7c98ad65746b15c09644edd4a6ab324e8efaf6520918790672b62e5b516bca47",
+  "base_commit": "1e367ee",
+  "base_files": 747,
+  "modified_existing_files": [
+    "CLI/README.md",
+    "CLI/Shared/parser-cases.json",
+    "CLI/Tests/mcbe_snbt_smoke.py",
+    "CLI/Windows.Tests/SummonCommandTests.cs",
+    "Docs/MCBE-SNBT.md",
+    "Scripts/Tests/MCBESNBTTests.swift",
+    "Scripts/Tests/SummonCommandRegression.swift",
+    "Sources/Command/WorldCommand.swift",
+    "Sources/Command/WorldCommandExecutor.swift",
+    "Sources/NBT/MCBESNBTCodec.swift",
+    "Tests/Fixtures/mcbe_snbt.json",
+    "Windows/MCBEEditor.Core.SelfTest/BlockCommandAuditTests.cs",
+    "Windows/MCBEEditor.Core.SelfTest/McbeSnbtCodecTests.cs",
+    "Windows/MCBEEditor.Core.SelfTest/NbtOutputListTests.cs",
+    "Windows/MCBEEditor.Core/Chunk/BlockCommand.cs",
+    "Windows/MCBEEditor.Core/Nbt/McbeSnbtCodec.cs"
+  ],
+  "unchanged_existing_files": 731,
+  "missing_files": []
+}

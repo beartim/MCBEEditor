@@ -1,0 +1,4 @@
+Unhandled exception. System.Exception: MCBE-SNBT regression: typed-mixed-child-lists canonical empty-list spelling
+   at McbeSnbtCodecTests.Check(Boolean value, String message) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/McbeSnbtCodecTests.cs:line 10
+   at McbeSnbtCodecTests.Run() in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/McbeSnbtCodecTests.cs:line 45
+   at Program.<Main>$(String[] args) in /workspace/scratch/b1b811844258/ios-lifecycle-fix/Windows/MCBEEditor.Core.SelfTest/Program.cs:line 23

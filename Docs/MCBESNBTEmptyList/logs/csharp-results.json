@@ -1,0 +1,38 @@
+[
+  {
+    "check": "csharp-core-build",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-codec-green",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-output-green",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-core-full",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-cli-build",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-cli-process",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-cli-conversion",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-cli-snbt",
+    "exit_code": 0
+  },
+  {
+    "check": "csharp-cli-native",
+    "exit_code": 0
+  }
+]

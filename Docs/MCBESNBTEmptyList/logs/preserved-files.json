@@ -1,0 +1,37 @@
+[
+  {
+    "path": "Docs/FixedReadMe/AppleCLI/Commands/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "c0ca88df7db2417df8dc37e2bc278629016a088af304955a7158e47d47381e3f"
+  },
+  {
+    "path": "Docs/FixedReadMe/Windows/Commands/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "42de4fa179fe0889958b2978afa1be4f822e99665048efa520d98aed8e6d9c64"
+  },
+  {
+    "path": "Docs/FixedReadMe/Windows/Textures/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "8089a5e4cdf48d794faa00542186ab1df902ae91dfea9a25af8ddef70c2f391c"
+  },
+  {
+    "path": "Docs/FixedReadMe/WindowsCLI/Commands/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "c0ca88df7db2417df8dc37e2bc278629016a088af304955a7158e47d47381e3f"
+  },
+  {
+    "path": "Docs/FixedReadMe/iOS/Commands/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "42de4fa179fe0889958b2978afa1be4f822e99665048efa520d98aed8e6d9c64"
+  },
+  {
+    "path": "Docs/FixedReadMe/iOS/Textures/ReadMe.txt",
+    "unchanged": true,
+    "sha256": "7e72a62787a2ec2c3d8c9c77b18b72b5d536220e047bede515a77ff50f13e6fa"
+  },
+  {
+    "path": "Tests/Fixtures/custom_dimensions.mcworld",
+    "unchanged": true,
+    "sha256": "b2b229bc4cc8c9937da461c08b5117501b12bb38791599eca5a6c7b6f63bdcd4"
+  }
+]
