@@ -1,0 +1,2 @@
+PASS: 1740 production map hit/anchor checks; 8 zoom scales, Y/X/Z, 3 canvas densities, entity/block entity/local and online player, hidden markers and panned corners
+PASS: viewport tap and production menu routing contracts (UIKit source audit only)

@@ -90,6 +90,9 @@ def run(source_path: Path) -> None:
 
     fixture = r'''
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 enum MapSliceAxis { case x, y, z }
 struct BedrockWorldObject { let stableID: String }
