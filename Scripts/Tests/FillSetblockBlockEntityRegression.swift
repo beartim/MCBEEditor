@@ -27,6 +27,23 @@ enum FillSetblockBlockEntityRegression {
             do { try run(text) } catch { rejected = true }
             precondition(rejected && session.db.values == before, "rejected command changed storage: \(text)")
         }
+        // Only command coordinates select the destination. Root coordinates are
+        // optional and ignored, including aliases, duplicates and other types.
+        let base = #"'String'"id"="Chest",'List'''"Items"="",'Compound'"Nested"="{'Int'"x"="999",'String'"y"="keep"}""#
+        for suffix in ["", #",'Long'"x"="9223372036854775807""#,
+            #",'Int'"x"="-999",'Int'"y"="1",'Int'"z"="999""#,
+            #",'Float'"X"="0.75",'String'"Y"="ignored",'List'''"z"="""#,
+            #",'Int'"x"="1",'Int'"X"="2",'String'"z"="ignored""#] {
+            try run("setblock 6100 137 64 -17 minecraft:stone NULL " + base + suffix)
+            let records = try ConsecutiveNBTCodec.decode(session.db.values[key(6100, 8, -2)]!)
+            precondition(records.count == 1, "optional root coordinates left duplicate entities")
+            let root = records[0].document.root
+            guard case .compound(let roots) = root else { preconditionFailure("missing block entity") }
+            let coordinates = roots.filter { ["x", "y", "z"].contains($0.name.lowercased()) }
+            precondition(coordinates.count == 3 && coordinates.allSatisfy { ["x", "y", "z"].contains($0.name) && $0.value.type == .int }, "coordinates must be unique canonical Int tags")
+            precondition(root.intValue(named: "x") == 137 && root.intValue(named: "y") == 64 && root.intValue(named: "z") == -17, "input coordinates overrode the command position")
+            precondition(root.compoundValue(named: "Nested")?.intValue(named: "x") == 999 && root.compoundValue(named: "Nested")?.stringValue(named: "y") == "keep", "nested coordinates were changed")
+        }
         let outside = try record(tags(1, 64, 0, "arbitrary:outside"), root: "peer")
         let orphan = try record(#"'String'"id"="no-coordinate""#)
         let target = try record(tags(0, 64, 0))
@@ -46,7 +63,7 @@ enum FillSetblockBlockEntityRegression {
         try run("fill overworld 0 64 0 0 64 0 minecraft:stone NULL empty")
         precondition(session.db.values[key(0)] == outside + orphan, "empty changed unrelated entities")
 
-        let template = tags(16, 65, 0, "wzn:anything") + #",'Int'"DimensionId"="77",'Compound'"Nested"="{'Long'"Exact"="9007199254740993",'Int'"x"="999"}""#
+        let template = #"'String'"id"="wzn:anything",'List'''"Items"="",'Int'"DimensionId"="77",'Compound'"Nested"="{'Long'"Exact"="9007199254740993",'Int'"x"="999"}""#
         let filled = try run("fill 1000 16 65 0 -1 64 -1 minecraft:stone NULL " + template)
         precondition(filled.message.contains("写入 72 个方块实体"))
         for x in -1...16 { for y in 64...65 { for z in -1...0 {
@@ -65,15 +82,17 @@ enum FillSetblockBlockEntityRegression {
         try run("fill -123 1 64 1 2 64 1 minecraft:air NULL " + typed)
         let typedRecords = try ConsecutiveNBTCodec.decode(session.db.values[key(-123)]!)
         precondition(typedRecords.count == 2 && typedRecords.allSatisfy {
-            $0.document.root.compoundValue(named: "X")?.type == .byte && $0.document.root.compoundValue(named: "y")?.type == .short && $0.document.root.compoundValue(named: "z")?.type == .long
-        }, "coordinate types changed")
-        for suffix in ["NULL", "unknown", tags(1, 64, 0), tags(0, 63, 0), tags(0, 64, -1),
-            #"'Int'"x"="0",'Int'"y"="64""#, #"'Float'"x"="0",'Int'"y"="64",'Int'"z"="0""#,
-            tags(0, 64, 0) + #",'Int'"X"="0""#, tags(0, 64, 0) + #",'List'''"Invalid"="1""#] {
+            $0.document.root.compoundValue(named: "x")?.type == .int && $0.document.root.compoundValue(named: "y")?.type == .int && $0.document.root.compoundValue(named: "z")?.type == .int
+        }, "input coordinate types must be ignored")
+        try run("fill -123 1 64 1 128 64 1 minecraft:dirt NULL " + typed)
+        let expanded = try ConsecutiveNBTCodec.decode(session.db.values[key(-123, 8)]!)
+        precondition(expanded.contains { $0.document.root.intValue(named: "x") == 128 }, "ignored Byte coordinate constrained fill")
+        for suffix in ["NULL", "unknown", tags(0, 64, 0) + #",'List'''"Invalid"="1""#] {
             try failsWithoutWrites("setblock overworld 0 64 0 minecraft:dirt NULL " + suffix)
         }
-        try failsWithoutWrites("fill 1000 16 65 0 -1 64 -1 minecraft:dirt NULL " + tags(-1, 64, -1))
-        try failsWithoutWrites("fill overworld 1 64 1 128 64 1 minecraft:dirt NULL " + typed)
+        try run("fill 1000 16 65 0 -1 64 -1 minecraft:dirt NULL " + tags(-999, -999, -999))
+        let ignoredFillCoordinates = try run("getblock 1000 16 65 0")
+        precondition(ignoredFillCoordinates.message.contains(#"'Int'"x"="16""#) && ignoredFillCoordinates.message.contains(#"'Int'"y"="65""#), "fill used template coordinates")
         let broken = Data([10, 0, 0, 3])
         session.db.values[key(0, 1)] = broken
         try run("fill overworld 0 64 0 16 64 0 minecraft:stone NULL preserve")
@@ -117,6 +136,6 @@ enum FillSetblockBlockEntityRegression {
         let emptyBefore = session.db.values
         let emptiedAgain = try run("fill 5000 0 64 0 0 64 0 minecraft:stone NULL empty")
         precondition(!emptiedAgain.changedWorld && session.db.values == emptyBefore, "unchanged empty must succeed without marking the world dirty")
-        print("Fill/setblock block entities passed: required argument, three modes, arbitrary IDs, coordinate/type checks, reverse/cross-chunk fill, duplicate/peer preservation and atomic failures.")
+        print("Fill/setblock block entities passed: optional/ignored root coordinates, canonical Int positions, nested preservation, three modes, reverse/cross-chunk fill and atomic failures.")
     }
 }

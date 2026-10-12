@@ -44,6 +44,22 @@ internal static class FillSetblockBlockEntityTests
                 "rejected command changed database: " + command);
         }
 
+        var baseTags = "'String'\"id\"=\"Chest\",'List'''\"Items\"=\"\",'Compound'\"Nested\"=\"{'Int'\"x\"=\"999\",'String'\"y\"=\"keep\"}\"";
+        foreach (var suffix in new[] { "", ",'Long'\"x\"=\"9223372036854775807\"",
+            ",'Int'\"x\"=\"-999\",'Int'\"y\"=\"1\",'Int'\"z\"=\"999\"",
+            ",'Float'\"X\"=\"0.75\",'String'\"Y\"=\"ignored\",'List'''\"z\"=\"\"",
+            ",'Int'\"x\"=\"1\",'Int'\"X\"=\"2\",'String'\"z\"=\"ignored\"" })
+        {
+            Run("setblock 6100 137 64 -17 minecraft:stone NULL " + baseTags + suffix);
+            var records = ConsecutiveNbtCodec.Decode(db.Get(Key(6100, 8, -2))!);
+            Check(records.Count == 1, "optional root coordinates left duplicate entities");
+            var root = records[0].Document.Root;
+            var coordinates = ((NbtCompoundValue)root).Tags.Where(t => new[] { "x", "y", "z" }.Contains(t.Name.ToLowerInvariant())).ToArray();
+            Check(coordinates.Length == 3 && coordinates.All(t => new[] { "x", "y", "z" }.Contains(t.Name) && t.Value is NbtIntValue), "coordinates must be unique canonical Int tags");
+            Check(root.CompoundValue("x")?.IntegerValue() == 137 && root.CompoundValue("y")?.IntegerValue() == 64 && root.CompoundValue("z")?.IntegerValue() == -17, "input coordinates overrode the command position");
+            Check(root.CompoundValue("Nested")?.CompoundValue("x")?.IntegerValue() == 999 && root.CompoundValue("Nested")?.CompoundValue("y") is NbtStringValue { Value: "keep" }, "nested coordinates were changed");
+        }
+
         var key = Key(0, 0, 0);
         var outside = Record(Tags(1, 64, 0, "arbitrary:outside"), "peer");
         var orphan = Record("'String'\"id\"=\"no-coordinate\"");
@@ -69,8 +85,8 @@ internal static class FillSetblockBlockEntityTests
         var emptied = Run("fill overworld 0 64 0 0 64 0 minecraft:stone NULL empty");
         Check(emptied.RemovedBlockEntities == 1 && db.Get(key)!.SequenceEqual(outside.Concat(orphan)), "empty changed unrelated records");
 
-        // Reverse endpoints: SNBT matches the first input, not the normalized minimum.
-        var template = Tags(16, 65, 0, "wzn:anything") + ", 'Int'\"DimensionId\"=\"77\",'Compound'\"Nested\"=\"{'Long'\"Exact\"=\"9007199254740993\",'Int'\"x\"=\"999\"}\"";
+        // Reverse endpoints and no supplied root coordinates.
+        var template = "'String'\"id\"=\"wzn:anything\",'List'''\"Items\"=\"\",'Int'\"DimensionId\"=\"77\",'Compound'\"Nested\"=\"{'Long'\"Exact\"=\"9007199254740993\",'Int'\"x\"=\"999\"}\"";
         var batchesBeforeFill = db.ApplyBatchCount;
         var filled = Run("fill 1000 16 65 0 -1 64 -1 minecraft:stone NULL " + template);
         Check(filled.CopiedBlockEntities == 72 && db.ApplyBatchCount == batchesBeforeFill + 1, "cross-chunk fill must create one entity per position in one batch");
@@ -85,14 +101,15 @@ internal static class FillSetblockBlockEntityTests
         var typed = "'String'\"id\"=\"ByteCoordinate\",'Byte'\"X\"=\"1\",'Short'\"y\"=\"64\",'Long'\"z\"=\"1\"";
         Run("fill -123 1 64 1 2 64 1 minecraft:air NULL " + typed);
         var typedRecords = ConsecutiveNbtCodec.Decode(db.Get(Key(-123, 0, 0))!);
-        Check(typedRecords.Count == 2 && typedRecords.All(r => r.Document.Root.CompoundValue("X") is NbtByteValue && r.Document.Root.CompoundValue("y") is NbtShortValue && r.Document.Root.CompoundValue("z") is NbtLongValue), "coordinate types changed");
+        Check(typedRecords.Count == 2 && typedRecords.All(r => r.Document.Root.CompoundValue("x") is NbtIntValue && r.Document.Root.CompoundValue("y") is NbtIntValue && r.Document.Root.CompoundValue("z") is NbtIntValue), "input coordinate types must be ignored");
+        Run("fill -123 1 64 1 128 64 1 minecraft:dirt NULL " + typed);
+        Check(ConsecutiveNbtCodec.Decode(db.Get(Key(-123, 8, 0))!).Any(r => r.Document.Root.CompoundValue("x")?.IntegerValue() == 128), "ignored Byte coordinate constrained fill");
 
-        foreach (var suffix in new[] { "NULL", "unknown", Tags(1, 64, 0), Tags(0, 63, 0), Tags(0, 64, -1),
-            "'Int'\"x\"=\"0\",'Int'\"y\"=\"64\"", "'Float'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
-            Tags(0, 64, 0) + ",'Int'\"X\"=\"0\"", Tags(0, 64, 0) + ",'List'''\"Invalid\"=\"1\"" })
+        foreach (var suffix in new[] { "NULL", "unknown", Tags(0, 64, 0) + ",'List'''\"Invalid\"=\"1\"" })
             FailsWithoutWrites("setblock overworld 0 64 0 minecraft:dirt NULL " + suffix);
-        FailsWithoutWrites("fill 1000 16 65 0 -1 64 -1 minecraft:dirt NULL " + Tags(-1, 64, -1));
-        FailsWithoutWrites("fill overworld 1 64 1 128 64 1 minecraft:dirt NULL " + typed);
+        Run("fill 1000 16 65 0 -1 64 -1 minecraft:dirt NULL " + Tags(-999, -999, -999));
+        var ignoredFillCoordinates = store.GetBlockText(1000, new(16, 65, 0));
+        Check(ignoredFillCoordinates.Contains("'Int'\"x\"=\"16\"") && ignoredFillCoordinates.Contains("'Int'\"y\"=\"65\""), "fill used template coordinates");
 
         // preserve must work even if existing entity data cannot be decoded.
         var brokenKey = Key(0, 1, 0);
@@ -127,6 +144,6 @@ internal static class FillSetblockBlockEntityTests
         Run("setblock 4001 0 64 0 minecraft:stone NULL " + Tags(0, 64, 0));
         var normalized = ConsecutiveNbtCodec.Decode(db.Get(Key(4001, 0, 0))!);
         Check(normalized.Count == 2 && normalized[0].RawData.SequenceEqual(BedrockNbtCodec.Encode(legacyDocument, NbtEncoding.LittleEndian)), "legacy VarInt peer or appended entity was lost");
-        Console.WriteLine("Fill/setblock block entities passed: required argument, three modes, arbitrary IDs, coordinate/type checks, reverse/cross-chunk fill, duplicate/peer preservation and atomic failures.");
+        Console.WriteLine("Fill/setblock block entities passed: optional/ignored root coordinates, canonical Int positions, nested preservation, three modes, reverse/cross-chunk fill and atomic failures.");
     }
 }

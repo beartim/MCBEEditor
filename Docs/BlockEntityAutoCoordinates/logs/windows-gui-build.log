@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/b1b811844258/be-coordinates-fix/Windows/MCBEEditor.Core/MCBEEditor.Core.csproj (in 20.81 sec).
+  Restored /workspace/scratch/b1b811844258/be-coordinates-fix/Windows/MCBEEditor.Desktop/MCBEEditor.Desktop.csproj (in 20.81 sec).
+  MCBEEditor.Core -> /workspace/scratch/b1b811844258/be-coordinates-fix/Windows/MCBEEditor.Core/bin/Release/net10.0/MCBEEditor.Core.dll
+  MCBEEditor.Desktop -> /workspace/scratch/b1b811844258/be-coordinates-fix/Windows/MCBEEditor.Desktop/bin/Release/net10.0-windows/MCBEEditor.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:25.96

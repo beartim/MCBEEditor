@@ -9,9 +9,17 @@ import tempfile
 from smoke_support import configure_utf8_output, create_test_database, snapshot
 
 
-def tags(x, y, z, identifier="Chest"):
+def template(identifier="Chest"):
     return (f"'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"{identifier}\","
-            f"'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"{x}\",'Int'\"y\"=\"{y}\",'Int'\"z\"=\"{z}\"")
+            "'Byte'\"isMovable\"=\"1\"")
+
+
+def coordinates(x, y, z):
+    return f",'Int'\"x\"=\"{x}\",'Int'\"y\"=\"{y}\",'Int'\"z\"=\"{z}\""
+
+
+def tags(x, y, z, identifier="Chest"):
+    return template(identifier) + coordinates(x, y, z)
 
 
 def main():
@@ -52,10 +60,10 @@ def main():
 
         initial = root / "initial.mcworld"
         invoke(source, [
-            "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL " + tags(0, 64, 0),
-            "setblock overworld 1 64 0 minecraft:air NULL " + tags(1, 64, 0, "arbitrary:peer"),
+            "setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL " + template(),
+            "setblock overworld 1 64 0 minecraft:air NULL " + tags(-999, -999, -999, "arbitrary:peer"),
             "dimension add wzn:entity_test 1000",
-            "fill wzn:entity_test 16 65 0 -1 64 -1 minecraft:stone NULL " + tags(16, 65, 0, "any:template")], initial)
+            "fill wzn:entity_test 16 65 0 -1 64 -1 minecraft:stone NULL " + template("any:template")], initial)
         output = invoke(initial, ["getblock overworld 0 64 0", "getblock overworld 1 64 0"])
         assert "minecraft:stone" in output and "minecraft:water" in output and "arbitrary:peer" in output
         assert tags(0, 64, 0) in output, "user example did not round-trip through save/reopen"
@@ -81,21 +89,33 @@ def main():
         invoke(initial, ["setblock overworld 0 64 0 minecraft:stone NULL " + tags(0, 64, 0, "different:entity")], replaced)
         replaced_text = invoke(replaced, ["getblock overworld 0 64 0", "getblock overworld 1 64 0"])
         assert tags(0, 64, 0, "different:entity") in replaced_text and "arbitrary:peer" in replaced_text
+        ignored = root / "ignored-coordinates.mcworld"
+        nested = ",'Compound'\"Nested\"=\"{'Int'\"x\"=\"999\",'String'\"y\"=\"keep\"}\""
+        ignored_tags = ",'Float'\"X\"=\"0.75\",'String'\"Y\"=\"ignored\",'List'''\"z\"=\"\""
+        invoke(initial, [
+            "setblock overworld 137 64 -17 minecraft:stone NULL " + template("ignored:setblock") + nested + ignored_tags,
+            "fill 1000 16 65 0 -1 64 -1 minecraft:dirt NULL " + tags(-999, -999, -999, "ignored:fill")], ignored)
+        ignored_text = invoke(ignored, ["getblock overworld 137 64 -17"] + checks)
+        assert template("ignored:setblock") + nested + coordinates(137, 64, -17) in ignored_text
+        for x in range(-1, 17):
+            for y in (64, 65):
+                for z in (-1, 0):
+                    assert tags(x, y, z, "ignored:fill") in ignored_text, "fill used supplied root coordinates"
         with_pos = root / "with-pos.mcworld"
-        pos_tags = tags(0, 64, 0, "custom:with_pos") + ",'List''Float'\"Pos\"=\"1,64,0\""
+        pos_tags = template("custom:with_pos") + ",'List''Float'\"Pos\"=\"1,64,0\""
         invoke(initial, ["setblock overworld 0 64 0 minecraft:stone NULL " + pos_tags,
                          "setblock overworld 0 64 0 minecraft:dirt NULL " + pos_tags], with_pos)
-        assert pos_tags in invoke(with_pos, ["getblock overworld 0 64 0"])
+        assert pos_tags + coordinates(0, 64, 0) in invoke(with_pos, ["getblock overworld 0 64 0"])
         no_pos = root / "no-pos.mcworld"
         invoke(with_pos, ["setblock overworld 0 64 0 minecraft:stone NULL empty"], no_pos)
         assert "BlockEntity=NULL" in invoke(no_pos, ["getblock overworld 0 64 0"])
         for command in ["setblock overworld 0 64 0 minecraft:stone NULL",
                         "fill overworld 0 64 0 16 64 0 minecraft:stone NULL",
-                        "setblock overworld 0 64 0 minecraft:stone NULL " + tags(1, 64, 0),
-                        "fill 1000 16 65 0 -1 64 -1 minecraft:stone NULL " + tags(-1, 64, -1)]:
+                        "setblock overworld 0 64 0 minecraft:stone NULL NULL",
+                        "fill 1000 16 65 0 -1 64 -1 minecraft:stone NULL 'List'''\"Invalid\"=\"1\""]:
             invoke(initial, [command], root / f"invalid-{calls}.mcworld", expected=2)
         assert snapshot(source) == original
-    print(f"Fill/setblock CLI block entities passed: {calls} processes, user example, arbitrary IDs, all 72 cross-chunk positions, three modes, export/reopen and preflight rejection.")
+    print(f"Fill/setblock CLI block entities passed: {calls} processes, optional/ignored root coordinates, canonical Int positions, nested/Pos preservation, arbitrary IDs, all 72 cross-chunk positions, three modes, export/reopen and preflight rejection.")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ public static class BlockCommandParser
         "fill 维度 x1 y1 z1 x2 y2 z2 方块名 states [方块名 states ...] 方块实体\n" +
         "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n" +
         "getblock 维度 x y z\n" +
-        "states 可用 NULL，或 iOS 版同格式 typed NBT，例如 'String'\"wood_type\"=\"oak\"。方块实体必填 preserve、empty 或完整 MCBE-SNBT 标签；NBT 的 x/y/z 必须等于第一组坐标，fill 逐坐标复制模板。";
+        "states 可用 NULL，或 iOS 版同格式 typed NBT，例如 'String'\"wood_type\"=\"oak\"。方块实体必填 preserve、empty 或完整 MCBE-SNBT 标签；根 x/y/z 可省略，输入时忽略并按目标位置生成 Int 坐标；fill 逐坐标复制模板，嵌套标签保持原样。";
 
     public static bool IsBlockCommand(string text)
     {
@@ -49,7 +49,7 @@ public static class BlockCommandParser
         var count = (args.Length - 5) / 2;
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("setblock 必须提供 1…255 个 storage。");
         var position = Coordinate(args, 1);
-        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), position, ParseStorages(args, 4, count), BlockEntityCommandSpec.Parse(args[^1], position));
+        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), position, ParseStorages(args, 4, count), BlockEntityCommandSpec.Parse(args[^1]));
     }
 
     private static FillBlockCommandRequest ParseFill(string[] args, Func<string,int>? dimensionResolver)
@@ -59,7 +59,7 @@ public static class BlockCommandParser
         if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("fill 必须提供 1…255 个 storage。");
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
-        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count), BlockEntityCommandSpec.Parse(args[^1], first));
+        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count), BlockEntityCommandSpec.Parse(args[^1]));
     }
 
     private static CloneBlockCommandRequest ParseClone(string[] args, Func<string,int>? dimensionResolver)

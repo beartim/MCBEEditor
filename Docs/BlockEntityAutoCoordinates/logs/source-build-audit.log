@@ -1,0 +1,13 @@
+$ python3 CLI/Tests/source_audit.py
+PASS: 28 GUI names and both help catalogs match the saved inventory
+PASS: all Windows parser families are wired to the original implementations
+PASS: concrete Windows command requests have executor routes
+PASS: Windows console project references Core and the strings-only help file; no WPF dependency
+PASS: 67 Swift build inputs exist and do not import a GUI framework
+PASS: 262 executable parser fixtures cover all commands and storage boundaries
+RESULT: source audit passed; compiler and executable behavior remain separate validation gates
+$ python3 CLI/Tests/build_audit.py
+PASS: Windows/Apple build inputs, native test wiring, portable release and iOS 13.0 source contracts
+$ python3 CLI/Tests/apple_build_lifecycle.py
+PASS: real Apple build shell retains prior binary on compile/architecture/platform/sign/verify failure and publishes on success (tool doubles only)
+PASS: Apple host tests receive a built database fixture; fixture failure preserves the prior CLI (tool doubles only)

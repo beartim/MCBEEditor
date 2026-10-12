@@ -175,7 +175,7 @@ experience set 目标 非负整数
 
 fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states [层1方块名 层1states ...] 方块实体
 维度接受当前存档的名称或 Int32 ID。至少提供 storage0，layer1 及之后都可省略；后续参数必须按 方块名+states 成对出现，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 保持原格式，仅支持可无损转换为数字 ID 的 layer0/1；无法表示的方块或 states、超过两层的请求会报错，不会自动升级或写入部分修改。
-最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 必须各有一个 Byte、Short、Int 或 Long 标签，数值必须等于命令第一组坐标。 fill 将模板复制到闭合范围内每个坐标，只改写根 x/y/z；模板匹配原始第一组输入坐标，不是规格化后的最小角。 保留坐标标签的整数类型；目标坐标超出其范围时拒绝整条命令。全部检查及编码通过后一次提交方块、方块实体与区块元数据。
+最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 fill 将模板复制到闭合范围内每个坐标，每份方块实体均使用该位置的实际坐标。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。
 示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL preserve
 示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL empty
 示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'"old_leaf_type"="oak" minecraft:water NULL minecraft:air NULL empty
@@ -209,7 +209,7 @@ kick 目标
 
 setblock 目标维度 x y z 层0方块名 层0states [层1方块名 层1states ...] 方块实体
 fill 的单方块版本。至少提供 storage0，layer1 及之后均可省略；最多 255 个 storage。省略的 storage 保持原样。
-最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 必须各有一个 Byte、Short、Int 或 Long 标签，数值必须等于命令第一组坐标。 保留坐标标签的整数类型；目标坐标超出其范围时拒绝整条命令。全部检查及编码通过后一次提交方块、方块实体与区块元数据。
+最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。
 示例：setblock overworld 0 64 0 minecraft:stone NULL preserve
 示例：setblock overworld 0 64 0 minecraft:stone NULL empty
 示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL empty

@@ -65,7 +65,7 @@ Swift 全部调用 `Sources/Command/WorldCommand.swift` 的 `WorldCommandParser`
 
 ## 可复跑验证
 
-- `CLI/Tests/source_audit.py`：清单与双端 27 条完整帮助文本、解析/执行路由、无 GUI 编译依赖、Swift 本地类型依赖。
+- `CLI/Tests/source_audit.py`：清单与双端 28 条完整帮助文本、解析/执行路由、无 GUI 编译依赖、Swift 本地类型依赖。
 - `CLI/Tests/build_audit.py`：双端构建输入、原生测试接线、单 EXE 和 iOS 13.0 发布约束。
 - `CLI/Tests/smoke.py`：真实进程的公共解析、编码、帮助和转换。
 - `CLI/Tests/session_smoke.py` / `environment_smoke.py`：使用原生工具生成的有效数据库，检查真实进程的会话、文件生命周期及环境命令；维度预检会访问数据库。
@@ -74,4 +74,4 @@ Swift 全部调用 `Sources/Command/WorldCommand.swift` 的 `WorldCommandParser`
 
 源码检查和托管自测不能替代平台原生构建、设备测试或 Minecraft 读档验证。
 
-`fill` / `setblock` 现在必须在最后填写 `preserve`、`empty` 或完整 MCBE-SNBT 标签。模板根坐标匹配第一组输入，`fill` 为每个位置改写根坐标后复制，任意 id 均可使用。详见 [本次说明与验证](../../Docs/FillSetblockBlockEntity/README.md)。
+`fill` / `setblock` 必须在最后填写 `preserve`、`empty` 或完整 MCBE-SNBT 标签。模板根 x/y/z 可省略，输入时忽略；写入时按命令实际目标位置生成唯一的小写 Int 坐标。`fill` 为区域内每个位置分别写入实际坐标，嵌套标签保持原样，任意 id 均可使用。详见 [说明](../../Docs/FillSetblockBlockEntity/README.md) 与 [最新验证](../../Docs/BlockEntityAutoCoordinates/VALIDATION.md)。

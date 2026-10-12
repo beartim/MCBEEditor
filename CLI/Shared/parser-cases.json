@@ -1258,22 +1258,22 @@
   {
     "id": "block-entity-fill-template-first",
     "command": "fill overworld 1 64 0 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
-    "valid": false
+    "valid": true
   },
   {
     "id": "block-entity-setblock-coordinate-mismatch",
     "command": "setblock overworld 1 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\"",
-    "valid": false
+    "valid": true
   },
   {
     "id": "block-entity-setblock-missing-coordinate",
     "command": "setblock overworld 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\"",
-    "valid": false
+    "valid": true
   },
   {
     "id": "block-entity-setblock-coordinate-duplicate",
     "command": "setblock overworld 0 64 0 minecraft:stone NULL 'Byte'\"Findable\"=\"0\",'List'''\"Items\"=\"\",'String'\"id\"=\"Chest\",'Byte'\"isMovable\"=\"1\",'Int'\"x\"=\"0\",'Int'\"y\"=\"64\",'Int'\"z\"=\"0\",'Int'\"X\"=\"0\"",
-    "valid": false
+    "valid": true
   },
   {
     "id": "block-entity-setblock-null-mode",
@@ -1288,6 +1288,26 @@
   {
     "id": "block-entity-fill-preserve",
     "command": "fill overworld 0 64 0 16 64 0 minecraft:stone NULL preserve",
+    "valid": true
+  },
+  {
+    "id": "block-entity-setblock-no-root-coordinates",
+    "command": "setblock 6100 137 64 -17 minecraft:stone NULL 'String'\"id\"=\"Chest\",'List'''\"Items\"=\"\",'Compound'\"Nested\"=\"{'Int'\"x\"=\"999\"}\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-fill-no-root-coordinates",
+    "command": "fill -1000 16 65 0 -1 64 -1 minecraft:stone NULL 'String'\"id\"=\"anything:custom_id\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-setblock-ignore-root-coordinate-types",
+    "command": "setblock 6100 137 64 -17 minecraft:stone NULL 'String'\"id\"=\"Chest\",'Float'\"X\"=\"0.75\",'String'\"Y\"=\"ignored\",'List'''\"z\"=\"\"",
+    "valid": true
+  },
+  {
+    "id": "block-entity-fill-ignore-root-coordinate-range",
+    "command": "fill 6100 1 64 0 128 64 0 minecraft:stone NULL 'String'\"id\"=\"Chest\",'Byte'\"x\"=\"1\",'Long'\"y\"=\"9223372036854775807\",'Int'\"z\"=\"999\"",
     "valid": true
   }
 ]

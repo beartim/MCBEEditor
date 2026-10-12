@@ -1,5 +1,7 @@
 # 验证记录（2026-10-11）
 
+以下是引入必填方块实体参数时的历史验证。根坐标规则已改为可省略、输入时忽略，最新验证见 [方块实体自动坐标](../BlockEntityAutoCoordinates/VALIDATION.md)。
+
 基线为最后交付的空 List 修复源码包，806 个文件完整恢复后在独立 git 工作区修改。工具链使用官方 Swift 6.2.3、.NET SDK 10.0.401 和 pinned Mojang LevelDB；未改软件版本或最低 iOS 版本。
 
 | 检查 | 结果 / 覆盖 | 记录 |

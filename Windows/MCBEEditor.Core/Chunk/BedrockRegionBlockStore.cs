@@ -32,7 +32,6 @@ public sealed class BedrockRegionBlockStore
         ValidateRegion(region);
         ValidateStorages(storages);
         blockEntity ??= BlockEntityCommandSpec.Empty;
-        blockEntity.Validate(region);
         var cache = new RegionEditCache(_database, _access, dimension);
         long changed = 0;
 

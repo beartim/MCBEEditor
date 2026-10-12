@@ -2,7 +2,7 @@
 
 当前 CLI 版本为 **1.0.0**。Windows x64 继续发布绿色单 `mcbe-cli.exe`，iOS 继续发布最低 iOS 13 arm64 裸二进制；独立 NBT/mcstructure 格式转换保持为工具功能，不加入 NBT 编辑器功能。
 
-`fill`、`setblock` 现在必须在全部方块名/states 配对后填写方块实体参数：`preserve` 保留、`empty` 清空，或完整 MCBE-SNBT 标签设定实体。NBT 根 x/y/z 必须与第一组输入坐标相同；`fill` 为范围内每个位置复制模板并改写根坐标。允许任意 id，包括与方块类型不同的实体；未指定元素类型的空 List 使用 `'List'''"Items"=""`。省略末尾参数会报错。可直接使用 [完整示例](Examples/FillSetblockBlockEntity.txt)。
+`fill`、`setblock` 必须在全部方块名/states 配对后填写方块实体参数：`preserve` 保留、`empty` 清空，或完整 MCBE-SNBT 标签设定实体。NBT 根 x/y/z 可省略，输入时自动忽略；写入时根据命令选定位置生成唯一的小写 Int 类型根坐标。`fill` 为范围内每个位置复制模板并分别写入实际坐标，嵌套标签保持原样。允许任意 id，包括与方块类型不同的实体；未指定元素类型的空 List 使用 `'List'''"Items"=""`。省略末尾参数会报错。可直接使用 [完整示例](Examples/FillSetblockBlockEntity.txt)。
 
 收尾检查的当前轮次、已运行验证和未完成范围统一见 [FINAL_REVIEW.md](Docs/FINAL_REVIEW.md)。命令覆盖与兼容限制见 [COMMAND_PARITY.md](Docs/COMMAND_PARITY.md)；功能接线不等于所有边界场景均已通过平台或游戏验证。
 

@@ -1,5 +1,7 @@
 # 收尾检查与后续计划
 
+后续 setblock/fill 根坐标规则已更新：方块实体根 x/y/z 可省略，输入时忽略，写入按实际目标位置生成。最新行为及四端验证见 [方块实体自动坐标](../../Docs/BlockEntityAutoCoordinates/VALIDATION.md)；下文保留第 15 轮审计时的记录与范围。
+
 2026-09-24 第 15 轮源码审计交付，保留第 1～14 轮成果。用户取消本轮时限；软件版本 1.0.0、iOS 最低 13.0 保持。完整范围见 [分轮计划](../../docs/superpowers/plans/2026-09-21-mcbeeditor-cli-audit-plan.md)。
 
 本轮修复 Swift 出生点递归误删嵌套标签、Windows 方块实体连续保存旧引用，并修正实际运行揭示的测试入口问题。**全部历史专项、目标平台与 Minecraft 尚未完成验收。**

@@ -32,7 +32,7 @@ CLI 批处理的 `summon` 仍需 `--output` 或 `--in-place`。含有引号的 N
 
 `fill` 和 `setblock` 必须在所有方块名/states 配对后填写方块实体参数：`preserve` 保留原实体，`empty` 清空目标实体，或完整 MCBE-SNBT 标签设定实体。允许任意 id，包括与方块类型不同的实体。
 
-NBT 根 x/y/z 必须各有一个整数标签，并与命令第一组三坐标相同；`fill` 按原始第一组坐标校验模板，再逐位置复制并改写根坐标。其余标签保持不变，坐标保留原整数类型，范围超出类型容量时整条拒绝。缺少末尾参数、坐标错误或无法安全解码时，方块与实体均不会留下部分修改。详见 [说明与验证](Docs/FillSetblockBlockEntity/README.md)，可直接使用 [命令示例](CLI/Examples/FillSetblockBlockEntity.txt)。版本仍为 1.0.0。
+NBT 根 x/y/z 可省略，输入时会自动忽略；写入时以命令选定位置为准，生成唯一的小写 Int 类型根坐标。`fill` 为区域内每个方块分别写入实际坐标，输入坐标的值和类型不限制目标范围。嵌套坐标、Pos 和其他标签保持不变。缺少末尾参数、NBT 语法错误或无法安全解码时，方块与实体均不会留下部分修改。详见 [说明与验证](Docs/FillSetblockBlockEntity/README.md)，可直接使用 [命令示例](CLI/Examples/FillSetblockBlockEntity.txt)。版本仍为 1.0.0。
 
 ## 1.0.0 命令层全 storage、getblock 与 storage 命令
 

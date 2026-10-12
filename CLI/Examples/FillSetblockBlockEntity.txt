@@ -1,10 +1,10 @@
-setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL 'Byte'"Findable"="0",'List'''"Items"="",'String'"id"="Chest",'Byte'"isMovable"="1",'Int'"x"="0",'Int'"y"="64",'Int'"z"="0"
+setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL 'Byte'"Findable"="0",'List'''"Items"="",'String'"id"="Chest",'Byte'"isMovable"="1"
 getblock overworld 0 64 0
 setblock overworld 0 64 0 minecraft:dirt NULL preserve
 getblock overworld 0 64 0
 setblock overworld 0 64 0 minecraft:stone NULL empty
 getblock overworld 0 64 0
-fill overworld 16 65 0 -1 64 -1 minecraft:stone NULL 'String'"id"="wzn:any_entity",'List'''"Items"="",'Int'"x"="16",'Int'"y"="65",'Int'"z"="0"
+fill overworld 16 65 0 -1 64 -1 minecraft:stone NULL 'String'"id"="wzn:any_entity",'List'''"Items"=""
 getblock overworld -1 64 -1
 fill overworld 16 65 0 -1 64 -1 minecraft:dirt NULL preserve
 fill overworld 16 65 0 -1 64 -1 minecraft:stone NULL empty
