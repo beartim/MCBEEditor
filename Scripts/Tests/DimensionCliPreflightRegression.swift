@@ -26,6 +26,8 @@ enum CliFileSystem {
 
 enum DimensionCliPreflightRegression {
     static func run() throws {
+        let apostrophe = #"summon 'String'"identifier"="minecraft:pig",'List''Float'"Pos"="0,64,0",'Compound'"Extra"="{'String'"label"="O'Brien"}""#
+        _ = try CliStructureFileCommand.parse(apostrophe)
         let db = MojangLevelDB(), store = DimensionStore(database: db)
         try store.add(name: "existing:name", id: 800)
         let before = db.values

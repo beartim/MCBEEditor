@@ -1,0 +1,13 @@
+Unhandled exception. System.Exception: control change during first render was dropped
+   at Navigation.Check(Boolean value, String message) in /tmp/mcbe-navigation-dtoonf1p/Program.cs:line 197
+   at Navigation.Verify() in /tmp/mcbe-navigation-dtoonf1p/Program.cs:line 186
+   at Program.Main() in /tmp/mcbe-navigation-dtoonf1p/Program.cs:line 199
+   at Program.<Main>()
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 238, in <module>
+    windows_test(work)
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 229, in windows_test
+    subprocess.run([shutil.which("dotnet") or "dotnet", "run", "--project", str(project),
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/workspace/scratch/b1b811844258/.toolchains/overall-audit/dotnet/dotnet', 'run', '--project', '/tmp/mcbe-navigation-dtoonf1p/Navigation.csproj', '-p:UseSharedCompilation=false', '-v:q']' returned non-zero exit status 134.

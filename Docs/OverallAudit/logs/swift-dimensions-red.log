@@ -1,0 +1,52 @@
+tests/DimensionSafetyRegressionTests.swift:22: Precondition failed: duplicate dimension names accepted or wrote to storage
+swift-runtime: unable to suspend thread 7250
+
+*** Signal 4: Backtracing from 0x7f1a9b6cc89f... done ***
+
+*** Program crashed: Illegal instruction at 0x00007f1a9b6cc89f ***
+
+Thread 0 "inotifywait" crashed:
+
+0      0x00007f1a9b6cc89f
+1 [ra] 0x0000565228ad1be5
+2 [ra] 0x0000565228ad1292
+3 [ra] 0x0000565228ae0a5f
+4 [ra] 0x0000565228aecf84
+5 [ra] 0x0000565228aed84f
+6 [ra] 0x0000565228aed896
+7 [ra] 0x00007f1a9a6fa1ca
+8 [ra] 0x00007f1a9a6fa28b
+
+
+Registers:
+
+rax 0x00007f1a9b96be60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rdx 0x0000565228afa710  50 72 65 63 6f 6e 64 69 74 69 6f 6e 20 66 61 69  Precondition fai
+rcx 0x00007f1a9b96be60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rbx 0x000056572b3607ad  94932387104685
+rsi 0x8000565228afa7d0  9223466947724683216
+rdi 0x000056524e12dcb0  80 0c bd 9b 1a 7f 00 00 61 00 00 00 00 00 00 00  ··½·····a·······
+rbp 0x00007ffcf08d6520  30 68 8d f0 fc 7f 00 00 e5 1b ad 28 52 56 00 00  0h·ðü···å·­(RV··
+rsp 0x00007ffcf08d6480  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x000056524e117010  07 00 07 00 07 00 06 00 07 00 07 00 04 00 04 00  ················
+ r9 0x0000000000000007  7
+r10 0x000056524e12dcc0  ad 07 36 2b 57 56 00 00 44 5d 7b 50 a0 be 81 a9  ­·6+WV··D]{P ¾·©
+r11 0xa981bea0507b5d44  12214253260159802692
+r12 0x0000565228afa6e0  74 65 73 74 73 2f 44 69 6d 65 6e 73 69 6f 6e 53  tests/DimensionS
+r13 0x0000000000000036  54
+r14 0x8000565228afa7d0  9223466947724683216
+r15 0x0000000000000013  19
+rip 0x00007f1a9b6cc89f  0f 0b 48 83 ec 08 48 8d 05 34 af 35 00 48 8d 3d  ··H·ì·H··4¯5·H·=
+
+rflags 0x0000000000010282  SF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s
+
+Scripts/test_dimension_query.sh: line 28:    87 Illegal instruction     "$TMP/tests"

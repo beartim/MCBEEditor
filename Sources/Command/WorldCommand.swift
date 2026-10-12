@@ -34,7 +34,7 @@ enum CommandBlockEntitySpec {
         guard let x = Int32(exactly: position.x), let z = Int32(exactly: position.z) else {
             throw MCBEEditorError.malformedData("方块实体目标坐标超出 Int32 范围")
         }
-        var output = tags.filter { !["x", "y", "z"].contains($0.name.lowercased()) }
+        var output = tags
         output.append(contentsOf: [
             NBTNamedTag(name: "x", value: .int(x)),
             NBTNamedTag(name: "y", value: .int(position.y)),

@@ -1309,5 +1309,10 @@
     "id": "block-entity-fill-ignore-root-coordinate-range",
     "command": "fill 6100 1 64 0 128 64 0 minecraft:stone NULL 'String'\"id\"=\"Chest\",'Byte'\"x\"=\"1\",'Long'\"y\"=\"9223372036854775807\",'Int'\"z\"=\"999\"",
     "valid": true
+  },
+  {
+    "id": "snbt-nested-apostrophe",
+    "command": "summon 'String'\"identifier\"=\"minecraft:pig\",'List''Float'\"Pos\"=\"0,64,0\",'Compound'\"Extra\"=\"{'String'\"label\"=\"O'Brien\"}\"",
+    "valid": true
   }
 ]

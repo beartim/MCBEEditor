@@ -1,0 +1,15 @@
+PASS unclosed-quote-recovers
+PASS missing-world-recovers
+PASS failed-open-keeps-current-world
+PASS corrupt-world-keeps-current-world
+PASS active-work-copy-cannot-become-new-source
+PASS reject-save-cache-keeps-dirty
+PASS reject-save-working-keeps-dirty
+PASS reject-save-source-keeps-dirty
+PASS reject-save-directory-keeps-dirty
+PASS repeated-in-place-save
+PASS save-copy-does-not-hide-pending-in-place
+PASS cancelled-input-cannot-save
+PASS whole-batch-preflight-before-write
+PASS mixed-case-help
+PASS: 14 session cases; valid native database fixture; level.dat/file lifecycle

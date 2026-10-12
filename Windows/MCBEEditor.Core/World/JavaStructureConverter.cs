@@ -269,9 +269,10 @@ public static class JavaStructureConverter
         if (values is not { Count: 3 }) throw new InvalidDataException("结构缺少有效的 size[3]。");
         if (values.Any(v => v <= 0 || v > int.MaxValue)) throw new InvalidDataException("结构尺寸必须是正整数。");
         var x = checked((int)values[0]); var y = checked((int)values[1]); var z = checked((int)values[2]);
-        long volume = (long)x * y * z;
-        if (volume > MaximumBlockVolume) throw new NotSupportedException($"结构体积过大：{x}×{y}×{z}，最多支持 {MaximumBlockVolume} 个方块。");
-        return new Dimensions(x, y, z, checked((int)volume));
+        long plane = (long)x * y;
+        if (plane > MaximumBlockVolume || z > MaximumBlockVolume / plane)
+            throw new NotSupportedException($"结构体积过大：{x}×{y}×{z}，最多支持 {MaximumBlockVolume} 个方块。");
+        return new Dimensions(x, y, z, checked((int)(plane * z)));
     }
 
     private static IReadOnlyList<long>? IntegerVector(NbtValue? value) => value switch

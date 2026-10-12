@@ -31,6 +31,8 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'CLI source audit failed.' }
     & python -X utf8 (Join-Path $root 'CLI\Tests\build_audit.py')
     if ($LASTEXITCODE -ne 0) { throw 'CLI build contract audit failed.' }
+    & python -X utf8 (Join-Path $root 'Scripts\test_map_navigation.py') windows
+    if ($LASTEXITCODE -ne 0) { throw 'Windows map navigation/state checks failed.' }
     & python -X utf8 (Join-Path $root 'CLI\Tests\smoke.py') --backend windows -- $binary
     if ($LASTEXITCODE -ne 0) { throw 'CLI process/parser checks failed.' }
     & python -X utf8 (Join-Path $root 'CLI\Tests\test_smoke_support.py')

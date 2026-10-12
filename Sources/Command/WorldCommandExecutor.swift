@@ -933,13 +933,13 @@ final class WorldCommandExecutor {
             guard let record = try store.record(named: name), let document = record.document else {
                 throw MCBEEditorError.unsupported("不存在结构：\(name)")
             }
-            let message = try CommandBlockStore.loadStructure(
+            let result = try CommandBlockStore.loadStructure(
                 session: session,
                 document: document,
                 targetDimension: dimension,
                 destination: destination
             )
-            return ("structure load 完成：\(name)。\n\(message)", true)
+            return ("structure load 完成：\(name)。\n\(result.message)", result.changed)
         case .delete(let name):
             if let name = name {
                 guard try store.delete(named: name) else {
@@ -2307,7 +2307,7 @@ private final class CommandBlockStore {
         document: NBTDocument,
         targetDimension: Int32,
         destination: CommandBlockCoordinate
-    ) throws -> String {
+    ) throws -> (message: String, changed: Bool) {
         let normalized = try JavaStructureConverter.convertIfNeeded(document).document
         let parsed = try parseStructure(normalized)
         let maxX = destination.x.addingReportingOverflow(Int64(parsed.sizeX - 1))
@@ -2322,7 +2322,8 @@ private final class CommandBlockStore {
         )
         let store = try CommandBlockStore(session: session, dimension: targetDimension)
         try store.validateVolume(targetRegion)
-        let generatedCount = try store.ensureGenerated(store.chunks(in: targetRegion))
+        var generatedCount = 0
+        var initializedChunks = Set<ChunkPosition>()
         var writtenEntityCoordinates = Set<BlockEntityCoordinate>()
         var copiedBlockEntities = [BlockEntityCoordinate: NBTDocument]()
         var changedEntityChunks = Set<ChunkPosition>()
@@ -2337,16 +2338,23 @@ private final class CommandBlockStore {
                         y: destination.y + Int32(dy),
                         z: destination.z + Int64(dz)
                     )
+                    let primary = try parsed.state(layer: 0, flatIndex: flat)
+                    let secondary = try parsed.state(layer: 1, flatIndex: flat)
+                    guard primary != nil || secondary != nil else { continue }
+                    let chunk = store.chunkPosition(x: coordinate.x, z: coordinate.z)
+                    if initializedChunks.insert(chunk).inserted {
+                        generatedCount += try store.ensureGenerated([chunk])
+                    }
                     let targetKey = try store.subKey(for: coordinate)
                     var wroteAnyLayer = false
-                    if let state = try parsed.state(layer: 0, flatIndex: flat) {
+                    if let state = primary {
                         let adapted = try store.adaptedState(state, layer: 0, for: targetKey)
                         if try store.setState(adapted, layer: 0, at: coordinate, createWhenAir: false) {
                             changedBlocks += 1
                         }
                         wroteAnyLayer = true
                     }
-                    if let state = try parsed.state(layer: 1, flatIndex: flat) {
+                    if let state = secondary {
                         let adapted = try store.adaptedState(state, layer: 1, for: targetKey)
                         if try store.setState(adapted, layer: 1, at: coordinate, createWhenAir: false) {
                             changedBlocks += 1
@@ -2368,10 +2376,8 @@ private final class CommandBlockStore {
             written: writtenEntityCoordinates, copied: copiedBlockEntities, chunks: changedEntityChunks
         )
         let written = try store.commit(extraPuts: entityWrites.puts, extraDeletes: entityWrites.deletes)
-        guard written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty || generatedCount > 0 else {
-            throw MCBEEditorError.unsupported("结构没有产生任何方块变化")
-        }
-        return "写入 \(written) 个 SubChunk，修改 \(changedBlocks) 个图层方块，处理 \(changedEntityChunks.count) 个方块实体区块，先生成 \(generatedCount) 个空气区块。"
+        let changed = written > 0 || !entityWrites.puts.isEmpty || !entityWrites.deletes.isEmpty || generatedCount > 0
+        return ("写入 \(written) 个 SubChunk，修改 \(changedBlocks) 个图层方块，处理 \(changedEntityChunks.count) 个方块实体区块，先生成 \(generatedCount) 个空气区块。", changed)
     }
 
     private struct ParsedStructure {

@@ -73,6 +73,7 @@ public static class BedrockNbtCodec
         if (elementType == NbtTagType.End && count != 0)
             throw new InvalidDataException("NBT List 的 End 元素类型只允许用于空列表");
 
+        ValidateCollectionLength(count, elementType, ref reader, encoding);
         var values = new NbtValue[count];
         for (var index = 0; index < count; index++)
             values[index] = ReadPayload(elementType, ref reader, encoding, depth + 1, maximumDepth);
@@ -101,6 +102,7 @@ public static class BedrockNbtCodec
     private static NbtIntArrayValue ReadIntArray(ref BinaryDataReader reader, NbtEncoding encoding)
     {
         var count = ReadLength(ref reader, encoding);
+        ValidateCollectionLength(count, NbtTagType.Int, ref reader, encoding);
         var values = new int[count];
         for (var i = 0; i < count; i++)
             values[i] = ReadInt(ref reader, encoding);
@@ -110,10 +112,31 @@ public static class BedrockNbtCodec
     private static NbtLongArrayValue ReadLongArray(ref BinaryDataReader reader, NbtEncoding encoding)
     {
         var count = ReadLength(ref reader, encoding);
+        ValidateCollectionLength(count, NbtTagType.Long, ref reader, encoding);
         var values = new long[count];
         for (var i = 0; i < count; i++)
             values[i] = ReadLong(ref reader, encoding);
         return new NbtLongArrayValue(values);
+    }
+
+    private static void ValidateCollectionLength(int count, NbtTagType elementType, ref BinaryDataReader reader, NbtEncoding encoding)
+    {
+        var variable = encoding == NbtEncoding.LittleEndianVarInt;
+        var minimumBytes = elementType switch
+        {
+            NbtTagType.End or NbtTagType.Byte or NbtTagType.Compound => 1,
+            NbtTagType.Short => 2,
+            NbtTagType.Int => variable ? 1 : 4,
+            NbtTagType.Long => variable ? 1 : 8,
+            NbtTagType.Float => 4,
+            NbtTagType.Double => 8,
+            NbtTagType.String => variable ? 1 : 2,
+            NbtTagType.ByteArray or NbtTagType.IntArray or NbtTagType.LongArray => variable ? 1 : 4,
+            NbtTagType.List => variable ? 2 : 5,
+            _ => throw new InvalidDataException($"NBT 集合元素类型无效：{elementType}")
+        };
+        if (count > reader.Remaining / minimumBytes)
+            throw new InvalidDataException("NBT 集合长度超过剩余数据");
     }
 
     private static int ReadInt(ref BinaryDataReader reader, NbtEncoding encoding) => encoding switch

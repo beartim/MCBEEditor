@@ -1,0 +1,56 @@
+main/Navigation.swift:99: Precondition failed: object stayed on old cross-section
+swift-runtime: unable to suspend thread 9607
+
+*** Signal 4: Backtracing from 0x7f15becf489f... done ***
+
+*** Program crashed: Illegal instruction at 0x00007f15becf489f ***
+
+Thread 0 crashed:
+
+0      0x00007f15becf489f
+1 [ra] 0x00005601957df2c4
+2 [ra] 0x00005601957dff99
+3 [ra] 0x00005601957dffb9
+4 [ra] 0x00007f15bdd221ca
+5 [ra] 0x00007f15bdd2228b
+
+
+Registers:
+
+rax 0x00007f15bef93e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rdx 0x00005601957e29d0  50 72 65 63 6f 6e 64 69 74 69 6f 6e 20 66 61 69  Precondition fai
+rcx 0x00007f15bef93e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rbx 0x00005604c11308f1  94578419108081
+rsi 0x80005601957e2a90  9223466601657805456
+rdi 0x00005601a1091630  f0 23 1f bf 15 7f 00 00 41 00 00 00 00 00 00 00  ð#·¿····A·······
+rbp 0x00007ffd81533150  10 36 53 81 fd 7f 00 00 c4 f2 7d 95 01 56 00 00  ·6S·ý···Äò}··V··
+rsp 0x00007ffd815330b0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x00005601a107e010  03 00 02 00 02 00 02 00 01 00 01 00 01 00 01 00  ················
+ r9 0x0000000000000007  7
+r10 0x00005601a1091640  f1 08 13 c1 04 56 00 00 05 4c 86 dd 76 ef 2b af  ñ··Á·V···L·Ývï+¯
+r11 0xaf2bef76dd864c05  12622445674437692421
+r12 0x00005601957e29b0  6d 61 69 6e 2f 4e 61 76 69 67 61 74 69 6f 6e 2e  main/Navigation.
+r13 0x0000000000000022  34
+r14 0x80005601957e2a90  9223466601657805456
+r15 0x0000000000000013  19
+rip 0x00007f15becf489f  0f 0b 48 83 ec 08 48 8d 05 34 af 35 00 48 8d 3d  ··H·ì·H··4¯5·H·=
+
+rflags 0x0000000000010286  SF PF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s
+
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 228, in <module>
+    swift_test(work)
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 114, in swift_test
+    subprocess.run([str(executable)], check=True)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/mcbe-navigation-wbanxcns/swift-navigation']' died with <Signals.SIGILL: 4>.

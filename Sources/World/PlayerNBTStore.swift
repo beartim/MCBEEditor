@@ -190,7 +190,7 @@ final class PlayerNBTStore {
         var y = int64Value(in: value, names: yNames)
         var z = int64Value(in: value, names: zNames)
 
-        if (x == nil || z == nil),
+        if acceptsGenericXYZ, (x == nil || z == nil),
            let position = compoundValue(in: value, names: ["Pos", "pos", "Position", "position"]),
            let tuple = coordinateTuple(position) {
             x = tuple.x

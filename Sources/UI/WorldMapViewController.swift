@@ -1248,11 +1248,8 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   @objc private func mapBlockSelectionRequested() {
-    guard let coordinate = session.requestedMapBlockCoordinate,
-      let dimensionIndex = BedrockDimension.allCases.firstIndex(where: {
-        $0.rawValue == coordinate.dimension
-      })
-    else { return }
+    guard let coordinate = session.requestedMapBlockCoordinate else { return }
+    guard let dimensionIndex = mapDimensionIndex(for: coordinate.dimension) else { return }
     loadViewIfNeeded()
     dimensionControl.selectedSegmentIndex = dimensionIndex
     coordinateModeControl.selectedSegmentIndex = 1
@@ -4883,17 +4880,12 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
   }
 
   private func locate(player: MapPlayerCoordinate) {
-    guard
-      let dimensionIndex = BedrockDimension.allCases.firstIndex(where: {
-        $0.rawValue == player.position.dimension
-      })
-    else { return }
+    guard let dimensionIndex = mapDimensionIndex(for: player.position.dimension) else { return }
     dimensionControl.selectedSegmentIndex = dimensionIndex
-    coordinateModeControl.selectedSegmentIndex = 1
-    let x = Int64(floor(player.position.x))
-    let z = Int64(floor(player.position.z))
-    xField.text = String(x)
-    zField.text = String(z)
+    let position = BedrockWorldObjectPosition(x: player.position.x, y: player.position.y, z: player.position.z)
+    let x = position.blockX
+    let z = position.blockZ
+    prepareMapLocation(x: x, y: position.blockY, z: z)
     render(
       centerX: MapCoordinate.chunk(fromBlock: x),
       centerZ: MapCoordinate.chunk(fromBlock: z),
@@ -5448,18 +5440,13 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     selectedWorldObjectID = worldObject.stableID
     session.rememberSelectedWorldObject(worldObject)
     objectOverlayView.setSelectedObjectID(worldObject.stableID)
-    guard let position = worldObject.position,
-      let dimensionIndex = BedrockDimension.allCases.firstIndex(where: {
-        $0.rawValue == worldObject.dimension
-      })
-    else {
+    guard let position = worldObject.position else {
       showError(MCBEEditorError.malformedData("该对象没有可定位坐标"), title: "无法定位")
       return
     }
+    guard let dimensionIndex = mapDimensionIndex(for: worldObject.dimension) else { return }
     dimensionControl.selectedSegmentIndex = dimensionIndex
-    coordinateModeControl.selectedSegmentIndex = 1
-    xField.text = String(position.blockX)
-    zField.text = String(position.blockZ)
+    prepareMapLocation(x: position.blockX, y: position.blockY, z: position.blockZ)
     render(
       centerX: MapCoordinate.chunk(fromBlock: position.blockX),
       centerZ: MapCoordinate.chunk(fromBlock: position.blockZ),
@@ -5468,6 +5455,26 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
       reason: "定位\(worldObject.kind.displayName)",
       showOverlay: true
     )
+  }
+
+  private func mapDimensionIndex(for dimension: Int32) -> Int? {
+    guard let index = BedrockDimension.allCases.firstIndex(where: { $0.rawValue == dimension }) else {
+      showError(MCBEEditorError.malformedData("地图暂不支持维度 \(dimension)，可在命令或 NBT 中操作此维度。"), title: "无法定位")
+      return nil
+    }
+    return index
+  }
+
+  private func prepareMapLocation(x: Int64, y: Int32, z: Int64) {
+    coordinateModeControl.selectedSegmentIndex = 1
+    xField.text = String(x)
+    zField.text = String(z)
+    if currentSliceAxis != .y {
+      sliceCenterBlockX = x
+      sliceCenterBlockZ = z
+      sliceCenterY = y
+      yField.text = String(y)
+    }
   }
 
   @objc private func showOverlayOptions() {

@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bash "$ROOT/Scripts/test_mcbe_snbt.sh"
 bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
 python3 "$ROOT/Scripts/test_ios_map_object_interaction.py"
+python3 "$ROOT/Scripts/test_map_navigation.py" swift
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
@@ -2131,6 +2132,15 @@ struct WorldObjectNBTTest {
 }
 SWIFT
 swiftc \
+  "$ROOT/Sources/Support/BedrockBlockIdentifier.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockCatalog.swift" \
+  "$ROOT/Sources/Support/BedrockLegacyBlockStateConverter.swift" \
+  "$ROOT/Sources/Chunk/BedrockSubChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockSubChunkEditor.swift" \
+  "$ROOT/Sources/Chunk/BedrockChunkSubChunkAccess.swift" \
+  "$ROOT/Sources/Chunk/BedrockLegacyBlockExtraData.swift" \
+  "$ROOT/Sources/Chunk/BedrockEmptyChunk.swift" \
+  "$ROOT/Sources/Chunk/BedrockBiomeData.swift" \
   "$ROOT/Sources/Support/Errors.swift" \
   "$ROOT/Sources/Support/Hex.swift" \
   "$ROOT/Sources/Support/AtomicFile.swift" \
@@ -2148,6 +2158,7 @@ swiftc \
   "$ROOT/Sources/Entity/BedrockWorldObjectScanner.swift" \
   "$ROOT/Sources/Entity/BedrockEntityCommonNBT.swift" \
   "$ROOT/Sources/Entity/BedrockWorldObjectNBTStore.swift" \
+  "$ROOT/Sources/Chunk/BedrockBlockColumn.swift" \
   -parse-as-library "$TMP/world_object_nbt_test.swift" -o "$TMP/world-object-nbt-tests"
 "$TMP/world-object-nbt-tests"
 
@@ -3953,6 +3964,22 @@ struct EffectCommandTest {
         try run("setblock overworld 0 0 0 minecraft:stone NULL minecraft:water NULL empty")
         session.db.values[key(0)] = try record(0, "source")
         try run("structure save audit:one overworld 0 0 0 0 0 0")
+        let structureStore = StructureNBTStore(session: session)
+        let originalStructure = try structureStore.record(named: "audit:one")!.document!
+        guard case .compound(var maskRoot) = originalStructure.root,
+              let structureIndex = maskRoot.firstIndex(where: { $0.name == "structure" }),
+              case .compound(var structureTags) = maskRoot[structureIndex].value,
+              let layersIndex = structureTags.firstIndex(where: { $0.name == "block_indices" }) else {
+            preconditionFailure("missing saved structure layers")
+        }
+        structureTags[layersIndex] = NBTNamedTag(name: "block_indices", value: .list(.list, [
+            .list(.int, [.int(-1)]), .list(.int, [.int(-1)])
+        ]))
+        maskRoot[structureIndex] = NBTNamedTag(name: "structure", value: .compound(structureTags))
+        _ = try structureStore.save(document: NBTDocument(rootName: "", root: .compound(maskRoot)), named: "audit:mask", overwrite: false)
+        let beforeMask = session.db.values
+        let masked = try executor.execute(WorldCommandParser.parse("structure load audit:mask overworld 16000 64 -16000"))
+        precondition(!masked.changedWorld && session.db.values == beforeMask, "all -1 structure generated or changed terrain")
         let outside = try record(5, "outside-a") + record(nil, "orphan") + record(5, "outside-b")
         session.db.values[key(1)] = try outside + record(1, "old-target")
         try run("structure load audit:one nether 1 0 0")
@@ -4153,6 +4180,8 @@ struct EffectCommandTest {
         let fields = ["SpawnX", "SpawnY", "SpawnZ", "SpawnDimension", "SpawnForced"]
         var tags = fields.map { NBTNamedTag(name: $0, value: .int(1)) }
         tags += [NBTNamedTag(name: "UniqueID", value: .long(1)),
+                 NBTNamedTag(name: "Pos", value: .list(.float, [.float(9), .float(99), .float(9)])),
+                 NBTNamedTag(name: "DimensionId", value: .int(1)),
                  NBTNamedTag(name: "Inventory", value: inventory),
                  NBTNamedTag(name: "RespawnCustom", value: custom)]
         session.db.values[key] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound(tags)))
@@ -4167,9 +4196,22 @@ struct EffectCommandTest {
             precondition(actualBytes == expectedBytes, "clearspawnpoint deleted custom inventory tags")
         }
         let before = session.db.values
+        let clearedSpawnPoints = try PlayerNBTStore(session: session).spawnPoints()
+        precondition(clearedSpawnPoints.isEmpty, "root Pos became a false player spawn point")
         var rejected = false
         do { _ = try executor.execute(try WorldCommandParser.parse("clearspawnpoint @s")) } catch { rejected = true }
         precondition(rejected && session.db.values == before, "repeated clearspawnpoint must reject without writes")
+        session.db.values[key] = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "UniqueID", value: .long(1)),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(9), .float(99), .float(9)])),
+            NBTNamedTag(name: "Respawn", value: .compound([
+                NBTNamedTag(name: "Pos", value: .list(.int, [.int(5), .int(70), .int(6)])),
+                NBTNamedTag(name: "Dimension", value: .int(2))
+            ]))
+        ])))
+        let nestedSpawns = try PlayerNBTStore(session: session).spawnPoints()
+        precondition(nestedSpawns.count == 1 && nestedSpawns[0].x == 5 && nestedSpawns[0].y == 70 && nestedSpawns[0].z == 6 && nestedSpawns[0].dimension == 2,
+                     "root Pos hid the real nested spawn point")
         print("Spawn-point scope audit passed: only player root tags removed; custom data preserved")
     }
     static func verifyPlayerTargetingAudit() throws {
@@ -4319,6 +4361,7 @@ struct EffectCommandTest {
         try DimensionCliPreflightRegression.run()
         try DimensionCommandResolverTests.run()
         try FillSetblockBlockEntityRegression.run()
+        try BlockEntityMoveAuditRegression.run()
         try SummonCommandRegression.run()
         try EntityCommandRegression.run()
         try verifyGiveInventoryAudit()
@@ -4997,6 +5040,7 @@ swiftc -j 4 \
   "$ROOT/Scripts/Tests/EntityCommandRegression.swift" \
   "$ROOT/Scripts/Tests/SummonCommandRegression.swift" \
   "$ROOT/Scripts/Tests/FillSetblockBlockEntityRegression.swift" \
+  "$ROOT/Scripts/Tests/BlockEntityMoveAuditRegression.swift" \
   "$TMP/EffectCommandStubs.swift" \
   -parse-as-library "$TMP/effect_command_test.swift" -o "$TMP/effect-command-tests"
 "$TMP/effect-command-tests"

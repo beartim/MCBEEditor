@@ -1,0 +1,48 @@
+tests/effect_command_test.swift:250: Precondition failed: root Pos became a false player spawn point
+swift-runtime: unable to suspend thread 10446
+
+*** Signal 4: Backtracing from 0x7f638d3c889f... done ***
+
+*** Program crashed: Illegal instruction at 0x00007f638d3c889f ***
+
+Thread 0 "caas-prefix-tra" crashed:
+
+0      0x00007f638d3c889f
+1 [ra] 0x00005614244d92f1
+2 [ra] 0x00005614244e49f7
+3 [ra] 0x00005614244e50ff
+4 [ra] 0x00005614244e5156
+5 [ra] 0x00007f638c3f61ca
+6 [ra] 0x00007f638c3f628b
+
+
+Registers:
+
+rax 0x00007f638d667e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rdx 0x00005614245376f0  50 72 65 63 6f 6e 64 69 74 69 6f 6e 20 66 61 69  Precondition fai
+rcx 0x00007f638d667e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rbx 0x000056114d2add11  94632309087505
+rsi 0x800056142453dc00  9223466681363586048
+rdi 0x000056142c681930  b8 c9 8c 8d 63 7f 00 00 51 00 00 00 00 00 00 00  ¸É··c···Q·······
+rbp 0x00007ffe8172c6e0  80 d5 72 81 fe 7f 00 00 f1 92 4d 24 14 56 00 00  ·Õr·þ···ñ·M$·V··
+rsp 0x00007ffe8172c640  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x000056142c66a010  07 00 07 00 05 00 07 00 07 00 04 00 02 00 04 00  ················
+ r9 0x0000000000000007  7
+r10 0x000056142c681940  11 dd 2a 4d 11 56 00 00 6e 00 b6 72 a0 4e 4b 47  ·Ý*M·V··n·¶r NKG
+r11 0x474b4ea072b6006e  5137286250972446830
+r12 0x000056142453d120  74 65 73 74 73 2f 65 66 66 65 63 74 5f 63 6f 6d  tests/effect_com
+r13 0x000000000000002a  42
+r14 0x800056142453dc00  9223466681363586048
+r15 0x0000000000000013  19
+rip 0x00007f638d3c889f  0f 0b 48 83 ec 08 48 8d 05 34 af 35 00 48 8d 3d  ··H·ì·H··4¯5·H·=
+
+rflags 0x0000000000010286  SF PF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s

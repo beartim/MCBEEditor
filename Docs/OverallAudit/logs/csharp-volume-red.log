@@ -1,0 +1,5 @@
+Unhandled exception. System.Exception: Overall audit: structure volume overflow was accepted or altered the document
+   at OverallAuditRegressionTests.Check(Boolean condition, String message) in /workspace/scratch/b1b811844258/overall-audit/Windows/MCBEEditor.Core.SelfTest/OverallAuditRegressionTests.cs:line 18
+   at OverallAuditRegressionTests.OverflowingStructureVolume() in /workspace/scratch/b1b811844258/overall-audit/Windows/MCBEEditor.Core.SelfTest/OverallAuditRegressionTests.cs:line 66
+   at OverallAuditRegressionTests.Run(String scenario) in /workspace/scratch/b1b811844258/overall-audit/Windows/MCBEEditor.Core.SelfTest/OverallAuditRegressionTests.cs:line 11
+   at Program.<Main>$(String[] args) in /workspace/scratch/b1b811844258/overall-audit/Windows/MCBEEditor.Core.SelfTest/Program.cs:line 12

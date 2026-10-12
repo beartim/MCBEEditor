@@ -106,6 +106,14 @@ def main():
         invoke(initial, ["setblock overworld 0 64 0 minecraft:stone NULL " + pos_tags,
                          "setblock overworld 0 64 0 minecraft:dirt NULL " + pos_tags], with_pos)
         assert pos_tags + coordinates(0, 64, 0) in invoke(with_pos, ["getblock overworld 0 64 0"])
+        apostrophe = ",'String'\"CustomName\"=\"O'Brien\""
+        quoted = root / "quoted-snbt.mcworld"
+        invoke(initial, [
+            "setblock overworld 0 64 0 minecraft:stone NULL " + template() + apostrophe,
+            "summon minecraft:pig 1000 0.5 64 0.5 'String'\"CustomName\"=\"O'Brien\" Auto"], quoted)
+        quoted_text = invoke(quoted, ["getblock overworld 0 64 0", "entity 1000"])
+        assert template() + apostrophe + coordinates(0, 64, 0) in quoted_text
+        assert quoted_text.count("O'Brien") >= 2, "apostrophe SNBT did not survive actual commands and save/reopen"
         no_pos = root / "no-pos.mcworld"
         invoke(with_pos, ["setblock overworld 0 64 0 minecraft:stone NULL empty"], no_pos)
         assert "BlockEntity=NULL" in invoke(no_pos, ["getblock overworld 0 64 0"])
@@ -115,7 +123,7 @@ def main():
                         "fill 1000 16 65 0 -1 64 -1 minecraft:stone NULL 'List'''\"Invalid\"=\"1\""]:
             invoke(initial, [command], root / f"invalid-{calls}.mcworld", expected=2)
         assert snapshot(source) == original
-    print(f"Fill/setblock CLI block entities passed: {calls} processes, optional/ignored root coordinates, canonical Int positions, nested/Pos preservation, arbitrary IDs, all 72 cross-chunk positions, three modes, export/reopen and preflight rejection.")
+    print(f"Fill/setblock CLI block entities passed: {calls} processes, optional/ignored root coordinates, canonical Int positions, nested/Pos/apostrophe preservation, arbitrary IDs, all 72 cross-chunk positions, three modes, export/reopen and preflight rejection.")
 
 
 if __name__ == "__main__":

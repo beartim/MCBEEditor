@@ -1,0 +1,5 @@
+{
+  "scope": "Production Swift/C# private/fileprivate function declarations; word references across tracked Swift/C#/XAML/shell/PowerShell/Python. Reflection/lifecycle need manual judgment; this is a candidate scan, not proof of absence of dead code.",
+  "declarations": 2230,
+  "one_reference_candidates": []
+}

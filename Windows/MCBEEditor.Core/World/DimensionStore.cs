@@ -172,6 +172,8 @@ public sealed class DimensionStore(IWorldDatabase database)
             var defaultName = position.Dimension switch { 0 => "overworld", 1 => "nether", 2 => "the_end", _ => position.Dimension.ToString(CultureInfo.InvariantCulture) };
             names.TryAdd(position.Dimension, defaultName);
         }
+        if (names.Values.Distinct(StringComparer.Ordinal).Count() != names.Count)
+            throw new InvalidDataException("维度名称重复，无法唯一定位维度");
         return names.OrderBy(entry => entry.Key).Select(entry =>
             new DimensionRecord(entry.Value, entry.Key, positions.TryGetValue(entry.Key, out var chunks) ? chunks.Count : 0)).ToArray();
     }

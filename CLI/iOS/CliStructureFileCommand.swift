@@ -13,11 +13,12 @@ structure export mcstructure|nbt|json|txt|mcbe-snbt 名称 --file "输出路径"
 非交互模式名称和 --file 均必填；交互模式可省略名称后按提示输入。
 """
     static func parse(_ text: String, dimensionResolver: ((String) throws -> Int32)? = nil) throws -> (ParsedWorldCommand, CliStructureFileRequest?) {
-        let tokens = try tokenize(text)
-        guard tokens.count >= 2, tokens[0].lowercased() == "structure",
-              ["import", "export"].contains(tokens[1].lowercased()) else {
+        let head = text.split(maxSplits: 2, whereSeparator: { $0.isWhitespace })
+        guard head.count >= 2, head[0].lowercased() == "structure",
+              ["import", "export"].contains(head[1].lowercased()) else {
             return (try WorldCommandParser.parse(text, dimensionResolver: dimensionResolver), nil)
         }
+        let tokens = try tokenize(text)
         guard let fileIndex = tokens.firstIndex(where: { $0.lowercased() == "--file" }) else {
             return (try WorldCommandParser.parse(text, dimensionResolver: dimensionResolver), nil)
         }

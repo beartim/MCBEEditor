@@ -1,0 +1,48 @@
+tests/effect_command_test.swift:32: Precondition failed: all -1 structure generated or changed terrain
+swift-runtime: unable to suspend thread 10461
+
+*** Signal 4: Backtracing from 0x7fdfb308689f... done ***
+
+*** Program crashed: Illegal instruction at 0x00007fdfb308689f ***
+
+Thread 0 "caas-prefix-tra" crashed:
+
+0      0x00007fdfb308689f
+1 [ra] 0x000055eda62984f3
+2 [ra] 0x000055eda62b7aff
+3 [ra] 0x000055eda62b80ff
+4 [ra] 0x000055eda62b8156
+5 [ra] 0x00007fdfb20b41ca
+6 [ra] 0x00007fdfb20b428b
+
+
+Registers:
+
+rax 0x00007fdfb3325e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rdx 0x000055eda630a6f0  50 72 65 63 6f 6e 64 69 74 69 6f 6e 20 66 61 69  Precondition fai
+rcx 0x00007fdfb3325e60  55 48 89 e5 48 85 ff 7e 26 48 b9 00 00 00 00 fe  UH·åH·ÿ~&H¹····þ
+rbx 0x000055e8f1e50b72  94458979093362
+rsi 0x800055eda6310180  9223466516038615424
+rdi 0x000055edaf402100  a0 d0 40 af ed 55 00 00 51 00 00 00 00 00 00 00   Ð@¯íU··Q·······
+rbp 0x00007ffc87d4d060  d0 e2 d4 87 fc 7f 00 00 f3 84 29 a6 ed 55 00 00  ÐâÔ·ü···ó·)¦íU··
+rsp 0x00007ffc87d4cfc0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ r8 0x000055edaf3d0010  07 00 06 00 06 00 07 00 02 00 06 00 01 00 07 00  ················
+ r9 0x0000000000000007  7
+r10 0x000055edaf402110  72 0b e5 f1 e8 55 00 00 51 54 ec ef d8 99 0e 72  r·åñèU··QTìïØ··r
+r11 0x720e99d8efec5451  8218675527014962257
+r12 0x000055eda6310120  74 65 73 74 73 2f 65 66 66 65 63 74 5f 63 6f 6d  tests/effect_com
+r13 0x000000000000002d  45
+r14 0x800055eda6310180  9223466516038615424
+r15 0x0000000000000013  19
+rip 0x00007fdfb308689f  0f 0b 48 83 ec 08 48 8d 05 34 af 35 00 48 8d 3d  ··H·ì·H··4¯5·H·=
+
+rflags 0x0000000000010282  SF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images:
+
+
+
+Backtrace took 0.00s

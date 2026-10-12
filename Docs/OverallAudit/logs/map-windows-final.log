@@ -1,0 +1,4 @@
+PASS Windows production navigation/state methods: object/chunk centers, queued latest controls, coalescing and unsupported dimensions (headless render boundary)
+PASS Windows production layer handlers: first terrain render, both texture directions, full/marker-only late reads, show/hide all (headless render boundaries)
+PASS Windows coalesced navigation: older chunk continuations cannot overwrite latest entity/chunk selection
+PASS Windows local-player default center: custom dimension keeps spawn fallback; all vanilla dimensions retain floor coordinates

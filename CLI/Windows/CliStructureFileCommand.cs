@@ -17,10 +17,10 @@ internal static class CliStructureFileCommand
     public static bool TryParse(string text, out CliStructureFileRequest? request)
     {
         request = null;
+        var head = text.Split((char[]?)null, 3, StringSplitOptions.RemoveEmptyEntries);
+        if (head.Length < 2 || !head[0].Equals("structure", StringComparison.OrdinalIgnoreCase)
+            || !head[1].Equals("import", StringComparison.OrdinalIgnoreCase) && !head[1].Equals("export", StringComparison.OrdinalIgnoreCase)) return false;
         var tokens = Tokenize(text);
-        if (tokens.Count < 2 || !tokens[0].Equals("structure", StringComparison.OrdinalIgnoreCase)) return false;
-        var action = tokens[1].ToLowerInvariant();
-        if (action is not ("import" or "export")) return false;
         var fileIndex = tokens.FindIndex(token => token.Equals("--file", StringComparison.OrdinalIgnoreCase));
         if (fileIndex < 0) return false;
         if (fileIndex + 1 >= tokens.Count || tokens[fileIndex + 1].StartsWith("--", StringComparison.Ordinal)) throw new InvalidDataException("structure import/export 的 --file 缺少路径。");

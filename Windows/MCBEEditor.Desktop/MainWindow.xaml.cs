@@ -90,7 +90,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _nbtKeyStatusText = "输入 UTF-8 键文本搜索；以 0x 开头可按十六进制键搜索。";
     private readonly HashSet<string> _viewedNbtKeys = new(StringComparer.Ordinal);
     private BedrockChunkSummary? _selectedChunk;
-    private bool _databaseBusy;
+    private bool _databaseOperationActive;
+    private bool _mapChangingControls;
+    private TaskCompletionSource<bool>? _pendingMapRender;
+    private bool _databaseBusy
+    {
+        get => _databaseOperationActive;
+        set
+        {
+            _databaseOperationActive = value;
+            if (value || _pendingMapRender is not { } pending) return;
+            _pendingMapRender = null;
+            if (_document is null || Dispatcher.HasShutdownStarted)
+            {
+                pending.TrySetResult(false);
+                return;
+            }
+            Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try { await RenderMapAsync(); pending.TrySetResult(true); }
+                catch (Exception error) { pending.TrySetException(error); }
+            }));
+        }
+    }
     private IReadOnlyList<WorldObjectRow> _objectRows = Array.Empty<WorldObjectRow>();
     private IReadOnlyList<WorldObjectRow> _allObjectRows = Array.Empty<WorldObjectRow>();
     private WorldObjectRow? _selectedObjectRow;
@@ -942,13 +964,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task LocateChunkOnMapAsync(ChunkPosition position)
     {
-        if (position.Dimension is >= 0 and <= 2) MapDimension.SelectedIndex = position.Dimension;
+        if (!CanLocateMapDimension(position.Dimension)) return;
+        var navigationVersion = ++_mapInteractionVersion;
+        _mapChangingControls = true;
+        try { MapDimension.SelectedIndex = position.Dimension; }
+        finally { _mapChangingControls = false; }
         _activeMapDimension = position.Dimension;
         var centerX = (int)Math.Clamp((long)position.X * 16L + 8L, int.MinValue, int.MaxValue);
         var centerZ = (int)Math.Clamp((long)position.Z * 16L + 8L, int.MinValue, int.MaxValue);
         MapCenterX.Text = centerX.ToString(CultureInfo.InvariantCulture);
         MapCenterZ.Text = centerZ.ToString(CultureInfo.InvariantCulture);
-        await RenderMapAsync();
+        await RenderMapAsync(navigationVersion);
+        if (navigationVersion != _mapInteractionVersion) return;
         _selectedMapChunk = position;
         UpdateMapOverlay();
         MapDetailText = $"已定位区块：{BedrockDimensionNames.DisplayName(position.Dimension)} ({position.X}, {position.Z})。";
@@ -2304,9 +2331,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var local = store.Records().FirstOrDefault(player => player.IsLocal);
                 return local is null ? null : store.CurrentPosition(local);
             });
-            if (position is null) return;
+            if (position is null || !CanLocateMapDimension(position.Dimension)) return;
             _mapCenters[position.Dimension] = (position.BlockX, position.BlockZ);
-            if (position.Dimension is >= 0 and <= 2) MapDimension.SelectedIndex = position.Dimension;
+            MapDimension.SelectedIndex = position.Dimension;
             _activeMapDimension = position.Dimension;
             MapCenterX.Text = position.BlockX.ToString(CultureInfo.InvariantCulture);
             MapCenterZ.Text = position.BlockZ.ToString(CultureInfo.InvariantCulture);
@@ -3318,14 +3345,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var x = row.X.Value;
         var y = row.Y.Value;
         var z = row.Z.Value;
-        if (row.Dimension is >= 0 and <= 2) MapDimension.SelectedIndex = row.Dimension;
+        if (!CanLocateMapDimension(row.Dimension)) return;
+        var navigationVersion = ++_mapInteractionVersion;
+        _mapChangingControls = true;
+        try { MapDimension.SelectedIndex = row.Dimension; }
+        finally { _mapChangingControls = false; }
         _activeMapDimension = row.Dimension;
         _mapCenters[row.Dimension] = ((int)Math.Floor(x), (int)Math.Floor(z));
         MapCenterX.Text = ((int)Math.Floor(x)).ToString(CultureInfo.InvariantCulture);
         MapCenterZ.Text = ((int)Math.Floor(z)).ToString(CultureInfo.InvariantCulture);
         MapCenterY.Text = ((int)Math.Floor(y)).ToString(CultureInfo.InvariantCulture);
         _mapCenterY = (int)Math.Floor(y);
-        await RenderMapAsync();
+        await RenderMapAsync(navigationVersion);
+    }
+
+    private bool CanLocateMapDimension(int dimension)
+    {
+        if (dimension is >= 0 and <= 2) return true;
+        MessageBox.Show(this, $"地图暂不支持维度 {dimension}，可在命令或 NBT 中操作此维度。",
+            "MCBEEditor", MessageBoxButton.OK, MessageBoxImage.Information);
+        return false;
     }
 
     private async void MapObjectLayerOption_Changed(object sender, RoutedEventArgs e)
@@ -3335,14 +3374,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _selectedMapSpawner = null;
         if (ReferenceEquals(sender, MapShowVillages) && MapShowVillages.IsChecked != true)
             _selectedMapVillageIdentifier = null;
-        if (!HasRenderedMap || _document is null || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy)) return;
         await RefreshMapObjectMarkersAsync();
     }
 
     private async void MapUngeneratedLayerOption_Changed(object sender, RoutedEventArgs e)
     {
         if (_mapChangingLayerOptions) return;
-        if (!HasRenderedMap || _document is null || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy)) return;
         await RerenderMapPreservingViewportAsync();
     }
 
@@ -3361,7 +3400,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MapBuildHeightLimits.IsChecked = true;
         }
         finally { _mapChangingLayerOptions = false; }
-        if (!HasRenderedMap || _document is null || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy)) return;
         await RerenderMapPreservingViewportAsync();
     }
 
@@ -3382,7 +3421,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _selectedMapVillageIdentifier = null;
         }
         finally { _mapChangingLayerOptions = false; }
-        if (!HasRenderedMap || _document is null || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy)) return;
         await RerenderMapPreservingViewportAsync();
     }
 
@@ -3396,12 +3435,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task RefreshMapObjectMarkersAsync()
     {
-        if (_document is null || !HasRenderedMap || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy)) return;
+        if (_databaseBusy)
+        {
+            await RerenderMapPreservingViewportAsync();
+            return;
+        }
         _databaseBusy = true;
         try
         {
             _mapObjectMarkers = await LoadMapObjectMarkersAsync(_document, _lastMapDimension, _lastMapCenterX, _lastMapCenterZ, _lastMapRadius);
+            if (_pendingMapRender is not null) return;
             await LoadMapFeatureOverlaysAsync(_document, _lastMapDimension, _lastMapCenterX, _lastMapCenterZ, _lastMapRadius);
+            if (_pendingMapRender is not null) return;
             UpdateMapOverlay();
         }
         catch (Exception ex)
@@ -3661,6 +3707,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void MapDimension_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_mapChangingControls) return;
         if (MapCenterX is null || MapCenterZ is null || MapDimension is null) return;
         if (int.TryParse(MapCenterX.Text.Trim(), out var oldX) && int.TryParse(MapCenterZ.Text.Trim(), out var oldZ))
             _mapCenters[_activeMapDimension] = (oldX, oldZ);
@@ -3676,7 +3723,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RenderMapAfterControlChange()
     {
-        if (_document is null || !HasRenderedMap || _databaseBusy) return;
+        if (_document is null || (!HasRenderedMap && !_databaseBusy) || _mapChangingControls) return;
+        _mapInteractionVersion++;
         _ = RenderMapAsync();
     }
 
@@ -3685,19 +3733,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task RenderMapAsync(long? expectedInteractionVersion = null)
     {
+        if (_document is null)
+        {
+            MessageBox.Show(this, "请先打开世界。", "MCBEEditor", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (_databaseBusy)
+        {
+            var pending = _pendingMapRender ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            await pending.Task;
+            return;
+        }
         var radiusOverride = _mapRenderRadiusOverride;
         var viewportRestore = _mapViewportRestore;
         var preserveSelection = _mapPreserveSelectionOnNextRender;
         _mapRenderRadiusOverride = null;
         _mapViewportRestore = null;
         _mapPreserveSelectionOnNextRender = false;
-
-        if (_document is null)
-        {
-            MessageBox.Show(this, "请先打开世界。", "MCBEEditor", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        if (_databaseBusy) return;
         if (!int.TryParse(MapCenterX.Text.Trim(), out var centerX) || !int.TryParse(MapCenterZ.Text.Trim(), out var centerZ))
         {
             MessageBox.Show(this, "地图中心 X/Z 必须为 32 位整数。", "MCBEEditor", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -3753,6 +3805,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         showUngeneratedTexture: showUngeneratedTexture);
                 });
 
+                if (_pendingMapRender is not null) return;
                 if (expectedInteractionVersion.HasValue && expectedInteractionVersion.Value != _mapInteractionVersion)
                 {
                     ScheduleDynamicMapRefresh();
@@ -3794,6 +3847,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         maximumRasterSide: WindowsMapMaximumRasterSide, showUngeneratedTexture: showUngeneratedTexture);
                 });
 
+                if (_pendingMapRender is not null) return;
                 if (expectedInteractionVersion.HasValue && expectedInteractionVersion.Value != _mapInteractionVersion)
                 {
                     ScheduleDynamicMapRefresh();
@@ -3838,7 +3892,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
             _mapObjectMarkers = await LoadMapObjectMarkersAsync(document, dimension, centerX, centerZ, radius);
+            if (_pendingMapRender is not null) return;
             await LoadMapFeatureOverlaysAsync(document, dimension, centerX, centerZ, radius);
+            if (_pendingMapRender is not null) return;
             UpdateMapOverlay();
             StatusText = "地图渲染完成。";
         }

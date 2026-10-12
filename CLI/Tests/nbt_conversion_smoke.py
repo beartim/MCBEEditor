@@ -158,6 +158,18 @@ def main():
         structure = root / "invalid.mcstructure"
         invoke(bad, structure, "mcstructure", expected=3)
         assert not structure.exists()
+        # Malformed Java volumes must fail before replacing an existing output,
+        # including a product which wraps signed Int64 multiplication to zero.
+        structure.write_bytes(sentinel)
+        for size in ((1073741824, 1073741824, 16), (1, 16777217, 1)):
+            java = {"name": "", **tag("compound", {
+                "size": tag("list", {"type": "int", "value": [tag("int", value) for value in size]}),
+                "palette": tag("list", {"type": "compound", "value": [tag("compound", {"Name": tag("string", "minecraft:stone")})]}),
+                "blocks": tag("list", {"type": "compound", "value": []}),
+            })}
+            bad.write_bytes(encode(java, "big-endian"))
+            invoke(bad, structure, "mcstructure", overwrite=True, expected=3)
+            assert structure.read_bytes() == sentinel, "invalid structure volume replaced existing output"
     print(f"PASS NBT conversion: {calls} real CLI invocations")
 
 

@@ -2,8 +2,25 @@ import Foundation
 
 enum DimensionSafetyRegressionTests {
     static func run() throws {
+        try duplicateNames()
         try rawOnly(); try villagePrefixes(); try ownershipAliases()
         print("Dimension safety regressions passed: unknown raw tags, longest village names and atomic ownership rejection.")
+    }
+
+    private static func duplicateNames() throws {
+        let db = MojangLevelDB()
+        let bytes = try BedrockNBTCodec.encode(NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "entries", value: .compound([
+                NBTNamedTag(name: "bear", value: .int(3)),
+                NBTNamedTag(name: "bear", value: .int(4))
+            ]))
+        ])))
+        try db.put(bytes, for: DimensionStore.registryKey)
+        let before = db.values, batches = db.batchCount
+        var rejected = false
+        do { _ = try DimensionStore(database: db).snapshot() } catch { rejected = true }
+        precondition(rejected && db.values == before && db.batchCount == batches,
+                     "duplicate dimension names accepted or wrote to storage")
     }
     private static func rawOnly() throws {
         for id in [Int32(0), 43, 44, 47, 118, 1000, -1, Int32.min, Int32.max] {

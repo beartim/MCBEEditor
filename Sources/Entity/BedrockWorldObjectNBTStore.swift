@@ -719,6 +719,35 @@ final class BedrockWorldObjectNBTStore {
       subChunkIndex: nil
     ).encoded()
 
+    var terrainChanges = [DatabaseChange]()
+    if object.kind == .blockEntity,
+      let sourcePosition = object.position,
+      let targetPosition = extractPosition(root: document.root, kind: .blockEntity),
+      destination.dimension != object.dimension
+        || sourcePosition.blockX != targetPosition.blockX
+        || sourcePosition.blockY != targetPosition.blockY
+        || sourcePosition.blockZ != targetPosition.blockZ
+    {
+      let targetRecords = targetKey == sourceKey
+        ? sourceRecords : try database.get(targetKey).map(ConsecutiveNBTCodec.decode) ?? []
+      for index in targetRecords.indices where targetKey != sourceKey || index != locatedIndex {
+        guard let position = extractPosition(root: targetRecords[index].document.root, kind: .blockEntity)
+        else { continue }
+        if position.blockX == targetPosition.blockX && position.blockY == targetPosition.blockY
+          && position.blockZ == targetPosition.blockZ
+        {
+          throw MCBEEditorError.unsupported("目标坐标已经存在另一个方块实体，拒绝覆盖。")
+        }
+      }
+      let terrainPuts = try blockEntityTerrainPuts(
+        source: sourcePosition, sourceDimension: object.dimension,
+        target: targetPosition, targetDimension: destination.dimension, database: database)
+      terrainChanges = try terrainPuts.map { item in
+        DatabaseChange(key: item.key, originalValue: try database.get(item.key),
+                       newValue: item.value, label: "方块实体联动地形")
+      }
+    }
+
     if !moved || targetKey == sourceKey {
       sourceRecords[locatedIndex].document = document
       sourceRecords[locatedIndex].rawData = try BedrockNBTCodec.encode(
@@ -730,10 +759,10 @@ final class BedrockWorldObjectNBTStore {
           newValue: try ConsecutiveNBTCodec.encode(sourceRecords),
           label: object.kind.displayName
         )
-      ]
+      ] + terrainChanges
       try commit(changes, database: database)
       return BedrockWorldObjectSaveResult(
-        moved: false,
+        moved: !terrainChanges.isEmpty,
         uniqueIDChanged: object.uniqueID
           != document.root.int64Value(namedAny: ["UniqueID", "UniqueId", "uniqueID", "uniqueId"]),
         destinationDimension: destination.dimension,
@@ -767,7 +796,7 @@ final class BedrockWorldObjectNBTStore {
         newValue: newSourceData,
         label: "原区块对象记录"
       ),
-    ]
+    ] + terrainChanges
     try commit(changes, database: database)
     return BedrockWorldObjectSaveResult(
       moved: true,
@@ -780,6 +809,133 @@ final class BedrockWorldObjectNBTStore {
         "UniqueID", "UniqueId", "uniqueID", "uniqueId",
       ])
     )
+  }
+
+  /// Plans the complete block transfer without writing. Missing/all-air source
+  /// terrain deliberately keeps the existing free-form, NBT-only move contract.
+  private func blockEntityTerrainPuts(
+    source: BedrockWorldObjectPosition, sourceDimension: Int32,
+    target: BedrockWorldObjectPosition, targetDimension: Int32,
+    database: MojangLevelDB
+  ) throws -> [(key: Data, value: Data)] {
+    let sourceChunk = ChunkPosition(
+      x: MapCoordinate.chunk(fromBlock: source.blockX),
+      z: MapCoordinate.chunk(fromBlock: source.blockZ), dimension: sourceDimension)
+    guard let sourceY = Int8(exactly: MapCoordinate.floorDiv16(source.blockY)),
+      let sourceStored = try BedrockChunkSubChunkAccess.record(
+        database: database, position: sourceChunk, yIndex: sourceY)
+    else { return [] }
+    guard !sourceStored.subChunk.isRawPreservedUnknownVersion else {
+      throw MCBEEditorError.unsupported("源 SubChunk 格式无法安全修改，拒绝迁移方块实体。")
+    }
+    let sourceLocal = (
+      x: Int(source.blockX - MapCoordinate.blockOrigin(ofChunk: sourceChunk.x)),
+      y: Int(source.blockY) - Int(sourceY) * 16,
+      z: Int(source.blockZ - MapCoordinate.blockOrigin(ofChunk: sourceChunk.z)))
+    let sourceLayers = try sourceStored.subChunk.storages.map { storage -> BedrockBlockState in
+      guard let state = storage.blockState(x: sourceLocal.x, y: sourceLocal.y, z: sourceLocal.z) else {
+        throw MCBEEditorError.malformedData("源方块 storage/调色板索引无效，拒绝迁移方块实体。")
+      }
+      return state
+    }
+    guard sourceLayers.contains(where: { !$0.isAir }) else { return [] }
+
+    let targetChunk = ChunkPosition(
+      x: MapCoordinate.chunk(fromBlock: target.blockX),
+      z: MapCoordinate.chunk(fromBlock: target.blockZ), dimension: targetDimension)
+    guard let targetY = Int8(exactly: MapCoordinate.floorDiv16(target.blockY)) else {
+      throw MCBEEditorError.unsupported("目标 Y 超出可保存的 SubChunk 索引范围。")
+    }
+    let targetLocal = (
+      x: Int(target.blockX - MapCoordinate.blockOrigin(ofChunk: targetChunk.x)),
+      y: Int(target.blockY) - Int(targetY) * 16,
+      z: Int(target.blockZ - MapCoordinate.blockOrigin(ofChunk: targetChunk.z)))
+    let targetStored = try BedrockChunkSubChunkAccess.record(
+      database: database, position: targetChunk, yIndex: targetY)
+    let sourceUsesTerrain: Bool
+    if case .legacyTerrain = sourceStored.backing { sourceUsesTerrain = true }
+    else { sourceUsesTerrain = false }
+    let targetSubChunk: BedrockSubChunk
+    var targetProfile: BedrockEmptyChunkProfile?
+    var preferLegacyTerrain = false
+    if let stored = targetStored {
+      targetSubChunk = stored.subChunk
+    } else {
+      let existing = try BedrockChunkSubChunkAccess.records(database: database, position: targetChunk)
+      let profile = try BedrockEmptyChunk.profile(database: database, dimension: targetDimension)
+      let version = try BedrockEmptyChunk.preferredSubChunkVersion(
+        database: database, at: targetChunk, fallback: profile.subChunkVersion)
+      if existing.isEmpty && profile.usesLegacyTerrain != sourceUsesTerrain {
+        throw MCBEEditorError.unsupported("源/目标 LegacyTerrain 与 SubChunk 物理格式不同，无法直接迁移方块。")
+      }
+      targetProfile = profile
+      preferLegacyTerrain = existing.isEmpty && profile.usesLegacyTerrain
+      if [UInt8(0), 2, 3, 4, 5, 6, 7].contains(version) {
+        targetSubChunk = try BedrockSubChunk.emptyLegacy(version: version, yIndex: targetY)
+      } else {
+        let air = try BedrockEmptyChunk.airForMissingSubChunk(
+          database: database, at: targetChunk, records: existing, fallbackProfile: profile)
+        targetSubChunk = BedrockSubChunk(version: version, yIndex: targetY,
+                                        storages: [.airFilled(with: air)], trailingData: Data())
+      }
+    }
+    guard targetSubChunk.isLegacyNumeric == sourceStored.subChunk.isLegacyNumeric else {
+      throw MCBEEditorError.unsupported("源/目标分别为数字 ID 与现代 NBT 格式，无法直接迁移方块。")
+    }
+
+    func air(in storage: SubChunkStorage, legacy: Bool) -> BedrockBlockState {
+      if legacy { return BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0) }
+      return storage.palette.first(where: { $0.isAir && $0.nbt != nil })
+        ?? .editableAir(version: storage.palette.compactMap(\.paletteVersion).first)
+    }
+    func replacingLayers(
+      in subChunk: BedrockSubChunk, at local: (x: Int, y: Int, z: Int),
+      with layers: [BedrockBlockState]
+    ) throws -> BedrockSubChunk {
+      guard !subChunk.isRawPreservedUnknownVersion,
+        [UInt8(0), 1, 2, 3, 4, 5, 6, 7, 8, 9].contains(subChunk.version)
+      else { throw MCBEEditorError.unsupported("SubChunk 格式无法安全修改，拒绝迁移方块实体。") }
+      if subChunk.isLegacyNumeric && layers.count > 2 {
+        throw MCBEEditorError.unsupported("旧数字 ID 格式无法表示超过两个 storage 的方块。")
+      }
+      var storages = subChunk.storages
+      let fallbackAir = subChunk.isLegacyNumeric
+        ? BedrockBlockState(nbt: nil, legacyID: 0, legacyData: 0)
+        : BedrockBlockState.editableAir(version: storages.flatMap(\.palette).compactMap(\.paletteVersion).first
+          ?? layers.compactMap(\.paletteVersion).first)
+      let format = BedrockPaletteFormat.detect(storages.filter { $0.persistentKind == .normal }.flatMap(\.palette))
+      let layerCount = max(storages.count, layers.count)
+      while storages.count < layerCount { storages.append(.airFilled(with: fallbackAir)) }
+      for index in storages.indices {
+        var state = index < layers.count ? layers[index] : air(in: storages[index], legacy: subChunk.isLegacyNumeric)
+        if !subChunk.isLegacyNumeric {
+          state = try BedrockLegacyBlockStateConverter.forPalette(state, format: format)
+        }
+        storages[index] = try storages[index].replacingBlockState(
+          x: local.x, y: local.y, z: local.z, with: state)
+      }
+      let version: UInt8 = subChunk.version == 1 && storages.count > 1 ? 8 : subChunk.version
+      return BedrockSubChunk(version: version, yIndex: subChunk.yIndex,
+                             storages: storages, trailingData: subChunk.trailingData)
+    }
+
+    var edits = [ChunkPosition: [Int8: BedrockSubChunk]]()
+    edits[targetChunk, default: [:]][targetY] = try replacingLayers(
+      in: targetSubChunk, at: targetLocal, with: sourceLayers)
+    // A same-SubChunk move must clear the source in the already edited target
+    // value, rather than overwrite the target with a second copy of the old data.
+    let sourceWorking = edits[sourceChunk]?[sourceY] ?? sourceStored.subChunk
+    let sourceAir = sourceWorking.storages.map { air(in: $0, legacy: sourceWorking.isLegacyNumeric) }
+    edits[sourceChunk, default: [:]][sourceY] = try replacingLayers(
+      in: sourceWorking, at: sourceLocal, with: sourceAir)
+    var puts = [(key: Data, value: Data)]()
+    for (chunk, byY) in edits {
+      puts.append(contentsOf: try BedrockChunkSubChunkAccess.persistentPuts(
+        database: database, position: chunk, edited: byY,
+        preferLegacyTerrainIfMissing: chunk == targetChunk && preferLegacyTerrain,
+        metadataProfile: chunk == targetChunk ? targetProfile : nil))
+    }
+    return puts
   }
 
   private func locateRecord(
@@ -889,7 +1045,6 @@ final class BedrockWorldObjectNBTStore {
       return .modernActor
     }
 
-    if template?.source == .modernActor { return .modernActor }
     return .modernActor
   }
 

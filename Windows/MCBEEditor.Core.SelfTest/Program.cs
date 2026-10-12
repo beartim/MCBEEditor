@@ -7,6 +7,12 @@ using MCBEEditor.Core.Nbt;
 using MCBEEditor.Core.LevelDB;
 using MCBEEditor.Core.World;
 
+if (args.Length == 2 && args[0] == "--overall-audit")
+{
+    OverallAuditRegressionTests.Run(args[1]);
+    return;
+}
+
 if (args.SequenceEqual(new[] { "--fill-setblock-block-entity" }))
 {
     FillSetblockBlockEntityTests.Run();
@@ -61,6 +67,7 @@ if (args.SequenceEqual(new[] { "--cli-regression" }))
     FillSetblockBlockEntityTests.Run();
     StorageAuditTests.Run();
     RegionAuditTests.Run();
+    OverallAuditRegressionTests.Run("all");
     NbtConversionAuditTests.Run();
     McbeSnbtCodecTests.Run();
     StructureAuditTests.Run();
@@ -2694,6 +2701,7 @@ BlockCommandAuditTests.Run();
 FillSetblockBlockEntityTests.Run();
 StorageAuditTests.Run();
 RegionAuditTests.Run();
+OverallAuditRegressionTests.Run("all");
 NbtConversionAuditTests.Run();
 McbeSnbtCodecTests.Run();
 StructureAuditTests.Run();

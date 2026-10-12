@@ -1,0 +1,2 @@
+PASS iOS production navigation methods: 14 checks (headless UI boundaries)
+PASS Windows production navigation/state methods: object/chunk centers, queued latest controls, coalescing and unsupported dimensions (headless render boundary)

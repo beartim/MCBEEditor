@@ -1,0 +1,13 @@
+Unhandled exception. System.Exception: obsolete chunk locator overwrote newer entity selection
+   at Navigation.Check(Boolean value, String message) in /tmp/mcbe-navigation-gipo9atm/Program.cs:line 445
+   at Navigation.VerifyNavigationRace() in /tmp/mcbe-navigation-gipo9atm/Program.cs:line 391
+   at Program.Main(String[] args) in /tmp/mcbe-navigation-gipo9atm/Program.cs:line 451
+   at Program.<Main>(String[] args)
+Traceback (most recent call last):
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 381, in <module>
+    windows_test(work, sys.argv[2] if len(sys.argv) > 2 else "all")
+  File "/workspace/scratch/b1b811844258/overall-audit/Scripts/test_map_navigation.py", line 372, in windows_test
+    subprocess.run([shutil.which("dotnet") or "dotnet", "run", "--project", str(project),
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/workspace/scratch/b1b811844258/.toolchains/overall-audit/dotnet/dotnet', 'run', '--project', '/tmp/mcbe-navigation-gipo9atm/Navigation.csproj', '-p:UseSharedCompilation=false', '-v:q', '--', 'navigation-race']' returned non-zero exit status 134.

@@ -171,6 +171,9 @@ final class DimensionStore {
                 names[position.dimension] = roots.first { $0.2 == position.dimension }?.1 ?? String(position.dimension)
             }
         }
+        guard Set(names.values).count == names.count else {
+            throw MCBEEditorError.malformedData("维度名称重复，无法唯一定位维度")
+        }
         return names.map { DimensionRecord(name: $0.value, id: $0.key, chunkCount: positions[$0.key]?.count ?? 0) }
             .sorted { $0.id < $1.id }
     }
