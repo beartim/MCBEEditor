@@ -1,0 +1,2 @@
+CLI summon parsing and mutation policy passed.
+CLI summon native tests passed: dispatch, export/reopen, exact Long IDs, source integrity, legacy storage and atomic ID/reference rejection.

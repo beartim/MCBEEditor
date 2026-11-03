@@ -1,0 +1,17 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+/tmp/mcbe-native-entity-contract-gvdxt2kj/main.swift:43:13: warning: initialization of immutable value 'emptyEntities' was never used; consider replacing with assignment to '_' or removing it
+41 |         try expect(query.output.contains("entity：没有匹配的实体。"), "entity empty read-only query")
+42 | 
+43 |         let emptyEntities = try invoke("entity minecraft:cow")
+   |             `- warning: initialization of immutable value 'emptyEntities' was never used; consider replacing with assignment to '_' or removing it
+44 | 
+45 |         try expect(session.db.values == before, "entity output validation changed database records")
+Swift native integration: entity empty read-only query
+Traceback (most recent call last):
+  File "/workspace/scratch/d96617e863d4/build-fix-work/Docs/BuildFix20261103/validate_swift_entity.py", line 105, in <module>
+    run(parser.parse_args().root.resolve())
+  File "/workspace/scratch/d96617e863d4/build-fix-work/Docs/BuildFix20261103/validate_swift_entity.py", line 99, in run
+    subprocess.run([str(output)], check=True)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/tmp/mcbe-native-entity-contract-gvdxt2kj/native-entity-contract']' returned non-zero exit status 1.

@@ -1,0 +1,6 @@
+CLI summon parsing and mutation policy passed.
+System.InvalidOperationException: CLI summon regression: entity must print canonical empty and nested lists: 工作副本：/tmp/mcbe-cli-native-9931c5812e564b14a3187884c471af9c/summon-query-cache/31edc823926b4e22853f656538767075/World
+
+   at MCBEEditor.Cli.Tests.SummonCommandTests.Check(Boolean value, String message) in /workspace/scratch/d96617e863d4/build-fix-work/CLI/Windows.Tests/SummonCommandTests.cs:line 143
+   at MCBEEditor.Cli.Tests.SummonCommandTests.RunNativeTests(String root, String fixtureTool) in /workspace/scratch/d96617e863d4/build-fix-work/CLI/Windows.Tests/SummonCommandTests.cs:line 60
+   at MCBEEditor.Cli.Tests.Program.Main(String[] args) in /workspace/scratch/d96617e863d4/build-fix-work/CLI/Windows.Tests/Program.cs:line 57

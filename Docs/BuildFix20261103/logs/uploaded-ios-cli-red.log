@@ -1,0 +1,30 @@
+2026-11-03T03:52:09.3227730Z PASS: Windows/Apple build inputs, native test wiring, portable release and iOS 13.0 source contracts
+2026-11-03T03:52:10.0488070Z PASS: real Apple build shell retains prior binary on compile/architecture/platform/sign/verify failure and publishes on success (tool doubles only)
+2026-11-03T03:52:10.0490560Z PASS: Apple host tests receive a built database fixture; fixture failure preserves the prior CLI (tool doubles only)
+2026-11-03T03:52:13.8798220Z PASS swift: 446 process checks; 384 parser cases; 28 commands
+2026-11-03T03:52:14.0758800Z ..
+2026-11-03T03:52:14.0759660Z ----------------------------------------------------------------------
+2026-11-03T03:52:14.0760540Z Ran 2 tests in 0.106s
+2026-11-03T03:52:14.0760920Z 
+2026-11-03T03:52:14.0761180Z OK
+2026-11-03T03:52:14.8349710Z PASS unclosed-quote-recovers
+2026-11-03T03:52:14.8350870Z PASS missing-world-recovers
+2026-11-03T03:52:14.8351680Z PASS failed-open-keeps-current-world
+2026-11-03T03:52:14.8358050Z PASS corrupt-world-keeps-current-world
+2026-11-03T03:52:14.8376500Z PASS active-work-copy-cannot-become-new-source
+2026-11-03T03:52:14.8376900Z PASS reject-save-cache-keeps-dirty
+2026-11-03T03:52:14.8377260Z PASS reject-save-working-keeps-dirty
+2026-11-03T03:52:14.8377640Z PASS reject-save-source-keeps-dirty
+2026-11-03T03:52:14.8380410Z PASS reject-save-directory-keeps-dirty
+2026-11-03T03:52:14.8380800Z PASS repeated-in-place-save
+2026-11-03T03:52:14.8381110Z PASS save-copy-does-not-hide-pending-in-place
+2026-11-03T03:52:14.8381530Z PASS cancelled-input-cannot-save
+2026-11-03T03:52:14.8382000Z PASS whole-batch-preflight-before-write
+2026-11-03T03:52:14.8382330Z PASS mixed-case-help
+2026-11-03T03:52:14.8382660Z PASS: 14 session cases; valid native database fixture; level.dat/file lifecycle
+2026-11-03T03:52:15.1479990Z PASS: 7 environment/batch scenarios; valid native database fixture
+2026-11-03T03:52:15.6962620Z PASS NBT conversion: 48 real CLI invocations
+2026-11-03T03:52:17.2622910Z PASS MCBE-SNBT cli fixtures/atomicity: 71 cases, 152 real process invocations
+2026-11-03T03:52:17.4434190Z PASS structure file preflight: 16 real CLI invocations
+2026-11-03T03:54:18.1785720Z Swift native integration: entity empty read-only query
+2026-11-03T03:54:18.1916980Z ##[error]Process completed with exit code 1.

@@ -1,0 +1,2 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+PASS: actual Swift native entity assertions with production parser/executor/codecs; two players, empty selector, exact Long, raw cow NBT and metadata (memory DB boundary)

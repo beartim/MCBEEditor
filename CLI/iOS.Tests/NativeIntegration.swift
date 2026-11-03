@@ -18,6 +18,20 @@ enum NativeIntegration {
         if !condition { throw CliError.file("Swift native integration: " + message) }
     }
 
+    static func entityDocuments(in output: String, identifier: String) throws -> [NBTDocument] {
+        try output.components(separatedBy: "\n").filter {
+            $0.hasPrefix(identifier + " Dimension=")
+        }.map { line in
+            guard line.hasSuffix("]"), let marker = line.range(of: " NBT=[") else {
+                throw CliError.file("Swift native integration: incomplete entity output for " + identifier)
+            }
+            let payload = line[marker.upperBound..<line.index(before: line.endIndex)]
+            let documents = try MCBESNBTCodec.decode(text: "['Compound'\"\"=\"{\(payload)}\"]")
+            try expect(documents.count == 1, "entity output must contain exactly one NBT root")
+            return documents[0]
+        }
+    }
+
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
         guard args.count == 2, manager.fileExists(atPath: args[0]), manager.fileExists(atPath: args[1]) else {
@@ -147,8 +161,19 @@ enum NativeIntegration {
         try noWork(invoke("unsupported-structure", 2, ["--command", "time set 222", "--command", "structure import cli:house", "--in-place"]))
         let query = try invoke("queries", 0, ["--command", "help weather", "--command", "info", "--command", "weather query", "--command", "chunk query", "--command", "structure query", "--command", "entity"])
         try expect(query.output.contains("doWeatherCycle=1") && query.output.contains("SubChunk v8") && query.output.contains("IsSlimeChunk=") && query.output.contains("Ticking="), "query formatting/defaults")
-        try expect(query.output.contains("entity：没有匹配的实体。"), "entity empty read-only query")
+        let queriedPlayers = try entityDocuments(in: query.output, identifier: "minecraft:player")
+        try expect(queriedPlayers.count == 2 && query.output.contains("minecraft:player Dimension=overworld(0) Pos=(0.5,65,0.5) NBT=["),
+                   "default entity query must include both players with dimension and actual coordinates")
+        for id in [Int64(1001), 2002] {
+            guard let actual = queriedPlayers.first(where: { $0.root.int64Value(namedAny: ["UniqueID"]) == id }) else {
+                throw CliError.file("Swift native integration: missing queried player \(id)")
+            }
+            try expect(try BedrockNBTCodec.encode(actual) == BedrockNBTCodec.encode(player(id)), "entity player NBT must remain byte-exact")
+        }
         try noWork(query)
+        let emptyEntities = try invoke("entity-empty", 0, ["--command", "entity minecraft:cow"])
+        try expect(emptyEntities.output.contains("entity：没有匹配的实体。"), "unmatched identifier must report an empty read-only query")
+        try noWork(emptyEntities)
 
         let commands = [
             "daylock 1", "time set 12345", "time query gametime", "weather thunder 12000 0.5 0",
@@ -172,9 +197,18 @@ enum NativeIntegration {
         let scriptData = Data(("\u{FEFF}" + commands.joined(separator: "\r\n") + "\r\n").utf8)
         try scriptData.write(to: script)
         let allFamilies = try invoke("all-families", 0, ["--script", script.path, "--output", saved.path])
-        try expect(allFamilies.output.contains("minecraft:pig=[") && allFamilies.output.contains("\"UniqueID\"="), "entity summoned NBT")
-        try expect(allFamilies.output.contains(#"'Long'"UniqueID"="9007199254740993""#), "summon explicit Long lost precision")
-        try expect(allFamilies.output.contains(#"minecraft:cow=['String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"]"#), "raw summon changed supplied NBT")
+        let queriedPigs = try entityDocuments(in: allFamilies.output, identifier: "minecraft:pig")
+        try expect(queriedPigs.count == 1 && queriedPigs[0].root.int64Value(namedAny: ["UniqueID"]) == 9007199254740993,
+                   "summoned entity query must retain the exact Long UniqueID")
+        let queriedCows = try entityDocuments(in: allFamilies.output, identifier: "minecraft:cow")
+        let rawCow = NBTDocument(rootName: "", root: .compound([
+            NBTNamedTag(name: "identifier", value: .string("minecraft:cow")),
+            NBTNamedTag(name: "Pos", value: .list(.float, [.float(0), .float(64), .float(0)])),
+            NBTNamedTag(name: "UniqueID", value: .long(12345678))
+        ]))
+        try expect(queriedCows.count == 1 && allFamilies.output.contains("minecraft:cow Dimension=overworld(0) Pos=(0,64,0) NBT=["),
+                   "raw summon entity query must include type, dimension and actual coordinates")
+        try expect(try BedrockNBTCodec.encode(queriedCows[0]) == BedrockNBTCodec.encode(rawCow), "raw summon query changed supplied NBT")
         try noWork(allFamilies)
         try expect(try Data(contentsOf: script) == scriptData, "command script changed")
 

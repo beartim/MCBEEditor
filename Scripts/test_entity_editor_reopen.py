@@ -28,6 +28,9 @@ def member(source: str, marker: str) -> str:
 
 UI = r'''
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 enum TableStyle { case insetGrouped }
 enum CellStyle { case subtitle }
 enum AlertStyle { case actionSheet, alert }
@@ -365,7 +368,8 @@ def run(root: Path) -> None:
         temp = Path(directory)
         row_source = root / "Sources/UI/WorldObjectListItem.swift"
         rows = row_source.read_text() if row_source.is_file() else ""
-        generated = {"fixture.swift": fixture, "ui.swift": UI, "controllers.swift": "import Foundation\n" + rows + tracker + "\n" + editor_class + lists, "regression.swift": TEST}
+        imports = "import Foundation\n#if canImport(CoreGraphics)\nimport CoreGraphics\n#endif\n"
+        generated = {"fixture.swift": fixture, "ui.swift": UI, "controllers.swift": imports + rows + tracker + "\n" + editor_class + lists, "regression.swift": TEST}
         for name, content in generated.items():
             (temp / name).write_text(content)
         output = temp / "entity-editor-reopen"

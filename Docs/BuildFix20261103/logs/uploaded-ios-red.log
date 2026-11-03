@@ -1,0 +1,29 @@
+﻿2026-11-03T03:49:52.6308950Z ##[group]Run bash Scripts/run_core_tests.sh
+2026-11-03T03:49:52.6309250Z [36;1mbash Scripts/run_core_tests.sh[0m
+2026-11-03T03:49:52.6362560Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-03T03:49:52.6362850Z ##[endgroup]
+2026-11-03T03:49:59.2355600Z MCBE-SNBT Swift codec: byte-exact roundtrip, canonical text, legacy forms, malformed input and depth checks passed
+2026-11-03T03:50:01.6255090Z PASS MCBE-SNBT probe fixtures/atomicity: 71 cases, 138 real process invocations
+2026-11-03T03:50:02.0714870Z PASS: 12 production projection coordinate cases
+2026-11-03T03:50:02.6456680Z PASS: 1740 production map hit/anchor checks; 8 zoom scales, Y/X/Z, 3 canvas densities, entity/block entity/local and online player, hidden markers and panned corners
+2026-11-03T03:50:02.6509130Z PASS: viewport tap and production menu routing contracts (UIKit source audit only)
+2026-11-03T03:50:03.1280550Z PASS iOS production navigation methods: 14 checks (headless UI boundaries)
+2026-11-03T03:50:10.6727660Z /var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/ui.swift:76:66: error: type 'CGRect' has no member 'zero'
+2026-11-03T03:50:10.6729940Z class Popover { var sourceView: UIView?; var sourceRect = CGRect.zero }
+2026-11-03T03:50:10.6730930Z                                                           ~~~~~~ ^~~~
+2026-11-03T03:50:10.6732470Z /var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/ui.swift:39:49: error: type 'CGRect' has no member 'zero'
+2026-11-03T03:50:10.6733980Z     func rectForRow(at: IndexPath) -> CGRect { .zero }
+2026-11-03T03:50:10.6734750Z                                                ~^~~~
+2026-11-03T03:50:10.6791390Z error: fatalError
+2026-11-03T03:50:10.6891380Z Traceback (most recent call last):
+2026-11-03T03:50:10.6900660Z   File "/Users/runner/work/MCBEEditor/MCBEEditor/Scripts/test_entity_editor_reopen.py", line 379, in <module>
+2026-11-03T03:50:10.6902330Z     run(parser.parse_args().root.resolve())
+2026-11-03T03:50:10.6903290Z     ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-11-03T03:50:10.6904580Z   File "/Users/runner/work/MCBEEditor/MCBEEditor/Scripts/test_entity_editor_reopen.py", line 372, in run
+2026-11-03T03:50:10.6906530Z     subprocess.run([swiftc, *map(str, files), *(str(temp / name) for name in generated), "-parse-as-library", "-o", str(output)], check=True)
+2026-11-03T03:50:10.6917970Z     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-11-03T03:50:10.6918630Z   File "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+2026-11-03T03:50:10.6919180Z     raise CalledProcessError(retcode, process.args,
+2026-11-03T03:50:10.6919460Z                              output=stdout, stderr=stderr)
+2026-11-03T03:50:10.6927810Z subprocess.CalledProcessError: Command '['/usr/bin/swiftc', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/BedrockBlockIdentifier.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/BedrockLegacyBlockCatalog.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/BedrockLegacyBlockStateConverter.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockSubChunk.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockSubChunkEditor.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockChunkSubChunkAccess.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockLegacyBlockExtraData.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockEmptyChunk.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockBiomeData.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/Errors.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/Hex.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/AtomicFile.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/NBT/NBTTypes.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/NBT/BinaryCursor.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/NBT/BedrockNBTCodec.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/NBT/ConsecutiveNBTCodec.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/MapCoordinate.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockDBKey.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/UI/NBTNode.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/NBT/NBTTreeMutation.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Support/BedrockDataValueCatalog.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Entity/BedrockWorldObject.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Entity/BedrockWorldObjectScanner.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Entity/BedrockEntityCommonNBT.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Entity/BedrockWorldObjectNBTStore.swift', '/Users/runner/work/MCBEEditor/MCBEEditor/Sources/Chunk/BedrockBlockColumn.swift', '/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/fixture.swift', '/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/ui.swift', '/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/controllers.swift', '/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/regression.swift', '-parse-as-library', '-o', '/var/folders/s6/5hzmn6lx4dz5nxs7k_0slzph0000gn/T/mcbe-entity-reopen-paffe295/entity-editor-reopen']' returned non-zero exit status 1.
+2026-11-03T03:50:10.7022320Z ##[error]Process completed with exit code 1.

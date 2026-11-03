@@ -52,13 +52,19 @@ internal static class SummonCommandTests
             Check(exit == 0, "native CLI must dispatch and export both summon forms: " + error);
         }
         Check(WorldFixture.SameSnapshot(original, WorldFixture.Snapshot(source)), "summon changed source-world files");
+        byte[] queriedCowNbt;
         using (var output = new StringWriter())
         using (var error = new StringWriter())
         {
             var exit = MCBEEditor.Cli.Program.Run(["--world", archive, "--cache-dir", Path.Combine(root, "summon-query-cache"),
                 "--command", "entity overworld 0 64 0 0 64 0"], output, error);
-            Check(exit == 0 && output.ToString().Contains("'List'''\"Items\"=\"\"", StringComparison.Ordinal)
-                && output.ToString().Contains("['List'''=[]]", StringComparison.Ordinal), "entity must print canonical empty and nested lists: " + error);
+            const string prefix = "minecraft:cow Dimension=overworld(0) Pos=(0,64,0) NBT=[";
+            var rows = output.ToString().Split('\n').Select(line => line.TrimEnd('\r'))
+                .Where(line => line.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+            Check(exit == 0 && rows.Length == 1 && rows[0].EndsWith(']'),
+                "entity must print one cow with dimension, coordinates and MCBE-SNBT: " + output + error);
+            var payload = rows[0][prefix.Length..^1];
+            queriedCowNbt = Encode(McbeSnbtCodec.Decode(Encoding.UTF8.GetBytes("['Compound'\"\"=\"{" + payload + "}\"]")).Single());
         }
         using (var verification = PortableWorldWorkspace.Create(Path.Combine(root, "summon-verify"), archive))
         {
@@ -76,9 +82,8 @@ internal static class SummonCommandTests
                 var entities = new BedrockWorldObjectScanner(db).ScanRegion(0, 0, 0, 0, true, false).Objects;
                 Check(entities.Count == 7 && entities.All(item => item.UniqueId is not null and not 0)
                     && entities.Select(item => item.UniqueId).Distinct().Count() == 7, "all seven summons need distinct nonzero IDs");
-                var cowText = BlockCommandNbtOutputFormatter.Root(entities.Single(item => item.UniqueId == 12345678).Document.Root);
-                Check(Encode(new NbtDocument("", new NbtCompoundValue(BlockCommandParser.ParseStates(cowText)))).SequenceEqual(expected),
-                    "entity output must be accepted again without losing empty or nested List types");
+                Check(queriedCowNbt.SequenceEqual(expected),
+                    "actual entity query MCBE-SNBT must retain every tag byte, including empty and nested List types");
                 foreach (var id in new long[] { long.MinValue, long.MaxValue, 9007199254740993 })
                     Check(entities.Single(item => item.UniqueId == id).Document.Root.CompoundValue("UniqueID") is NbtLongValue exact && exact.Value == id, "Long ID exactness after export");
                 var definitions = (NbtCompoundValue)entities.Single(item => item.Identifier == "minecraft:chicken").Document.Root;

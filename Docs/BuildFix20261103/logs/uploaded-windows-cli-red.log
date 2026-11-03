@@ -1,0 +1,30 @@
+2026-11-03T03:51:40.2205956Z Block command audit scenarios passed.
+2026-11-03T03:51:40.2472087Z Fill/setblock block entities passed: optional/ignored root coordinates, canonical Int positions, nested preservation, three modes, reverse/cross-chunk fill and atomic failures.
+2026-11-03T03:51:40.3469484Z Storage audit scenarios passed.
+2026-11-03T03:51:40.3474470Z Region arithmetic audit scenarios passed.
+2026-11-03T03:51:40.3517022Z Overall audit regressions passed: all
+2026-11-03T03:51:40.3624141Z NBT conversion audit scenarios passed.
+2026-11-03T03:51:40.3730725Z MCBE-SNBT passed: 68 shared fixtures, typed roots, NaN/raw-string losslessness, strict UTF-8 and depth limits.
+2026-11-03T03:51:40.3814708Z Structure audit scenarios passed.
+2026-11-03T03:51:40.3887000Z Entity UniqueID edits passed: collisions, unchanged storage references, legacy records, relocation and repeated saves.
+2026-11-03T03:51:40.4058872Z Summon commands passed: exact Long IDs, Auto, raw NBT, validation, ID/reference collisions and both storage formats.
+2026-11-03T03:51:40.4154068Z Object editor refresh passed: same editor repeated block-entity saves across chunks/dimensions and all block layers.
+2026-11-03T03:51:40.4154608Z CLI-related existing core regressions passed.
+2026-11-03T03:51:43.1248496Z CLI command syntax passed: 12 readonly queries, 11 writes and atomic syntax preflight.
+2026-11-03T03:51:43.1326807Z CLI dimension parser tests passed.
+2026-11-03T03:51:43.1348398Z CLI entity parser and read-only policy regressions passed.
+2026-11-03T03:51:44.1898685Z CLI dimension add/empty native persistence tests passed.
+2026-11-03T03:51:44.8820376Z CLI entity native queries: all dimensions, exact bounds, identifier variants, full NBT, diagnostics and read-only execution passed.
+2026-11-03T03:51:44.8855394Z CLI summon parsing and mutation policy passed.
+2026-11-03T03:51:45.6234679Z System.InvalidOperationException: CLI summon regression: entity must print canonical empty and nested lists: 工作副本：C:\Users\runneradmin\AppData\Local\Temp\mcbe-cli-native-b846b3567f2a431f9518d20bedcb12b2\summon-query-cache\be4675e35d814fb8b59b3276870ce29e\World
+2026-11-03T03:51:45.6235705Z 
+2026-11-03T03:51:45.6236277Z    at MCBEEditor.Cli.Tests.SummonCommandTests.Check(Boolean value, String message) in D:\a\MCBEEditor\MCBEEditor\CLI\Windows.Tests\SummonCommandTests.cs:line 143
+2026-11-03T03:51:45.6237454Z    at MCBEEditor.Cli.Tests.SummonCommandTests.RunNativeTests(String root, String fixtureTool) in D:\a\MCBEEditor\MCBEEditor\CLI\Windows.Tests\SummonCommandTests.cs:line 60
+2026-11-03T03:51:45.6238520Z    at MCBEEditor.Cli.Tests.Program.RunTests(String root, String fixtureTool) in D:\a\MCBEEditor\MCBEEditor\CLI\Windows.Tests\Program.cs:line 81
+2026-11-03T03:51:45.6239380Z    at MCBEEditor.Cli.Tests.Program.Main(String[] args) in D:\a\MCBEEditor\MCBEEditor\CLI\Windows.Tests\Program.cs:line 60
+2026-11-03T03:51:46.0409326Z [31;1mException: [0mD:\a\MCBEEditor\MCBEEditor\CLI\Scripts\build-windows.ps1:53[0m
+2026-11-03T03:51:46.0409875Z [31;1m[0m[36;1mLine |[0m
+2026-11-03T03:51:46.0410427Z [31;1m[0m[36;1m[36;1m  53 | [0m … XITCODE -ne 0) { [36;1mthrow 'CLI native world integration tests failed.'[0m }[0m
+2026-11-03T03:51:46.0411136Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-11-03T03:51:46.0411752Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCLI native world integration tests failed.[0m
+2026-11-03T03:51:46.0622307Z ##[error]Process completed with exit code 1.
