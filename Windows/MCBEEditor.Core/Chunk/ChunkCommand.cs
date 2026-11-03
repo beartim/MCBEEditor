@@ -14,16 +14,14 @@ public sealed record ChunkCommandRequest(ChunkCommandKind Kind, int? Dimension, 
 
 public static class ChunkCommandParser
 {
-    public const string Usage =
-        "chunk query [维度 [区块X 区块Z]]\n" +
-        "chunk empty 维度 区块X 区块Z\n" +
-        "chunk regenerate 维度 区块X 区块Z\n" +
-        "维度：存档登记名称或Int32 ID；原版名称overworld / nether / the_end";
+    public const string Usage = "chunk\nchunk query [维度 [区块X 区块Z]]\nchunk empty 维度 区块X 区块Z\nchunk regenerate 维度 区块X 区块Z";
 
     public static ChunkCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("命令不能为空");
         var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 1 && parts[0].Equals("chunk", StringComparison.OrdinalIgnoreCase))
+            return new ChunkCommandRequest(ChunkCommandKind.Query, null, null, null);
         if (parts.Length < 2 || !parts[0].Equals("chunk", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException(" 当前只开放 chunk 命令。\n" + Usage);
 

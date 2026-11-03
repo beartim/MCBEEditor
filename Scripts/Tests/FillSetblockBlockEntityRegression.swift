@@ -3,9 +3,10 @@ import Foundation
 enum FillSetblockBlockEntityRegression {
     static func run() throws {
         for text in ["setblock overworld 0 64 0 minecraft:stone NULL", "fill overworld 0 64 0 16 64 0 minecraft:stone NULL"] {
-            var rejected = false
-            do { _ = try WorldCommandParser.parse(text) } catch { rejected = true }
-            precondition(rejected, "missing required final block-entity argument was accepted: \(text)")
+            switch try WorldCommandParser.parse(text) {
+            case .setBlock(_, _, _, .preserve), .fill(_, _, _, .preserve): break
+            default: preconditionFailure("omitted block entity must preserve: \(text)")
+            }
         }
         let session = WorldSession()
         let executor = WorldCommandExecutor(session: session)
@@ -130,7 +131,7 @@ enum FillSetblockBlockEntityRegression {
         // Applying an already satisfied preserve/empty request is a successful no-op.
         try run("setblock 5000 0 64 0 minecraft:stone NULL " + tags(0, 64, 0))
         let noOpBefore = session.db.values
-        let preservedAgain = try run("setblock 5000 0 64 0 minecraft:stone NULL preserve")
+        let preservedAgain = try run("setblock 5000 0 64 0 minecraft:stone")
         precondition(!preservedAgain.changedWorld && session.db.values == noOpBefore, "unchanged preserve must succeed without marking the world dirty")
         try run("setblock 5000 0 64 0 minecraft:stone NULL empty")
         let emptyBefore = session.db.values

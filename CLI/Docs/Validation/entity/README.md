@@ -1,5 +1,7 @@
 # entity 更新验证记录
 
+2026-10-29：本文保留旧版 entity（不含玩家、旧输出）的历史验证。当前 entity 默认 @e，支持玩家、UniqueID 和选择器，并输出维度、坐标与完整 MCBE-SNBT；新规则见 [全命令格式](../../../../COMMAND_SYNTAX.md)，本轮验证见 [EntityTargetQuery](../../../../Docs/EntityTargetQuery/VALIDATION.md)。
+
 运行环境：Linux x86_64，.NET SDK 10.0.100，Swift 5.10.1，CMake 3.31.6。以下日志对应本次交付源码，所有列出的验证命令退出码均为 0。
 
 | 日志 | 检查内容 |

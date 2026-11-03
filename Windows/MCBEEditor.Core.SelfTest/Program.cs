@@ -48,6 +48,24 @@ if (args.SequenceEqual(new[] { "--nbt-list-output" }))
     return;
 }
 
+if (args.SequenceEqual(new[] { "--command-syntax" }))
+{
+    CommandSyntaxTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--drop4" }))
+{
+    Drop4CatalogTests.Run();
+    return;
+}
+
+if (args.SequenceEqual(new[] { "--kill-region" }))
+{
+    KillRegionTests.Run();
+    return;
+}
+
 if (args.SequenceEqual(new[] { "--entity-query" }))
 {
     EntityQueryTests.Run();
@@ -56,6 +74,9 @@ if (args.SequenceEqual(new[] { "--entity-query" }))
 
 if (args.SequenceEqual(new[] { "--cli-regression" }))
 {
+    CommandSyntaxTests.Run();
+    Drop4CatalogTests.Run();
+    KillRegionTests.Run();
     NbtOutputListTests.Run();
     EntityQueryTests.Run();
     EndMissingSubChunkTests.Run();
@@ -2130,8 +2151,8 @@ using (var regionSearchDb = new SelfTestWorldDatabase())
 
 
 // information/tool parity: data-value catalogs, dedicated weather/time/experience stores and .mcworld export.
-Assert(BedrockDataValueCatalog.Entities.Count == 141
-       && BedrockDataValueCatalog.StatusEffects.Count == 37
+Assert(BedrockDataValueCatalog.Entities.Count == 143
+       && BedrockDataValueCatalog.StatusEffects.Count == 38
        && BedrockDataValueCatalog.Enchantments.Count == 42
        && BedrockDataValueCatalog.LegacyBlocks.Count == 256,
     " data-value catalogs match the current iOS table sizes");
@@ -2684,6 +2705,9 @@ Console.WriteLine("MCBEEditor.Core self-test passed; X/Y/Z modes, 129-block mine
 Console.WriteLine("MCBEEditor.Core self-test passed; external colour override routing and bidirectional x/y/z projection matched expectations.");
 
 NbtOutputListTests.Run();
+CommandSyntaxTests.Run();
+Drop4CatalogTests.Run();
+KillRegionTests.Run();
 EntityQueryTests.Run();
 DimensionTests.Run();
 DimensionAddTests.Run();

@@ -497,7 +497,7 @@
   {
     "id": "case-100",
     "command": "give @s Auto minecraft:stone 64",
-    "valid": false
+    "valid": true
   },
   {
     "id": "case-101",
@@ -572,12 +572,12 @@
   {
     "id": "case-115",
     "command": "setblock overworld 0 64 0 minecraft:stone empty",
-    "valid": false
+    "valid": true
   },
   {
     "id": "case-116",
     "command": "fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:water empty",
-    "valid": false
+    "valid": true
   },
   {
     "id": "case-117",
@@ -761,9 +761,9 @@
     "valid_cli": true
   },
   {
-    "id": "entity-numeric-dimension",
+    "id": "entity-zero-uniqueid-invalid",
     "command": "entity 0",
-    "valid": true
+    "valid": false
   },
   {
     "id": "entity-incomplete-point",
@@ -878,7 +878,7 @@
   {
     "id": "summon-extension-false-04",
     "command": "summon minecraft:pig overworld 0 64 0 default auto",
-    "valid": false
+    "valid": true
   },
   {
     "id": "summon-extension-false-05",
@@ -1006,9 +1006,9 @@
     "valid": false
   },
   {
-    "id": "dimension-missing-subcommand",
+    "id": "dimension-default-query",
     "command": "dimension",
-    "valid": false
+    "valid": true
   },
   {
     "id": "dimension-add-custom",
@@ -1236,14 +1236,14 @@
     "valid": true
   },
   {
-    "id": "block-entity-setblock-required",
+    "id": "block-entity-setblock-default-preserve",
     "command": "setblock overworld 0 64 0 minecraft:stone NULL",
-    "valid": false
+    "valid": true
   },
   {
-    "id": "block-entity-fill-required",
+    "id": "block-entity-fill-default-preserve",
     "command": "fill overworld 0 64 0 16 64 0 minecraft:stone NULL",
-    "valid": false
+    "valid": true
   },
   {
     "id": "block-entity-setblock-user-example",
@@ -1314,5 +1314,610 @@
     "id": "snbt-nested-apostrophe",
     "command": "summon 'String'\"identifier\"=\"minecraft:pig\",'List''Float'\"Pos\"=\"0,64,0\",'Compound'\"Extra\"=\"{'String'\"label\"=\"O'Brien\"}\"",
     "valid": true
+  },
+  {
+    "id": "kill-region-example",
+    "command": "kill overworld 0 0 0 1 1 1 1",
+    "valid": true
+  },
+  {
+    "id": "kill-region-skip-creative",
+    "command": "kill overworld 0 0 0 1 1 1 0",
+    "valid": true
+  },
+  {
+    "id": "kill-region-reverse",
+    "command": "KiLl MiNeCrAfT:OvErWoRlD 1 1 1 0 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "kill-region-decimals",
+    "command": "kill nether -1.5 -2.25 -3 0.5 2 3 0",
+    "valid": true
+  },
+  {
+    "id": "kill-region-point",
+    "command": "kill the_end 0 0 0 0 0 0 1",
+    "valid": true
+  },
+  {
+    "id": "kill-region-negative-dimension",
+    "command": "kill -7 0 0 0 1 1 1 0",
+    "valid": true
+  },
+  {
+    "id": "kill-region-missing-flag",
+    "command": "kill overworld 0 0 0 1 1 1",
+    "valid": true
+  },
+  {
+    "id": "kill-region-bad-flag",
+    "command": "kill overworld 0 0 0 1 1 1 2",
+    "valid": false
+  },
+  {
+    "id": "kill-region-nan",
+    "command": "kill overworld NaN 0 0 1 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "kill-region-infinity",
+    "command": "kill overworld 0 inf 0 1 1 1 0",
+    "valid": false
+  },
+  {
+    "id": "kill-region-float-overflow",
+    "command": "kill overworld 0 0 0 1 1 1e40 1",
+    "valid": false
+  },
+  {
+    "id": "kill-region-dimension-overflow",
+    "command": "kill 2147483648 0 0 0 1 1 1 0",
+    "valid": false
+  },
+  {
+    "id": "kill-region-extra",
+    "command": "kill overworld 0 0 0 1 1 1 1 extra",
+    "valid": false
+  },
+  {
+    "id": "drop4-freezing-give",
+    "command": "effect give @a freezing 200 1",
+    "valid": true
+  },
+  {
+    "id": "drop4-freezing-clear",
+    "command": "effect clear @e freezing",
+    "valid": true
+  },
+  {
+    "id": "drop4-ice-caves-biome",
+    "command": "fillbiome overworld 0 -64 0 15 64 15 minecraft:ice_caves",
+    "valid": true
+  },
+  {
+    "id": "drop4-effect-numeric-syntax-unchanged",
+    "command": "effect give @a 38 200 1",
+    "valid": false
+  },
+  {
+    "id": "drop4-frostbite-summon",
+    "command": "summon minecraft:frostbite overworld 0 64 0 default",
+    "valid": true
+  },
+  {
+    "id": "drop4-ice-crystal-setblock",
+    "command": "setblock overworld 0 64 0 minecraft:ice_crystal NULL preserve",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-001",
+    "command": "chunk",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-002",
+    "command": "structure",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-003",
+    "command": "time",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-004",
+    "command": "time query",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-005",
+    "command": "weather",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-006",
+    "command": "weather clear",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-007",
+    "command": "weather rain",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-008",
+    "command": "weather thunder",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-009",
+    "command": "weather rain 100",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-010",
+    "command": "weather thunder 100 0.25",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-011",
+    "command": "tickingarea",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-012",
+    "command": "tickingarea list",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-013",
+    "command": "tickingarea query",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-014",
+    "command": "tickingarea query nether",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-015",
+    "command": "tickingarea add square 0 1 1 0 0 Spawn",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-016",
+    "command": "tickingarea add circle 0 1 -1 0 Spawn",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-017",
+    "command": "give @s minecraft:stone",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-018",
+    "command": "give @s minecraft:stone 64",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-019",
+    "command": "give @s minecraft:stone 64 NULL",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-020",
+    "command": "give @s 5 minecraft:stone",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-021",
+    "command": "give @s aUtO minecraft:stone 64 null",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-022",
+    "command": "kill @a",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-023",
+    "command": "kill -42",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-024",
+    "command": "kill 7 1 1 1 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-025",
+    "command": "effect give @s freezing",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-026",
+    "command": "effect give @s freezing -1",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-027",
+    "command": "effect give @s minecraft:freezing",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-028",
+    "command": "effect clear @s",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-029",
+    "command": "effect clear @s minecraft:freezing",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-030",
+    "command": "summon minecraft:pig 0 0 64 0",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-031",
+    "command": "summon minecraft:pig 0 0 64 0 DEFAULT auto",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-032",
+    "command": "setblock 0 0 64 0 minecraft:stone",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-033",
+    "command": "setblock 0 0 64 0 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-034",
+    "command": "setblock 0 0 64 0 minecraft:stone empty",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-035",
+    "command": "setblock 0 0 64 0 minecraft:stone minecraft:water",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-036",
+    "command": "setblock 0 0 64 0 minecraft:stone null minecraft:water EMPTY",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-037",
+    "command": "fill 0 0 64 0 1 64 1 minecraft:stone",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-038",
+    "command": "fill 0 0 64 0 1 64 1 minecraft:stone NULL",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-039",
+    "command": "storage set 0 0 64 0 2 minecraft:water",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-040",
+    "command": "dimension extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-041",
+    "command": "chunk query 0 1",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-042",
+    "command": "time query daytime extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-043",
+    "command": "time add",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-044",
+    "command": "weather clear 1 extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-045",
+    "command": "weather rain 1 1 1 extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-046",
+    "command": "weather rain NULL",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-047",
+    "command": "tickingarea delete",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-048",
+    "command": "tickingarea query ALL extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-049",
+    "command": "tickingarea add square 0 0 0 1 1",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-050",
+    "command": "give @s",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-051",
+    "command": "give @s minecraft:stone NULL",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-052",
+    "command": "give @s Auto minecraft:stone 1 NULL extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-053",
+    "command": "give @s 36 minecraft:stone",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-054",
+    "command": "give @s minecraft:stone 0",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-055",
+    "command": "kill",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-056",
+    "command": "kill 0 0 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-057",
+    "command": "effect give @s",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-058",
+    "command": "effect give @s freezing NULL",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-059",
+    "command": "effect clear @s ALL extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-060",
+    "command": "effect clear @s all",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-061",
+    "command": "summon minecraft:pig 0 0 64",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-062",
+    "command": "summon minecraft:pig 0 0 64 0 42",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-063",
+    "command": "summon minecraft:pig 0 0 64 0 NULL",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-064",
+    "command": "setblock 0 0 64 0",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-065",
+    "command": "setblock 0 0 64 0 minecraft:stone NULL NULL",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-066",
+    "command": "setblock 0 0 64 0 minecraft:stone empty minecraft:water",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-067",
+    "command": "storage set 0 0 64 0 minecraft:stone",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-068",
+    "command": "storage set 0 0 64 0 0 minecraft:stone NULL extra",
+    "valid": false
+  },
+  {
+    "id": "syntax-unified-069",
+    "command": "teleport @s 0 0 auto 0",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-070",
+    "command": "weather rain 0 0 0",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-071",
+    "command": "effect give @s freezing 0 0",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-072",
+    "command": "summon minecraft:pig 0 0 64 0 DeFaUlT aUtO",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-073",
+    "command": "setblock 0 0 64 0 minecraft:stone NuLl PRESERVE",
+    "valid": true
+  },
+  {
+    "id": "syntax-unified-074",
+    "command": "give @s minecraft:stone 1 null",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-00",
+    "command": "entity @e",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-01",
+    "command": "entity @s",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-02",
+    "command": "entity @a",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-03",
+    "command": "entity 12345678",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-04",
+    "command": "entity -42",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-05",
+    "command": "entity 2147483648",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-06",
+    "command": "entity -9223372036854775808",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-07",
+    "command": "entity 9223372036854775807",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-08",
+    "command": "entity minecraft:pig",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-09",
+    "command": "entity minecraft:player",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-10",
+    "command": "entity custom:mob",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-11",
+    "command": "entity @e 0",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-12",
+    "command": "entity @a nether",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-13",
+    "command": "entity 12345678 0",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-14",
+    "command": "entity minecraft:cow 0 -0.5 64.25 8.5 1.5 65.25 10.5",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-15",
+    "command": "entity @a overworld 0 0 0 1 1 1",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-16",
+    "command": "entity @e -7 1.5 2.5 3.5 -1 -2 -3",
+    "valid": true
+  },
+  {
+    "id": "entity-target-true-17",
+    "command": "entity minecraft:overworld",
+    "valid": true
+  },
+  {
+    "id": "entity-target-false-01",
+    "command": "entity 9223372036854775808",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-02",
+    "command": "entity -9223372036854775809",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-03",
+    "command": "entity @p",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-04",
+    "command": "entity @e 0 0",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-05",
+    "command": "entity @a 0 0 64 0",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-06",
+    "command": "entity @e 0 0 64 0 1 65",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-07",
+    "command": "entity @e 0 0 64 0 1 65 1 extra",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-08",
+    "command": "entity @a 0 NaN 0 0 1 1 1",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-09",
+    "command": "entity @a 2147483648",
+    "valid": false
+  },
+  {
+    "id": "entity-target-false-10",
+    "command": "entity minecraft:cow 0 0 0 0 1 1 1e40",
+    "valid": false
   }
 ]

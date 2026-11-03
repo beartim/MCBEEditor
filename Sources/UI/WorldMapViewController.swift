@@ -5415,12 +5415,16 @@ final class WorldMapViewController: UIViewController, UIScrollViewDelegate, UITe
     alert.addAction(
       UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
         guard let self = self else { return }
-        let controller = WorldObjectNBTEditorViewController(
-          object: object,
-          session: self.session,
-          onSave: { [weak self] in self?.session.invalidateAfterExternalChange() }
-        )
-        self.navigationController?.pushViewController(controller, animated: true)
+        do {
+          let controller = try WorldObjectNBTEditorViewController(
+            object: object,
+            session: self.session,
+            onSave: { [weak self] _ in self?.session.invalidateAfterExternalChange() }
+          )
+          self.navigationController?.pushViewController(controller, animated: true)
+        } catch {
+          self.showError(error, title: "读取对象 NBT 失败，请刷新地图")
+        }
       })
     alert.addAction(
       UIAlertAction(title: "定位到对象", style: .default) { [weak self] _ in

@@ -1,0 +1,2 @@
+# Excerpt from the final complete Scripts/run_core_tests.sh run (exit 0).
+PASS: real map/resident callbacks, Save/back/reopen/Save, actor/legacy/block NBT, moves/UniqueID, three-root index shifts, independent viewed badges/search, deletion and failed reads/saves

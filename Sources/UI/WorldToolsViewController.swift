@@ -45,7 +45,7 @@ final class WorldToolsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return infoRows.count
-        case 1: return 5
+        case 1: return 6
         case 2: return 3
         case 3, 4: return 1
         default: return 0
@@ -94,7 +94,8 @@ final class WorldToolsViewController: UITableViewController {
                 ("生物群系ID", "生物群系数字 ID、名称与颜色图标"),
                 ("状态效果ID", "状态效果数字 ID、名称与十六进制值"),
                 ("魔咒ID", "魔咒数字 ID、名称与十六进制值"),
-                ("方块ID", "旧版数字 ID、字符串 ID 与十六进制值")
+                ("方块ID", "旧版数字 ID、字符串 ID 与十六进制值"),
+                ("新版冰系方块ID", "冰锥、冰晶、脆冰的预览版方块类型 ID")
             ]
             cell.textLabel?.text = rows[indexPath.row].0
             cell.detailTextLabel?.text = rows[indexPath.row].1
@@ -178,6 +179,8 @@ final class WorldToolsViewController: UITableViewController {
             controller = BedrockDataValueListViewController(title: "魔咒 ID", entries: BedrockDataValueCatalog.enchantments)
         case 4:
             controller = BedrockDataValueListViewController(title: "方块 ID", entries: BedrockLegacyBlockCatalog.blocks)
+        case 5:
+            controller = BedrockDataValueListViewController(title: "冰系方块 ID（预览）", entries: BedrockDataValueCatalog.modernBlocks)
         default:
             return
         }

@@ -61,6 +61,10 @@ enum BedrockBiomeCatalog {
             return UIColor(hue: hue, saturation: 0.42, brightness: 0.74, alpha: 1)
         }
 
+        if identifier == "minecraft:ice_caves" {
+            return UIColor(red: 154.0 / 255.0, green: 187.0 / 255.0, blue: 221.0 / 255.0, alpha: 1)
+        }
+
         // Oceans and rivers use depth/temperature-aware blues.
         if identifier.contains("deep_frozen_ocean") { return UIColor(red: 0.25, green: 0.46, blue: 0.64, alpha: 1) }
         if identifier.contains("frozen_ocean") { return UIColor(red: 0.42, green: 0.65, blue: 0.78, alpha: 1) }

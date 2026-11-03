@@ -14,10 +14,9 @@ internal static class FillSetblockBlockEntityTests
             "setblock overworld 0 64 0 minecraft:stone NULL",
             "fill overworld 0 64 0 16 64 0 minecraft:stone NULL" })
         {
-            var rejected = false;
-            try { _ = BlockCommandParser.Parse(command); }
-            catch (InvalidDataException) { rejected = true; }
-            Check(rejected, "missing required final block-entity argument was accepted: " + command);
+            var request = BlockCommandParser.Parse(command);
+            var mode = request is SetBlockCommandRequest set ? set.BlockEntity.Mode : ((FillBlockCommandRequest)request).BlockEntity.Mode;
+            Check(mode == BlockEntityCommandMode.Preserve, "omitted block entity must preserve: " + command);
         }
         using var db = new SelfTestWorldDatabase();
         var store = new BedrockRegionBlockStore(db);
@@ -115,7 +114,7 @@ internal static class FillSetblockBlockEntityTests
         var brokenKey = Key(0, 1, 0);
         byte[] broken = [10, 0, 0, 3];
         db.Put(brokenKey, broken);
-        Run("fill overworld 0 64 0 16 64 0 minecraft:stone NULL preserve");
+        Run("fill overworld 0 64 0 16 64 0 minecraft:stone");
         Check(db.Get(brokenKey)!.SequenceEqual(broken), "preserve parsed or rewrote malformed entities");
         FailsWithoutWrites("fill overworld 0 64 0 16 64 0 minecraft:dirt NULL empty");
         FailsWithoutWrites("fill overworld 0 64 0 16 64 0 minecraft:dirt NULL " + Tags(0, 64, 0));

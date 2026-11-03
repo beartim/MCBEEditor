@@ -2,10 +2,10 @@ import UIKit
 
 final class VillageResidentEntitiesViewController: UITableViewController, UISearchResultsUpdating {
     private let session: WorldSession
-    private let allObjects: [BedrockWorldObject]
+    private var allObjects: [WorldObjectListItem]
     private let residentKind: VillageResidentEntityKind
     private let searchController = UISearchController(searchResultsController: nil)
-    private var shownObjects = [BedrockWorldObject]()
+    private var shownObjects = [WorldObjectListItem]()
     private let viewedItems = ViewedItemTracker()
 
     init(session: WorldSession, objects: [BedrockWorldObject], residentKind: VillageResidentEntityKind) {
@@ -15,7 +15,7 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
             let right = rhs.uniqueID ?? Int64.min
             if left != right { return left < right }
             return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-        }
+        }.map { WorldObjectListItem(object: $0) }
         self.residentKind = residentKind
         super.init(style: .insetGrouped)
         title = residentKind.displayName
@@ -40,8 +40,9 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
     private func applyFilter() {
         let query = searchController.searchBar.text?
             .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        shownObjects = allObjects.filter { object in
-            query.isEmpty ||
+        shownObjects = allObjects.filter { item in
+            let object = item.object
+            return query.isEmpty ||
             object.displayName.lowercased().contains(query) ||
             object.identifier.lowercased().contains(query) ||
             object.coordinateText.lowercased().contains(query) ||
@@ -61,7 +62,8 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let object = shownObjects[indexPath.row]
+        let item = shownObjects[indexPath.row]
+        let object = item.object
         let cell = tableView.dequeueReusableCell(withIdentifier: "VillageResidentEntityCell")
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "VillageResidentEntityCell")
         cell.textLabel?.text = object.displayName
@@ -71,7 +73,7 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
         cell.detailTextLabel?.numberOfLines = 2
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = UIImage(systemName: residentKind.iconName) ?? UIImage(systemName: "person.fill")
-        let key = object.stableID
+        let key = item.id
         ViewedListSupport.configure(
             cell: cell,
             isViewed: viewedItems.contains(key),
@@ -90,25 +92,40 @@ final class VillageResidentEntitiesViewController: UITableViewController, UISear
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        let object = shownObjects[indexPath.row]
-        viewedItems.mark(object.stableID)
+        let item = shownObjects[indexPath.row]
+        viewedItems.mark(item.id)
         tableView.reloadRows(at: [indexPath], with: .none)
-        showDetails(object, sourceRect: tableView.rectForRow(at: indexPath))
+        showDetails(item, sourceRect: tableView.rectForRow(at: indexPath))
     }
 
-    private func showDetails(_ object: BedrockWorldObject, sourceRect: CGRect) {
+    private func showDetails(_ item: WorldObjectListItem, sourceRect: CGRect) {
+        let object = item.object
         let dimension = BedrockDimension(rawValue: object.dimension)?.displayName ?? "维度 \(object.dimension)"
         var message = "\(object.identifier)\n\(dimension)；\(object.coordinateText)\n来源：\(object.source.rawValue)"
         if let uniqueID = object.uniqueID { message += "\nUniqueID：\(uniqueID)" }
         let alert = UIAlertController(title: object.displayName, message: message, preferredStyle: .actionSheet)
         alert.addAction(UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
             guard let self = self else { return }
-            let controller = WorldObjectNBTEditorViewController(
-                object: object,
-                session: self.session,
-                onSave: { [weak self] in self?.session.invalidateAfterExternalChange() }
-            )
-            self.navigationController?.pushViewController(controller, animated: true)
+            do {
+                let controller = try WorldObjectNBTEditorViewController(
+                    object: object,
+                    session: self.session,
+                    onSave: { [weak self] current in
+                        guard let self = self else { return }
+                        if let index = self.allObjects.firstIndex(where: { $0.id == item.id }) {
+                            if let current = current { self.allObjects[index].object = current }
+                            else { self.allObjects.remove(at: index) }
+                        }
+                        if current == nil { self.viewedItems.clear(item.id) }
+                        self.navigationItem.prompt = "Dwellers ID（实体 UniqueID）匹配到 \(self.allObjects.count) 个\(self.residentKind.displayName)"
+                        self.applyFilter()
+                        self.session.invalidateAfterExternalChange()
+                    }
+                )
+                self.navigationController?.pushViewController(controller, animated: true)
+            } catch {
+                self.showError(error, title: "读取对象 NBT 失败，请重新打开居民列表")
+            }
         })
         alert.addAction(UIAlertAction(title: "复制坐标", style: .default) { _ in
             UIPasteboard.general.string = object.coordinateText

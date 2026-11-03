@@ -19,7 +19,7 @@ static class DimensionTests
         Check(rows.Select(x => x.Id).SequenceEqual(new[] { 0, 1000, 1001, 1002 }), "registered empty dimensions must be listed without inventing Nether/End");
         Check(rows.Single(x => x.Id == 1000).Name == "wzn:bear" && rows.Single(x => x.Id == 1000).ChunkCount == 0, "empty registered dimension");
         Check(rows.Single(x => x.Id == 1001).ChunkCount == 1, "custom chunk count");
-        var result = new DimensionCommandStore(db).Execute(DimensionCommandParser.Parse("dimension query"));
+        var result = new DimensionCommandStore(db).Execute(DimensionCommandParser.Parse("dimension"));
         Check(!result.ChangedWorld && result.OutputLines.Any(x => x.Text.StartsWith("wzn:cat=1001", StringComparison.Ordinal)), "query output");
         Check(before.SequenceEqual(db.Entries(includeValues: true).Select(x => Convert.ToHexString(x.Key) + Convert.ToHexString(x.Value!))), "query must not write");
         foreach (var id in new[] { 43, 44, 47, 118, -1, int.MinValue, int.MaxValue })
@@ -29,7 +29,7 @@ static class DimensionTests
                 && key.RecordType == ChunkRecordType.SubChunk && key.SubChunkIndex == -5, "dimension/tag byte collision " + id);
         }
         Check(!BedrockDbKey.TryParse(new byte[12], out _), "invalid prefix length");
-        foreach (var invalid in new[] { "dimension", "dimension query extra", "dimension add bear 2147483648" })
+        foreach (var invalid in new[] { "dimension query extra", "dimension add bear 2147483648" })
         {
             try { DimensionCommandParser.Parse(invalid); throw new Exception("invalid command accepted"); }
             catch (InvalidDataException) { }

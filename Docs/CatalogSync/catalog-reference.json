@@ -696,6 +696,16 @@
       "displayName": "坐垫"
     },
     {
+      "id": 155,
+      "identifier": "minecraft:frostbite",
+      "displayName": "冻尸"
+    },
+    {
+      "id": 156,
+      "identifier": "minecraft:ice_ball",
+      "displayName": "冰球"
+    },
+    {
       "id": 157,
       "identifier": "minecraft:trader_llama",
       "displayName": "行商羊驼"
@@ -891,6 +901,11 @@
       "id": 37,
       "identifier": "breath_of_the_nautilus",
       "displayName": "鹦鹉螺之息"
+    },
+    {
+      "id": 38,
+      "identifier": "freezing",
+      "displayName": "冰冻"
     }
   ],
   "biomes": [
@@ -1338,6 +1353,11 @@
       "id": 195,
       "identifier": "minecraft:dappled_forest",
       "displayName": "斑驳森林"
+    },
+    {
+      "id": 196,
+      "identifier": "minecraft:ice_caves",
+      "displayName": "冰封洞穴"
     }
   ],
   "enchantments": [
@@ -2832,6 +2852,23 @@
       "id": 255,
       "identifier": "minecraft:reserved6",
       "displayName": "未命名预留方块（reserved6）"
+    }
+  ],
+  "modernBlocks": [
+    {
+      "id": 1502,
+      "identifier": "minecraft:icicle",
+      "displayName": "冰锥"
+    },
+    {
+      "id": 1503,
+      "identifier": "minecraft:ice_crystal",
+      "displayName": "冰晶"
+    },
+    {
+      "id": 1504,
+      "identifier": "minecraft:brittle_ice",
+      "displayName": "脆冰"
     }
   ]
 }

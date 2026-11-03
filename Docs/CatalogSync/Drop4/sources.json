@@ -1,0 +1,80 @@
+{
+  "retrieved_date": "2026-10-28",
+  "requested_source": "https://zh.minecraft.wiki/w/2026年第4次小更新",
+  "sample_tag": "v1.26.60.30-preview",
+  "sample_commit": "4d30ae63750467771b6eccda105f732c6cb77ff7",
+  "preview_changelog": "https://www.minecraft.net/en-us/article/minecraft-preview-26-70-21",
+  "release_changelog": "https://www.minecraft.net/en-us/article/minecraft--bedrock-edition-26-60-changelog",
+  "files": [
+    {
+      "path": "Upstream/version.json",
+      "bytes": 18711,
+      "sha256": "8aae9366c4233096070252842fcb4e7739487f8c64999fd552e7908c6bef3b5b",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/version.json"
+    },
+    {
+      "path": "Upstream/mojang-entities.json",
+      "bytes": 6553,
+      "sha256": "cabdabebfd54a9d407ae3dd577acb87c799934d882065f118e6471c53d81e25c",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-entities.json"
+    },
+    {
+      "path": "Upstream/mojang-biomes.json",
+      "bytes": 6400,
+      "sha256": "02e4ee700ce476745ae27d4d0b1042caff6c94f634889a2a011993cde77d966c",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-biomes.json"
+    },
+    {
+      "path": "Upstream/mojang-effects.json",
+      "bytes": 2021,
+      "sha256": "4826f01458adcef2168348bf38c40cee58b60cc536aa7b3c0a47fbb852d2213d",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-effects.json"
+    },
+    {
+      "path": "Upstream/mojang-enchantments.json",
+      "bytes": 2251,
+      "sha256": "20ea2758987541b10e6c3dfcc5ad9f3883cd1b4141f4d3ef2e7cf7ad691b6eea",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-enchantments.json"
+    },
+    {
+      "path": "Upstream/mojang-blocks.json",
+      "bytes": 397602,
+      "sha256": "c06f0f46f4707ae400cfe9100437a3232de1b49aeefaba4a6547c9b9fb57aaef",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-blocks.json"
+    },
+    {
+      "path": "Upstream/mojang-items.json",
+      "bytes": 384451,
+      "sha256": "00de23c2b1ab948d2bb3107b291c55b84fe54dd08c54995260ac542d5df37684",
+      "url": "https://raw.githubusercontent.com/Mojang/bedrock-samples/4d30ae63750467771b6eccda105f732c6cb77ff7/metadata/vanilladata_modules/mojang-items.json"
+    },
+    {
+      "path": "Upstream/actor-type-additions.json",
+      "bytes": 462,
+      "sha256": "9d3d4ece31fb15c1ad4b76131bc79c95505583cdff9489870056953143119ed3",
+      "url": "https://mojang.github.io/bedrock-protocol-docs/1.26.70-preview.21/types/actor-type/",
+      "representation": "normalized factual rows; raw source hash recorded inside"
+    },
+    {
+      "path": "Upstream/freezing-id.json",
+      "bytes": 413,
+      "sha256": "ba77e33125abc2fae2e6efee50c756da6c71f79f9f215781e963a2ea0fde711d",
+      "url": "https://minecraft.wiki/w/Freezing",
+      "representation": "normalized factual rows; raw source hash recorded inside"
+    }
+  ],
+  "pending_numeric_blocks": [
+    "minecraft:packed_ice_bricks",
+    "minecraft:packed_ice_brick_stairs",
+    "minecraft:packed_ice_brick_slab",
+    "minecraft:packed_ice_brick_wall",
+    "minecraft:chiseled_packed_ice"
+  ],
+  "numeric_policy": "Only the three modern block numbers present in the pinned Mojang metadata enter the read-only catalog. No preview numbers enter legacyBlocks.",
+  "unconfirmed_bedrock_numeric_blocks": [
+    "minecraft:snow_bricks",
+    "minecraft:snow_brick_stairs",
+    "minecraft:snow_brick_slab",
+    "minecraft:snow_brick_wall"
+  ]
+}

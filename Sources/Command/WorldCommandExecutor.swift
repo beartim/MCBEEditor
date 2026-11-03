@@ -86,8 +86,8 @@ final class WorldCommandExecutor {
                 changedWorld: false,
                 outputLines: lines
             )
-        case .entity(let dimension, let region):
-            return try executeEntity(dimension: dimension, region: region)
+        case .entity(let dimension, let region, let target):
+            return try executeEntity(dimension: dimension, region: region, target: target)
         case .clear(let target):
             return WorldCommandExecutionResult(message: try clearItems(target: target), changedWorld: true)
         case .clearSpawnPoint(let target):
@@ -196,27 +196,89 @@ final class WorldCommandExecutor {
 
     // MARK: block/storage query and direct storage editing
 
-    private func executeEntity(dimension: Int32?, region: CommandEntityBox?) throws -> WorldCommandExecutionResult {
+    private func executeEntity(dimension: Int32?, region: CommandEntityBox?, target: CommandTarget) throws -> WorldCommandExecutionResult {
+        struct QueryRecord {
+            let identifier: String
+            let uniqueID: Int64?
+            let dimension: Int32
+            let position: BedrockWorldObjectPosition?
+            let root: NBTValue
+            let isPlayer: Bool
+            let isLocal: Bool
+        }
         // Scan before filtering: the NBT dimension can differ from its stored
         // chunk/digp location. An explicit all-entity query has no GUI result cap.
         let scan = try BedrockWorldObjectScanner(database: session.database()).scanAll(
             dimensions: nil, includeEntities: true, includeBlockEntities: false, maximumObjects: Int.max
         )
-        var lines = scan.objects.filter { object in
+        let players = PlayerNBTStore(session: session)
+        let playerRecords = try players.records()
+        let playerKeys = Set(playerRecords.map(\.key))
+        var records = playerRecords.map { player -> QueryRecord in
+            let position = players.currentPosition(for: player)
+            return QueryRecord(identifier: "minecraft:player", uniqueID: players.uniqueID(for: player),
+                dimension: players.currentDimension(for: player),
+                position: position.map { BedrockWorldObjectPosition(x: $0.x, y: $0.y, z: $0.z) },
+                root: player.document.root, isPlayer: true, isLocal: players.isLocalPlayer(player))
+        }
+        // A short player key may also parse as a binary chunk Entity key.
+        // Suppress that duplicate storage view, preserving repeated UniqueIDs.
+        records.append(contentsOf: scan.objects.filter { !playerKeys.contains($0.storage.primaryKey) }.map {
+            QueryRecord(identifier: $0.identifier, uniqueID: $0.uniqueID, dimension: $0.dimension, position: $0.position,
+                root: $0.document.root, isPlayer: $0.identifier == "minecraft:player", isLocal: false)
+        })
+        func oneLine(_ text: String) -> String {
+            text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\n", with: "\\n").replacingOccurrences(of: "\t", with: "\\t")
+        }
+        var names = [Int32: String]()
+        var diagnostics = scan.diagnostics
+        do {
+            names = Dictionary(uniqueKeysWithValues: try DimensionStore(database: session.database()).snapshot().map { ($0.id, $0.name) })
+        } catch {
+            diagnostics.append("无法读取维度名称，使用维度 ID：\(error.localizedDescription)")
+        }
+        func dimensionText(_ value: Int32) -> String {
+            let name = names[value] ?? WorldCommandParser.dimensionName(for: value)
+            return name == String(value) ? name : "\(oneLine(name))(\(value))"
+        }
+        func coordinateText(_ value: Double) -> String {
+            let text = String(format: "%.17g", locale: Locale(identifier: "en_US_POSIX"), value)
+            let parts = text.lowercased().split(separator: "e", omittingEmptySubsequences: false)
+            if parts.count == 2, let exponent = Int(parts[1]) { return "\(parts[0])e\(exponent)" }
+            return text
+        }
+        func positionText(_ position: BedrockWorldObjectPosition?) -> String {
+            guard let position = position else { return "NULL" }
+            return "(\(coordinateText(position.x)),\(coordinateText(position.y)),\(coordinateText(position.z)))"
+        }
+        func nbtText(_ root: NBTValue) throws -> String {
+            if case .compound(let tags) = root { return try MCBESNBTCodec.encodeNamedTags(tags) }
+            return try MCBESNBTCodec.encodeNamedTags([NBTNamedTag(name: "", value: root)])
+        }
+        var lines = try records.filter { object in
+            switch target {
+            case .allEntities: break
+            case .localPlayer: guard object.isLocal else { return false }
+            case .allPlayers: guard object.isPlayer else { return false }
+            case .uniqueID(let value): guard object.uniqueID == value else { return false }
+            case .identifier(let value): guard object.identifier == value else { return false }
+            case .region: return false
+            }
             guard dimension == nil || object.dimension == dimension else { return false }
             guard let region = region else { return true }
             guard let position = object.position else { return false }
             return region.contains(x: position.x, y: position.y, z: position.z)
         }.map { object in
             WorldCommandOutputLine(
-                text: "\(object.identifier)=[\(CommandNBTOutputFormatter.root(object.document.root))]", style: .entity
+                text: "\(oneLine(object.identifier)) Dimension=\(dimensionText(object.dimension)) Pos=\(positionText(object.position)) NBT=[\(try nbtText(object.root))]", style: .entity
             )
         }
         if lines.isEmpty {
             lines.append(WorldCommandOutputLine(text: "entity：没有匹配的实体。", style: .entity))
         }
-        lines.append(contentsOf: scan.diagnostics.map {
-            WorldCommandOutputLine(text: "entity 扫描提示：\($0)", style: .entity)
+        lines.append(contentsOf: diagnostics.map {
+            WorldCommandOutputLine(text: "entity 扫描提示：\(oneLine($0))", style: .entity)
         })
         return WorldCommandExecutionResult(
             message: lines.map(\.text).joined(separator: "\n"), changedWorld: false, outputLines: lines
@@ -1206,9 +1268,14 @@ final class WorldCommandExecutor {
                 includeBlockEntities: false,
                 maximumObjects: Int.max
             )
-            allEntities = deduplicatedEntities(
-                scan.objects.filter { $0.kind == .entity && !isPlayerEntity($0) }
-            )
+            let scannedEntities = scan.objects.filter { $0.kind == .entity && !isPlayerEntity($0) }
+            // Ranges select stored records, even when separate entities have
+            // the same UniqueID. The scanner already resolves actor references.
+            if case .region = target {
+                allEntities = scannedEntities
+            } else {
+                allEntities = deduplicatedEntities(scannedEntities)
+            }
         }
 
         let players: [PlayerNBTRecord]
@@ -1223,6 +1290,15 @@ final class WorldCommandExecutor {
         case .allEntities:
             players = allPlayers
             entities = allEntities
+        case .region(let dimension, let bounds):
+            players = allPlayers.filter { record in
+                guard let position = playerStore.currentPosition(for: record), position.dimension == dimension else { return false }
+                return bounds.contains(x: position.x, y: position.y, z: position.z)
+            }
+            entities = allEntities.filter { object in
+                guard object.dimension == dimension, let position = object.position else { return false }
+                return bounds.contains(x: position.x, y: position.y, z: position.z)
+            }
         case .identifier(let identifier):
             if normalizedIdentifier(identifier) == "minecraft:player" {
                 players = allPlayers

@@ -26,6 +26,12 @@ enum MCBESNBTCodec {
         return Data(("[\n" + roots.joined(separator: ",\n") + "\n]\n").utf8)
     }
 
+    /// A single-line tag list for entity queries, using the file codec's exact
+    /// numeric, string and nested-list representation.
+    static func encodeNamedTags(_ tags: [NBTNamedTag]) throws -> String {
+        try tags.map { try namedTag($0, depth: 0) }.joined(separator: ",")
+    }
+
     private static func checkDepth(_ depth: Int) throws {
         guard depth <= maximumDepth else {
             throw MCBEEditorError.malformedData("MCBE-SNBT 嵌套深度超过 \(maximumDepth)")

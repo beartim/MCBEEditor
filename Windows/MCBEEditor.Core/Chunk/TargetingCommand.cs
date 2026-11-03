@@ -12,10 +12,12 @@ public enum TargetingCommandTargetKind
     LocalPlayer,
     AllPlayers,
     AllEntities,
-    Identifier
+    Identifier,
+    Region
 }
 
-public sealed record TargetingCommandTarget(TargetingCommandTargetKind Kind, long? UniqueId = null, string? Identifier = null)
+public sealed record TargetingCommandTarget(TargetingCommandTargetKind Kind, long? UniqueId = null, string? Identifier = null,
+    int? Dimension = null, EntityQueryBounds? Bounds = null)
 {
     public string DisplayText => Kind switch
     {
@@ -24,6 +26,7 @@ public sealed record TargetingCommandTarget(TargetingCommandTargetKind Kind, lon
         TargetingCommandTargetKind.AllPlayers => "@a",
         TargetingCommandTargetKind.AllEntities => "@e",
         TargetingCommandTargetKind.Identifier => Identifier ?? string.Empty,
+        TargetingCommandTargetKind.Region => $"{Dimension} 的坐标范围",
         _ => string.Empty
     };
 }
@@ -217,7 +220,7 @@ public static class TargetingCommandParser
 
     private static TargetingTeleportY ParseTeleportY(string text)
     {
-        if (text == "Auto") return TargetingTeleportY.Auto;
+        if (text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) return TargetingTeleportY.Auto;
         if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value) || !float.IsFinite((float)value))
             throw new InvalidDataException($"teleport 的 Y 坐标必须是有限整数、浮点数或 Auto：{text}");
         return new TargetingTeleportY(false, value, long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out _));
@@ -356,13 +359,15 @@ public sealed class TargetingCommandStore
         }
         else
         {
-            allEntities = new BedrockWorldObjectScanner(_database).ScanAll(
+            var scannedEntities = new BedrockWorldObjectScanner(_database).ScanAll(
                     dimensions: null, includeEntities: true, includeBlockEntities: false, maximumObjects: int.MaxValue)
                 .Objects
-                .Where(item => item.Kind == BedrockWorldObjectKind.Entity && SelectableIdentifier(item) != "minecraft:player")
-                .GroupBy(EntitySelectionIdentity, StringComparer.Ordinal)
-                .Select(group => group.First())
-                .ToArray();
+                .Where(item => item.Kind == BedrockWorldObjectKind.Entity && SelectableIdentifier(item) != "minecraft:player");
+            // A range selects stored records. Repeated UniqueIDs must not hide
+            // another selected record or let an outside record hide an inside one.
+            allEntities = target.Kind == TargetingCommandTargetKind.Region
+                ? scannedEntities.ToArray()
+                : scannedEntities.GroupBy(EntitySelectionIdentity, StringComparer.Ordinal).Select(group => group.First()).ToArray();
         }
 
         IReadOnlyList<PlayerNbtRecord> players;
@@ -375,6 +380,16 @@ public sealed class TargetingCommandStore
                 players = allPlayers; entities = []; break;
             case TargetingCommandTargetKind.AllEntities:
                 players = allPlayers; entities = allEntities; break;
+            case TargetingCommandTargetKind.Region:
+            {
+                if (target.Dimension is not { } dimension || target.Bounds is not { } bounds)
+                    throw new InvalidDataException("范围目标缺少维度或坐标。");
+                players = allPlayers.Where(record => playerStore.CurrentPosition(record) is { } position
+                    && position.Dimension == dimension && bounds.Contains(position.X, position.Y, position.Z)).ToArray();
+                entities = allEntities.Where(item => item.Dimension == dimension
+                    && item.Position is { } position && bounds.Contains(position)).ToArray();
+                break;
+            }
             case TargetingCommandTargetKind.Identifier:
             {
                 var wanted = NormalizeIdentifier(target.Identifier ?? string.Empty);

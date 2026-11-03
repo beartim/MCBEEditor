@@ -1,0 +1,72 @@
+{
+  "entities": [
+    {
+      "id": 155,
+      "identifier": "minecraft:frostbite",
+      "displayName": "冻尸"
+    },
+    {
+      "id": 156,
+      "identifier": "minecraft:ice_ball",
+      "displayName": "冰球"
+    }
+  ],
+  "statusEffects": [
+    {
+      "id": 38,
+      "identifier": "freezing",
+      "displayName": "冰冻"
+    }
+  ],
+  "biomes": [
+    {
+      "id": 196,
+      "identifier": "minecraft:ice_caves",
+      "displayName": "冰封洞穴"
+    }
+  ],
+  "modernBlocks": [
+    {
+      "id": 1502,
+      "identifier": "minecraft:icicle",
+      "displayName": "冰锥"
+    },
+    {
+      "id": 1503,
+      "identifier": "minecraft:ice_crystal",
+      "displayName": "冰晶"
+    },
+    {
+      "id": 1504,
+      "identifier": "minecraft:brittle_ice",
+      "displayName": "脆冰"
+    }
+  ],
+  "items": [
+    {
+      "id": -1249,
+      "identifier": "minecraft:brittle_ice",
+      "displayName": "脆冰"
+    },
+    {
+      "id": 791,
+      "identifier": "minecraft:frostbite_spawn_egg",
+      "displayName": "冻尸刷怪蛋"
+    },
+    {
+      "id": 853,
+      "identifier": "minecraft:ice_ball",
+      "displayName": "冰球"
+    },
+    {
+      "id": 854,
+      "identifier": "minecraft:ice_crystal",
+      "displayName": "冰晶"
+    },
+    {
+      "id": 855,
+      "identifier": "minecraft:icicle",
+      "displayName": "冰锥"
+    }
+  ]
+}

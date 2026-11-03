@@ -1,0 +1,18 @@
+{
+  "source": "https://mojang.github.io/bedrock-protocol-docs/1.26.70-preview.21/types/actor-type/",
+  "source_sha256": "5f1b2a6069031b79d4f7d33f3ddf8827f36af3e04cebf8084cfc6a273a7291f0",
+  "entries": [
+    {
+      "name": "Frostbite",
+      "identifier": "minecraft:frostbite",
+      "fullId": 199579,
+      "shortId": 155
+    },
+    {
+      "name": "IceBall",
+      "identifier": "minecraft:ice_ball",
+      "fullId": 4194460,
+      "shortId": 156
+    }
+  ]
+}

@@ -19,6 +19,11 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (args.SequenceEqual(new[] { "--command-syntax" }))
+        {
+            CommandSyntaxTests.RunParserTests();
+            return 0;
+        }
         if (args.SequenceEqual(new[] { "--summon" }))
         {
             SummonCommandTests.RunParserTests();
@@ -67,6 +72,7 @@ internal static class Program
 
     private static void RunTests(string root, string fixtureTool)
     {
+        CommandSyntaxTests.RunParserTests();
         DimensionCommandTests.RunParserTests();
         EntityQueryCommandTests.RunParserTests();
         DimensionCommandTests.RunNativeTests(root, fixtureTool);

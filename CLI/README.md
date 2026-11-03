@@ -2,7 +2,7 @@
 
 当前 CLI 版本为 **1.0.0**。Windows x64 继续发布绿色单 `mcbe-cli.exe`，iOS 继续发布最低 iOS 13 arm64 裸二进制；独立 NBT/mcstructure 格式转换保持为工具功能，不加入 NBT 编辑器功能。
 
-`fill`、`setblock` 必须在全部方块名/states 配对后填写方块实体参数：`preserve` 保留、`empty` 清空，或完整 MCBE-SNBT 标签设定实体。NBT 根 x/y/z 可省略，输入时自动忽略；写入时根据命令选定位置生成唯一的小写 Int 类型根坐标。`fill` 为范围内每个位置复制模板并分别写入实际坐标，嵌套标签保持原样。允许任意 id，包括与方块类型不同的实体；未指定元素类型的空 List 使用 `'List'''"Items"=""`。省略末尾参数会报错。可直接使用 [完整示例](Examples/FillSetblockBlockEntity.txt)。
+`fill`、`setblock` 每层 states 可省略为 NULL；末尾方块实体可省略为 preserve。显式方块实体参数为：`preserve` 保留、`empty` 清空，或完整 MCBE-SNBT 标签设定实体。NBT 根 x/y/z 可省略，输入时自动忽略；写入时根据命令选定位置生成唯一的小写 Int 类型根坐标。`fill` 为范围内每个位置复制模板并分别写入实际坐标，嵌套标签保持原样。允许任意 id，包括与方块类型不同的实体；未指定元素类型的空 List 使用 `'List'''"Items"=""`。设置方块实体模板时，须先提供该层 states 或 NULL 占位。可直接使用 [完整示例](Examples/FillSetblockBlockEntity.txt)。
 
 收尾检查的当前轮次、已运行验证和未完成范围统一见 [FINAL_REVIEW.md](Docs/FINAL_REVIEW.md)。命令覆盖与兼容限制见 [COMMAND_PARITY.md](Docs/COMMAND_PARITY.md)；功能接线不等于所有边界场景均已通过平台或游戏验证。
 
@@ -130,13 +130,27 @@ mcbe-cli --world "MyWorld" --command "entity overworld"
 mcbe-cli --world "MyWorld" --command "entity overworld -16 0 -16 16 128 16"
 ```
 
-`entity [维度 [x1 y1 z1 x2 y2 z2]]` 为只读查询，无需 `--output` 或 `--in-place`。
-无参数列出全部维度普通实体；只写维度列出该维度全部实体；两角定义包含边界的长方体，支持小数、负数及反向角点，按实际实体坐标筛选。
-维度为 `overworld`、`nether`、`the_end`，不包含玩家或方块实体。缺少坐标的实体仍出现在无范围查询中。
-每个实体一行：`minecraft:pig=['String'"identifier"="minecraft:pig",'Long'"UniqueID"="12345678"]`。
-类型复用实体栏目的识别；NBT 使用 `getblock` 的完整递归格式，不补写推断出的标签。
-混合子类型的嵌套列表会给每个子列表显式标注类型；这种扩展展示用于完整查看 NBT，不作为命令输入格式。
-损坏记录及孤立 actor 等扫描诊断显示为“entity 扫描提示”。
+`entity [目标]`、`entity 维度 [六坐标]` 和 `entity 目标 维度 [六坐标]` 均为只读查询，无需 `--output` 或 `--in-place`。
+默认目标 @e 包含所有维度的玩家与普通实体，排除方块实体。@s 为本机玩家、@a 为全部玩家，另支持非零 Int64 UniqueID 和完整实体 identifier。
+`entity 12345678` 按 UniqueID 查询，数字维度可写 `entity @e 0`；自定义 namespaced 维度写在目标后。六坐标范围包含边界，支持有限小数与反向角点，玩家不加眼高补偿；无有效 Pos 的记录保留在无范围查询中。
+每个实体一行：`minecraft:pig Dimension=overworld(0) Pos=NULL NBT=['String'"identifier"="minecraft:pig",'Long'"UniqueID"="12345678"]`。
+NBT 使用 MCBE-SNBT 文件编解码器的命名标签格式，保留全部标签、顺序、数值精度、嵌套列表子类型与 NaN 位模式，不向原 NBT 写入推断字段。
+损坏记录及孤立 actor 等扫描诊断仍显示为“entity 扫描提示”。完整语法见 [COMMAND_SYNTAX.md](../COMMAND_SYNTAX.md)。
+
+## 第 4 次小更新 ID 同步
+
+`effect give @a freezing 200 1`、`effect clear @e freezing` 和 `effect ... ALL` 已同步冰冻效果。`fillbiome` 接受 `minecraft:ice_caves`（196）。原 effect 参数继续使用字符串 ID；数值 38 是对照／NBT ID。来源与未确认项目见 [同步说明](../Docs/CatalogSync/Drop4/SYNC.md)。
+
+## kill 维度与坐标范围
+
+```text
+kill overworld 0 0 0 1 1 1 1
+kill overworld 0 0 0 1 1 1 0
+```
+
+新增 `kill 维度 x1 y1 z1 x2 y2 z2 0或1`，原有 UniqueID、`@s`、`@a`、`@e` 和实体 identifier 格式继续可用。两角定义包含边界的长方体，支持反向角点、负数和小数，按实体／玩家实际 Pos 与维度筛选，不处理方块实体。维度名称／ID 规则与 `entity` 相同。
+
+非玩家实体直接删除；选中的非创造模式玩家无论末尾是 `0` 还是 `1` 都清零生命值。开关只影响创造模式玩家：`0` 跳过，`1` 同样清零。范围外及其他维度的数据保持不变。
 
 ## summon UniqueID 与直接 NBT 输入
 
@@ -146,7 +160,7 @@ summon minecraft:pig overworld 0 64 0 default 9007199254740993
 summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"
 ```
 
-第一种格式为 `summon 实体类型 维度 x y z NBT标签或default [UniqueID]`。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
+第一种格式为 `summon 实体类型 维度 x y z [NBT标签或default [UniqueID或Auto]]`，省略 NBT 默认 default。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
 
 第二种格式直接保存标签、类型和顺序，不填充实体通用 NBT。必须包含三个可写入 Float 的有限数值组成的 `Pos`（或 `Position`）List；提供的 `UniqueID` 必须是非零 Long，缺少时自动追加。`DimensionId`（或 `Dimension`）应为 Int32 范围内的整数标签，缺少时存入主世界，不补写维度标签；追加 `'Int'"DimensionId"="1"` 可写入下界。关键字段及其别名不能重复。
 
@@ -225,3 +239,14 @@ python3 CLI/Tests/environment_smoke.py --fixture-tool CLI/build/native-tests/mcb
 第 8 轮补充：`nbt_conversion_smoke.py` 已接入双端构建测试，独立检查三种二进制编码、JSON、压缩与文件保护。JSON 导出的 Long/LongArray 使用十进制字符串；Compound 重名标签无法由当前 JSON 对象格式完整表示，导出会拒绝。匿名数值根等大小端歧义输入仍按原优先顺序探测，显式输入编码选项待补，详见 [第 8 轮记录](Docs/AUDIT_ROUND08.md)。
 
 第 9 轮补充：structure 文件操作在执行前检查来源、缓存、脚本、同批结构输入与输出冲突；先导出再导入同一路径请分两次执行。新增 `structure_file_smoke.py` 已接入构建测试；结构加载的普通实体和多于两层 storage 不在本轮新增能力范围内。
+
+## 命令语法与可省略参数（2026-10-29）
+
+已检查全部 28 条命令，统一 Swift/C# 与 GUI/CLI 的解析和帮助，完整格式及必填/省略条件见 [COMMAND_SYNTAX.md](../COMMAND_SYNTAX.md)。旧完整命令继续有效。
+
+- give 默认 Auto 槽位、数量 1、空标签；effect give 默认 600 游戏刻、原始等级 0，clear 省略效果默认 ALL。
+- fill/setblock 每层 states 默认 NULL，末尾方块实体默认 preserve；提供模板时先用 states/NULL 占位。storage set 的 states 也可省略。
+- kill 省略末尾开关默认 0，仅跳过创造模式玩家；非创造玩家清零及非玩家删除保持不变。summon 的 NBT 默认 default，UniqueID 默认 Auto。
+- dimension/chunk/structure/time/weather 裸命令默认只读查询；time query 默认 daytime；tickingarea/query/list 默认列出 ALL。
+- weather clear 自动变化默认 1；rain/thunder 依次默认 6000 游戏刻、1.0、1；tickingarea add 预加载默认 0。
+- Auto/NULL/default/preserve/empty 不区分大小写，ALL 仍必须大写。目标、维度、坐标及 storage 层号不推断，非交互结构文件接口的名称与 --file 仍必填。

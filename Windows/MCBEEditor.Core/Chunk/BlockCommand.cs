@@ -14,12 +14,7 @@ public static class BlockCommandParser
 {
     private static readonly Regex BlockNamePattern = new("^[a-z0-9_.-]+:[a-z0-9_./-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public const string Usage =
-        "setblock 维度 x y z 方块名 states [方块名 states ...] 方块实体\n" +
-        "fill 维度 x1 y1 z1 x2 y2 z2 方块名 states [方块名 states ...] 方块实体\n" +
-        "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n" +
-        "getblock 维度 x y z\n" +
-        "states 可用 NULL，或 iOS 版同格式 typed NBT，例如 'String'\"wood_type\"=\"oak\"。方块实体必填 preserve、empty 或完整 MCBE-SNBT 标签；根 x/y/z 可省略，输入时忽略并按目标位置生成 Int 坐标；fill 逐坐标复制模板，嵌套标签保持原样。";
+    public const string Usage = "setblock 维度 x y z 方块ID [states] [方块ID [states] ...] [方块实体]\nfill 维度 x1 y1 z1 x2 y2 z2 方块ID [states] [方块ID [states] ...] [方块实体]\nclone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\ngetblock 维度 x y z\nstates 默认 NULL，末尾方块实体默认 preserve；模板前须显式给出 states/NULL。";
 
     public static bool IsBlockCommand(string text)
     {
@@ -45,21 +40,19 @@ public static class BlockCommandParser
 
     private static SetBlockCommandRequest ParseSetBlock(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length < 7 || (args.Length - 5) % 2 != 0) throw UsageError();
-        var count = (args.Length - 5) / 2;
-        if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("setblock 必须提供 1…255 个 storage。");
+        if (args.Length < 5) throw UsageError();
         var position = Coordinate(args, 1);
-        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), position, ParseStorages(args, 4, count), BlockEntityCommandSpec.Parse(args[^1]));
+        var (storages, blockEntity) = ParseBlockArguments(args, 4);
+        return new SetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), position, storages, blockEntity);
     }
 
     private static FillBlockCommandRequest ParseFill(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length < 10 || (args.Length - 8) % 2 != 0) throw UsageError();
-        var count = (args.Length - 8) / 2;
-        if (count is < 1 or > byte.MaxValue) throw new InvalidDataException("fill 必须提供 1…255 个 storage。");
+        if (args.Length < 8) throw UsageError();
         var first = Coordinate(args, 1);
         var second = Coordinate(args, 4);
-        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), ParseStorages(args, 7, count), BlockEntityCommandSpec.Parse(args[^1]));
+        var (storages, blockEntity) = ParseBlockArguments(args, 7);
+        return new FillBlockCommandRequest(ParseDimension(args[0], dimensionResolver), new BedrockBlockBox(first, second), storages, blockEntity);
     }
 
     private static CloneBlockCommandRequest ParseClone(string[] args, Func<string,int>? dimensionResolver)
@@ -76,21 +69,32 @@ public static class BlockCommandParser
         return new GetBlockCommandRequest(ParseDimension(args[0], dimensionResolver), Coordinate(args, 1));
     }
 
-    private static IReadOnlyList<BedrockBlockStorageSpec> ParseStorages(string[] args, int offset, int count)
+    private static (IReadOnlyList<BedrockBlockStorageSpec> Storages, BlockEntityCommandSpec BlockEntity) ParseBlockArguments(string[] args, int offset)
     {
-        var output = new List<BedrockBlockStorageSpec>(count);
-        for (var layer = 0; layer < count; layer++)
+        var output = new List<BedrockBlockStorageSpec>();
+        var index = offset;
+        while (index < args.Length)
         {
-            var name = args[offset + layer * 2];
+            var token = args[index];
+            if (output.Count > 0 && index == args.Length - 1
+                && (token.Equals("preserve", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("empty", StringComparison.OrdinalIgnoreCase) || token.StartsWith('\'')))
+                return (output, BlockEntityCommandSpec.Parse(token));
+            var name = args[index++];
             if (!BlockNamePattern.IsMatch(name)) throw new InvalidDataException($"方块名称格式无效：{name}");
-            output.Add(new BedrockBlockStorageSpec(name, ParseStates(args[offset + layer * 2 + 1])));
+            if (output.Count == byte.MaxValue) throw new InvalidDataException("fill/setblock 最多接受 255 个 storage。");
+            // The first NBT immediately after a block is its states. A template
+            // therefore needs an explicit states/NULL placeholder before it.
+            var states = index < args.Length && (args[index].Equals("NULL", StringComparison.OrdinalIgnoreCase) || args[index].StartsWith('\''))
+                ? ParseStates(args[index++]) : [];
+            output.Add(new BedrockBlockStorageSpec(name, states));
         }
-        return output;
+        return (output, BlockEntityCommandSpec.Preserve);
     }
 
     public static IReadOnlyList<NbtNamedTag> ParseStates(string text)
     {
-        if (text == "NULL") return [];
+        if (text.Equals("NULL", StringComparison.OrdinalIgnoreCase)) return [];
         if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("NBT 标签不能为空；不添加标签请填写 NULL。");
         var parser = new CommandNbtTextParser(text);
         var tags = parser.ParseNamedTags();

@@ -5,6 +5,7 @@ bash "$ROOT/Scripts/test_mcbe_snbt.sh"
 bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
 python3 "$ROOT/Scripts/test_ios_map_object_interaction.py"
 python3 "$ROOT/Scripts/test_map_navigation.py" swift
+python3 "$ROOT/Scripts/test_entity_editor_reopen.py"
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
@@ -482,10 +483,10 @@ struct Main {
             _ = try WorldCommandParser.parse("kick @e")
             preconditionFailure("kick must reject non-player selectors")
         } catch {}
-        do {
-            _ = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air empty")
-            preconditionFailure("fill must reject missing layer 1 states")
-        } catch {}
+        guard case .fill(_, _, let defaultStates, .empty) = try WorldCommandParser.parse("fill overworld 0 0 0 1 1 1 minecraft:stone NULL minecraft:air empty"),
+              defaultStates.count == 2, defaultStates[1].states.isEmpty else {
+            preconditionFailure("fill must default omitted layer 1 states to NULL")
+        }
         do {
             _ = try WorldCommandParser.parse("/help")
             preconditionFailure("commands must reject a slash prefix")
@@ -3620,7 +3621,7 @@ for expected in \
   'guard arguments.count == 2 else' \
   'guard arguments.count == 11 else' \
   'parseDimension(arguments[0])' \
-  'if text == "NULL"' \
+  'if text.lowercased() == "null"' \
   'case "ByteArray": return .byteArray' \
   'case "List": return .list' \
   'case "Compound": return .compound' \
@@ -3757,8 +3758,8 @@ for expected in \
   'case "LongArray": return .longArray' \
   'private indirect enum CommandNBTTypeDescriptor' \
   'guard arguments.count == 5 else' \
-  'slot: try parseGiveSlot(arguments[1])' \
-  'itemTags: try parseStates(arguments[4])'; do
+  'slot: itemIndex == 1 ? .automatic : try parseGiveSlot(arguments[1])' \
+  'itemTags: arguments.count > itemIndex + 2 ? try parseStates(arguments[itemIndex + 2]) : []'; do
   grep -qF "$expected" "$COMMAND_PARSER" || {
     echo "error: recursive command NBT or Slot-aware give is incomplete: $expected" >&2
     exit 1
@@ -3804,7 +3805,7 @@ if not match or '示例：' not in match.group(1):
     raise SystemExit(1)
 PY_CHECK
 done
-grep -qF 'return 5' "$ROOT/Sources/UI/WorldListViewController.swift" && \
+grep -qF 'return 6' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF '("方块ID", "旧版数字 ID、字符串 ID 与十六进制值")' "$ROOT/Sources/UI/WorldListViewController.swift" && \
 grep -qF 'entries: BedrockLegacyBlockCatalog.blocks' "$ROOT/Sources/UI/WorldListViewController.swift" || {
   echo 'error: home-page Bedrock block-ID entry is incomplete' >&2
@@ -3823,7 +3824,7 @@ grep -qF 'hasWritableMainhandTag(' "$COMMAND_EXECUTOR" && \
 
 # Fixed v1.0.0: world/structure/tickingarea plus teleport, spread, daylock,
 # time and weather commands.
-grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case spread(target:' "$COMMAND_PARSER" && grep -qF 'case dayLock(locked:' "$COMMAND_PARSER" && grep -qF 'case experience(operation:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'guard arguments.count >= 7, (arguments.count - 5) % 2 == 0 else { throw usageError(command) }' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'randomSpreadDestination' "$COMMAND_EXECUTOR" && grep -qF 'setTopLevelTag(name: "dodaylightcycle"' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'executeExperience(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
+grep -qF 'case setBlock(' "$COMMAND_PARSER" && grep -qF 'case setWorldSpawn(' "$COMMAND_PARSER" && grep -qF 'case spawnPoint(' "$COMMAND_PARSER" && grep -qF 'case teleport(target:' "$COMMAND_PARSER" && grep -qF 'case spread(target:' "$COMMAND_PARSER" && grep -qF 'case dayLock(locked:' "$COMMAND_PARSER" && grep -qF 'case experience(operation:' "$COMMAND_PARSER" && grep -qF 'case weather(settings:' "$COMMAND_PARSER" && grep -qF 'case structure(operation:' "$COMMAND_PARSER" && grep -qF 'case tickingArea(operation:' "$COMMAND_PARSER" && grep -qF 'let (storages, blockEntity) = try parseBlockArguments(arguments, offset: 4)' "$COMMAND_PARSER" && grep -qF 'automaticTeleportY' "$COMMAND_EXECUTOR" && grep -qF 'randomSpreadDestination' "$COMMAND_EXECUTOR" && grep -qF 'setTopLevelTag(name: "dodaylightcycle"' "$COMMAND_EXECUTOR" && grep -qF 'case time(operation: CommandTimeOperation)' "$COMMAND_PARSER" && grep -qF 'executeTime(operation)' "$COMMAND_EXECUTOR" && grep -qF 'executeExperience(operation)' "$COMMAND_EXECUTOR" && grep -qF 'WeatherStore(session: session).save(settings)' "$COMMAND_EXECUTOR" && grep -qF 'static func makeStructureDocument(' "$COMMAND_EXECUTOR" && grep -qF 'static func loadStructure(' "$COMMAND_EXECUTOR" && grep -qF 'func save(document: NBTDocument, named name: String, overwrite: Bool = true)' "$ROOT/Sources/World/StructureNBTStore.swift" && grep -qF 'records.removeAll { $0.area.name.caseInsensitiveCompare(area.name) == .orderedSame }' "$COMMAND_EXECUTOR" || {
   echo 'error: world/structure/tickingarea/teleport/spread/daylock/time/weather command support is incomplete' >&2
   exit 1
 }
@@ -4364,6 +4365,9 @@ struct EffectCommandTest {
         try BlockEntityMoveAuditRegression.run()
         try SummonCommandRegression.run()
         try EntityCommandRegression.run()
+        try KillRegionRegression.run()
+        try CommandSyntaxRegression.run()
+        try Drop4CatalogRegression.run()
         try verifyGiveInventoryAudit()
         try verifySpawnPointScopeAudit()
         try verifyPlayerTargetingAudit()
@@ -5038,6 +5042,9 @@ swiftc -j 4 \
   "$ROOT/Sources/Command/WorldCommandExecutor.swift" \
   "$ROOT/Sources/Chunk/BedrockSlimeChunk.swift" \
   "$ROOT/Scripts/Tests/EntityCommandRegression.swift" \
+  "$ROOT/Scripts/Tests/KillRegionRegression.swift" \
+  "$ROOT/Scripts/Tests/Drop4CatalogRegression.swift" \
+  "$ROOT/Scripts/Tests/CommandSyntaxRegression.swift" \
   "$ROOT/Scripts/Tests/SummonCommandRegression.swift" \
   "$ROOT/Scripts/Tests/FillSetblockBlockEntityRegression.swift" \
   "$ROOT/Scripts/Tests/BlockEntityMoveAuditRegression.swift" \

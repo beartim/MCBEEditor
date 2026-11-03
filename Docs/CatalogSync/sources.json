@@ -71,5 +71,8 @@
     "https://mojang.github.io/bedrock-protocol-docs/1.26.51/types/actor-type/",
     "https://mojang.github.io/bedrock-protocol-docs/1.26.51/types/enchant-type/"
   ],
-  "stable_release_source": "https://feedback.minecraft.net/hc/en-us/articles/49175370527501-Minecraft-Bedrock-Edition-26-52-Hotfix-Changelog"
+  "stable_release_source": "https://feedback.minecraft.net/hc/en-us/articles/49175370527501-Minecraft-Bedrock-Edition-26-52-Hotfix-Changelog",
+  "supplements": [
+    "Drop4/sources.json"
+  ]
 }

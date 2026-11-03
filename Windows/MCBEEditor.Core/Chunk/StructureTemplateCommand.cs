@@ -26,12 +26,7 @@ public static class StructureTemplateCommandParser
         "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public const string Usage =
-        "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json|txt [名称]\n" +
-        "structure save 名称 维度 x1 y1 z1 x2 y2 z2\n" +
-        "structure load 名称 维度 x y z\n" +
-        "structure delete 名称或ALL\n" +
-        "名称必须为 namespace:name；save 直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。";
+    public const string Usage = "structure\nstructure query\nstructure import [名称]\nstructure export mcstructure|nbt|json|txt [名称]\nstructure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL";
 
     public static bool IsStructureTemplateCommand(string text)
         => FirstToken(text).Equals("structure", StringComparison.OrdinalIgnoreCase);
@@ -39,6 +34,8 @@ public static class StructureTemplateCommandParser
     public static StructureTemplateStructureCommandRequest Parse(string text, Func<string,int>? dimensionResolver = null)
     {
         var tokens = BlockCommandParser.TokenizeCommand(text);
+        if (tokens.Count == 1 && tokens[0].Equals("structure", StringComparison.OrdinalIgnoreCase))
+            return new(StructureTemplateStructureOperationKind.Query);
         if (tokens.Count < 2 || !tokens[0].Equals("structure", StringComparison.OrdinalIgnoreCase)) throw UsageError();
         var action = tokens[1].ToLowerInvariant();
         if (action == "query" && tokens.Count == 2)

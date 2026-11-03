@@ -91,14 +91,14 @@ enum SummonCommandRegression {
         }
         precondition(items.isEmpty)
         let queried = try run("entity overworld 8 64 8 8 64 8")
-        let prefix = "minecraft:cow=["
+        let prefix = "minecraft:cow Dimension=overworld(0) Pos=(8,64,8) NBT=["
         guard let entityLine = queried.outputLines.first(where: { $0.text.hasPrefix(prefix) })?.text else {
             preconditionFailure("entity must return the cow tags: \(queried.message)")
         }
         precondition(entityLine.hasSuffix("]") && !queried.changedWorld)
         let tagText = String(entityLine.dropFirst(prefix.count).dropLast())
-        precondition(tagText.contains(#"'List'''"Items"="""#) && tagText.contains(#"['List'''=[]]"#))
-        let queriedDocument = NBTDocument(rootName: "", root: .compound(try WorldCommandParser.parseStates(tagText)))
+        precondition(tagText.contains(#"'List'''"Items"="""#))
+        let queriedDocument = try MCBESNBTCodec.decode(text: "['Compound'\"\"=\"{" + tagText + "}\"]")[0]
         let queriedBytes = try BedrockNBTCodec.encode(queriedDocument)
         let cowBytes = try BedrockNBTCodec.encode(emptyCow.document)
         precondition(queriedBytes == cowBytes, "entity text must roundtrip unspecified and nested List types")

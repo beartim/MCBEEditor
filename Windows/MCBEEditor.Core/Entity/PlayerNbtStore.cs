@@ -61,10 +61,12 @@ public sealed class PlayerNbtStore
         var root = record.Document.Root;
         var position = root.CompoundValueIgnoreCase("Pos", "pos", "Position", "position");
         if (!TryPosition(position, out var x, out var y, out var z)) return null;
-        var dimension = ParseDimension(root.CompoundValueIgnoreCase(
-            "DimensionId", "DimensionID", "dimension_id", "Dimension", "dimension")) ?? 0;
-        return new PlayerCurrentPosition(x, y, z, dimension);
+        return new PlayerCurrentPosition(x, y, z, CurrentDimension(record));
     }
+
+    public int CurrentDimension(PlayerNbtRecord record)
+        => ParseDimension(record.Document.Root.CompoundValueIgnoreCase(
+            "DimensionId", "DimensionID", "dimension_id", "Dimension", "dimension")) ?? 0;
 
     public long? UniqueId(PlayerNbtRecord record)
     {

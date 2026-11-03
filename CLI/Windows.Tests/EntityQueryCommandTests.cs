@@ -18,7 +18,7 @@ internal static class EntityQueryCommandTests
     {
         foreach (var text in new[]
         {
-            "entity", "entity overworld", "entity nether", "entity the_end", " EnTiTy\tthe_end ",
+            "entity", "entity @e", "entity @s", "entity @a", "entity 12345678", "entity 2147483648", "entity minecraft:pig", "entity @e 0", "entity @a nether", "entity minecraft:pig 0 0 0 0 1 1 1", "entity overworld", "entity nether", "entity the_end", " EnTiTy\tthe_end ",
             "entity overworld 9.25 80.5 -1 -12.75 -64 8.5",
             "entity nether -1e3 1.5 0 2.5 3.5 1e2",
             "entity overworld -3e20 -3e20 -3e20 3e20 3e20 3e20"
@@ -34,7 +34,7 @@ internal static class EntityQueryCommandTests
 
         foreach (var text in new[]
         {
-            "entity moon", "entity 2147483648", "entity ALL", "entity overworld 0", "entity overworld 0 1 2",
+            "entity moon", "entity 0", "entity 9223372036854775808", "entity @p", "entity @a 2147483648", "entity ALL", "entity overworld 0", "entity overworld 0 1 2",
             "entity overworld 0 1 2 3 4", "entity overworld 0 1 2 3 4 5 6", "entity 0 1 2 3 4 5",
             "entity overworld NaN 0 0 1 1 1", "entity overworld 0 Infinity 0 1 1 1",
             "entity overworld 0 0 -Infinity 1 1 1", "entity overworld 0 0 0 1e300 1 1",
@@ -96,29 +96,32 @@ internal static class EntityQueryCommandTests
         var before = SnapshotRecords(world);
         CliCommandResult Execute(string text) => new CliWorldCommandExecutor(world).Execute(CliCommandParser.Parse(text));
         var all = Execute("entity");
-        Check(!all.ChangedWorld && all.Lines.Count == 9, "all-dimension entity query must retain every ordinary entity record");
+        Check(!all.ChangedWorld && all.Lines.Count == 11, "all-dimension entity query must retain every ordinary entity record");
         Check(all.Lines.All(line => line.Kind == CliOutputKind.Entity && !line.Text.Contains('\n')), "each entity must be exactly one Entity-style output line");
-        Check(all.Lines.Any(line => line.Text == "custom:unlocated=['String'\"identifier\"=\"custom:unlocated\"]"),
+        Check(all.Lines.Any(line => line.Text.StartsWith("custom:unlocated Dimension=", StringComparison.Ordinal) && line.Text.EndsWith(" Pos=NULL NBT=['String'\"identifier\"=\"custom:unlocated\"]", StringComparison.Ordinal)),
             "no-argument queries must include custom dimensions and entities without Pos without inventing fields");
-        Check(all.Lines.Any(line => line.Text.StartsWith("minecraft:chicken=[", StringComparison.Ordinal)), "definitions-only types must match the entity browser");
-        Check(!all.Lines.Any(line => line.Text.Contains("PlayerName", StringComparison.Ordinal) || line.Text.StartsWith("Chest=", StringComparison.Ordinal)),
-            "entity query included player or block-entity records");
+        Check(all.Lines.Any(line => line.Text.StartsWith("minecraft:chicken Dimension=", StringComparison.Ordinal)), "definitions-only types must match the entity browser");
+        Check(all.Lines.Count(line => line.Text.StartsWith("minecraft:player Dimension=", StringComparison.Ordinal)) == 2
+              && !all.Lines.Any(line => line.Text.StartsWith("Chest ", StringComparison.Ordinal)), "players included and block entities excluded");
+        Check(Execute("entity @s").Lines.Count == 1 && Execute("entity @a").Lines.Count == 2
+            && Execute("entity 1001").Lines.Count == 1 && Execute("entity minecraft:player").Lines.Count == 2, "native player selectors");
+        Check(Execute("entity @e").Lines.Select(line => line.Text).SequenceEqual(all.Lines.Select(line => line.Text)), "default @e native parity");
 
         var nether = Execute("entity nether");
-        Check(nether.Lines.Count == 1 && nether.Lines[0].Text.StartsWith("minecraft:pig=[", StringComparison.Ordinal),
+        Check(nether.Lines.Count == 1 && nether.Lines[0].Text.StartsWith("minecraft:pig Dimension=", StringComparison.Ordinal),
             "dimension selection must use resolved NBT DimensionId even when digp records a different dimension");
         var output = nether.Lines[0].Text;
         Check(output.Contains("'Long'\"UniqueID\"=\"9007199254740993\"", StringComparison.Ordinal)
               && output.Contains("'LongArray'\"longs\"=\"[-9223372036854775808,9007199254740993,9223372036854775807]\"", StringComparison.Ordinal),
             "entity output lost exact Int64 or array values");
-        var payload = output[(output.IndexOf("=[", StringComparison.Ordinal) + 2)..^1];
-        var parsed = new NbtDocument("", new NbtCompoundValue(BlockCommandParser.ParseStates(payload)));
+        var payload = output[(output.IndexOf(" NBT=[", StringComparison.Ordinal) + 6)..^1];
+        var parsed = McbeSnbtCodec.Decode(Encoding.UTF8.GetBytes("['Compound'\"\"=\"{" + payload + "}\"]")).Single();
         Check(BedrockNbtCodec.Encode(parsed, NbtEncoding.LittleEndian).SequenceEqual(BedrockNbtCodec.Encode(rich, NbtEncoding.LittleEndian)),
-            "all original named tags, types, nested data and order must survive the getblock-compatible NBT output");
+            "all original named tags, types, nested data and order must survive the MCBE-SNBT query output");
 
         var bounded = Execute("entity overworld -1.25 64.5 2.75 -2.5 64.5 2.75");
-        Check(bounded.Lines.Count == 3 && bounded.Lines.Count(line => line.Text.StartsWith("minecraft:pig=[", StringComparison.Ordinal)) == 2
-              && bounded.Lines.Count(line => line.Text.StartsWith("minecraft:cow=[", StringComparison.Ordinal)) == 1,
+        Check(bounded.Lines.Count == 3 && bounded.Lines.Count(line => line.Text.StartsWith("minecraft:pig Dimension=", StringComparison.Ordinal)) == 2
+              && bounded.Lines.Count(line => line.Text.StartsWith("minecraft:cow Dimension=", StringComparison.Ordinal)) == 1,
             "reversed bounds must include all equal-face positions and exclude outside X, Y and Z using actual floating Pos");
         Check(Execute("entity overworld -2.5 64.5 2.75 -1.25 64.5 2.75").Lines.Select(line => line.Text)
                 .SequenceEqual(bounded.Lines.Select(line => line.Text)), "normal and reversed corners must select the same records");
@@ -130,7 +133,7 @@ internal static class EntityQueryCommandTests
         using (var database = world.OpenDatabase(readOnly: false))
             database.Put(new BedrockDbKey(new ChunkPosition(9, 9, 0), ChunkRecordType.Entity, null).Encode(), [255, 1, 2]);
         var diagnosed = Execute("entity");
-        Check(diagnosed.Lines.Count == 10 && diagnosed.Lines.Any(line => line.Text.StartsWith("entity 扫描提示：", StringComparison.Ordinal)),
+        Check(diagnosed.Lines.Count == 12 && diagnosed.Lines.Any(line => line.Text.StartsWith("entity 扫描提示：", StringComparison.Ordinal)),
             "malformed entity record diagnostics must remain visible alongside valid entities");
         Check(diagnosed.Lines.All(line => line.Kind == CliOutputKind.Entity), "diagnostics must use the existing Entity output style");
         var after = SnapshotRecords(world);

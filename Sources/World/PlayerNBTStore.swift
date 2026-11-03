@@ -95,15 +95,18 @@ final class PlayerNBTStore {
         let root = record.document.root
         guard let rawPosition = compoundValue(in: root, names: ["Pos", "pos", "Position", "position"]),
               let position = doubleCoordinateTuple(rawPosition) else { return nil }
-        let dimensionValue = compoundValue(in: root, names: [
-            "DimensionId", "DimensionID", "dimension_id", "Dimension", "dimension"
-        ])
         return PlayerCurrentPosition(
             x: position.x,
             y: position.y,
             z: position.z,
-            dimension: parseDimension(dimensionValue) ?? 0
+            dimension: currentDimension(for: record)
         )
+    }
+
+    func currentDimension(for record: PlayerNBTRecord) -> Int32 {
+        parseDimension(compoundValue(in: record.document.root, names: [
+            "DimensionId", "DimensionID", "dimension_id", "Dimension", "dimension"
+        ])) ?? 0
     }
 
     func isLocalPlayer(_ record: PlayerNBTRecord) -> Bool {

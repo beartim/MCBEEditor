@@ -1,0 +1,10 @@
+{
+  "source": "https://minecraft.wiki/w/Freezing",
+  "source_sha256": "c1f8130822ccaaa0f5e728a77c45fde870a9eada1b8cee7f488cfe30111d7fc8",
+  "entry": {
+    "id": 38,
+    "identifier": "freezing",
+    "displayName": "冰冻"
+  },
+  "verification": "Numeric ID from the Bedrock data row; identifier independently exists in Mojang preview mojang-effects.json. Mojang metadata lists names only, not effect numbers."
+}

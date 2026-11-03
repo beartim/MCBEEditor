@@ -31,13 +31,7 @@ public static class StorageBiomeCommandParser
 {
     private static readonly Regex BlockNamePattern = new("^[a-z0-9_.-]+:[a-z0-9_./-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public const string Usage =
-        "storage query 维度 x y z\n" +
-        "storage set 维度 x y z 层数 方块名 states\n" +
-        "storage delete 维度 x y z 层数\n" +
-        "storage clear 维度 x y z 保留到的层数\n" +
-        "fillbiome 维度 x1 y1 z1 x2 y2 z2 生物群系数字ID或字符串ID\n" +
-        "info";
+    public const string Usage = "storage query 维度 x y z\nstorage set 维度 x y z 层数 方块ID [states]\nstorage delete 维度 x y z 层数\nstorage clear 维度 x y z 保留到的层数\nstorage set 省略 states 默认 NULL；层数仍必填。delete/clear 作用于整个 SubChunk 的 storage，层号或保留到的层数不可省略。\nfillbiome 维度 x1 y1 z1 x2 y2 z2 生物群系数字ID或字符串ID\ninfo";
 
     public static bool IsStorageBiomeCommand(string text)
     {
@@ -74,8 +68,8 @@ public static class StorageBiomeCommandParser
         {
             "query" when args.Length == 5 => new StorageQueryStorageBiomeCommandRequest(
                 BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2)),
-            "set" when args.Length == 8 => new StorageSetStorageBiomeCommandRequest(
-                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseLayer(args[5]), ParseBlock(args[6], args[7])),
+            "set" when args.Length is 7 or 8 => new StorageSetStorageBiomeCommandRequest(
+                BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseLayer(args[5]), ParseBlock(args[6], args.Length == 8 ? args[7] : "NULL")),
             "delete" when args.Length == 6 => new StorageDeleteStorageBiomeCommandRequest(
                 BlockCommandParser.ParseDimension(args[1], dimensionResolver), Coordinate(args, 2), ParseLayer(args[5])),
             "clear" when args.Length == 6 => new StorageClearStorageBiomeCommandRequest(

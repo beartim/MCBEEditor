@@ -122,7 +122,7 @@ if [[ "$(grep -R -l 'isEnabled: true' "$ROOT/Sources/UI" | wc -l | tr -d ' ')" !
 fi
 
 grep -q 'markViewedAfterOpeningEditor(object)' "$ROOT/Sources/UI/EntityBrowserViewController.swift"
-grep -q 'markViewedAfterOpeningEditor(object)' "$ROOT/Sources/UI/MapSelectionResultsViewController.swift"
+grep -q 'markViewedAfterOpeningEditor(item)' "$ROOT/Sources/UI/MapSelectionResultsViewController.swift"
 if grep -q 'viewedItems.mark(object.stableID)' <(sed -n '/didSelectRowAt/,/trailingSwipeActions/p' "$ROOT/Sources/UI/EntityBrowserViewController.swift"); then
   echo "error: entity row tap still marks viewed before Edit NBT" >&2
   exit 1

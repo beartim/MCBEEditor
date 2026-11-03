@@ -1,0 +1,29 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+main/regression.swift:148: Fatal error: Entity editor reopen: 27 failures:
+modernActor: reopening a viewed row shows the initial NBT
+modernActor: list metadata stayed at initial NBT
+modernActor: Save did not publish latest location/metadata
+modernActor: Save did not publish latest location/metadata
+modernActor: moved NBT was not retained
+modernActor: row title is stale
+modernActor: failed Save changed the list or database
+modernActor: searched Save failed
+legacyChunkEntity: reopening a viewed row shows the initial NBT
+legacyChunkEntity: list metadata stayed at initial NBT
+legacyChunkEntity: Save did not publish latest location/metadata
+legacyChunkEntity: Save did not publish latest location/metadata
+legacyChunkEntity: moved NBT was not retained
+legacyChunkEntity: row title is stale
+legacyChunkEntity: failed Save changed the list or database
+legacyChunkEntity: searched Save failed
+blockEntity: reopening a viewed row shows the initial NBT
+blockEntity: list metadata stayed at initial NBT
+blockEntity: Save did not publish latest location/metadata
+blockEntity: Save did not publish latest location/metadata
+blockEntity: moved NBT was not retained
+blockEntity: row title is stale
+blockEntity: searched Save failed
+opening an old snapshot did not read the current persisted NBT
+missing record opened an editable stale snapshot
+resident list kept the original object identity
+resident list reopened stale NBT

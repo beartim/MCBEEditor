@@ -7,14 +7,14 @@ internal static class DimensionCommandTests
 {
     public static void RunParserTests()
     {
-        foreach (var text in new[] { "dimension query", " DiMeNsIoN\tQuErY " })
+        foreach (var text in new[] { "dimension", "dimension query", " DiMeNsIoN\tQuErY " })
         {
             var request = CliCommandParser.Parse(text);
             if (request is not DimensionCommandRequest || CliCommandPolicy.MayMutate(request))
                 throw new InvalidOperationException("dimension query must route as a read-only command");
             CliCommandPolicy.RequireExecutable(request);
         }
-        foreach (var text in new[] { "dimension", "dimension query extra", "dimension add bear 2147483648", "dimension empty", "dimension empty bear extra" })
+        foreach (var text in new[] { "dimension query extra", "dimension add bear 2147483648", "dimension empty", "dimension empty bear extra" })
         {
             try { CliCommandParser.Parse(text); throw new InvalidOperationException("invalid dimension command accepted"); }
             catch (InvalidDataException) { }

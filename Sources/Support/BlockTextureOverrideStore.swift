@@ -179,6 +179,7 @@ PNG 的可见像素会被计算为一个代表颜色，用于覆盖该方块显�
 2. Colors.txt 覆盖
 Colors.txt 每行格式必须为：
 minecraft:bedrock #808080
+也可使用新版字符串 ID，例如 minecraft:ice_crystal #B0DAD3。
 即：完整冒号格式方块 ID + 空格 + #RRGGBB 六位十六进制颜色。
 一行只能包含一个条目。空行会忽略，格式错误的行会忽略。
 同一方块出现多次时，以最后一个有效条目为准。

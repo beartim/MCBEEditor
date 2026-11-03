@@ -338,7 +338,7 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
         case 1:
             return 1
         case 2:
-            return 5
+            return 6
         default:
             return 0
         }
@@ -394,7 +394,8 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
                 ("生物群系ID", "生物群系数字 ID、名称与颜色图标"),
                 ("状态效果ID", "状态效果数字 ID、名称与十六进制值"),
                 ("魔咒ID", "魔咒数字 ID、名称与十六进制值"),
-                ("方块ID", "旧版数字 ID、字符串 ID 与十六进制值")
+                ("方块ID", "旧版数字 ID、字符串 ID 与十六进制值"),
+                ("新版冰系方块ID", "冰锥、冰晶、脆冰的预览版方块类型 ID")
             ]
             cell.textLabel?.text = rows[indexPath.row].0
             cell.textLabel?.textColor = .label
@@ -512,6 +513,11 @@ final class WorldListViewController: UITableViewController, UIDocumentPickerDele
             controller = BedrockDataValueListViewController(
                 title: "方块 ID",
                 entries: BedrockLegacyBlockCatalog.blocks
+            )
+        case 5:
+            controller = BedrockDataValueListViewController(
+                title: "冰系方块 ID（预览）",
+                entries: BedrockDataValueCatalog.modernBlocks
             )
         default:
             return

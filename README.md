@@ -1,10 +1,29 @@
 # MCBEEditor iOS 13 rewrite
 
-本源码包包含 iOS GUI、Windows GUI 和双端 CLI。最新整体检查、修复与清理见 [Docs/OverallAudit/VALIDATION.md](Docs/OverallAudit/VALIDATION.md)；历史轮次与平台待验范围见 [CLI/Docs/FINAL_REVIEW.md](CLI/Docs/FINAL_REVIEW.md)；CLI 使用与构建见 [CLI/README.md](CLI/README.md)。源码审计交付不等于原生平台、GUI 或 Minecraft 读档验收通过。
+本源码包包含 iOS GUI、Windows GUI 和双端 CLI。最新完整命令格式与默认值见 [COMMAND_SYNTAX.md](COMMAND_SYNTAX.md)。最新整体检查、修复与清理见 [Docs/OverallAudit/VALIDATION.md](Docs/OverallAudit/VALIDATION.md)；历史轮次与平台待验范围见 [CLI/Docs/FINAL_REVIEW.md](CLI/Docs/FINAL_REVIEW.md)；CLI 使用与构建见 [CLI/README.md](CLI/README.md)。源码审计交付不等于原生平台、GUI 或 Minecraft 读档验收通过。
 
 此前更新：Windows 实体 `UniqueID` 可修改；双端 `weather query` 缺失 `doWeatherCycle` 时显示 `1`。修改细节及当时验证范围见 [UPDATES_UNIQUEID_WEATHER_DEFAULT.md](UPDATES_UNIQUEID_WEATHER_DEFAULT.md)。
 
 2026-09-10 源码审查版：修正 NBT 状态配色、旧版数字编号转换、异常数据边界与命令文件读取，合并重复转换和解压逻辑。详细修改及验证范围见 [CHANGES_SOURCE_AUDIT_20260910.md](CHANGES_SOURCE_AUDIT_20260910.md)。版本仍为 1.0.0（100）；本次仅完成静态验证，Swift/Xcode 行为测试尚未运行。
+
+## 2026 年第 4 次小更新数据同步
+
+补充冻尸 `minecraft:frostbite`（155）、冰球 `minecraft:ice_ball`（156）、冰封洞穴 `minecraft:ice_caves`（196）和冰冻 `freezing`（38），同步实体数值识别、群系选择与地图颜色、`effect` 执行和 `ALL`。新增可搜索的“冰系方块 ID（预览）”，列出官方固定数据中已确认的冰锥、冰晶、脆冰类型 ID，与旧版 0–255 方块转换目录分开。
+
+地图补充冰晶、冰锥、脆冰材质色，沿用浮冰色覆盖浮冰砖／台阶／楼梯／墙及雕纹浮冰，并为雪砖系列预留雪白材质识别。`Colors.txt`／PNG 覆盖优先级不变。尚未在固定官方数据中核对的基岩版方块数字 ID 不补号；完整表、物品数值和版本限制见 [同步说明](Docs/CatalogSync/Drop4/SYNC.md)。
+
+保留 `kill 维度 x1 y1 z1 x2 y2 z2 0或1`。应用版本仍为 1.0.0，最低 iOS 13。
+
+## kill 维度与坐标范围
+
+```text
+kill overworld 0 0 0 1 1 1 1
+kill overworld 0 0 0 1 1 1 0
+```
+
+新增 `kill 维度 x1 y1 z1 x2 y2 z2 0或1`，原有 UniqueID、`@s`、`@a`、`@e` 和实体 identifier 格式继续可用。两角定义包含边界的长方体，支持反向角点、负数和小数，按实体／玩家实际 Pos 与维度筛选，不处理方块实体。维度名称／ID 规则与 `entity` 相同。
+
+非玩家实体直接删除；选中的非创造模式玩家无论末尾是 `0` 还是 `1` 都清零生命值。开关只影响创造模式玩家：`0` 跳过，`1` 同样清零。范围外及其他维度的数据保持不变。
 
 ## summon UniqueID 与直接 NBT 输入
 
@@ -14,7 +33,7 @@ summon minecraft:pig overworld 0 64 0 default 9007199254740993
 summon 'String'"identifier"="minecraft:cow",'List''Float'"Pos"="0.0,64.0,0.0",'Long'"UniqueID"="12345678"
 ```
 
-第一种格式为 `summon 实体类型 维度 x y z NBT标签或default [UniqueID]`。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
+第一种格式为 `summon 实体类型 维度 x y z [NBT标签或default [UniqueID或Auto]]`，省略 NBT 默认 default。末尾填写 `Auto` 自动生成 ID，或填写非零的有符号 64 位整数；省略仍按 `Auto` 处理，兼容原有脚本。手动 Long 保留全部精度，ID 冲突时拒绝创建。
 
 第二种格式直接保存标签、类型和顺序，不填充实体通用 NBT。必须包含三个可写入 Float 的有限数值组成的 `Pos`（或 `Position`）List；提供的 `UniqueID` 必须是非零 Long，缺少时自动追加。`DimensionId`（或 `Dimension`）应为 Int32 范围内的整数标签，缺少时存入主世界，不补写维度标签；追加 `'Int'"DimensionId"="1"` 可写入下界。关键字段及其别名不能重复。
 
@@ -22,23 +41,24 @@ CLI 批处理的 `summon` 仍需 `--output` 或 `--in-place`。含有引号的 N
 
 ## entity 实体查询（iOS / Windows 图形版与 CLI）
 
-- `entity`：列出全部维度的普通实体。
-- `entity overworld`：列出指定维度全部实体，也可用 `nether`、`the_end`。
-- `entity overworld -16 0 -16 16 128 16`：列出两角定义的闭合长方体内实体，支持小数及反向角点。
-- 每个实体一行，格式为 `实体类型=[全部 NBT 标签]`，类型与实体栏目一致，NBT 格式与 `getblock` 一致。
-- 查询不修改存档，不包含玩家或方块实体。版本保持 1.0.0。
+- `entity` 与 `entity @e`：列出所有维度的玩家与普通实体，排除方块实体。
+- `entity @s` / `entity @a`：查询本机玩家／全部玩家；`entity minecraft:pig` 查询判断为该类型的实体。
+- `entity 12345678`：按非零 Int64 UniqueID 查询玩家和实体，保留同 ID 的独立记录。
+- `entity overworld [六坐标]` 保留；可使用 `entity @a overworld [六坐标]` 组合目标与范围，按实际坐标和维度筛选。数字维度写在目标之后，例如 `entity @e 0`。
+- 每条结果显示 `实体类型 Dimension=名称(ID) Pos=(X,Y,Z) NBT=[全部MCBE-SNBT标签]`，缺少位置为 Pos=NULL；不补写推断字段，不做玩家眼高换算。
+- NBT 使用文件编解码器的无损格式，保留嵌套类型、全部精度和 NaN 位模式；查询不写入世界。完整规则见 [命令格式](COMMAND_SYNTAX.md)。版本保持 1.0.0。
 
 ## fill / setblock 方块实体参数
 
-`fill` 和 `setblock` 必须在所有方块名/states 配对后填写方块实体参数：`preserve` 保留原实体，`empty` 清空目标实体，或完整 MCBE-SNBT 标签设定实体。允许任意 id，包括与方块类型不同的实体。
+`fill` 和 `setblock` 的每层 states 可省略为 NULL，末尾方块实体可省略为 preserve；显式方块实体参数为：`preserve` 保留原实体，`empty` 清空目标实体，或完整 MCBE-SNBT 标签设定实体。允许任意 id，包括与方块类型不同的实体。
 
-NBT 根 x/y/z 可省略，输入时会自动忽略；写入时以命令选定位置为准，生成唯一的小写 Int 类型根坐标。`fill` 为区域内每个方块分别写入实际坐标，输入坐标的值和类型不限制目标范围。嵌套坐标、Pos 和其他标签保持不变。缺少末尾参数、NBT 语法错误或无法安全解码时，方块与实体均不会留下部分修改。详见 [说明与验证](Docs/FillSetblockBlockEntity/README.md)，可直接使用 [命令示例](CLI/Examples/FillSetblockBlockEntity.txt)。版本仍为 1.0.0。
+NBT 根 x/y/z 可省略，输入时会自动忽略；写入时以命令选定位置为准，生成唯一的小写 Int 类型根坐标。`fill` 为区域内每个方块分别写入实际坐标，输入坐标的值和类型不限制目标范围。嵌套坐标、Pos 和其他标签保持不变。省略末尾参数时保留原方块实体；NBT 语法错误或无法安全解码时，方块与实体均不会留下部分修改。详见 [说明与验证](Docs/FillSetblockBlockEntity/README.md)，可直接使用 [命令示例](CLI/Examples/FillSetblockBlockEntity.txt)。版本仍为 1.0.0。
 
 ## 1.0.0 命令层全 storage、getblock 与 storage 命令
 
 - 命令层对 v8 或更新的已知结构化 SubChunk 支持全部物理 storage；地图、方块 NBT、区域编辑等其他栏目仍只编辑 layer0/layer1。
 - `clone` 会复制源位置的全部 storage，并清空目标位置多出来的 storage 内容；重叠复制仍使用命令开始时的源快照。
-- `setblock` / `fill` 至少只需提供 storage0，layer1 不再必填；后续按“方块名 + states”成对追加，最多 255 个 storage，最后必须填写方块实体参数。未提供的高层保持原值。
+- `setblock` / `fill` 至少只需提供 storage0，layer1 不再必填；后续按方块名追加，每层 states 可省略为 NULL，最多 255 个 storage，最后的方块实体可省略为 preserve。未提供的高层保持原值。
 - 新增 `getblock 维度 x y z`：蓝色 `Block` 行显示该位置全部 storage，紫色 `BlockEntity` 行显示完整方块实体 NBT；没有方块实体时显示 `BlockEntity=NULL`。
 - 新增 `storage query/set/delete/clear` 四个子命令。`set` 的 storage 索引为 0～254；`clear N` 保留 storage0…storageN，参数接受 UInt8 0～255。不存在 `storage add` 别名。
 - `effect give` 的 Duration 支持完整 Int32 负数；Amplifier 接受 -128～255，并按 Bedrock Byte 原始位模式保存。
@@ -571,3 +591,14 @@ Windows 10/11 x64 版本位于 `Windows/`，使用 WPF + .NET 10 与 `leveldb-mc
 iOS、Windows 及两端 CLI 的 NBT 导入导出增加 `.txt` 文件。MCBE-SNBT 是带类型文本，例如 `'Int'"Age"="0"`；完整文件可无损保存根名称、类型、重复标签和连续多根。NBT/mcstructure 独立工具、选中/批量标签、实体、结构文件等入口使用同一格式。
 
 CLI 示例：`mcbe-cli --convert input.nbt --to txt --output output.txt`。`structure export txt my:house` 导出结构文本；CLI 再提供 `--file output.txt`。详细语法见 [Docs/MCBE-SNBT.md](Docs/MCBE-SNBT.md)。版本保持 1.0.0，已有 entity 和 summon 增强均保留。
+
+## 命令语法与可省略参数（2026-10-29）
+
+已检查全部 28 条命令，统一 Swift/C# 与 GUI/CLI 的解析和帮助，完整格式及必填/省略条件见 [COMMAND_SYNTAX.md](COMMAND_SYNTAX.md)。旧完整命令继续有效。
+
+- give 默认 Auto 槽位、数量 1、空标签；effect give 默认 600 游戏刻、原始等级 0，clear 省略效果默认 ALL。
+- fill/setblock 每层 states 默认 NULL，末尾方块实体默认 preserve；提供模板时先用 states/NULL 占位。storage set 的 states 也可省略。
+- kill 省略末尾开关默认 0，仅跳过创造模式玩家；非创造玩家清零及非玩家删除保持不变。summon 的 NBT 默认 default，UniqueID 默认 Auto。
+- dimension/chunk/structure/time/weather 裸命令默认只读查询；time query 默认 daytime；tickingarea/query/list 默认列出 ALL。
+- weather clear 自动变化默认 1；rain/thunder 依次默认 6000 游戏刻、1.0、1；tickingarea add 预加载默认 0。
+- Auto/NULL/default/preserve/empty 不区分大小写，ALL 仍必须大写。目标、维度、坐标及 storage 层号不推断，非交互结构文件接口的名称与 --file 仍必填。

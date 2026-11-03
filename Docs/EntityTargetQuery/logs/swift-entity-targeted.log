@@ -1,0 +1,2 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Entity query regression passed: scopes, exact NBT, mixed lists, extreme positions and read-only storage

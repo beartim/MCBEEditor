@@ -773,15 +773,19 @@ final class EntityBrowserViewController: UIViewController, UITableViewDataSource
   }
 
   private func openEditor(_ object: BedrockWorldObject) {
-    markViewedAfterOpeningEditor(object)
-    let controller = WorldObjectNBTEditorViewController(
-      object: object,
-      session: session,
-      onSave: { [weak self] in
-        self?.session.invalidateAfterExternalChange()
-      }
-    )
-    navigationController?.pushViewController(controller, animated: true)
+    do {
+      let controller = try WorldObjectNBTEditorViewController(
+        object: object,
+        session: session,
+        onSave: { [weak self] _ in
+          self?.session.invalidateAfterExternalChange()
+        }
+      )
+      markViewedAfterOpeningEditor(object)
+      navigationController?.pushViewController(controller, animated: true)
+    } catch {
+      showError(error, title: "读取对象 NBT 失败，请重新扫描")
+    }
   }
 
   private func markViewedAfterOpeningEditor(_ object: BedrockWorldObject) {

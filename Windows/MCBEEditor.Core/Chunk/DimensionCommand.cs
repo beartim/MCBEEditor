@@ -11,13 +11,15 @@ public sealed record DimensionCommandRequest(DimensionCommandKind Kind = Dimensi
 
 public static class DimensionCommandParser
 {
-    public const string Usage = "dimension query\ndimension add 名称 ID\ndimension empty 名称或ID\ndimension purge 名称或ID\nquery 列出存档中存在的维度名称、ID 和区块数，包含已登记的空维度。add 支持有或无 namespace 的名称及 Int32 ID；名称、ID 不得重复。缺失原版维度可用 overworld 0、nether 1、the_end 2 重建。\n示例：dimension query\n示例：dimension add wzn:bear 1000\n示例：dimension add bear 1003\n示例：dimension add nether 1\nempty 清空目标维度内容，保留维度登记；示例：dimension empty wzn:cat\n示例：dimension empty 1001\npurge 彻底删除维度及登记；受影响玩家迁到剩余主世界或最小ID维度，当前位置(0.5,65.62,0.5)，重生点(0,64,0)。无剩余维度且有玩家引用时拒绝。\n示例：dimension purge wzn:bear\n示例：dimension purge 1000";
+    public const string Usage = "dimension\ndimension query\ndimension add 名称 ID\ndimension empty 名称或ID\ndimension purge 名称或ID";
     public static bool IsDimensionCommand(string text)
         => text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
             ?.Equals("dimension", StringComparison.OrdinalIgnoreCase) == true;
     public static DimensionCommandRequest Parse(string text)
     {
         var tokens = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 1 && tokens[0].Equals("dimension", StringComparison.OrdinalIgnoreCase))
+            return new DimensionCommandRequest();
         if (tokens.Length >= 2 && tokens[0].Equals("dimension", StringComparison.OrdinalIgnoreCase))
         {
             if (tokens.Length == 2 && tokens[1].Equals("query", StringComparison.OrdinalIgnoreCase))

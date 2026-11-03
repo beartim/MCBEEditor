@@ -169,6 +169,11 @@ enum BedrockBlockMapColorCatalog {
         if name.contains("gravel") { return 0x77716D }
 
         // Snow and ice.
+        // Drop 4 material approximations; runtime palette IDs remain world-owned.
+        if name == "minecraft:ice_crystal" { return 0xB0DAD3 }
+        if name == "minecraft:icicle" { return 0xB9D9EC }
+        if name == "minecraft:brittle_ice" { return 0xA7C7EA }
+        if name.hasPrefix("minecraft:snow_brick") { return 0xF1F6F7 }
         if name.contains("powder_snow") || name.hasSuffix(":snow") || name.contains("snow_layer") { return 0xF1F6F7 }
         if name.contains("blue_ice") { return 0x74A9FF }
         if name.contains("packed_ice") { return 0x8DB4EA }

@@ -1,4 +1,4 @@
-// ID/reference audit: Bedrock 26.52; official content snapshot v1.26.50.4.
+// Stable baseline: Bedrock 26.52 / v1.26.50.4; Drop 4 additions: Docs/CatalogSync/Drop4.
 // Provenance, legacy group labels and fixed data snapshots: Docs/CatalogSync.
 using MCBEEditor.Core.Chunk;
 namespace MCBEEditor.Core.World;
@@ -149,6 +149,8 @@ public static class BedrockDataValueCatalog
         new(152, "minecraft:camel_husk", "骆驼尸壳"),
         new(153, "minecraft:sulfur_cube", "硫方怪"),
         new(154, "minecraft:cushion", "坐垫"),
+        new(155, "minecraft:frostbite", "冻尸"),
+        new(156, "minecraft:ice_ball", "冰球"),
         new(157, "minecraft:trader_llama", "行商羊驼"),
         new(218, "minecraft:chest_boat", "运输船"),
     ];
@@ -192,6 +194,15 @@ public static class BedrockDataValueCatalog
         new(35, "infested", "寄生"),
         new(36, "raid_omen", "袭击之兆"),
         new(37, "breath_of_the_nautilus", "鹦鹉螺之息"),
+        new(38, "freezing", "冰冻"),
+    ];
+
+    // Verified preview block type IDs, isolated from legacy byte-ID conversion.
+    public static readonly IReadOnlyList<BedrockDataValueEntry> ModernBlocks =
+    [
+        new(1502, "minecraft:icicle", "冰锥"),
+        new(1503, "minecraft:ice_crystal", "冰晶"),
+        new(1504, "minecraft:brittle_ice", "脆冰"),
     ];
 
     public static readonly IReadOnlyList<BedrockDataValueEntry> Enchantments =

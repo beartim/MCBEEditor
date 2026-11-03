@@ -41,6 +41,19 @@ public static class McbeSnbtCodec
         return StrictUtf8.GetBytes(output.ToString());
     }
 
+    /// <summary>Single-line query tags with the file codec's lossless representation.</summary>
+    public static string EncodeNamedTags(IReadOnlyList<NbtNamedTag> tags)
+    {
+        ArgumentNullException.ThrowIfNull(tags);
+        var output = new StringBuilder();
+        for (var index = 0; index < tags.Count; index++)
+        {
+            if (index != 0) output.Append(',');
+            WriteNamed(output, tags[index].Name, tags[index].Value, 0);
+        }
+        return output.ToString();
+    }
+
     private static void CheckDepth(int depth)
     {
         if (depth > MaximumDepth) throw new InvalidDataException($"MCBE-SNBT 嵌套超过 {MaximumDepth} 层。");

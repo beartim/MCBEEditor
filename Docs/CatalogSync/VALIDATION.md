@@ -1,3 +1,5 @@
+> 2026-10-28 增量验证见 [Drop4/VALIDATION.md](Drop4/VALIDATION.md)。以下保留 2026-10-04 基线的历史验证记录。
+
 # 命令与 ReadMe 复核报告
 
 日期：2026-10-04。基于维度功能最终源码 `4391db0`，本轮更新 ID 对照、中文显示名称及固定 ReadMe。验证使用 Linux、真实 Swift 6.2.3、.NET SDK 10.0.401，以及真实 Mojang LevelDB native 库。

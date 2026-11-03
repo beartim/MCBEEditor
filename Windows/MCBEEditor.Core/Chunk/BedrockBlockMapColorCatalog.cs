@@ -216,6 +216,11 @@ public static class BedrockBlockMapColorCatalog
         if (name.EndsWith(":clay", StringComparison.Ordinal)) return 0x9AA6B1;
         if (name.Contains("gravel")) return 0x77716D;
 
+        // Drop 4 material approximations; runtime palette IDs remain world-owned.
+        if (name == "minecraft:ice_crystal") return 0xB0DAD3;
+        if (name == "minecraft:icicle") return 0xB9D9EC;
+        if (name == "minecraft:brittle_ice") return 0xA7C7EA;
+        if (name.StartsWith("minecraft:snow_brick", StringComparison.Ordinal)) return 0xF1F6F7;
         if (name.Contains("powder_snow") || name.EndsWith(":snow", StringComparison.Ordinal) || name.Contains("snow_layer")) return 0xF1F6F7;
         if (name.Contains("blue_ice")) return 0x74A9FF;
         if (name.Contains("packed_ice")) return 0x8DB4EA;

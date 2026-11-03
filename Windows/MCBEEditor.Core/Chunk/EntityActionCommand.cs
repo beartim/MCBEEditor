@@ -31,28 +31,10 @@ public sealed record EffectEntityActionCommandRequest(EntityActionEffectOperatio
 public static class EntityActionCommandParser
 {
     private static readonly Regex IdentifierPattern = new("^[a-z0-9_.-]+:[a-z0-9_./-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly IReadOnlyDictionary<string, int> EffectIds = new Dictionary<string, int>(StringComparer.Ordinal)
-    {
-        ["speed"] = 1, ["slowness"] = 2, ["haste"] = 3, ["mining_fatigue"] = 4, ["strength"] = 5,
-        ["instant_health"] = 6, ["instant_damage"] = 7, ["jump_boost"] = 8, ["nausea"] = 9, ["regeneration"] = 10,
-        ["resistance"] = 11, ["fire_resistance"] = 12, ["water_breathing"] = 13, ["invisibility"] = 14, ["blindness"] = 15,
-        ["night_vision"] = 16, ["hunger"] = 17, ["weakness"] = 18, ["poison"] = 19, ["wither"] = 20,
-        ["health_boost"] = 21, ["absorption"] = 22, ["saturation"] = 23, ["levitation"] = 24, ["fatal_poison"] = 25,
-        ["conduit_power"] = 26, ["slow_falling"] = 27, ["bad_omen"] = 28, ["village_hero"] = 29, ["darkness"] = 30,
-        ["trial_omen"] = 31, ["wind_charged"] = 32, ["weaving"] = 33, ["oozing"] = 34, ["infested"] = 35,
-        ["raid_omen"] = 36, ["breath_of_the_nautilus"] = 37
-    };
+    private static readonly IReadOnlyDictionary<string, int> EffectIds = BedrockDataValueCatalog.StatusEffects
+        .ToDictionary(entry => entry.Identifier, entry => entry.Id, StringComparer.Ordinal);
 
-    public const string Usage =
-        "clear 目标\n" +
-        "give 目标 Slot 物品 数目 物品标签\n" +
-        "kill 目标 是否杀死创造模式玩家\n" +
-        "kick 在线玩家UniqueID或@a\n" +
-        "summon 实体类型 维度 x y z NBT标签或default [UniqueID或Auto]\n" +
-        "summon 完整NBT标签\n" +
-        "effect give 目标 状态效果ID或ALL 持续时间 效果等级\n" +
-        "effect clear 目标 状态效果ID或ALL\n" +
-        "目标支持非零 UniqueID、@s、@a、@e 或完整实体 identifier。";
+    public const string Usage = "clear 目标\ngive 目标 [Slot] 物品ID [数目 [物品标签]]\nkill 目标 [是否杀死创造模式玩家]\nkill 维度 x1 y1 z1 x2 y2 z2 [是否杀死创造模式玩家]\nkick 目标\nsummon 实体类型 维度 x y z [NBT标签或default [UniqueID或Auto]]\nsummon 实体NBT标签\neffect give 目标 状态效果ID或ALL [持续游戏刻 [原始等级]]\neffect clear 目标 [状态效果ID或ALL]";
 
     public static bool IsEntityActionCommand(string text)
     {
@@ -70,7 +52,7 @@ public static class EntityActionCommandParser
         {
             "clear" => ParseClear(args),
             "give" => ParseGive(args),
-            "kill" => ParseKill(args),
+            "kill" => ParseKill(args, dimensionResolver),
             "kick" => ParseKick(args),
             "summon" => ParseSummon(args, dimensionResolver),
             "effect" => ParseEffect(args),
@@ -86,16 +68,37 @@ public static class EntityActionCommandParser
 
     private static EntityActionCommandRequest ParseGive(string[] args)
     {
-        if (args.Length != 5) throw UsageError();
+        if (args.Length < 2) throw UsageError();
+        // A namespaced item ID cannot be confused with Auto or an indexed slot.
+        var itemIndex = args[1].Contains(':') ? 1 : 2;
+        if (args.Length < itemIndex + 1 || args.Length > itemIndex + 3) throw UsageError();
         return new GiveEntityActionCommandRequest(
-            TargetingCommandParser.ParseTarget(args[0]), ParseGiveSlot(args[1]), ParseIdentifier(args[2], "物品"),
-            ParseItemCount(args[3]), BlockCommandParser.ParseStates(args[4]));
+            TargetingCommandParser.ParseTarget(args[0]), itemIndex == 1 ? new(EntityActionGiveSlotKind.Automatic) : ParseGiveSlot(args[1]),
+            ParseIdentifier(args[itemIndex], "物品"),
+            args.Length > itemIndex + 1 ? ParseItemCount(args[itemIndex + 1]) : 1,
+            args.Length > itemIndex + 2 ? BlockCommandParser.ParseStates(args[itemIndex + 2]) : []);
     }
 
-    private static EntityActionCommandRequest ParseKill(string[] args)
+    private static EntityActionCommandRequest ParseKill(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length != 2) throw UsageError();
-        return new KillEntityActionCommandRequest(TargetingCommandParser.ParseTarget(args[0]), ParseBooleanFlag(args[1], "是否杀死创造模式玩家"));
+        if (args.Length is not (1 or 2 or 7 or 8)) throw UsageError();
+        TargetingCommandTarget target;
+        if (args.Length <= 2) target = TargetingCommandParser.ParseTarget(args[0]);
+        else
+        {
+            var dimension = BlockCommandParser.ParseDimension(args[0], dimensionResolver);
+            var x1 = ParseEntityCoordinate(args[1], "X1", "kill");
+            var y1 = ParseEntityCoordinate(args[2], "Y1", "kill");
+            var z1 = ParseEntityCoordinate(args[3], "Z1", "kill");
+            var x2 = ParseEntityCoordinate(args[4], "X2", "kill");
+            var y2 = ParseEntityCoordinate(args[5], "Y2", "kill");
+            var z2 = ParseEntityCoordinate(args[6], "Z2", "kill");
+            target = new TargetingCommandTarget(TargetingCommandTargetKind.Region, Dimension: dimension,
+                Bounds: new EntityQueryBounds(Math.Min(x1, x2), Math.Min(y1, y2), Math.Min(z1, z2),
+                    Math.Max(x1, x2), Math.Max(y1, y2), Math.Max(z1, z2)));
+        }
+        return new KillEntityActionCommandRequest(target,
+            args.Length is 2 or 8 && ParseBooleanFlag(args[^1], "是否杀死创造模式玩家"));
     }
 
     private static EntityActionCommandRequest ParseKick(string[] args)
@@ -114,14 +117,14 @@ public static class EntityActionCommandParser
             _ = SummonNbtMetadata(tags);
             return new SummonNbtEntityActionCommandRequest(tags);
         }
-        if (args.Length is not (6 or 7)) throw UsageError();
+        if (args.Length is not (5 or 6 or 7)) throw UsageError();
         var identifier = ParseIdentifier(args[0], "实体");
         var dimension = BlockCommandParser.ParseDimension(args[1], dimensionResolver);
         var x = ParseEntityCoordinate(args[2], "X");
         var y = ParseEntityCoordinate(args[3], "Y");
         var z = ParseEntityCoordinate(args[4], "Z");
         IReadOnlyList<NbtNamedTag> additions;
-        if (args[5] == "default") additions = [];
+        if (args.Length == 5 || args[5].Equals("default", StringComparison.OrdinalIgnoreCase)) additions = [];
         else
         {
             additions = BlockCommandParser.ParseStates(args[5]);
@@ -136,7 +139,7 @@ public static class EntityActionCommandParser
 
     private static long? ParseSummonUniqueId(string text)
     {
-        if (text == "Auto") return null;
+        if (text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) return null;
         if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var uniqueId) || uniqueId == 0)
             throw new InvalidDataException("summon 的 UniqueID 必须是 Auto 或非零 Long 整数。");
         return uniqueId;
@@ -185,18 +188,19 @@ public static class EntityActionCommandParser
         if (args.Length == 0) throw UsageError();
         return args[0].ToLowerInvariant() switch
         {
-            "give" when args.Length == 5 => new EffectEntityActionCommandRequest(
+            "give" when args.Length is >= 3 and <= 5 => new EffectEntityActionCommandRequest(
                 EntityActionEffectOperationKind.Give, TargetingCommandParser.ParseTarget(args[1]), ParseEffectSelection(args[2]),
-                ParseEffectDuration(args[3]), ParseEffectAmplifier(args[4])),
-            "clear" when args.Length == 3 => new EffectEntityActionCommandRequest(
-                EntityActionEffectOperationKind.Clear, TargetingCommandParser.ParseTarget(args[1]), ParseEffectSelection(args[2])),
+                args.Length >= 4 ? ParseEffectDuration(args[3]) : 600, args.Length == 5 ? ParseEffectAmplifier(args[4]) : (byte)0),
+            "clear" when args.Length is 2 or 3 => new EffectEntityActionCommandRequest(
+                EntityActionEffectOperationKind.Clear, TargetingCommandParser.ParseTarget(args[1]),
+                args.Length == 3 ? ParseEffectSelection(args[2]) : new EntityActionEffectSelection(true)),
             _ => throw UsageError()
         };
     }
 
     private static EntityActionGiveSlot ParseGiveSlot(string text)
     {
-        if (text == "Auto") return new EntityActionGiveSlot(EntityActionGiveSlotKind.Automatic);
+        if (text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) return new EntityActionGiveSlot(EntityActionGiveSlotKind.Automatic);
         if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value is < 0 or > 35)
             throw new InvalidDataException("give 的 Slot 必须是 Auto 或 0～35 的整数。");
         return new EntityActionGiveSlot(EntityActionGiveSlotKind.Indexed, (sbyte)value);
@@ -232,6 +236,7 @@ public static class EntityActionCommandParser
     private static EntityActionEffectSelection ParseEffectSelection(string text)
     {
         if (text == "ALL") return new EntityActionEffectSelection(true);
+        if (text.StartsWith("minecraft:", StringComparison.Ordinal)) text = text[10..];
         if (!EffectIds.TryGetValue(text, out var id)) throw new InvalidDataException($"状态效果字符串 ID 没有对应的数字 ID：{text}");
         return new EntityActionEffectSelection(false, id, text);
     }
@@ -741,13 +746,8 @@ public sealed class EntityActionCommandStore
     }
 
     private sealed record EffectEntry(int Id, string Identifier);
-    private static readonly EffectEntry[] EffectCatalog =
-    [
-        new(1,"speed"),new(2,"slowness"),new(3,"haste"),new(4,"mining_fatigue"),new(5,"strength"),new(6,"instant_health"),new(7,"instant_damage"),new(8,"jump_boost"),new(9,"nausea"),new(10,"regeneration"),
-        new(11,"resistance"),new(12,"fire_resistance"),new(13,"water_breathing"),new(14,"invisibility"),new(15,"blindness"),new(16,"night_vision"),new(17,"hunger"),new(18,"weakness"),new(19,"poison"),new(20,"wither"),
-        new(21,"health_boost"),new(22,"absorption"),new(23,"saturation"),new(24,"levitation"),new(25,"fatal_poison"),new(26,"conduit_power"),new(27,"slow_falling"),new(28,"bad_omen"),new(29,"village_hero"),new(30,"darkness"),
-        new(31,"trial_omen"),new(32,"wind_charged"),new(33,"weaving"),new(34,"oozing"),new(35,"infested"),new(36,"raid_omen"),new(37,"breath_of_the_nautilus")
-    ];
+    private static readonly EffectEntry[] EffectCatalog = BedrockDataValueCatalog.StatusEffects
+        .Select(entry => new EffectEntry(entry.Id, entry.Identifier)).ToArray();
 
     private static NbtValue EffectCompound(int id, int duration, byte amplifierRaw) => new NbtCompoundValue(
     [

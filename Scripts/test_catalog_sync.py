@@ -26,20 +26,35 @@ def verify_upstream():
         if path.exists():
             assert hashlib.sha256(path.read_bytes()).hexdigest() == source["sha256"], str(path)
     entity_ids = json.loads((directory / "entity-ids.json").read_text())
+    drop = REFERENCE.parent / "Drop4"
+    supplement = json.loads((drop / "sources.json").read_text())
+    for source in supplement["files"]:
+        path = drop / source["path"]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == source["sha256"], str(path)
+    actors = json.loads((drop / "Upstream/actor-type-additions.json").read_text())["entries"]
+    assert all(row["shortId"] == (row["fullId"] & 255) for row in actors), "protocol full/short actor IDs"
     assert {r["identifier"]: r["id"] for r in reference["entities"]} == {
-        r["identifier"]: r["shortId"] for r in entity_ids
+        r["identifier"]: r["shortId"] for r in entity_ids + actors
     }, "entity IDs differ from the factual Microsoft document rows"
-    biomes = json.loads((directory / "mojang-biomes.json").read_text())["data_items"]
+    biomes = json.loads((drop / "Upstream/mojang-biomes.json").read_text())["data_items"]
     assert {r["identifier"]: r["id"] for r in reference["biomes"]} == {
         r["name"]: r["id"] for r in biomes
     }, "biome IDs differ from Mojang metadata"
     for category, filename in [("entities", "mojang-entities.json"),
                                ("statusEffects", "mojang-effects.json"),
                                ("enchantments", "mojang-enchantments.json")]:
-        upstream = json.loads((directory / filename).read_text())["data_items"]
+        upstream = json.loads((drop / "Upstream" / filename).read_text())["data_items"]
         known = {r["identifier"].removeprefix("minecraft:") for r in reference[category]}
         assert {r.get("value", r["name"]).removeprefix("minecraft:") for r in upstream} <= known, category
-    print("Pinned upstream hashes, 141 entity IDs, 89 biome IDs and name completeness passed.")
+    blocks = {row["name"]: row["raw_id"] for row in json.loads((drop / "Upstream/mojang-blocks.json").read_text())["data_items"]}
+    assert all(blocks[row["identifier"]] == row["id"] for row in reference["modernBlocks"]), "modern block IDs differ from Mojang metadata"
+    freezing = json.loads((drop / "Upstream/freezing-id.json").read_text())["entry"]
+    assert freezing == {"id": 38, "identifier": "freezing", "displayName": "冰冻"}
+    assert freezing in reference["statusEffects"], "freezing numeric ID differs from the Bedrock factual row"
+    items = {row["name"]: row["raw_id"] for row in json.loads((drop / "Upstream/mojang-items.json").read_text())["data_items"]}
+    additions = json.loads((drop / "additions.json").read_text())
+    assert all(items[row["identifier"]] == row["id"] for row in additions["items"]), "documented item IDs differ from Mojang metadata"
+    print("Pinned stable/preview hashes, 143 entity IDs, 90 biome IDs, 38 effects and 3 modern blocks passed.")
 
 
 def run(*args):
@@ -66,6 +81,7 @@ var categories = new Dictionary<string, IReadOnlyList<BedrockDataValueEntry>> {
     ["biomes"] = BedrockDataValueCatalog.Biomes,
     ["enchantments"] = BedrockDataValueCatalog.Enchantments,
     ["legacyBlocks"] = BedrockDataValueCatalog.LegacyBlocks,
+    ["modernBlocks"] = BedrockDataValueCatalog.ModernBlocks,
 };
 foreach (var pair in categories)
 {
@@ -86,7 +102,11 @@ foreach (var pair in categories)
 if (!BedrockDataValueCatalog.Search(BedrockDataValueCatalog.LegacyBlocks, "强化玻璃").Any(e => e.Id == 253)
     || !BedrockDataValueCatalog.Search(BedrockDataValueCatalog.Entities, "非玩家角色").Any(e => e.Id == 51))
     throw new Exception("Chinese catalog search missed a translated entry");
-Console.WriteLine("C#: 565 audited ID/name rows, entity bridge and Chinese searches passed.");
+if (BedrockDataValueCatalog.LegacyBlocks.Any(row => row.Id > 255)
+    || !BedrockDataValueCatalog.Search(BedrockDataValueCatalog.ModernBlocks, "0x5de").Any(row => row.Id == 1502)
+    || !BedrockDataValueCatalog.Search(BedrockDataValueCatalog.ModernBlocks, "冰晶").Any(row => row.Id == 1503))
+    throw new Exception("modern block search / legacy isolation");
+Console.WriteLine($"C#: {categories.Values.Sum(rows => rows.Count)} audited ID/name rows, entity bridge and Chinese searches passed.");
 ''')
     dotnet = shutil.which("dotnet") or "dotnet"
     run(dotnet, "build", str(work / "Catalog.csproj"), "-m:1",
@@ -95,6 +115,15 @@ Console.WriteLine("C#: 565 audited ID/name rows, entity bridge and Chinese searc
 
     (work / "Catalog.swift").write_text(r'''
 import Foundation
+struct UIColor {
+    let red: CGFloat, green: CGFloat, blue: CGFloat
+    init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.red = red; self.green = green; self.blue = blue
+    }
+    init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) {
+        fatalError("known biome color test unexpectedly took unknown-ID path")
+    }
+}
 @main struct CatalogTest {
     static func main() throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
@@ -105,6 +134,7 @@ import Foundation
             "biomes": BedrockDataValueCatalog.biomes,
             "enchantments": BedrockDataValueCatalog.enchantments,
             "legacyBlocks": BedrockLegacyBlockCatalog.blocks,
+            "modernBlocks": BedrockDataValueCatalog.modernBlocks,
         ]
         for (name, entries) in categories {
             let expected = reference[name]!
@@ -122,11 +152,21 @@ import Foundation
         }
         precondition(BedrockDataValueCatalog.search(BedrockLegacyBlockCatalog.blocks, query: "强化玻璃").contains { $0.id == 253 })
         precondition(BedrockDataValueCatalog.search(BedrockDataValueCatalog.entities, query: "非玩家角色").contains { $0.id == 51 })
-        print("Swift: 565 audited ID/name rows, numeric lookup and Chinese searches passed.")
+        precondition(!BedrockLegacyBlockCatalog.blocks.contains { $0.id > 255 })
+        precondition(BedrockDataValueCatalog.search(BedrockDataValueCatalog.modernBlocks, query: "0x5de").contains { $0.id == 1502 })
+        precondition(BedrockDataValueCatalog.search(BedrockDataValueCatalog.modernBlocks, query: "冰晶").contains { $0.id == 1503 })
+        let color = BedrockBiomeCatalog.color(for: 196)
+        precondition(Int((color.red * 255).rounded()) == 154 && Int((color.green * 255).rounded()) == 187
+            && Int((color.blue * 255).rounded()) == 221, "ice cave color parity")
+        print("Swift: \(categories.values.reduce(0) { $0 + $1.count }) audited ID/name rows, numeric lookup, biome color and Chinese searches passed.")
     }
 }
 ''')
     executable = work / "catalog-test"
+    # Only the UIKit scalar-color boundary is substituted; execute the production
+    # biome classification and color calculations unchanged.
+    biome_source = work / "BiomeCatalog.swift"
+    biome_source.write_text((ROOT / "Sources/Chunk/BedrockBiomeCatalog.swift").read_text().replace("import UIKit", "import Foundation", 1))
     run(shutil.which("swiftc") or "swiftc", "-o", str(executable), str(work / "Catalog.swift"),
         str(ROOT / "Sources/Support/BedrockDataValueCatalog.swift"),
         str(ROOT / "Sources/Support/BedrockLegacyBlockCatalog.swift"),
@@ -138,7 +178,7 @@ import Foundation
         str(ROOT / "Sources/NBT/NBTJSONCodec.swift"),
         str(ROOT / "Sources/NBT/BinaryCursor.swift"),
         str(ROOT / "Sources/NBT/BedrockNBTCodec.swift"),
-        str(ROOT / "Sources/Chunk/BedrockSubChunk.swift"))
+        str(ROOT / "Sources/Chunk/BedrockSubChunk.swift"), str(biome_source))
     run(str(executable), str(REFERENCE))
 
 print("Catalog synchronization checks passed.")

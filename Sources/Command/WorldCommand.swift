@@ -190,6 +190,7 @@ enum CommandTarget: Hashable {
     case allPlayers
     case allEntities
     case identifier(String)
+    case region(dimension: Int32, bounds: CommandEntityBox)
 
     var displayText: String {
         switch self {
@@ -198,6 +199,7 @@ enum CommandTarget: Hashable {
         case .allPlayers: return "@a"
         case .allEntities: return "@e"
         case .identifier(let value): return value
+        case .region(let dimension, _): return "\(WorldCommandParser.dimensionName(for: dimension)) 的坐标范围"
         }
     }
 }
@@ -305,7 +307,7 @@ enum ParsedWorldCommand {
     case dimensionEmpty(target: String)
     case dimensionPurge(target: String)
     case dimensionAdd(name: String, id: Int32)
-    case entity(dimension: Int32?, region: CommandEntityBox?)
+    case entity(dimension: Int32?, region: CommandEntityBox?, target: CommandTarget = .allEntities)
     case clear(target: CommandTarget)
     case clearSpawnPoint(target: CommandTarget)
     case give(target: CommandTarget, slot: CommandGiveSlot, itemIdentifier: String, count: Int64, itemTags: [NBTNamedTag])
@@ -539,34 +541,34 @@ enum WorldCommandParser {
     ]
 
     static let usage: [String: String] = [
-        "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。\n示例：help\n示例：help give",
-        "dimension": "dimension query\ndimension add 名称 ID\ndimension empty 名称或ID\ndimension purge 名称或ID\nquery 列出存档中存在的维度名称、ID 和区块数，包含已登记的空维度。add 支持有或无 namespace 的名称及 Int32 ID；名称、ID 不得重复。缺失原版维度可用 overworld 0、nether 1、the_end 2 重建。\n示例：dimension query\n示例：dimension add wzn:bear 1000\n示例：dimension add bear 1003\n示例：dimension add nether 1\nempty 清空目标维度内容，保留维度登记；示例：dimension empty wzn:cat\n示例：dimension empty 1001\npurge 彻底删除维度及登记；受影响玩家迁到剩余主世界或最小ID维度，当前位置(0.5,65.62,0.5)，重生点(0,64,0)。无剩余维度且有玩家引用时拒绝。\n示例：dimension purge wzn:bear\n示例：dimension purge 1000",
-        "entity": "entity [维度 [x1 y1 z1 x2 y2 z2]]\n只读查询普通实体，不包含玩家或方块实体。无参数时显示所有维度的全部实体；只给维度时显示该维度全部实体；再给两组坐标时显示两角之间闭合长方体范围内的实体，坐标支持整数或浮点数，顺序不限，按实际 Pos 的 X/Y/Z 筛选。维度接受当前存档的名称或 Int32 ID。每个实体单独一行，格式为 实体类型=[全部 NBT 标签]，NBT 格式与 getblock 一致；实体类型解析复用实体栏目。\n示例：entity\n示例：entity overworld\n示例：entity overworld 50 60 65 100 120 150\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
+        "help": "help [命令]\n无参数：显示全部命令；指定已存在的命令：显示该命令的使用方法。\n示例：help\n示例：help give\n语法约定：[参数] 可省略，嵌套方括号从右向左省略；坐标必须成组填写。命令、子命令及 Auto/NULL/default/preserve/empty 不区分大小写；ALL 必须大写；ID 和 NBT 内容保持原样。目标、维度及坐标不推断。",
+        "dimension": "dimension\ndimension query\ndimension add 名称 ID\ndimension empty 名称或ID\ndimension purge 名称或ID\nquery 列出存档中存在的维度名称、ID 和区块数，包含已登记的空维度。add 支持有或无 namespace 的名称及 Int32 ID；名称、ID 不得重复。缺失原版维度可用 overworld 0、nether 1、the_end 2 重建。\n示例：dimension query\n示例：dimension add wzn:bear 1000\n示例：dimension add bear 1003\n示例：dimension add nether 1\nempty 清空目标维度内容，保留维度登记；示例：dimension empty wzn:cat\n示例：dimension empty 1001\npurge 彻底删除维度及登记；受影响玩家迁到剩余主世界或最小ID维度，当前位置(0.5,65.62,0.5)，重生点(0,64,0)。无剩余维度且有玩家引用时拒绝。\n示例：dimension purge wzn:bear\n示例：dimension purge 1000\n省略子命令时默认 query，只读查询。",
+        "entity": "entity [目标]\nentity 维度 [x1 y1 z1 x2 y2 z2]\nentity 目标 维度 [x1 y1 z1 x2 y2 z2]\n只读查询玩家与普通实体，不包含方块实体。默认目标为 @e，entity 与 entity @e 完全等价，列出所有维度的全部实体（包括玩家）。\n目标支持非零有符号 Int64 UniqueID、@s（本机玩家）、@a（全部玩家）、@e（全部实体，含玩家）或完整实体 identifier；minecraft:player 可用于选择玩家。UniqueID 会返回所有匹配的独立存储记录，不按 ID 去重。\n单独数字始终表示 UniqueID，例如 entity 12345678；若要查询数字维度，写 entity @e 0。单个普通名称按维度解析，原版 minecraft:overworld/nether/the_end 别名保留；其他单个 namespace:name 按实体 identifier 解析。自定义 namespaced 维度请写在目标之后，例如 entity @e custom:moon。\n维度接受当前存档的名称或 Int32 ID。六个范围坐标须整组填写，支持有限小数、负数、反向角点，范围包含边界；按玩家和实体的实际维度与 Pos 筛选，玩家坐标不加眼高补偿。没有有效坐标的记录仍可按目标/维度查询，显示 Pos=NULL，但不进入坐标范围结果。\n每个实体一行：判断的实体类型 Dimension=维度名称(ID) Pos=(X,Y,Z) NBT=[全部MCBE-SNBT标签]。自定义维度可显示登记名称；无法读取名称时显示数字 ID。坐标保留 Double 精度。NBT 使用 MCBE-SNBT 文件格式的无损表示，保留全部标签、类型、顺序、嵌套列表、Int64 和 NaN 原始位，不向原 NBT 补写推断出的类型或坐标。\n无匹配时返回“entity：没有匹配的实体。”；损坏实体记录仍显示扫描提示；查询不修改数据库或 level.dat。\n示例：entity\n示例：entity @s\n示例：entity @a\n示例：entity @e\n示例：entity 12345678\n示例：entity minecraft:pig\n示例：entity overworld 50 60 65 100 120 150\n示例：entity @a overworld 0 0 0 1 1 1\n示例：entity @e 0\n示例：entity @e custom:moon",
         "info": "info\n无参数。输出信息栏目中的全部世界信息，每条信息单独一行。\n示例：info",
         "clear": "clear 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。清除所有匹配玩家与实体的物品；村民交易数据不会清除。\n示例：clear @e",
         "clearspawnpoint": "clearspawnpoint 目标\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。只对匹配的玩家清除出生点。\n示例：clearspawnpoint @a",
         "daylock": "daylock 0或1\n1 表示锁定时间并将 level.dat 的 dodaylightcycle 写为 0；0 表示解除锁定并写为 1。命令不修改当前 time。\n示例：daylock 1",
         "clone": "clone 源维度 x1 y1 z1 x2 y2 z2 目标维度 x3 y3 z3\n维度接受当前存档的名称或 Int32 ID。复制源区域两角到目标维度的目标起点；v8 或更新的已知结构化 SubChunk 会逐方块复制所有实际存在的 storage，并把目标多余 storage 在复制位置清为空气；旧数字格式仍按 layer0 + LegacyBlockExtraData layer1 处理。涉及未加载区块时会先写入空气区块与生成完成状态；重叠区域使用命令开始时的原始源数据。\n示例：clone overworld 0 0 0 5 100 46 nether 9 50 9\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "chunk": "chunk query [维度 [区块X 区块Z]]\nchunk empty 维度 区块X 区块Z\nchunk regenerate 维度 区块X 区块Z\n维度接受当前存档的名称或 Int32 ID。query 无参数时按当前存档维度顺序逐行以蓝色显示全部已加载区块的信息与生成情况；只给维度时仅显示该维度；再给区块坐标时返回指定区块信息。所有 query 输出行都会追加 IsSlimeChunk=True/False 和 Ticking=True/False。empty 清空指定区块并写入最小空气区块与 FinalizedState=2；regenerate 删除指定区块记录，使游戏按世界种子重新生成。\n示例：chunk query\n示例：chunk query overworld\n示例：chunk query overworld 0 0\n示例：chunk empty nether -2 5\n示例：chunk regenerate the_end 0 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "effect": "effect give 目标 状态效果ID或ALL 持续时间 效果等级\neffect clear 目标 状态效果ID或ALL\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间接受完整 Int32（包括负数）；效果等级接受 -128～255，仍按 Bedrock Byte 原始值写入（例如 -1 与 255 都写为 0xFF）。clear 只能输入三个参数。\n示例：effect give @a strength 12000 50\n示例：effect give @a strength -1 -1\n示例：effect clear @e ALL",
+        "chunk": "chunk\nchunk query [维度 [区块X 区块Z]]\nchunk empty 维度 区块X 区块Z\nchunk regenerate 维度 区块X 区块Z\n维度接受当前存档的名称或 Int32 ID。query 无参数时按当前存档维度顺序逐行以蓝色显示全部已加载区块的信息与生成情况；只给维度时仅显示该维度；再给区块坐标时返回指定区块信息。所有 query 输出行都会追加 IsSlimeChunk=True/False 和 Ticking=True/False。empty 清空指定区块并写入最小空气区块与 FinalizedState=2；regenerate 删除指定区块记录，使游戏按世界种子重新生成。\n示例：chunk query\n示例：chunk query overworld\n示例：chunk query overworld 0 0\n示例：chunk empty nether -2 5\n示例：chunk regenerate the_end 0 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n裸命令 chunk 等同 chunk query；要限定维度或区块仍须写 query。区块 X/Z 必须成对填写。",
+        "effect": "effect give 目标 状态效果ID或ALL [持续游戏刻 [原始等级]]\neffect clear 目标 [状态效果ID或ALL]\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier。状态效果 ID 必须存在于当前基岩版数据值中；ALL 必须大写。give 的持续时间接受完整 Int32（包括负数）；效果等级接受 -128～255，仍按 Bedrock Byte 原始值写入（例如 -1 与 255 都写为 0xFF）。持续时间单位为游戏刻；等级仍为原始 Byte 值，不额外加减 1。\n示例：effect give @a strength 12000 50\n示例：effect give @a strength -1 -1\n示例：effect clear @e ALL\n已收录冰冻效果 freezing（数字 ID 38）；命令参数使用字符串 ID，give、clear 和 ALL 均支持该效果。\n示例：effect give @a freezing 200 1\n示例：effect clear @e freezing\n字符串 ID 可带 minecraft: 前缀；数字 ID 不作为命令参数。give 省略持续时间默认 600 游戏刻，省略原始等级默认 0；若指定等级，须先填写持续时间。clear 省略效果默认 ALL；目标必填。\n示例：effect give @s freezing\n示例：effect clear @s",
         "experience": "experience add 目标 整数\nexperience addlevel 目标 整数\nexperience level 目标 0到24791整数\nexperience percent 目标 0到1浮点数\nexperience query 目标\nexperience set 目标 非负整数\n目标只能匹配玩家。基岩版实际保存 PlayerLevel 与 PlayerLevelProgress，经验总数由等级曲线计算。add 按总经验增减并自动换算等级和经验条；addlevel 增减经验等级并保留当前经验条百分比；level 直接设定经验等级并把经验条进度设为 0，等级范围均为 0～24791；percent 修改当前经验条百分比；query 逐行显示 minecraft:player、UniqueID、经验总数、等级和经验条进度；set 按总经验重新计算并写入 PlayerLevel 与 PlayerLevelProgress。\n示例：experience add @a 100\n示例：experience addlevel -4294967270 -3\n示例：experience level @s 30\n示例：experience percent @s 0.5\n示例：experience query @a\n示例：experience set @s 2500",
-        "fill": "fill 目标维度 x1 y1 z1 x2 y2 z2 层0方块名 层0states [层1方块名 层1states ...] 方块实体\n维度接受当前存档的名称或 Int32 ID。至少提供 storage0，layer1 及之后都可省略；后续参数必须按 方块名+states 成对出现，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 保持原格式，仅支持可无损转换为数字 ID 的 layer0/1；无法表示的方块或 states、超过两层的请求会报错，不会自动升级或写入部分修改。\n最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 fill 将模板复制到闭合范围内每个坐标，每份方块实体均使用该位置的实际坐标。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL preserve\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL empty\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL empty\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "fillbiome": "fillbiome 维度 x1 y1 z1 x2 y2 z2 生物群系数字ID或字符串ID\n维度接受当前存档的名称或 Int32 ID。字符串 ID 必须能在内置生物群系表中找到对应数字 ID，否则报错；数字 ID 不要求存在于内置表，可输入 32 位整数原始值。Data3D 只修改两组坐标之间的 Y 范围；Data2D/Data2DLegacy 忽略 Y 坐标并修改水平选区（其格式只能保存 0～255）。\n示例：fillbiome overworld 0 -64 0 15 319 15 minecraft:plains\n示例：fillbiome nether -32 0 -32 31 127 31 178\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "give": "give 目标 Slot 物品 数目 物品标签\nSlot 只能是 Auto 或 0～35 的整数。目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家：Auto 沿用第一个空 Inventory 槽位、满时最后一格的逻辑，整数 Slot 写入对应 Inventory 槽位。非玩家实体必须已经存在可写入的 Mainhand 标签，否则直接跳过；命令任何时候都不会创建 Mainhand。实体 Auto 写入已有 Mainhand；整数 Slot 在有 ChestItems 时写入对应槽位，超过槽位数时写入最后槽位并同步写入已有 Mainhand；没有 ChestItems 时只写入已有 Mainhand。\n示例：give @s Auto minecraft:stone 64 NULL\n示例：give @a 5 minecraft:diamond 3 NULL\n示例：give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"",
-        "kill": "kill 目标 是否杀死创造模式玩家\n目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；第二个参数只能是 0 或 1。非玩家实体直接删除，玩家生命值 Current 设为 0.0；创造模式玩家在参数为 0 时保持不变。\n示例：kill @a 1",
+        "fill": "fill 维度 x1 y1 z1 x2 y2 z2 方块ID [states] [方块ID [states] ...] [方块实体]\n维度接受当前存档的名称或 Int32 ID。至少提供 storage0，layer1 及之后都可省略；每个方块 ID 表示一层，最多 255 个 storage。states 可输入 NULL 或任意 NBT 标签。只修改命令中实际提供的 storage，省略 layer1 时保留原 layer1 及更高层。旧数字 ID SubChunk 保持原格式，仅支持可无损转换为数字 ID 的 layer0/1；无法表示的方块或 states、超过两层的请求会报错，不会自动升级或写入部分修改。\n最后的方块实体参数可省略，默认 preserve：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 fill 将模板复制到闭合范围内每个坐标，每份方块实体均使用该位置的实际坐标。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL preserve\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone NULL empty\n示例：fill the_end 0 0 0 60 200 16 minecraft:leaves 'String'\"old_leaf_type\"=\"oak\" minecraft:water NULL minecraft:air NULL empty\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n每层 states 可省略，默认 NULL（空 states）；方块 ID 必须使用完整字符串 ID。方块后第一个 NBT 参数属于该层 states；若要传入方块实体模板，必须先写该层 states 或 NULL 占位，再写模板。连续方块 ID 表示连续 storage；省略的高层 storage 保持原样。只允许末尾出现一个方块实体参数。\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone\n示例：fill overworld 0 64 0 15 64 15 minecraft:stone minecraft:water empty",
+        "fillbiome": "fillbiome 维度 x1 y1 z1 x2 y2 z2 生物群系数字ID或字符串ID\n维度接受当前存档的名称或 Int32 ID。字符串 ID 必须能在内置生物群系表中找到对应数字 ID，否则报错；数字 ID 不要求存在于内置表，可输入 32 位整数原始值。Data3D 只修改两组坐标之间的 Y 范围；Data2D/Data2DLegacy 忽略 Y 坐标并修改水平选区（其格式只能保存 0～255）。\n示例：fillbiome overworld 0 -64 0 15 319 15 minecraft:plains\n示例：fillbiome nether -32 0 -32 31 127 31 178\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n已收录冰封洞穴 minecraft:ice_caves（数字 ID 196）。\n示例：fillbiome overworld 0 -64 0 15 64 15 minecraft:ice_caves",
+        "give": "give 目标 [Slot] 物品ID [数目 [物品标签]]\nSlot 只能是 Auto 或 0～35 的整数。目标必须是非零 UniqueID、@s、@a、@e 或实体 identifier；物品必须使用完整字符串 ID；数目必须是大于 0 的 Int64。物品标签可输入 NULL，或输入任意类型、可多重嵌套的 NBT 标签。玩家：Auto 沿用第一个空 Inventory 槽位、满时最后一格的逻辑，整数 Slot 写入对应 Inventory 槽位。非玩家实体必须已经存在可写入的 Mainhand 标签，否则直接跳过；命令任何时候都不会创建 Mainhand。实体 Auto 写入已有 Mainhand；整数 Slot 在有 ChestItems 时写入对应槽位，超过槽位数时写入最后槽位并同步写入已有 Mainhand；没有 ChestItems 时只写入已有 Mainhand。\n示例：give @s Auto minecraft:stone 64 NULL\n示例：give @a 5 minecraft:diamond 3 NULL\n示例：give minecraft:cow 2 minecraft:lit_smoker 99 'Compound'\"tag\"=\"{'Byte'\"Unbreakable\"=\"1\"}\",'Short'\"Damage\"=\"1\"\n省略 Slot 默认 Auto；省略数目默认 1；省略物品标签默认 NULL。槽位若填写仍位于物品 ID 之前，以 Auto/整数和完整物品 ID 区分；提供标签时须先填写数目。\n示例：give @s minecraft:stone\n示例：give @s 5 minecraft:diamond 3",
+        "kill": "kill 目标 [是否杀死创造模式玩家]\nkill 维度 x1 y1 z1 x2 y2 z2 [是否杀死创造模式玩家]\n目标支持非零 UniqueID、@s、@a、@e、实体 identifier，或指定维度与两角坐标。范围包含边界，支持小数、负数和反向角点，按实际 Pos 筛选玩家与非玩家实体，不包含方块实体。\n末尾开关只能是 0 或 1，且只影响创造模式玩家：0 跳过创造模式玩家，1 将其生命值 Current 设为 0.0。选中的非创造模式玩家无论开关为 0 或 1 都将生命值 Current 设为 0.0；选中的非玩家实体直接删除。\n示例：kill @a 1\n示例：kill overworld 0 0 0 1 1 1 1\n示例：kill overworld 0 0 0 1 1 1 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n省略末尾开关默认 0，仅跳过创造模式玩家；目标或维度与完整六坐标范围仍须填写。\n示例：kill @e\n示例：kill overworld 0 0 0 1 1 1",
         "kick": "kick 目标\n目标只能是在线玩家的非零 UniqueID或 @a。UniqueID 删除对应在线玩家数据，@a 删除全部在线玩家数据。\n示例：kick @a\n示例：kick -4294967270",
-        "setblock": "setblock 目标维度 x y z 层0方块名 层0states [层1方块名 层1states ...] 方块实体\nfill 的单方块版本。至少提供 storage0，layer1 及之后均可省略；最多 255 个 storage。省略的 storage 保持原样。\n最后的方块实体参数必填：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。\n示例：setblock overworld 0 64 0 minecraft:stone NULL preserve\n示例：setblock overworld 0 64 0 minecraft:stone NULL empty\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL empty\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
+        "setblock": "setblock 维度 x y z 方块ID [states] [方块ID [states] ...] [方块实体]\nfill 的单方块版本。至少提供 storage0，layer1 及之后均可省略；最多 255 个 storage。省略的 storage 保持原样。\n最后的方块实体参数可省略，默认 preserve：preserve 保留原方块实体，empty 清空目标坐标的方块实体；也可传入方块实体的全部 MCBE-SNBT 标签，设定目标方块实体。允许任意 id，不要求与方块类型对应。根 x/y/z 可省略；输入的根坐标标签会自动忽略（名称不区分大小写），写入时按命令选定位置生成唯一的小写 Int 类型 x/y/z。 嵌套坐标、Pos 和其他标签保持原样。全部检查及编码通过后一次提交方块、方块实体与区块元数据。\n示例：setblock overworld 0 64 0 minecraft:stone NULL preserve\n示例：setblock overworld 0 64 0 minecraft:stone NULL empty\n示例：setblock overworld 0 64 0 minecraft:stone NULL minecraft:water NULL empty\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n每层 states 可省略，默认 NULL（空 states）；方块 ID 必须使用完整字符串 ID。方块后第一个 NBT 参数属于该层 states；若要传入方块实体模板，必须先写该层 states 或 NULL 占位，再写模板。连续方块 ID 表示连续 storage；省略的高层 storage 保持原样。只允许末尾出现一个方块实体参数。\n示例：setblock overworld 0 64 0 minecraft:stone\n示例：setblock overworld 0 64 0 minecraft:stone minecraft:water empty",
         "getblock": "getblock 维度 x y z\n返回指定方块位置所有存在的 storage 方块状态以及该坐标的方块实体 NBT。Block 行使用蓝色，BlockEntity 行使用紫色；没有方块实体时显示 BlockEntity=NULL。\n示例：getblock overworld -24 64 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "storage": "storage query 维度 x y z\nstorage set 维度 x y z 层数 方块名 states\nstorage delete 维度 x y z 层数\nstorage clear 维度 x y z 保留到的层数\n直接操作指定坐标所在 v8 或更新的已知结构化 SubChunk 的物理 storage。query 逐行用蓝色显示所有 storage 在该坐标的方块状态；set 可设置 layer 0～254，并按需要创建中间空气 storage，最多 255 层；delete 删除整个指定 storage（该 SubChunk 内 4096 个位置都会受影响）并在安全时裁掉后续全空气 storage；clear 参数为 UInt8，0 仅保留 storage0，1 保留 storage0/1，其余类推，255 表示不主动裁剪。\n示例：storage query overworld 0 64 0\n示例：storage set overworld 0 64 0 8 minecraft:water NULL\n示例：storage delete overworld 0 64 0 8\n示例：storage clear overworld 0 64 0 1\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
+        "storage": "storage query 维度 x y z\nstorage set 维度 x y z 层数 方块ID [states]\nstorage delete 维度 x y z 层数\nstorage clear 维度 x y z 保留到的层数\n直接操作指定坐标所在 v8 或更新的已知结构化 SubChunk 的物理 storage。query 逐行用蓝色显示所有 storage 在该坐标的方块状态；set 可设置 layer 0～254，并按需要创建中间空气 storage，最多 255 层；delete 删除整个指定 storage（该 SubChunk 内 4096 个位置都会受影响）并在安全时裁掉后续全空气 storage；clear 参数为 UInt8，0 仅保留 storage0，1 保留 storage0/1，其余类推，255 表示不主动裁剪。\n示例：storage query overworld 0 64 0\n示例：storage set overworld 0 64 0 8 minecraft:water NULL\n示例：storage delete overworld 0 64 0 8\n示例：storage clear overworld 0 64 0 1\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\nstorage set 省略 states 默认 NULL；层数仍必填。delete/clear 作用于整个 SubChunk 的 storage，层号或保留到的层数不可省略。",
         "setworldspawn": "setworldspawn x y z\n设置世界重生点；坐标必须恰好输入三个整数。世界重生点位于主世界。\n示例：setworldspawn 0 80 0",
         "spawnpoint": "spawnpoint 目标 维度 x y z\n目标必须是非零 UniqueID、@s、@a、@e 或 minecraft:player，且最终只能匹配玩家；维度接受当前存档的名称或 Int32 ID。\n示例：spawnpoint @a the_end 0 100 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
         "spread": "spread 目标\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier。每个匹配对象会独立随机选择一个有已加载区块的维度、一个已加载区块及其中一列非全空气的 X/Z，再按 teleport Auto 逻辑传送。输出格式为 identifier UniqueID 维度 X Y Z，并优先显示玩家。\n示例：spread @e\n示例：spread minecraft:cow",
-        "structure": "structure query\nstructure import [名称]\nstructure export mcstructure|nbt|json|txt [名称]\nquery 每行显示一个结构；import 打开文件选择器，export 打开保存窗口；省略名称时通过窗口选择或输入；nbt 为 Big Endian，mcstructure 为 Little Endian；txt 为保留 NBT 类型与根标签的 MCBE-SNBT。\nstructure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\nsave/load/delete 的名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "summon": "summon 实体类型 实体维度 x y z NBT标签或default [UniqueID]\nsummon 实体NBT标签\n实体维度接受当前存档的名称或 Int32 ID；x/y/z 均接受整数或浮点数并直接写入 Pos。第一种格式的 NBT 参数输入 default 时使用实体通用 NBT，否则接受任意类型、可多重嵌套的非空附加标签，不能为 NULL，也不能覆盖命令控制的身份、坐标、维度标签。\n末尾 UniqueID 接受 Auto 或非零 Long 整数（-9223372036854775808～9223372036854775807）；省略时按 Auto 处理。Auto 自动生成未占用 ID，手动 ID 与已有实体或要使用的 actor 存储引用冲突时拒绝创建。\n第二种格式直接保留提供的 NBT 标签、类型和顺序，必须包含恰好三个可写入 Float 的有限数值组成的 Pos 或 Position List；UniqueID 若提供必须为非零 Long，缺少时自动生成。DimensionId 或 Dimension 必须为 Int32 范围内的整数标签，缺少时写入主世界且不补写维度标签。\n示例：summon minecraft:pig overworld 0 64 0 default Auto\n示例：summon minecraft:pig overworld 10.5 64.25 -3.75 default 9007199254740993\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\" Auto\n示例：summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\"\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
+        "structure": "structure\nstructure query\nstructure import [名称]\nstructure export mcstructure|nbt|json|txt [名称]\nquery 每行显示一个结构；import 打开文件选择器，export 打开保存窗口；省略名称时通过窗口选择或输入；nbt 为 Big Endian，mcstructure 为 Little Endian；txt 为保留 NBT 类型与根标签的 MCBE-SNBT。\nstructure save 名称 维度 x1 y1 z1 x2 y2 z2\nstructure load 名称 维度 x y z\nstructure delete 名称或ALL\nsave/load/delete 的名称必须为 namespace:name。save 会直接覆盖同名 structuretemplate_ 记录；load/delete 找不到名称时失败。\n示例：structure save mystructure:1 overworld 0 0 0 50 50 50\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n裸命令 structure 默认 query。save/load/delete 的名称、维度及坐标按对应格式必填；导出格式必填。GUI 或交互 CLI 可省略 import/export 名称并按提示选择；非交互 CLI 的名称与 --file 必填。",
+        "summon": "summon 实体类型 维度 x y z [NBT标签或default [UniqueID或Auto]]\nsummon 实体NBT标签\n实体维度接受当前存档的名称或 Int32 ID；x/y/z 均接受整数或浮点数并直接写入 Pos。第一种格式的 NBT 参数输入 default 时使用实体通用 NBT，否则接受任意类型、可多重嵌套的非空附加标签，不能为 NULL，也不能覆盖命令控制的身份、坐标、维度标签。\n末尾 UniqueID 接受 Auto 或非零 Long 整数（-9223372036854775808～9223372036854775807）；省略时按 Auto 处理。Auto 自动生成未占用 ID，手动 ID 与已有实体或要使用的 actor 存储引用冲突时拒绝创建。\n第二种格式直接保留提供的 NBT 标签、类型和顺序，必须包含恰好三个可写入 Float 的有限数值组成的 Pos 或 Position List；UniqueID 若提供必须为非零 Long，缺少时自动生成。DimensionId 或 Dimension 必须为 Int32 范围内的整数标签，缺少时写入主世界且不补写维度标签。\n示例：summon minecraft:pig overworld 0 64 0 default Auto\n示例：summon minecraft:pig overworld 10.5 64.25 -3.75 default 9007199254740993\n示例：summon minecraft:pig overworld 0 64 0 'Byte'\"Invulnerable\"=\"1\",'String'\"CustomName\"=\"MyPig\" Auto\n示例：summon 'String'\"identifier\"=\"minecraft:cow\",'List''Float'\"Pos\"=\"0.0,64.0,0.0\",'Long'\"UniqueID\"=\"12345678\"\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\n省略 NBT 参数默认 default，省略 UniqueID 默认 Auto。若指定 UniqueID，须先提供 NBT 或 default 占位；NULL 不代替 default。完整 NBT 写法的 Pos、Dimension 和 UniqueID 规则保持不变。\n示例：summon minecraft:pig overworld 0 64 0",
         "teleport": "teleport 目标 维度 x y或Auto z\n目标可以是非零 UniqueID、@s、@a、@e 或实体 identifier；维度接受当前存档的名称或 Int32 ID。x/z 接受整数或浮点数，Y 接受整数、浮点数或 Auto。实体缺少 identifier 标签时会读取 definitions[0]（例如 +minecraft:cow）。Y 输入 Auto 时，主世界和末地使用最高非空气方块上方；下界会越过最上层非空气方块与其下方空气层，优先落在更低一层非空气方块上方。回退规则为最高非空气方块上方，整列无非空气方块时使用 Y=63。玩家目标在 Y 参数为整数或 Auto 时，实际写入 Pos 的 Y 会在落脚点基础上增加 1.62；若 Y 参数以浮点数形式输入（例如 70.0），则不增加 1.62。\n示例：teleport -4294967270 the_end 10.5 70.25 10\n示例：teleport @a overworld -10.0 64 5\n示例：teleport @a overworld 100.0 70.0 100.0\n示例：teleport @a overworld 0 Auto 0\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "tickingarea": "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\ntickingarea add circle 维度 x1 z1 半径 名称 0或1\ntickingarea delete 名称或ALL\ntickingarea list 维度或ALL\n圆形 add 的 x1/z1 是中心区块坐标，半径单位为区块，允许 0～4；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 4 Spawn 1\n示例：tickingarea list overworld\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。",
-        "time": "time query daytime|gametime|day\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nday=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201；24000 等价于下一天的 0。query daytime 同时显示当前时段进度和全天进度。\n示例：time query daytime\n示例：time add -1000\n示例：time ceil sunset\n示例：time floor midnight",
-        "weather": "weather query\nquery 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻；doWeatherCycle 缺失时显示 1，与天气界面默认开关一致，其他缺失标签显示 NULL。\nweather clear 0或1\nweather rain 持续游戏刻 强度 0或1\nweather thunder 持续游戏刻 强度 0或1\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0"
+        "tickingarea": "tickingarea\ntickingarea add square 维度 x1 z1 x2 z2 名称 [预加载0或1]\ntickingarea add circle 维度 x1 z1 半径 名称 [预加载0或1]\ntickingarea delete 名称或ALL\ntickingarea list [维度或ALL]\n圆形 add 的 x1/z1 是中心区块坐标，半径单位为区块，允许 0～4；list 逐行显示。\n示例：tickingarea add square nether 0 0 1 1 Base 1\n示例：tickingarea add circle overworld 0 0 4 Spawn 1\n示例：tickingarea list overworld\n维度参数接受当前存档登记名称（含或不含 namespace）或有符号 Int32 ID；原版名称为 overworld、nether、the_end，也接受 minecraft: 别名。\ntickingarea query [维度或ALL]\n裸命令 tickingarea、list 和 query 都默认列出 ALL；query 是 list 的别名。add 省略末尾预加载开关默认 0，区域名称仍必填；delete 必须显式提供名称或大写 ALL。坐标单位保持不变：square 的 X/Z 为区块坐标，circle 的中心和半径也以区块为单位。\n示例：tickingarea list\n示例：tickingarea add circle overworld 0 0 1 Spawn",
+        "time": "time\ntime query [daytime|gametime|day]\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nday=0、noon=6000、sunset=12001、night=13801、midnight=18000、sunrise=22201；24000 等价于下一天的 0。query daytime 同时显示当前时段进度和全天进度。\n示例：time query daytime\n示例：time add -1000\n示例：time ceil sunset\n示例：time floor midnight\n裸命令 time 和 time query 均默认查询 daytime，不修改时间。",
+        "weather": "weather\nweather query\nquery 打印 rainLevel、rainTime、lightningLevel、lightningTime、doWeatherCycle；时间单位为游戏刻；doWeatherCycle 缺失时显示 1，与天气界面默认开关一致，其他缺失标签显示 NULL。\nweather clear [自动变化0或1]\nweather rain [持续游戏刻 [强度 [自动变化0或1]]]\nweather thunder [持续游戏刻 [强度 [自动变化0或1]]]\n强度必须是 0.0～1.0 的浮点数；最后一个参数控制天气是否自动变化。clear 只接受可省略的自动变化参数。\n示例：weather clear 1\n示例：weather thunder 12000 1.0 0\n裸命令 weather 默认 query。clear 省略自动变化默认 1；rain/thunder 从右向左省略时，持续时间默认 6000 游戏刻、强度默认 1.0、自动变化默认 1。指定后项时须补齐前项；显式的 0 不使用默认值。\n示例：weather rain\n示例：weather thunder 12000 0.5"
     ]
 
     static func parse(_ line: String, dimensionResolver: ((String) throws -> Int32)? = nil) throws -> ParsedWorldCommand {
@@ -584,6 +586,7 @@ enum WorldCommandParser {
         }
         switch command {
         case "dimension":
+            if arguments.isEmpty { return .dimensionQuery }
             if arguments.count == 2, arguments[0].lowercased() == "purge" { return .dimensionPurge(target: arguments[1]) }
             if arguments.count == 2, arguments[0].lowercased() == "empty" { return .dimensionEmpty(target: arguments[1]) }
             if arguments.count == 1, arguments[0].lowercased() == "query" { return .dimensionQuery }
@@ -612,21 +615,21 @@ enum WorldCommandParser {
             guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "give":
-                guard arguments.count == 5 else { throw usageError(command) }
+                guard (3...5).contains(arguments.count) else { throw usageError(command) }
                 return .effect(
                     operation: .give(
-                        duration: try parseEffectDuration(arguments[3]),
-                        amplifier: try parseEffectAmplifier(arguments[4])
+                        duration: arguments.count >= 4 ? try parseEffectDuration(arguments[3]) : 600,
+                        amplifier: arguments.count == 5 ? try parseEffectAmplifier(arguments[4]) : 0
                     ),
                     target: try parseTarget(arguments[1]),
                     selection: try parseEffectSelection(arguments[2])
                 )
             case "clear":
-                guard arguments.count == 3 else { throw usageError(command) }
+                guard (2...3).contains(arguments.count) else { throw usageError(command) }
                 return .effect(
                     operation: .clear,
                     target: try parseTarget(arguments[1]),
-                    selection: try parseEffectSelection(arguments[2])
+                    selection: arguments.count == 3 ? try parseEffectSelection(arguments[2]) : .all
                 )
             default:
                 throw usageError(command)
@@ -671,19 +674,33 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "give":
-            guard arguments.count == 5 else { throw usageError(command) }
+            guard arguments.count >= 2 else { throw usageError(command) }
+            let itemIndex = arguments[1].contains(":") ? 1 : 2
+            guard (itemIndex + 1...itemIndex + 3).contains(arguments.count) else { throw usageError(command) }
             return .give(
                 target: try parseTarget(arguments[0]),
-                slot: try parseGiveSlot(arguments[1]),
-                itemIdentifier: try parseNamespacedIdentifier(arguments[2], kind: "物品"),
-                count: try parseItemCount(arguments[3]),
-                itemTags: try parseStates(arguments[4])
+                slot: itemIndex == 1 ? .automatic : try parseGiveSlot(arguments[1]),
+                itemIdentifier: try parseNamespacedIdentifier(arguments[itemIndex], kind: "物品"),
+                count: arguments.count > itemIndex + 1 ? try parseItemCount(arguments[itemIndex + 1]) : 1,
+                itemTags: arguments.count > itemIndex + 2 ? try parseStates(arguments[itemIndex + 2]) : []
             )
         case "kill":
-            guard arguments.count == 2 else { throw usageError(command) }
+            guard [1, 2, 7, 8].contains(arguments.count) else { throw usageError(command) }
+            let target: CommandTarget
+            if arguments.count <= 2 {
+                target = try parseTarget(arguments[0])
+            } else {
+                target = .region(
+                    dimension: try parseDimension(arguments[0]),
+                    bounds: CommandEntityBox(
+                        try parseEntityCoordinate(Array(arguments[1...3])),
+                        try parseEntityCoordinate(Array(arguments[4...6]))
+                    )
+                )
+            }
             return .kill(
-                target: try parseTarget(arguments[0]),
-                killCreativePlayers: try parseBooleanFlag(arguments[1], name: "是否杀死创造模式玩家")
+                target: target,
+                killCreativePlayers: [2, 8].contains(arguments.count) ? try parseBooleanFlag(arguments[arguments.count - 1], name: "是否杀死创造模式玩家") : false
             )
         case "kick":
             guard arguments.count == 1 else { throw usageError(command) }
@@ -700,12 +717,12 @@ enum WorldCommandParser {
                 _ = try summonNBTMetadata(tags)
                 return .summonNBT(tags: tags)
             }
-            guard arguments.count == 6 || arguments.count == 7 else { throw usageError(command) }
+            guard (5...7).contains(arguments.count) else { throw usageError(command) }
             let identifier = try parseNamespacedIdentifier(arguments[0], kind: "实体")
             let dimension = try parseDimension(arguments[1])
             let position = try parseEntityCoordinate(Array(arguments[2...4]))
             let additions: [NBTNamedTag]
-            if arguments[5] == "default" {
+            if arguments.count == 5 || arguments[5].lowercased() == "default" {
                 additions = []
             } else {
                 additions = try parseStates(arguments[5])
@@ -732,27 +749,15 @@ enum WorldCommandParser {
                 destination: destination
             )
         case "fill":
-            guard arguments.count >= 10, (arguments.count - 8) % 2 == 0 else { throw usageError(command) }
-            let storageCount = (arguments.count - 8) / 2
-            guard storageCount <= Int(UInt8.max) else {
-                throw MCBEEditorError.malformedData("fill 最多接受 255 个 storage")
-            }
+            guard arguments.count >= 8 else { throw usageError(command) }
             let targetDimension = try parseDimension(arguments[0])
             let coordinates = try parseCoordinates(Array(arguments[1...6]))
-            var storages = [CommandBlockStateSpec]()
-            storages.reserveCapacity(storageCount)
-            for layer in 0..<storageCount {
-                let offset = 7 + layer * 2
-                storages.append(CommandBlockStateSpec(
-                    name: try parseBlockName(arguments[offset]),
-                    states: try parseStates(arguments[offset + 1])
-                ))
-            }
+            let (storages, blockEntity) = try parseBlockArguments(arguments, offset: 7)
             return .fill(
                 targetDimension: targetDimension,
                 region: CommandBlockBox(coordinates[0], coordinates[1]),
                 storages: storages,
-                blockEntity: try CommandBlockEntitySpec.parse(arguments[arguments.count - 1])
+                blockEntity: blockEntity
             )
         case "fillbiome":
             guard arguments.count == 8 else { throw usageError(command) }
@@ -764,41 +769,36 @@ enum WorldCommandParser {
                 biome: try parseBiomeID(arguments[7])
             )
         case "setblock":
-            guard arguments.count >= 7, (arguments.count - 5) % 2 == 0 else { throw usageError(command) }
-            let storageCount = (arguments.count - 5) / 2
-            guard storageCount <= Int(UInt8.max) else {
-                throw MCBEEditorError.malformedData("setblock 最多接受 255 个 storage")
-            }
-            var storages = [CommandBlockStateSpec]()
-            storages.reserveCapacity(storageCount)
-            for layer in 0..<storageCount {
-                let offset = 4 + layer * 2
-                storages.append(CommandBlockStateSpec(
-                    name: try parseBlockName(arguments[offset]),
-                    states: try parseStates(arguments[offset + 1])
-                ))
-            }
+            guard arguments.count >= 5 else { throw usageError(command) }
+            let (storages, blockEntity) = try parseBlockArguments(arguments, offset: 4)
             let position = try parseCoordinates(Array(arguments[1...3]))[0]
             return .setBlock(
                 targetDimension: try parseDimension(arguments[0]),
                 position: position,
                 storages: storages,
-                blockEntity: try CommandBlockEntitySpec.parse(arguments[arguments.count - 1])
+                blockEntity: blockEntity
             )
         case "entity":
-            guard arguments.isEmpty || arguments.count == 1 || arguments.count == 7 else { throw usageError(command) }
-            guard let dimensionText = arguments.first else { return .entity(dimension: nil, region: nil) }
-            let dimension = try parseDimension(dimensionText)
+            guard [0, 1, 2, 7, 8].contains(arguments.count) else { throw usageError(command) }
+            guard let first = arguments.first else { return .entity(dimension: nil, region: nil) }
+            if arguments.count == 7 && first.hasPrefix("@") { throw usageError(command) }
+            let hasTarget = arguments.count == 2 || arguments.count == 8
+                || arguments.count == 1 && isEntityQueryTarget(first)
+            let target: CommandTarget = hasTarget ? try parseTarget(first) : .allEntities
+            if arguments.count == 1 && hasTarget { return .entity(dimension: nil, region: nil, target: target) }
+            let dimensionIndex = hasTarget ? 1 : 0
+            let dimension = try parseDimension(arguments[dimensionIndex])
             let region: CommandEntityBox?
-            if arguments.count == 7 {
+            if arguments.count >= 7 {
+                let offset = dimensionIndex + 1
                 region = CommandEntityBox(
-                    try parseEntityCoordinate(Array(arguments[1...3])),
-                    try parseEntityCoordinate(Array(arguments[4...6]))
+                    try parseEntityCoordinate(Array(arguments[offset...offset + 2])),
+                    try parseEntityCoordinate(Array(arguments[offset + 3...offset + 5]))
                 )
             } else {
                 region = nil
             }
-            return .entity(dimension: dimension, region: region)
+            return .entity(dimension: dimension, region: region, target: target)
         case "getblock":
             guard arguments.count == 4 else { throw usageError(command) }
             return .getBlock(
@@ -806,6 +806,7 @@ enum WorldCommandParser {
                 position: try parseCoordinates(Array(arguments[1...3]))[0]
             )
         case "chunk":
+            if arguments.isEmpty { return .chunk(operation: .query(dimension: nil, x: nil, z: nil)) }
             guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
@@ -852,14 +853,14 @@ enum WorldCommandParser {
                     position: try parseCoordinates(Array(arguments[2...4]))[0]
                 ))
             case "set":
-                guard arguments.count == 8 else { throw usageError(command) }
+                guard (7...8).contains(arguments.count) else { throw usageError(command) }
                 return .storage(operation: .set(
                     dimension: try parseDimension(arguments[1]),
                     position: try parseCoordinates(Array(arguments[2...4]))[0],
                     layer: try parseStorageLayer(arguments[5]),
                     block: CommandBlockStateSpec(
                         name: try parseBlockName(arguments[6]),
-                        states: try parseStates(arguments[7])
+                        states: arguments.count == 8 ? try parseStates(arguments[7]) : []
                     )
                 ))
             case "delete":
@@ -902,9 +903,11 @@ enum WorldCommandParser {
                 z: try parseTeleportCoordinate(arguments[4], name: "Z")
             )
         case "time":
+            if arguments.isEmpty { return .time(operation: .query(.daytime)) }
             guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
+                if arguments.count == 1 { return .time(operation: .query(.daytime)) }
                 guard arguments.count == 2,
                       let query = CommandTimeQuery(rawValue: arguments[1].lowercased()) else { throw usageError(command) }
                 return .time(operation: .query(query))
@@ -926,6 +929,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "weather":
+            if arguments.isEmpty { return .weatherQuery }
             if arguments.count == 1, arguments[0].lowercased() == "query" { return .weatherQuery }
             guard let rawCondition = arguments.first?.lowercased(),
                   let condition = CommandWeatherCondition(rawValue: rawCondition) else {
@@ -933,23 +937,24 @@ enum WorldCommandParser {
             }
             switch condition {
             case .clear:
-                guard arguments.count == 2 else { throw usageError(command) }
+                guard (1...2).contains(arguments.count) else { throw usageError(command) }
                 return .weather(settings: CommandWeatherSettings(
                     condition: .clear,
                     duration: nil,
                     intensity: nil,
-                    automaticChange: try parseBooleanFlag(arguments[1], name: "天气是否自动变化")
+                    automaticChange: arguments.count == 1 ? true : try parseBooleanFlag(arguments[1], name: "天气是否自动变化")
                 ))
             case .rain, .thunder:
-                guard arguments.count == 4 else { throw usageError(command) }
+                guard (1...4).contains(arguments.count) else { throw usageError(command) }
                 return .weather(settings: CommandWeatherSettings(
                     condition: condition,
-                    duration: try parseWeatherDuration(arguments[1]),
-                    intensity: try parseWeatherIntensity(arguments[2]),
-                    automaticChange: try parseBooleanFlag(arguments[3], name: "天气是否自动变化")
+                    duration: arguments.count >= 2 ? try parseWeatherDuration(arguments[1]) : 6000,
+                    intensity: arguments.count >= 3 ? try parseWeatherIntensity(arguments[2]) : 1,
+                    automaticChange: arguments.count == 4 ? try parseBooleanFlag(arguments[3], name: "天气是否自动变化") : true
                 ))
             }
         case "structure":
+            if arguments.isEmpty { return .structure(operation: .query) }
             guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "query":
@@ -989,6 +994,7 @@ enum WorldCommandParser {
                 throw usageError(command)
             }
         case "tickingarea":
+            if arguments.isEmpty { return .tickingArea(operation: .list(dimension: nil)) }
             guard let action = arguments.first?.lowercased() else { throw usageError(command) }
             switch action {
             case "add":
@@ -997,7 +1003,7 @@ enum WorldCommandParser {
                 guard shape == "square" || shape == "circle" else { throw usageError(command) }
                 let area: CommandTickingAreaSpec
                 if shape == "square" {
-                    guard arguments.count == 9 else { throw usageError(command) }
+                    guard (8...9).contains(arguments.count) else { throw usageError(command) }
                     let dimension = try parseDimension(arguments[2])
                     let x1 = try parseChunkCoordinate(arguments[3], name: "X1")
                     let z1 = try parseChunkCoordinate(arguments[4], name: "Z1")
@@ -1011,10 +1017,10 @@ enum WorldCommandParser {
                         maximumX: max(x1, x2),
                         maximumZ: max(z1, z2),
                         name: try parseTickingAreaName(arguments[7]),
-                        preload: try parseBooleanFlag(arguments[8], name: "是否预加载")
+                        preload: arguments.count == 9 ? try parseBooleanFlag(arguments[8], name: "是否预加载") : false
                     )
                 } else {
-                    guard arguments.count == 8 else { throw usageError(command) }
+                    guard (7...8).contains(arguments.count) else { throw usageError(command) }
                     let dimension = try parseDimension(arguments[2])
                     let chunkX = try parseChunkCoordinate(arguments[3], name: "中心区块 X")
                     let chunkZ = try parseChunkCoordinate(arguments[4], name: "中心区块 Z")
@@ -1036,7 +1042,7 @@ enum WorldCommandParser {
                         maximumX: maximumX,
                         maximumZ: maximumZ,
                         name: try parseTickingAreaName(arguments[6]),
-                        preload: try parseBooleanFlag(arguments[7], name: "是否预加载")
+                        preload: arguments.count == 8 ? try parseBooleanFlag(arguments[7], name: "是否预加载") : false
                     )
                 }
                 try validateTickingAreaSpec(area)
@@ -1044,9 +1050,9 @@ enum WorldCommandParser {
             case "delete":
                 guard arguments.count == 2 else { throw usageError(command) }
                 return .tickingArea(operation: .delete(name: arguments[1] == "ALL" ? nil : try parseTickingAreaName(arguments[1])))
-            case "list":
-                guard arguments.count == 2 else { throw usageError(command) }
-                return .tickingArea(operation: .list(dimension: arguments[1] == "ALL" ? nil : try parseDimension(arguments[1])))
+            case "list", "query":
+                guard (1...2).contains(arguments.count) else { throw usageError(command) }
+                return .tickingArea(operation: .list(dimension: arguments.count == 1 || arguments[1] == "ALL" ? nil : try parseDimension(arguments[1])))
             default:
                 throw usageError(command)
             }
@@ -1173,7 +1179,7 @@ enum WorldCommandParser {
     }
 
     private static func parseTeleportY(_ text: String) throws -> CommandTeleportY {
-        if text == "Auto" { return .automatic }
+        if text.lowercased() == "auto" { return .automatic }
         guard let value = Double(text), value.isFinite, Float(value).isFinite else {
             throw MCBEEditorError.malformedData("teleport 的 Y 坐标必须是有限整数、浮点数或 Auto：\(text)")
         }
@@ -1181,7 +1187,7 @@ enum WorldCommandParser {
     }
 
     private static func parseSummonUniqueID(_ text: String) throws -> Int64? {
-        if text == "Auto" { return nil }
+        if text.lowercased() == "auto" { return nil }
         guard let value = Int64(text), value != 0 else {
             throw MCBEEditorError.malformedData("summon 的 UniqueID 必须是 Auto 或非零 Long 整数")
         }
@@ -1282,6 +1288,12 @@ enum WorldCommandParser {
         }
     }
 
+    private static func isEntityQueryTarget(_ text: String) -> Bool {
+        let vanillaDimension = ["minecraft:overworld", "minecraft:nether", "minecraft:the_end"].contains(text.lowercased())
+        return text.hasPrefix("@") || text.range(of: "^[+-]?[0-9]+$", options: .regularExpression) != nil
+            || text.contains(":") && !vanillaDimension
+    }
+
     private static func parseNamespacedIdentifier(_ text: String, kind: String) throws -> String {
         let pattern = "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
         guard text.range(of: pattern, options: .regularExpression) != nil else {
@@ -1292,7 +1304,8 @@ enum WorldCommandParser {
 
     private static func parseEffectSelection(_ text: String) throws -> CommandEffectSelection {
         if text == "ALL" { return .all }
-        guard let entry = BedrockDataValueCatalog.statusEffects.first(where: { $0.identifier == text }) else {
+        let identifier = text.hasPrefix("minecraft:") ? String(text.dropFirst(10)) : text
+        guard let entry = BedrockDataValueCatalog.statusEffects.first(where: { $0.identifier == identifier }) else {
             throw MCBEEditorError.malformedData(
                 "状态效果字符串 ID 没有对应的数字 ID：\(text)"
             )
@@ -1323,7 +1336,7 @@ enum WorldCommandParser {
     }
 
     private static func parseGiveSlot(_ text: String) throws -> CommandGiveSlot {
-        if text == "Auto" { return .automatic }
+        if text.lowercased() == "auto" { return .automatic }
         guard let value = Int8(text), (0...35).contains(Int(value)) else {
             throw MCBEEditorError.malformedData("give 的 Slot 必须是 Auto 或 0～35 的整数")
         }
@@ -1385,8 +1398,34 @@ enum WorldCommandParser {
         return text
     }
 
+    /// A block consumes its first following NBT as states. Another final NBT is
+    /// the block entity; NULL separates an empty states list from its template.
+    private static func parseBlockArguments(_ arguments: [String], offset: Int) throws -> ([CommandBlockStateSpec], CommandBlockEntitySpec) {
+        var storages = [CommandBlockStateSpec]()
+        var index = offset
+        while index < arguments.count {
+            let token = arguments[index]
+            if !storages.isEmpty, index == arguments.count - 1,
+               ["preserve", "empty"].contains(token.lowercased()) || token.hasPrefix("'") {
+                return (storages, try CommandBlockEntitySpec.parse(token))
+            }
+            let name = try parseBlockName(token)
+            index += 1
+            guard storages.count < Int(UInt8.max) else {
+                throw MCBEEditorError.malformedData("fill/setblock 最多接受 255 个 storage")
+            }
+            var states = [NBTNamedTag]()
+            if index < arguments.count, arguments[index].lowercased() == "null" || arguments[index].hasPrefix("'") {
+                states = try parseStates(arguments[index])
+                index += 1
+            }
+            storages.append(CommandBlockStateSpec(name: name, states: states))
+        }
+        return (storages, .preserve)
+    }
+
     static func parseStates(_ text: String) throws -> [NBTNamedTag] {
-        if text == "NULL" { return [] }
+        if text.lowercased() == "null" { return [] }
         guard !text.isEmpty else {
             throw MCBEEditorError.malformedData("NBT 标签不能为空；不添加标签请填写 NULL")
         }

@@ -1,6 +1,6 @@
 import Foundation
 
-// ID/reference audit: Bedrock 26.52; official content snapshot v1.26.50.4.
+// Stable baseline: Bedrock 26.52 / v1.26.50.4; Drop 4 additions: Docs/CatalogSync/Drop4.
 // Provenance, legacy group labels and fixed data snapshots: Docs/CatalogSync.
 
 struct BedrockDataValueEntry: Hashable {
@@ -153,8 +153,17 @@ enum BedrockDataValueCatalog {
         value(152, "minecraft:camel_husk", "骆驼尸壳"),
         value(153, "minecraft:sulfur_cube", "硫方怪"),
         value(154, "minecraft:cushion", "坐垫"),
+        value(155, "minecraft:frostbite", "冻尸"),
+        value(156, "minecraft:ice_ball", "冰球"),
         value(157, "minecraft:trader_llama", "行商羊驼"),
         value(218, "minecraft:chest_boat", "运输船"),
+    ]
+
+    /// Verified preview block type IDs; never used for legacy 0–255 conversion.
+    static let modernBlocks: [BedrockDataValueEntry] = [
+        value(1502, "minecraft:icicle", "冰锥"),
+        value(1503, "minecraft:ice_crystal", "冰晶"),
+        value(1504, "minecraft:brittle_ice", "脆冰"),
     ]
 
     /// Numeric status-effect IDs from the Bedrock data-values table.
@@ -196,6 +205,7 @@ enum BedrockDataValueCatalog {
         value(35, "infested", "寄生"),
         value(36, "raid_omen", "袭击之兆"),
         value(37, "breath_of_the_nautilus", "鹦鹉螺之息"),
+        value(38, "freezing", "冰冻"),
     ]
 
     /// Numeric/string biome IDs shared by the map UI and command parser.
@@ -289,6 +299,7 @@ enum BedrockDataValueCatalog {
         value(193, "minecraft:pale_garden", "苍白之园"),
         value(194, "minecraft:sulfur_caves", "硫磺洞穴"),
         value(195, "minecraft:dappled_forest", "斑驳森林"),
+        value(196, "minecraft:ice_caves", "冰封洞穴"),
     ]
 
     /// Numeric enchantment IDs from the Bedrock data-values table.

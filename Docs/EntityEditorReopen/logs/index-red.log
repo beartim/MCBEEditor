@@ -1,0 +1,12 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+main/regression.swift:194: Fatal error: Entity editor reopen: 10 failures:
+three-root: unviewed B inherited C's viewed badge after index shift
+three-root: repeated Save replaced sibling B with duplicate C
+three-root: delete callback removed a different row or left stale C
+three-root: unviewed B inherited C's viewed badge after index shift
+three-root: repeated Save replaced sibling B with duplicate C
+three-root: delete callback removed a different row or left stale C
+three-root: repeated Save replaced sibling B with duplicate C
+three-root: delete callback removed a different row or left stale C
+three-root: repeated Save replaced sibling B with duplicate C
+three-root: delete callback removed a different row or left stale C

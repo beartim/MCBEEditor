@@ -108,7 +108,7 @@ internal static class SummonCommandTests
     private static void InvalidMetadataDoesNotWrite()
     {
         using var db = new SelfTestWorldDatabase();
-        foreach (var id in new[] { "0", "auto", "AUTO", "1.5", "1e3", "9223372036854775808", "-9223372036854775809", "NaN" })
+        foreach (var id in new[] { "0", "1.5", "1e3", "9223372036854775808", "-9223372036854775809", "NaN" })
             RejectUnchanged(db, () => Execute(db, "summon minecraft:cow overworld 0 64 0 default " + id), "invalid normal ID " + id);
         foreach (var name in new[] { "UniqueID", "Pos", "Position", "DimensionId", "Dimension", "identifier", "id", "definitions" })
             RejectUnchanged(db, () => Execute(db, $"summon minecraft:cow overworld 0 64 0 'String'\"{name}\"=\"bad\" Auto"), "normal protected tag " + name);

@@ -3,11 +3,11 @@ import UIKit
 final class MapSelectionResultsViewController: UITableViewController, UISearchResultsUpdating {
     private let session: WorldSession
     private let boundsText: String
-    private let objects: [BedrockWorldObject]
+    private var objects: [WorldObjectListItem]
     private let onSelect: (BedrockWorldObject) -> Void
     private let onLocate: (BedrockWorldObject) -> Void
     private let searchController = UISearchController(searchResultsController: nil)
-    private var shown = [BedrockWorldObject]()
+    private var shown = [WorldObjectListItem]()
     private let viewedItems = ViewedItemTracker()
 
     init(
@@ -18,7 +18,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         onLocate: @escaping (BedrockWorldObject) -> Void
     ) {
         self.session = session
-        self.objects = objects
+        self.objects = objects.map { WorldObjectListItem(object: $0) }
         self.boundsText = boundsText
         self.onSelect = onSelect
         self.onLocate = onLocate
@@ -41,7 +41,7 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
     }
 
     private var summaryText: String {
-        let entities = objects.filter { $0.kind == .entity }.count
+        let entities = objects.filter { $0.object.kind == .entity }.count
         let blockEntities = objects.count - entities
         return "\(boundsText)；实体 \(entities)，方块实体 \(blockEntities)"
     }
@@ -50,8 +50,9 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
 
     private func applyFilter() {
         let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        shown = objects.filter { object in
-            query.isEmpty || object.displayName.lowercased().contains(query) ||
+        shown = objects.filter { item in
+            let object = item.object
+            return query.isEmpty || object.displayName.lowercased().contains(query) ||
                 object.identifier.lowercased().contains(query) ||
                 object.coordinateText.lowercased().contains(query) ||
                 object.source.rawValue.lowercased().contains(query)
@@ -65,8 +66,8 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         section == 0 ? "实体" : "方块实体"
     }
 
-    private func objects(in section: Int) -> [BedrockWorldObject] {
-        shown.filter { $0.kind == (section == 0 ? .entity : .blockEntity) }
+    private func objects(in section: Int) -> [WorldObjectListItem] {
+        shown.filter { $0.object.kind == (section == 0 ? .entity : .blockEntity) }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -74,7 +75,8 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let object = objects(in: indexPath.section)[indexPath.row]
+        let item = objects(in: indexPath.section)[indexPath.row]
+        let object = item.object
         let cell = tableView.dequeueReusableCell(withIdentifier: "SelectionObjectCell") ?? UITableViewCell(style: .subtitle, reuseIdentifier: "SelectionObjectCell")
         cell.textLabel?.text = object.displayName
         cell.detailTextLabel?.text = object.subtitle
@@ -84,12 +86,12 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         ViewedListSupport.configure(
             cell: cell,
             isEnabled: true,
-            isViewed: viewedItems.contains(object.stableID),
+            isViewed: viewedItems.contains(item.id),
             clearAction: { [weak self] in
                 guard let self = self else { return }
                 ViewedListSupport.presentClearConfirmation(from: self) { [weak self] in
                     guard let self = self else { return }
-                    self.viewedItems.clear(object.stableID)
+                    self.viewedItems.clear(item.id)
                     self.tableView.reloadData()
                 }
             }
@@ -100,16 +102,17 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        let object = objects(in: indexPath.section)[indexPath.row]
-        showDetails(object, sourceRect: tableView.rectForRow(at: indexPath))
+        let item = objects(in: indexPath.section)[indexPath.row]
+        showDetails(item, sourceRect: tableView.rectForRow(at: indexPath))
     }
 
-    private func markViewedAfterOpeningEditor(_ object: BedrockWorldObject) {
-        guard viewedItems.mark(object.stableID) else { return }
+    private func markViewedAfterOpeningEditor(_ item: WorldObjectListItem) {
+        guard viewedItems.mark(item.id) else { return }
         tableView.reloadData()
     }
 
-    private func showDetails(_ object: BedrockWorldObject, sourceRect: CGRect) {
+    private func showDetails(_ item: WorldObjectListItem, sourceRect: CGRect) {
+        let object = item.object
         let dimension = BedrockDimension(rawValue: object.dimension)?.displayName ?? "维度 \(object.dimension)"
         var message = "\(object.identifier)\n\(dimension)；\(object.coordinateText)\n来源：\(object.source.rawValue)"
         if let uniqueID = object.uniqueID { message += "\nUniqueID：\(uniqueID)" }
@@ -123,13 +126,27 @@ final class MapSelectionResultsViewController: UITableViewController, UISearchRe
         })
         alert.addAction(UIAlertAction(title: "编辑 NBT", style: .default) { [weak self] _ in
             guard let self = self else { return }
-            self.markViewedAfterOpeningEditor(object)
-            let controller = WorldObjectNBTEditorViewController(
-                object: object,
-                session: self.session,
-                onSave: { [weak self] in self?.session.invalidateAfterExternalChange() }
-            )
-            self.navigationController?.pushViewController(controller, animated: true)
+            do {
+                let controller = try WorldObjectNBTEditorViewController(
+                    object: object,
+                    session: self.session,
+                    onSave: { [weak self] current in
+                        guard let self = self else { return }
+                        if let index = self.objects.firstIndex(where: { $0.id == item.id }) {
+                            if let current = current { self.objects[index].object = current }
+                            else { self.objects.remove(at: index) }
+                        }
+                        if current == nil { self.viewedItems.clear(item.id) }
+                        self.navigationItem.prompt = self.summaryText
+                        self.applyFilter()
+                        self.session.invalidateAfterExternalChange()
+                    }
+                )
+                self.markViewedAfterOpeningEditor(item)
+                self.navigationController?.pushViewController(controller, animated: true)
+            } catch {
+                self.showError(error, title: "读取对象 NBT 失败，请重新框选")
+            }
         })
         alert.addAction(UIAlertAction(title: "复制坐标", style: .default) { _ in
             UIPasteboard.general.string = object.coordinateText

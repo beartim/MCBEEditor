@@ -1,0 +1,15 @@
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Swift CLI dimension preflight passed: actual parser/plan, projected state and no writes
+Dimension command resolver tests passed.
+Fill/setblock block entities passed: optional/ignored root coordinates, canonical Int positions, nested preservation, three modes, reverse/cross-chunk fill and atomic failures.
+Block entity move audit passed: every storage, repeated saves, sibling preservation, collisions and atomic rejection
+Swift shared parser fixtures passed: 356
+Summon regression passed: exact Long, Auto, raw NBT, legacy/modern storage and atomic collision rejection
+Entity query regression passed: scopes, exact NBT, mixed lists, extreme positions and read-only storage
+kill region regression passed: bounds, dimensions, player modes, duplicate IDs, modern actors and old selectors
+Shared Swift parser corpus passed: 356 fixtures
+Command syntax regression passed: 41 typed default equivalences, NBT boundaries, 255 layers and strict failures
+Drop 4 regression passed: numeric entity scan, Chinese searches, biome, ice colors and freezing NBT/ALL
+Spawn-point scope audit passed: only player root tags removed; custom data preserved
+Command persistence tests passed: atomic legacy rejection and explicit empty v8 val storages
+Effect, entity-import and world command executor tests passed

@@ -1,5 +1,7 @@
 # fill / setblock 方块实体参数
 
+2026-10-29 更新：每层 states 可省略为 NULL，末尾方块实体可省略为 preserve；下面保留早期必填版本的设计与验证记录。当前全部语法见 [命令格式对照](../../COMMAND_SYNTAX.md)。
+
 iOS GUI、Apple/iOS CLI、Windows GUI 和 Windows CLI 同步修改，版本保持 1.0.0、iOS 最低版本保持 13.0。既有未指定类型的空 List 修复保留。
 
 ```text

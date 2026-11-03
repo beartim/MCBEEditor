@@ -180,14 +180,18 @@ final class BedrockWorldObjectNBTStore {
       for (object, preferredIndex) in group {
         indexes.insert(
           try locateRecord(object: object, in: records, preferredIndex: preferredIndex))
-        if let reference = object.storage.actorStorageReference {
-          removedActorReferences.insert(reference)
-        }
       }
       for index in indexes.sorted(by: >) { records.remove(at: index) }
       deletedCount += indexes.count
       if records.isEmpty {
         deletes.insert(key)
+        // Other roots may share this actorprefix. Keep its digp reference
+        // until the last root is deleted so retained entities remain visible.
+        for (object, _) in group {
+          if let reference = object.storage.actorStorageReference {
+            removedActorReferences.insert(reference)
+          }
+        }
       } else {
         puts.append((key: key, value: try ConsecutiveNBTCodec.encode(records)))
       }

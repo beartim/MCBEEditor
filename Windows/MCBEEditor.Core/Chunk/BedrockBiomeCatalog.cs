@@ -96,6 +96,7 @@ public static class BedrockBiomeCatalog
         new BedrockBiomeEntry(unchecked((uint)193), "minecraft:pale_garden", "苍白之园"),
         new BedrockBiomeEntry(unchecked((uint)194), "minecraft:sulfur_caves", "硫磺洞穴"),
         new BedrockBiomeEntry(unchecked((uint)195), "minecraft:dappled_forest", "斑驳森林"),
+        new BedrockBiomeEntry(unchecked((uint)196), "minecraft:ice_caves", "冰封洞穴"),
     ];
 
     private static readonly Dictionary<string, BedrockBiomeEntry> ByIdentifier = Entries
@@ -135,6 +136,7 @@ public static class BedrockBiomeCatalog
             return HsvToRgb(hue, 0.42, 0.74);
         }
 
+        if (identifier == "minecraft:ice_caves") return 0x9ABBDD;
         bool Has(string token) => identifier.Contains(token, StringComparison.Ordinal);
         if (Has("deep_frozen_ocean")) return Rgb(0.25, 0.46, 0.64);
         if (Has("frozen_ocean")) return Rgb(0.42, 0.65, 0.78);

@@ -3,7 +3,7 @@ import UIKit
 final class WorldObjectNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
   private var object: BedrockWorldObject
   private let store: BedrockWorldObjectNBTStore
-  private let onSave: () -> Void
+  private let onSave: (BedrockWorldObject?) -> Void
   private var document: NBTDocument
   private var rows = [NBTNode]()
   private var expanded = Set<[NBTPathComponent]>()
@@ -17,11 +17,17 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
   )
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
 
-  init(object: BedrockWorldObject, session: WorldSession, onSave: @escaping () -> Void) {
+  init(
+    object: BedrockWorldObject, session: WorldSession,
+    onSave: @escaping (BedrockWorldObject?) -> Void
+  ) throws {
+    let store = BedrockWorldObjectNBTStore(session: session)
     self.object = object
-    self.store = BedrockWorldObjectNBTStore(session: session)
+    self.store = store
     self.onSave = onSave
-    self.document = object.document
+    // Lists hold scan snapshots. Always open the currently persisted root;
+    // a missing/ambiguous record must not become an editable stale document.
+    self.document = try store.document(for: object)
     super.init(style: .insetGrouped)
     title = object.displayName
   }
@@ -368,7 +374,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         guard let self = self else { return }
         do {
           try self.store.delete(object: self.object)
-          self.onSave()
+          self.onSave(nil)
           self.navigationController?.popViewController(animated: true)
         } catch {
           self.showError(error, title: "删除\(self.object.kind.displayName)失败")
@@ -411,8 +417,8 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         rebuildRows()
         tableView.isUserInteractionEnabled = false
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = false }
-        navigationItem.prompt = "已保存；请返回列表重新打开该对象。"
-        onSave()
+        navigationItem.prompt = "已保存；暂时无法重新定位该对象，请返回地图重新框选或重新扫描列表。"
+        onSave(nil)
         return true
       }
       rebuildRows()
@@ -425,7 +431,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         ? result.destinationUniqueID.map { "；UniqueID 已改为 \($0)，Actor 存储引用保持不变" } ?? "；UniqueID 已修改"
         : ""
       navigationItem.prompt = "已保存\(movedText)\(identityText)"
-      onSave()
+      onSave(object)
       return true
     } catch {
       showError(error, title: "保存 \(object.kind.displayName) NBT 失败")

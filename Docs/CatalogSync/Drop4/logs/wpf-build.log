@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  Restored /workspace/scratch/d96617e863d4/MCBEEditor/Windows/MCBEEditor.Core/MCBEEditor.Core.csproj (in 27.66 sec).
+  Restored /workspace/scratch/d96617e863d4/MCBEEditor/Windows/MCBEEditor.Desktop/MCBEEditor.Desktop.csproj (in 27.67 sec).
+  MCBEEditor.Core -> /workspace/scratch/d96617e863d4/MCBEEditor/Windows/MCBEEditor.Core/bin/Debug/net10.0/MCBEEditor.Core.dll
+  MCBEEditor.Desktop -> /workspace/scratch/d96617e863d4/MCBEEditor/Windows/MCBEEditor.Desktop/bin/Debug/net10.0-windows/MCBEEditor.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:33.74

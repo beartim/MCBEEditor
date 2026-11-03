@@ -1,0 +1,12 @@
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.12
+Windows GUI: fixed ReadMe restored; Command.txt preserved
+Windows CLI: fixed ReadMe restored; Command.txt preserved
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Apple CLI: fixed ReadMe restored; Command.txt preserved
+iOS GUI store: fixed ReadMe restored; Command.txt preserved
+Fixed ReadMe runtime independence checks passed.

@@ -1,5 +1,7 @@
 # entity 命令更新（1.0.0）
 
+历史说明：本文保留最初不含玩家及旧输出格式的更新记录。2026-10-29 entity 已扩展为默认 @e、含玩家和目标筛选，并展示维度、坐标与无损 MCBE-SNBT，见 [本轮更新](CHANGES_ENTITY_TARGET_QUERY.md)。
+
 本次源码更新适用于 iOS 图形版、Windows 图形版、iOS CLI 和 Windows CLI。版本号保持 1.0.0。
 
 ## 用法

@@ -11,6 +11,7 @@ internal static class EntityQueryTests
 
     public static void Run()
     {
+        EntityTargetQueryTests.Run();
         DefinitionsOnlyIdentifier();
         DistinctLegacyRecordsWithRepeatedUniqueIds();
         QueryDoesNotUseBrowserResultLimit();
@@ -62,7 +63,7 @@ internal static class EntityQueryTests
         var result = new EntityQueryCommandStore(database).Execute(EntityQueryCommandParser.Parse("entity"));
         Check(!result.ChangedWorld && result.OutputLines.Count == recordCount,
             "queries must include every entity beyond the browser's 200,000-object default limit");
-        Check(result.OutputLines.All(line => line.Style == TargetingOutputStyle.Entity && line.Text == "未知实体=[]"),
+        Check(result.OutputLines.All(line => line.Style == TargetingOutputStyle.Entity && line.Text == "未知实体 Dimension=overworld(0) Pos=NULL NBT=[]"),
             "empty entity compounds must remain empty with one output per source record");
         Check(database.ApplyBatchCount == 0 && database.Get(key)!.SequenceEqual(data), "querying a large world must preserve stored NBT");
     }

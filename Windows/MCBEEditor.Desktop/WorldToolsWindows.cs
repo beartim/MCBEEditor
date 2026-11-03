@@ -22,7 +22,7 @@ public sealed class BedrockDataValueWindow : Window
         Width = 920; Height = 680; MinWidth = 680; MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Content = BuildUi();
-        foreach (var name in new[] { "实体 ID", "生物群系 ID", "状态效果 ID", "魔咒 ID", "方块 ID（旧版）" }) _category.Items.Add(name);
+        foreach (var name in new[] { "实体 ID", "生物群系 ID", "状态效果 ID", "魔咒 ID", "方块 ID（旧版）", "冰系方块 ID（预览）" }) _category.Items.Add(name);
         _category.SelectedIndex = 0;
         _category.SelectionChanged += (_, _) => Refresh();
         _search.TextChanged += (_, _) => Refresh();
@@ -58,6 +58,7 @@ public sealed class BedrockDataValueWindow : Window
         2 => BedrockDataValueCatalog.StatusEffects,
         3 => BedrockDataValueCatalog.Enchantments,
         4 => BedrockDataValueCatalog.LegacyBlocks,
+        5 => BedrockDataValueCatalog.ModernBlocks,
         _ => BedrockDataValueCatalog.Entities
     };
 

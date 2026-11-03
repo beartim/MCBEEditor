@@ -1,0 +1,11 @@
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.98
+C#: 572 audited ID/name rows, entity bridge and Chinese searches passed.
+<unknown>:0: warning: legacy driver is now deprecated; consider avoiding specifying '-disallow-use-new-driver'
+Swift: 572 audited ID/name rows, numeric lookup, biome color and Chinese searches passed.
+Pinned stable/preview hashes, 143 entity IDs, 90 biome IDs, 38 effects and 3 modern blocks passed.
+Catalog synchronization checks passed.

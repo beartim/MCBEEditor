@@ -122,22 +122,7 @@ public static class EnvironmentCommandParser
 {
     private static readonly Regex TickingAreaNamePattern = new("^[A-Za-z0-9_.:-]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public const string Usage =
-        "daylock 0或1\n" +
-        "time query daytime|gametime|day\n" +
-        "time add 整数\n" +
-        "time set 非负整数\n" +
-        "time ceil day|sunset|night|sunrise|noon|midnight\n" +
-        "time floor day|sunset|night|sunrise|noon|midnight\n" +
-        "weather query\n" +
-        "weather clear 0或1\n" +
-        "weather rain 持续游戏刻 强度 0或1\n" +
-        "weather thunder 持续游戏刻 强度 0或1\n" +
-        "tickingarea add square 维度 x1 z1 x2 z2 名称 0或1\n" +
-        "tickingarea add circle 维度 中心区块X 中心区块Z 半径 名称 0或1\n" +
-        "tickingarea delete 名称或ALL\n" +
-        "tickingarea list 维度或ALL\n" +
-        "圆形半径单位为区块，允许 0～4；每个区域最多 100 个区块，每个世界最多 10 个常加载区域。";
+    public const string Usage = "daylock 0或1\ntime\ntime query [daytime|gametime|day]\ntime add 整数\ntime set 非负整数\ntime ceil day|sunset|night|sunrise|noon|midnight\ntime floor day|sunset|night|sunrise|noon|midnight\nweather\nweather query\nweather clear [自动变化0或1]\nweather rain [持续游戏刻 [强度 [自动变化0或1]]]\nweather thunder [持续游戏刻 [强度 [自动变化0或1]]]\ntickingarea\ntickingarea add square 维度 x1 z1 x2 z2 名称 [预加载0或1]\ntickingarea add circle 维度 x1 z1 半径 名称 [预加载0或1]\ntickingarea delete 名称或ALL\ntickingarea list [维度或ALL]\ntickingarea query [维度或ALL]";
 
     public static bool IsEnvironmentCommand(string text)
     {
@@ -169,6 +154,8 @@ public static class EnvironmentCommandParser
 
     private static EnvironmentCommandRequest ParseTime(string[] args)
     {
+        if (args.Length == 0 || args.Length == 1 && args[0].Equals("query", StringComparison.OrdinalIgnoreCase))
+            return new TimeEnvironmentCommandRequest(EnvironmentTimeOperationKind.Query);
         if (args.Length != 2) throw UsageError();
         var action = args[0].ToLowerInvariant();
         return action switch
@@ -184,29 +171,33 @@ public static class EnvironmentCommandParser
 
     private static EnvironmentCommandRequest ParseWeather(string[] args)
     {
-        if (args.Length == 1 && args[0].Equals("query", StringComparison.OrdinalIgnoreCase))
+        if (args.Length == 0 || args.Length == 1 && args[0].Equals("query", StringComparison.OrdinalIgnoreCase))
             return new WeatherQueryEnvironmentCommandRequest();
-        if (args.Length == 2 && args[0].Equals("clear", StringComparison.OrdinalIgnoreCase))
-            return new WeatherEnvironmentCommandRequest(EnvironmentWeatherCondition.Clear, null, null, ParseBooleanFlag(args[1], "天气是否自动变化"));
-        if (args.Length == 4 && args[0].Equals("rain", StringComparison.OrdinalIgnoreCase))
-            return new WeatherEnvironmentCommandRequest(EnvironmentWeatherCondition.Rain, ParseWeatherDuration(args[1]), ParseWeatherIntensity(args[2]), ParseBooleanFlag(args[3], "天气是否自动变化"));
-        if (args.Length == 4 && args[0].Equals("thunder", StringComparison.OrdinalIgnoreCase))
-            return new WeatherEnvironmentCommandRequest(EnvironmentWeatherCondition.Thunder, ParseWeatherDuration(args[1]), ParseWeatherIntensity(args[2]), ParseBooleanFlag(args[3], "天气是否自动变化"));
+        if (args.Length is 1 or 2 && args[0].Equals("clear", StringComparison.OrdinalIgnoreCase))
+            return new WeatherEnvironmentCommandRequest(EnvironmentWeatherCondition.Clear, null, null,
+                args.Length == 1 || ParseBooleanFlag(args[1], "天气是否自动变化"));
+        if (args.Length is >= 1 and <= 4 && (args[0].Equals("rain", StringComparison.OrdinalIgnoreCase) || args[0].Equals("thunder", StringComparison.OrdinalIgnoreCase)))
+            return new WeatherEnvironmentCommandRequest(
+                args[0].Equals("rain", StringComparison.OrdinalIgnoreCase) ? EnvironmentWeatherCondition.Rain : EnvironmentWeatherCondition.Thunder,
+                args.Length >= 2 ? ParseWeatherDuration(args[1]) : 6000,
+                args.Length >= 3 ? ParseWeatherIntensity(args[2]) : 1f,
+                args.Length < 4 || ParseBooleanFlag(args[3], "天气是否自动变化"));
         throw UsageError();
     }
 
     private static EnvironmentCommandRequest ParseTickingArea(string[] args, Func<string,int>? dimensionResolver)
     {
-        if (args.Length < 2) throw UsageError();
+        if (args.Length == 0) return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.List);
         var action = args[0].ToLowerInvariant();
         if (action == "delete" && args.Length == 2)
             return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.Delete, Name: args[1] == "ALL" ? null : ParseTickingAreaName(args[1]));
-        if (action == "list" && args.Length == 2)
-            return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.List, Dimension: args[1] == "ALL" ? null : BlockCommandParser.ParseDimension(args[1], dimensionResolver));
+        if (action is "list" or "query" && args.Length is 1 or 2)
+            return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.List,
+                Dimension: args.Length == 1 || args[1] == "ALL" ? null : BlockCommandParser.ParseDimension(args[1], dimensionResolver));
         if (action != "add" || args.Length < 3) throw UsageError();
 
         var shape = args[1].ToLowerInvariant();
-        if (shape == "square" && args.Length == 9)
+        if (shape == "square" && args.Length is 8 or 9)
         {
             var dimension = BlockCommandParser.ParseDimension(args[2], dimensionResolver);
             var x1 = ParseInt32(args[3], "X1");
@@ -215,11 +206,11 @@ public static class EnvironmentCommandParser
             var z2 = ParseInt32(args[6], "Z2");
             var area = new EnvironmentTickingAreaSpec(
                 dimension, false, Math.Min(x1, x2), Math.Min(z1, z2), Math.Max(x1, x2), Math.Max(z1, z2),
-                ParseTickingAreaName(args[7]), ParseBooleanFlag(args[8], "是否预加载"));
+                ParseTickingAreaName(args[7]), args.Length == 9 && ParseBooleanFlag(args[8], "是否预加载"));
             ValidateTickingAreaSpec(area);
             return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.Add, Area: area);
         }
-        if (shape == "circle" && args.Length == 8)
+        if (shape == "circle" && args.Length is 7 or 8)
         {
             var dimension = BlockCommandParser.ParseDimension(args[2], dimensionResolver);
             var chunkX = ParseInt32(args[3], "中心区块 X");
@@ -234,7 +225,7 @@ public static class EnvironmentCommandParser
             var maxZ = ExactInt32(centerBlockZ + radiusBlocks, "圆形常加载区域 MaxZ");
             var area = new EnvironmentTickingAreaSpec(
                 dimension, true, minX, minZ, maxX, maxZ,
-                ParseTickingAreaName(args[6]), ParseBooleanFlag(args[7], "是否预加载"));
+                ParseTickingAreaName(args[6]), args.Length == 8 && ParseBooleanFlag(args[7], "是否预加载"));
             ValidateTickingAreaSpec(area);
             return new TickingAreaEnvironmentCommandRequest(EnvironmentTickingAreaOperationKind.Add, Area: area);
         }

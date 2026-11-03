@@ -143,6 +143,8 @@ public static class BedrockEntityCatalog
         [152L] = "minecraft:camel_husk",
         [153L] = "minecraft:sulfur_cube",
         [154L] = "minecraft:cushion",
+        [155L] = "minecraft:frostbite",
+        [156L] = "minecraft:ice_ball",
         [157L] = "minecraft:trader_llama",
         [218L] = "minecraft:chest_boat",
     };
