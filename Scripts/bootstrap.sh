@@ -29,12 +29,14 @@ XCODE_VERSION="$(awk '/^Xcode / { version = $2 } END { print version }' <<< "$XC
   printf '错误：无法从 xcodebuild 输出中解析 Xcode 版本：\n%s\n' "$XCODE_VERSION_OUTPUT" >&2
   exit 1
 }
-XCODE_MAJOR="${XCODE_VERSION%%.*}"
-if [[ "$XCODE_MAJOR" != "15" ]]; then
-  printf '错误：此工程只构建 iOS 13，需要 Xcode 15.x（推荐 15.4）。当前为 Xcode %s。\n' \
-    "${XCODE_VERSION}" >&2
-  exit 1
-fi
+case "$XCODE_VERSION" in
+  15.*|16.4|16.4.*) ;;
+  *)
+    printf '错误：请选择 Xcode 15.x 或 CI 使用的 Xcode 16.4。当前为 Xcode %s。\n' \
+      "$XCODE_VERSION" >&2
+    exit 1
+    ;;
+esac
 
 mkdir -p "$ROOT/Vendor"
 if [[ ! -d "$VENDOR/.git" ]]; then
@@ -74,7 +76,7 @@ for PHOTO_PRIVACY_KEY in NSPhotoLibraryAddUsageDescription NSPhotoLibraryUsageDe
 done
 
 # XcodeGen 2.44+ defaults to the Xcode 16 project format (objectVersion 77).
-# This project deliberately builds with Xcode 15.4 so that it can target iOS 13.
+# Keep the generated project usable with Xcode 15.4 for local iOS 13 builds.
 # project.yml pins projectFormat=xcode15_3, which XcodeGen emits as objectVersion 63.
 # Xcode 15.4 accepts project object versions up to and including 63.
 MAX_XCODE15_OBJECT_VERSION=63

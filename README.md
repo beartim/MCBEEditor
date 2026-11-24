@@ -358,7 +358,7 @@ NBT 根 x/y/z 可省略，输入时会自动忽略；写入时以命令选定位
 这是对 Android 版 MCBEEditor 的原生 iOS 重写工程。
 
 - 最低系统：**iOS / iPadOS 13.0**
-- 构建工具：**Xcode 15.x，推荐 Xcode 15.4**
+- 构建工具：本地推荐 **Xcode 15.4**。GitHub Actions 使用 **macOS 15 + Xcode 16.4**。
 - 当时版本：**1.1.7 (117)**
 - 架构：arm64
 - 界面：UIKit

@@ -32,6 +32,19 @@ MIN_OS="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
 }
 
 printf '已验证 MinimumOSVersion：%s\n' "${MIN_OS}"
+
+# Check the deployment target recorded by the linker before packaging.
+BUILD_VERSION="$(xcrun vtool -show-build "$APP/MCBEEditor")"
+printf '%s\n' "$BUILD_VERSION"
+if ! awk '
+  $1 == "platform" && $2 == "IOS" { ios = 1 }
+  $1 == "minos" && $2 == "13.0" { minimum = 1 }
+  END { exit !(ios && minimum) }
+' <<< "$BUILD_VERSION"; then
+  echo '错误：应用主程序的 Mach-O 目标必须为 iOS 13.0。' >&2
+  exit 1
+fi
+
 cp -R "$APP" "$OUTPUT/Payload/"
 (
   cd "$OUTPUT"
