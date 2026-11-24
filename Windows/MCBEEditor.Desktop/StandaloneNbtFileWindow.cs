@@ -12,9 +12,10 @@ namespace MCBEEditor.Desktop;
 
 public sealed class StandaloneNbtFileWindow : Window
 {
-    private sealed record RootRow(int Index, string Name, string Type, string Summary)
+    private sealed record RootRow(int Index, string Name, string Type, string Summary, NbtSearchResult? Hit = null)
     {
         public string DisplayIndex => Index.ToString(CultureInfo.InvariantCulture);
+        public string RootPath => $"#{DisplayIndex} {Hit?.Path ?? NbtTagPath.Root}";
     }
 
     private readonly StandaloneNbtFile _file;
@@ -58,7 +59,10 @@ public sealed class StandaloneNbtFileWindow : Window
         _grid.SelectionMode = DataGridSelectionMode.Extended;
         _grid.SelectionUnit = DataGridSelectionUnit.FullRow;
         _grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(RootRow.DisplayIndex)), Width = 55 });
-        _grid.Columns.Add(new DataGridTextColumn { Header = "根名称", Binding = new Binding(nameof(RootRow.Name)), Width = 260 });
+        var pathColumn = NbtTreeVisuals.AddRootSearchLocation<RootRow>(_grid, OpenHit);
+        _search.TextChanged += (_, _) =>
+            pathColumn.Visibility = string.IsNullOrWhiteSpace(_search.Text) ? Visibility.Collapsed : Visibility.Visible;
+        _grid.Columns.Add(new DataGridTextColumn { Header = "标签名", Binding = new Binding(nameof(RootRow.Name)), Width = 260 });
         _grid.Columns.Add(new DataGridTextColumn { Header = "类型", Binding = new Binding(nameof(RootRow.Type)), Width = 120 });
         _grid.Columns.Add(new DataGridTextColumn { Header = "摘要", Binding = new Binding(nameof(RootRow.Summary)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         _grid.MouseDoubleClick += (_, e) => { if (e.ChangedButton == MouseButton.Left) EditSelected(); };
@@ -97,28 +101,38 @@ public sealed class StandaloneNbtFileWindow : Window
     private void Rebuild()
     {
         var query = _search.Text.Trim();
-        var rows = _documents.Select((document, index) => new RootRow(index,
-            PrimaryName(document), document.Root.Type.ToString(), document.Root.Summary)).ToArray();
-        if (query.Length > 0)
-            rows = rows.Where(row => row.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || row.Type.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || NbtDocumentTools.Search(_documents[row.Index], query, 1).Count > 0).ToArray();
+        var rows = new List<RootRow>();
+        for (int index = 0; index < _documents.Count; index++)
+        {
+            var document = _documents[index];
+            var title = PrimaryName(document);
+            if (query.Length == 0)
+                rows.Add(new RootRow(index, title, document.Root.Type.ToString(), document.Root.Summary));
+            else
+                foreach (var hit in NbtDocumentTools.Search(document, query, int.MaxValue, title))
+                    rows.Add(new RootRow(index, hit.Name, hit.Type.ToString(), hit.ValueText, hit));
+        }
         _grid.ItemsSource = rows;
-        if (_grid.SelectedItem is null && rows.Length > 0) _grid.SelectedItem = rows[0];
+        if (_grid.SelectedItem is null && rows.Count > 0) _grid.SelectedItem = rows[0];
         _status.Text = $"{_file.FormatDescription} · 根标签 {_documents.Count:N0} 个" + (_dirty ? " · 有未导出的修改" : string.Empty)
             + "。压缩输入导出为未压缩数据；Java 结构转换与 iOS 版一样忽略实体、水层和高级 BlockEntity 数据。";
     }
 
     private void EditSelected()
     {
-        if (_grid.SelectedItem is not RootRow row || (uint)row.Index >= (uint)_documents.Count) return;
+        if (_grid.SelectedItem is RootRow row) OpenHit(row);
+    }
+
+    private void OpenHit(RootRow row)
+    {
+        if ((uint)row.Index >= (uint)_documents.Count) return;
         var editor = new NbtEditorWindow($"{Title} · #{row.Index}", _documents[row.Index], edited =>
         {
             _documents[row.Index] = edited;
             _dirty = true;
             Rebuild();
             return Task.CompletedTask;
-        }, Array.Empty<string>(), _file.OriginalEncoding) { Owner = this };
+        }, Array.Empty<string>(), _file.OriginalEncoding, initialTagPath: row.Hit?.Path) { Owner = this };
         editor.ShowDialog();
         if (editor.DidSave) Rebuild();
     }

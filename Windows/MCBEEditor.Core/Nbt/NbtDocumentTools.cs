@@ -7,7 +7,7 @@ public sealed record NbtSearchResult(string Path, string Name, NbtTagType Type, 
 
 public static class NbtDocumentTools
 {
-    public static IReadOnlyList<NbtSearchResult> Search(NbtDocument document, string query, int limit = 500)
+    public static IReadOnlyList<NbtSearchResult> Search(NbtDocument document, string query, int limit = 500, string? rootAlias = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         if (limit < 1) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -16,10 +16,10 @@ public static class NbtDocumentTools
 
         var results = new List<NbtSearchResult>();
         var rootName = string.IsNullOrEmpty(document.RootName) ? "<root>" : document.RootName;
-        Visit(document.Root, rootName, rootName, query, results, limit);
+        int bestRank = int.MaxValue;
+        Visit(document.Root, rootName, NbtTagPath.Root, query, results, ref bestRank, rootAlias);
         if (results.Count == 0) return Array.Empty<NbtSearchResult>();
-        var bestRank = results.Min(item => item.MatchRank);
-        return results.Where(item => item.MatchRank == bestRank).OrderBy(item => item.Path, StringComparer.OrdinalIgnoreCase).Take(limit).ToArray();
+        return results.OrderBy(item => item.Path, StringComparer.OrdinalIgnoreCase).Take(limit).ToArray();
     }
 
     public static NbtValue DeepClone(NbtValue value) => value switch
@@ -54,24 +54,33 @@ public static class NbtDocumentTools
         _ => string.Empty
     };
 
-    private static void Visit(NbtValue value, string name, string path, string query, List<NbtSearchResult> results, int limit)
+    private static void Visit(NbtValue value, string name, string path, string query, List<NbtSearchResult> results,
+        ref int bestRank, string? alias = null)
     {
-        if (results.Count >= limit * 3) return;
         var valueText = SearchValueText(value);
         var rank = MatchRank(name, valueText, value.Type.ToString(), query);
-        if (rank >= 0) results.Add(new NbtSearchResult(path, name, value.Type, valueText, rank));
+        if (alias?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) rank = 0;
+        if (rank >= 0 && rank <= bestRank)
+        {
+            if (rank < bestRank) { results.Clear(); bestRank = rank; }
+            results.Add(new NbtSearchResult(path, name, value.Type, valueText, rank));
+        }
 
         if (value is NbtCompoundValue compound)
         {
+            var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var tag in compound.Tags)
-                Visit(tag.Value, tag.Name, path + "/" + tag.Name, query, results, limit);
+            {
+                int occurrence = NbtTagPath.NextOccurrence(occurrences, tag.Name);
+                Visit(tag.Value, tag.Name, NbtTagPath.AppendName(path, tag.Name, occurrence), query, results, ref bestRank);
+            }
         }
         else if (value is NbtListValue list)
         {
             for (var index = 0; index < list.Values.Count; index++)
             {
                 var childName = $"[{index}]";
-                Visit(list.Values[index], childName, path + "/" + childName, query, results, limit);
+                Visit(list.Values[index], childName, path + childName, query, results, ref bestRank);
             }
         }
     }

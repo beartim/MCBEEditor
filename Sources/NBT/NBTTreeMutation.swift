@@ -1,18 +1,69 @@
 import Foundation
 
 enum NBTPathComponent: Hashable {
-  case compound(String)
+  // The occurrence is zero-based among siblings with exactly the same name.
+  case compound(String, occurrence: Int = 0)
   case list(Int)
+
+  static func child(named name: String, occurrences: inout [String: Int]) -> Self {
+    let occurrence = occurrences[name, default: 0]
+    occurrences[name] = occurrence + 1
+    return .compound(name, occurrence: occurrence)
+  }
+
+  static func description(of path: [Self]) -> String {
+    var result = ""
+    for component in path {
+      switch component {
+      case .compound(let name, let occurrence):
+        result += "/" + escapedName(name)
+        if occurrence > 0 { result += "#\(occurrence + 1)" }
+      case .list(let index):
+        if result.isEmpty { result = "/" }
+        result += "[\(index)]"
+      }
+    }
+    return result.isEmpty ? "/" : result
+  }
+
+  private static func escapedName(_ name: String) -> String {
+    guard !name.isEmpty else { return "\\e" }
+    var text = ""
+    for scalar in name.unicodeScalars {
+      switch scalar {
+      case "/", "[", "]", "#", "\\": text += "\\" + String(scalar)
+      case "\n": text += "\\n"
+      case "\r": text += "\\r"
+      case "\t": text += "\\t"
+      default:
+        if CharacterSet.controlCharacters.contains(scalar) || scalar == "\u{2028}" || scalar == "\u{2029}" {
+          text += "\\u{\(String(scalar.value, radix: 16))}"
+        } else {
+          text.unicodeScalars.append(scalar)
+        }
+      }
+    }
+    return text
+  }
 }
 
 enum NBTTreeMutation {
+  private static func tagIndex(named name: String, occurrence: Int, in tags: [NBTNamedTag]) -> Int? {
+    var remaining = occurrence
+    for index in tags.indices where tags[index].name == name {
+      if remaining == 0 { return index }
+      remaining -= 1
+    }
+    return nil
+  }
+
   static func value(at path: [NBTPathComponent], in root: NBTValue) -> NBTValue? {
     guard let first = path.first else { return root }
     let tail = Array(path.dropFirst())
     switch (first, root) {
-    case (.compound(let name), .compound(let tags)):
-      guard let tag = tags.first(where: { $0.name == name }) else { return nil }
-      return value(at: tail, in: tag.value)
+    case (.compound(let name, let occurrence), .compound(let tags)):
+      guard let index = tagIndex(named: name, occurrence: occurrence, in: tags) else { return nil }
+      return value(at: tail, in: tags[index].value)
     case (.list(let index), .list(_, let values)):
       guard values.indices.contains(index) else { return nil }
       return value(at: tail, in: values[index])
@@ -27,8 +78,8 @@ enum NBTTreeMutation {
     guard let first = path.first else { return replacement }
     let tail = Array(path.dropFirst())
     switch (first, root) {
-    case (.compound(let name), .compound(var tags)):
-      guard let index = tags.firstIndex(where: { $0.name == name }) else {
+    case (.compound(let name, let occurrence), .compound(var tags)):
+      guard let index = tagIndex(named: name, occurrence: occurrence, in: tags) else {
         throw MCBEEditorError.malformedData("NBT 路径不存在：\(name)")
       }
       tags[index].value = try replacingValue(at: tail, in: tags[index].value, with: replacement)
@@ -132,7 +183,7 @@ enum NBTTreeMutation {
   private static func pathSortKey(_ path: [NBTPathComponent]) -> String {
     path.map { component in
       switch component {
-      case .compound(let name): return "c:\(name)"
+      case .compound(let name, let occurrence): return "c:\(name):" + String(format: "%020lld", Int64(occurrence))
       case .list(let index): return String(format: "l:%020lld", Int64(index))
       }
     }.joined(separator: "/")
@@ -148,8 +199,8 @@ enum NBTTreeMutation {
     }
     let replacement: NBTValue
     switch (last, parent) {
-    case (.compound(let name), .compound(var tags)):
-      guard let index = tags.firstIndex(where: { $0.name == name }) else {
+    case (.compound(let name, let occurrence), .compound(var tags)):
+      guard let index = tagIndex(named: name, occurrence: occurrence, in: tags) else {
         throw MCBEEditorError.malformedData("NBT 标签不存在：\(name)")
       }
       tags.remove(at: index)
@@ -170,7 +221,7 @@ enum NBTTreeMutation {
   static func renaming(at path: [NBTPathComponent], to newName: String, in root: NBTValue) throws
     -> NBTValue
   {
-    guard case .compound(let oldName)? = path.last else {
+    guard case .compound(let oldName, let occurrence)? = path.last else {
       throw MCBEEditorError.unsupported("只有 Compound 标签可以重命名")
     }
     let cleanName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -181,7 +232,7 @@ enum NBTTreeMutation {
     guard case .compound(var tags)? = value(at: parentPath, in: root) else {
       throw MCBEEditorError.malformedData("NBT 父 Compound 不存在")
     }
-    guard let index = tags.firstIndex(where: { $0.name == oldName }) else {
+    guard let index = tagIndex(named: oldName, occurrence: occurrence, in: tags) else {
       throw MCBEEditorError.malformedData("NBT 标签不存在：\(oldName)")
     }
     guard oldName == cleanName || !tags.contains(where: { $0.name == cleanName }) else {

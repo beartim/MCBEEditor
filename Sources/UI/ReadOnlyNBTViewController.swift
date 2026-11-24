@@ -1,12 +1,9 @@
 import UIKit
 
-final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpdating {
+final class ReadOnlyNBTViewController: NBTSearchTreeViewController {
   private let document: NBTDocument
   private let rawData: Data
   private let exportFilename: String
-  private var rows = [NBTNode]()
-  private var expanded = Set<[NBTPathComponent]>()
-  private let searchController = UISearchController(searchResultsController: nil)
   private let viewedItems = ViewedItemTracker()
 
   init(title: String, document: NBTDocument, rawData: Data, exportFilename: String? = nil) {
@@ -21,12 +18,6 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    searchController.searchResultsUpdater = self
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
-    navigationItem.searchController = searchController
-    navigationItem.hidesSearchBarWhenScrolling = false
-    definesPresentationContext = true
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       barButtonSystemItem: .action,
       target: self,
@@ -36,21 +27,9 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
     rebuildRows()
   }
 
-  func updateSearchResults(for searchController: UISearchController) { rebuildRows() }
-
-  private var query: String {
-    searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      ?? ""
-  }
-
-  private func rebuildRows() {
-    if query.isEmpty {
-      rows = NBTTreeRows.visibleChildren(of: document.root, expanded: expanded)
-      navigationItem.prompt = "只读 NBT；点按标量可复制"
-    } else {
-      rows = NBTTreeRows.search(in: document.root, query: query)
-      navigationItem.prompt = "找到 \(rows.count) 个节点"
-    }
+  override func rebuildRows() {
+    rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)
+    navigationItem.prompt = query.isEmpty ? "只读 NBT；点按标量可复制" : "找到 \(rows.count) 个节点"
     tableView.reloadData()
   }
 
@@ -70,8 +49,9 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
       node: node,
       expanded: expanded.contains(node.path),
       searchMode: !query.isEmpty,
-      hierarchyLines: NBTTreeHierarchyGuide.lines(
-        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+      isLocated: isLocated(node),
+      hierarchyLines: query.isEmpty ? NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded) : []
     )
     let key = node.pathDescription
     ViewedListSupport.configure(
@@ -95,6 +75,10 @@ final class ReadOnlyNBTViewController: UITableViewController, UISearchResultsUpd
     viewedItems.mark(node.pathDescription)
     tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
+      if !query.isEmpty {
+        revealSearchNode(node, expandingTarget: true)
+        return
+      }
       if expanded.contains(node.path) {
         expanded.remove(node.path)
       } else {

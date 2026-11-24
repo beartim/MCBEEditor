@@ -25,7 +25,7 @@ enum NBTEditingUI {
     static func copyTags(_ nodes: [NBTNode], from presenter: UIViewController? = nil) {
         let documents = nodes.map { node -> NBTDocument in
             let name: String
-            if case .compound(let compoundName)? = node.path.last {
+            if case .compound(let compoundName, _)? = node.path.last {
                 name = compoundName
             } else {
                 name = ""

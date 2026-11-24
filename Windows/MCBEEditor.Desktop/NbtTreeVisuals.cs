@@ -8,6 +8,32 @@ namespace MCBEEditor.Desktop;
 
 internal static class NbtTreeVisuals
 {
+    public static DataGridTextColumn AddRootSearchLocation<T>(DataGrid grid, Action<T> openHit) where T : class
+    {
+        var column = new DataGridTextColumn
+        {
+            Header = "路径", Binding = new System.Windows.Data.Binding("RootPath"),
+            Width = DataGridLength.SizeToCells, Visibility = Visibility.Collapsed
+        };
+        grid.Columns.Add(column);
+        var menu = new ContextMenu();
+        var locate = new MenuItem { Header = "定位到此标签" };
+        locate.Click += (_, _) =>
+        {
+            if (menu.PlacementTarget is DataGridRow { Item: T hit } && grid.Items.Contains(hit))
+                openHit(hit);
+        };
+        menu.Items.Add(locate);
+        var style = new Style(typeof(DataGridRow));
+        style.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty, menu));
+        grid.RowStyle = style;
+        grid.ContextMenuOpening += (_, e) =>
+        {
+            if (column.Visibility != Visibility.Visible) e.Handled = true;
+        };
+        return column;
+    }
+
     public static FrameworkElement CreateHeader(string name, NbtValue value, bool isRoot = false, bool hasChildren = false)
     {
         var grid = new Grid { Height = 28, SnapsToDevicePixels = true };

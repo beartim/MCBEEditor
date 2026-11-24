@@ -355,10 +355,10 @@ def run(root: Path) -> None:
     fixture = runner.split('cat > "$TMP/WorldObjectNBTStoreStubs.swift" <<\'SWIFT\'\n', 1)[1].split("\nSWIFT", 1)[0]
     fixture = fixture.replace("func database() throws -> MojangLevelDB { db }", "func database() throws -> MojangLevelDB { db }\n    func invalidateAfterExternalChange() {}")
     editor = (root / "Sources/UI/WorldObjectNBTEditorViewController.swift").read_text()
-    fields = editor[editor.index("  private var object:"):editor.index("  private var rows")].replace("private ", "")
+    fields = editor[editor.index("  private var object:"):re.search(r"^  private var (?:rows|dirty)\b", editor, re.M).start()].replace("private ", "")
     init_marker = re.search(r"  init\(\s*object:", editor).group(0)
     editor_members = "\n".join(member(editor, text) for text in [init_marker, "  required init?(coder:", "  private func performSave(", "  @objc private func confirmDeleteObject("])
-    editor_class = "final class WorldObjectNBTEditorViewController: UITableViewController {\n" + fields + "\n var dirty = false\n func rebuildRows() {}\n" + editor_members + "\n}\n"
+    editor_class = "final class WorldObjectNBTEditorViewController: UITableViewController {\n" + fields + "\n var dirty = false\n func invalidateSearchLocation() {}\n func rebuildRows() {}\n" + editor_members + "\n}\n"
     tracker = member((root / "Sources/UI/ViewedListSupport.swift").read_text(), "final class ViewedItemTracker")
     lists = "\n".join((root / ("Sources/UI/" + name + ".swift")).read_text().replace("import UIKit", "").replace("private ", "") for name in ["MapSelectionResultsViewController", "VillageResidentEntitiesViewController"])
     # Reuse the production-core source list already maintained by the full suite.

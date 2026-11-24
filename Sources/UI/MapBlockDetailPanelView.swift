@@ -435,7 +435,7 @@ final class MapBlockDetailPanelView: UIView, UITextFieldDelegate, UITableViewDat
 
   private func isLegacyTopLevelNode(_ node: NBTNode, named expectedName: String) -> Bool {
     guard editingLegacyNumeric, node.path.count == 1,
-      case .compound(let actualName) = node.path[0]
+      case .compound(let actualName, _) = node.path[0]
     else { return false }
     return actualName.caseInsensitiveCompare(expectedName) == .orderedSame
   }

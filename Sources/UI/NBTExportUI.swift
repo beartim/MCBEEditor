@@ -133,7 +133,7 @@ enum NBTExportUI {
     static func documents(from nodes: [NBTNode]) -> [NBTDocument] {
         nodes.map { node in
             let rawName: String
-            if case .compound(let name)? = node.path.last { rawName = name }
+            if case .compound(let name, _)? = node.path.last { rawName = name }
             else if case .list? = node.path.last { rawName = "item" }
             else { rawName = node.name }
             return NBTDocument(rootName: rawName, root: node.value)

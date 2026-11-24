@@ -1,15 +1,12 @@
 import UIKit
 
-final class VillageNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
+final class VillageNBTEditorViewController: NBTSearchTreeViewController {
   private var record: VillageNBTRecord
   private let store: VillageNBTStore
   private let onSave: () -> Void
-  private var document: NBTDocument
-  private var rows = [NBTNode]()
-  private var expanded = Set<[NBTPathComponent]>()
+  private var document: NBTDocument { didSet { invalidateSearchLocation() } }
   private var dirty = false
   private let viewedItems = ViewedItemTracker()
-  private let searchController = UISearchController(searchResultsController: nil)
   private lazy var exitGuard = UnsavedNBTExitGuard(
     controller: self,
     isDirty: { [weak self] in self?.dirty ?? false },
@@ -35,12 +32,6 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    searchController.searchResultsUpdater = self
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
-    navigationItem.searchController = searchController
-    navigationItem.hidesSearchBarWhenScrolling = false
-    definesPresentationContext = true
     navigationItem.prompt = record.keyText
     configureNavigationItems()
     expanded.insert([])
@@ -92,15 +83,8 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     ]
   }
 
-  func updateSearchResults(for searchController: UISearchController) { rebuildRows() }
-
-  private var query: String {
-    searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      ?? ""
-  }
-
   private var showsResidentOptions: Bool { record.kind == .dwellers }
-  private var nbtSection: Int { showsResidentOptions ? 1 : 0 }
+  override var nbtSection: Int { showsResidentOptions ? 1 : 0 }
 
   private func loadResidentEntities() {
     guard !isLoadingResidents else { return }
@@ -139,12 +123,11 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     navigationController?.pushViewController(controller, animated: true)
   }
 
-  private func rebuildRows() {
+  override func rebuildRows() {
+    rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)
     if query.isEmpty {
-      rows = NBTTreeRows.visibleChildren(of: document.root, expanded: expanded)
       navigationItem.prompt = dirty ? "\(record.keyText) • 未保存" : record.keyText
     } else {
-      rows = NBTTreeRows.search(in: document.root, query: query)
       navigationItem.prompt = "找到 \(rows.count) 个节点"
     }
     tableView.reloadData()
@@ -224,8 +207,9 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
       node: node,
       expanded: expanded.contains(node.path),
       searchMode: !query.isEmpty,
-      hierarchyLines: NBTTreeHierarchyGuide.lines(
-        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+      isLocated: isLocated(node),
+      hierarchyLines: query.isEmpty ? NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded) : []
     )
     ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
@@ -264,10 +248,10 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
     tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
-        for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
-        searchController.searchBar.text = ""
-        searchController.isActive = false
-      } else if expanded.contains(node.path) {
+        revealSearchNode(node, expandingTarget: true)
+        return
+      }
+      if expanded.contains(node.path) {
         expanded.remove(node.path)
       } else {
         expanded.insert(node.path)
@@ -344,9 +328,10 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
       rows.indices.contains(indexPath.row)
     else { return nil }
     let node = rows[indexPath.row]
+    let locationActions = searchLocationActions(for: node)
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       guard let self = self else { return nil }
-      var actions = [UIAction]()
+      var actions = locationActions
       switch node.value {
       case .compound:
         actions.append(
@@ -395,14 +380,16 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
         ) { [weak self] name, value, replacingExisting in
           self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
         })
-      actions.append(
-        UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) {
-          [weak self] _ in
-          guard let self = self else { return }
-          NBTEditingUI.confirmDelete(from: self, nodeName: node.name) { [weak self] in
-            self?.delete(node)
-          }
-        })
+      if !node.path.isEmpty {
+        actions.append(
+          UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) {
+            [weak self] _ in
+            guard let self = self else { return }
+            NBTEditingUI.confirmDelete(from: self, nodeName: node.name) { [weak self] in
+              self?.delete(node)
+            }
+          })
+      }
       return UIMenu(title: node.pathDescription, children: actions)
     }
   }
@@ -420,6 +407,7 @@ final class VillageNBTEditorViewController: UITableViewController, UISearchResul
       return nil
     }
     let node = rows[indexPath.row]
+    guard !node.path.isEmpty else { return nil }
     let deleteAction = UIContextualAction(style: .destructive, title: "删除") {
       [weak self] _, _, completion in
       guard let self = self else {

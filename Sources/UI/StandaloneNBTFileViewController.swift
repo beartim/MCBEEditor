@@ -1,9 +1,7 @@
 import UIKit
 
-final class StandaloneNBTFileViewController: UITableViewController, UISearchResultsUpdating {
+final class StandaloneNBTFileViewController: NBTRootSearchViewController {
     private let file: StandaloneNBTFile
-    private let searchController = UISearchController(searchResultsController: nil)
-    private var displayedIndices = [Int]()
     private var presentConversionWhenVisible: Bool
     private var isBatchSelecting = false
     private var batchSelectedIndices = Set<Int>()
@@ -20,14 +18,8 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        searchController.searchResultsUpdater = self
-        searchController.obscuresBackgroundDuringPresentation = false
-        searchController.searchBar.placeholder = "搜索根标签名、标签值或标签类型"
-        navigationItem.searchController = searchController
-        navigationItem.hidesSearchBarWhenScrolling = false
-        definesPresentationContext = true
         configureNavigationItems()
-        rebuildDisplayedIndices()
+        rebuildRows()
     }
 
     private func configureNavigationItems() {
@@ -47,16 +39,8 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         }
     }
 
-    func updateSearchResults(for searchController: UISearchController) {
-        rebuildDisplayedIndices()
-    }
-
-    private var query: String {
-        searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-    }
-
-    private func rebuildDisplayedIndices() {
-        displayedIndices = NBTTreeRows.searchDocuments(file.documents, query: query)
+    override func rebuildRows() {
+        showRoots(file.documents)
         batchSelectedIndices.formIntersection(Set(file.documents.indices))
         navigationItem.prompt = "\(file.formatDescription)\(file.dirty ? " · 有未导出的修改" : "")"
         tableView.reloadData()
@@ -85,7 +69,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
             ?? UITableViewCell(style: .subtitle, reuseIdentifier: "StandaloneNBTDocumentCell")
         let name = primaryName(of: document)
         cell.textLabel?.text = file.documents.count == 1 ? name : "#\(index)  \(name)"
-        cell.detailTextLabel?.text = "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName) · \(document.root.summary)"
+        configureRootResult(cell, index: index, detail: "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName) · \(document.root.summary)")
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = NBTTagIcon.image(for: document.root.type)
         if isBatchSelecting {
@@ -136,8 +120,9 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         ) { [weak self] updated in
             guard let self = self, self.file.documents.indices.contains(documentIndex) else { return }
             self.file.documents[documentIndex] = updated
+            self.invalidateSearchLocation()
             self.file.dirty = true
-            self.rebuildDisplayedIndices()
+            self.rebuildRows()
         }
         navigationController?.pushViewController(editor, animated: true)
     }
@@ -148,8 +133,9 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
             self.searchController.searchBar.text = ""
             self.searchController.isActive = false
             self.file.documents.append(contentsOf: documents)
+            self.invalidateSearchLocation()
             self.file.dirty = true
-            self.rebuildDisplayedIndices()
+            self.rebuildRows()
             let newIndex = self.file.documents.count - documents.count
             if let row = self.displayedIndices.firstIndex(of: newIndex) {
                 self.tableView.scrollToRow(at: IndexPath(row: row, section: 0), at: .middle, animated: true)
@@ -175,8 +161,9 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         alert.addAction(UIAlertAction(title: "重命名", style: .default) { [weak self, weak alert] _ in
             guard let self = self, self.file.documents.indices.contains(documentIndex) else { return }
             self.file.documents[documentIndex].rootName = alert?.textFields?.first?.text ?? ""
+            self.invalidateSearchLocation()
             self.file.dirty = true
-            self.rebuildDisplayedIndices()
+            self.rebuildRows()
         })
         present(alert, animated: true)
     }
@@ -192,8 +179,9 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         alert.addAction(UIAlertAction(title: "删除", style: .destructive) { [weak self] _ in
             guard let self = self, self.file.documents.indices.contains(documentIndex) else { return }
             self.file.documents.remove(at: documentIndex)
+            self.invalidateSearchLocation()
             self.file.dirty = true
-            self.rebuildDisplayedIndices()
+            self.rebuildRows()
         })
         present(alert, animated: true)
     }
@@ -205,9 +193,10 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
     ) -> UIContextMenuConfiguration? {
         guard !isBatchSelecting, displayedIndices.indices.contains(indexPath.row) else { return nil }
         let documentIndex = displayedIndices[indexPath.row]
+        let locateActions = rootLocationActions(for: documentIndex)
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             guard let self = self else { return nil }
-            var actions = [UIAction]()
+            var actions = locateActions
             actions.append(UIAction(title: "修改", image: UIImage(systemName: "square.and.pencil")) { [weak self] _ in
                 self?.openEditor(documentIndex: documentIndex)
             })
@@ -274,7 +263,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
         batchSelectedIndices.removeAll()
         tableView.reloadData()
         configureNavigationItems()
-        rebuildDisplayedIndices()
+        rebuildRows()
     }
 
     @objc private func toggleBatchSelectAll() {
@@ -327,9 +316,10 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
             for index in indices where self.file.documents.indices.contains(index) {
                 self.file.documents.remove(at: index)
             }
+            self.invalidateSearchLocation()
             self.file.dirty = true
             self.batchSelectedIndices.removeAll()
-            self.rebuildDisplayedIndices()
+            self.rebuildRows()
             self.updateBatchNavigationItems(message: "已删除 \(indices.count) 个 NBT 根标签")
         })
         present(alert, animated: true)
@@ -448,7 +438,7 @@ final class StandaloneNBTFileViewController: UITableViewController, UISearchResu
                     guard let self = self else { return }
                     overlay.removeFromSuperview()
                     self.file.dirty = false
-                    self.rebuildDisplayedIndices()
+                    self.rebuildRows()
                     let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
                     activity.popoverPresentationController?.barButtonItem = self.navigationItem.rightBarButtonItems?.first
                     self.present(activity, animated: true)

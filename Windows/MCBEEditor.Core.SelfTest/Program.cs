@@ -613,6 +613,34 @@ Assert(valueSearchResults.Count == 1 && valueSearchResults[0].Name == "other" &&
 var typeSearchResults = NbtDocumentTools.Search(searchDocument, "Int");
 Assert(typeSearchResults.Count == 1 && typeSearchResults[0].Name == "number" && typeSearchResults[0].MatchRank == 2,
     " NBT search falls back to type without matching container summaries");
+var nestedSearchDocument = new NbtDocument("", new NbtCompoundValue([
+    new("Bag", new NbtListValue(NbtTagType.Compound, [
+        new NbtCompoundValue([new("Name", new NbtStringValue("first"))]),
+        new NbtCompoundValue([new("Name", new NbtStringValue("second")), new("Name", new NbtStringValue("third"))])])),
+    new("Bag[1]/Name", new NbtStringValue("literal")),
+    new("Name#2", new NbtStringValue("suffix")),
+    new("", new NbtStringValue("empty key")),
+    new("line\nbreak", new NbtStringValue("newline key"))
+]));
+var lateName = new NbtDocument("", new NbtCompoundValue([
+    new("a", new NbtStringValue("needle")), new("b", new NbtStringValue("needle")),
+    new("c", new NbtStringValue("needle")), new("needle", new NbtIntValue(9))]));
+Assert(NbtDocumentTools.Search(lateName, "needle", 1).Single().Path == "/needle",
+    " limited search preserves priority when an exact name follows many value matches");
+var allPickerHits = NbtDocumentTools.Search(nestedSearchDocument, "Name", int.MaxValue);
+Assert(allPickerHits.Count == 5, " a root picker enumerates all matching descendant tags");
+var manyHits = new NbtDocument("", new NbtListValue(NbtTagType.Int,
+    Enumerable.Repeat<NbtValue>(new NbtIntValue(17), 603).ToArray()));
+Assert(NbtDocumentTools.Search(manyHits, "Int", int.MaxValue).Count == 603,
+    " root picker results include matches beyond the preview limit");
+var nestedMatches = NbtDocumentTools.Search(nestedSearchDocument, "Name").ToDictionary(hit => hit.ValueText, hit => hit.Path);
+Assert(nestedMatches.Count == 5 && nestedMatches["first"] == "/Bag[0]/Name"
+    && nestedMatches["second"] == "/Bag[1]/Name" && nestedMatches["third"] == "/Bag[1]/Name#2"
+    && nestedMatches["literal"] == @"/Bag\[1\]\/Name" && nestedMatches["suffix"] == @"/Name\#2",
+    " NBT hits have distinct full paths for list slots, duplicate names and literal separators");
+Assert(NbtDocumentTools.Search(nestedSearchDocument, "empty key").Single().Path == @"/\e"
+    && NbtDocumentTools.Search(nestedSearchDocument, "newline key").Single().Path == @"/line\nbreak",
+    " Empty and multi-line tag names have single-line paths");
 foreach (var encoding in Enum.GetValues<NbtEncoding>())
 {
     var bytes = NbtFileCodec.Encode(searchDocument, encoding);

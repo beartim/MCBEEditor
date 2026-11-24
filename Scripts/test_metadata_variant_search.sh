@@ -26,7 +26,11 @@ let root: NBTValue = .compound([
   ]))
 ])
 
-let rows = NBTTreeRows.search(in: root, query: "variant")
+let document = NBTDocument(rootName: "", root: root)
+for query in ["v", "va", "var", "vari", "varia", "varian"] {
+  precondition(!NBTTreeRows.rows(in: document, expanded: [[]], query: query).isEmpty)
+}
+let rows = NBTTreeRows.rows(in: document, expanded: [[]], query: "variant")
 let names = rows.map(\.name)
 precondition(names.count == 4, "unexpected result count: \(names)")
 precondition(Set(names) == ["MarkVariant", "Variant"], "unrelated tags leaked: \(names)")
@@ -50,13 +54,10 @@ python3 - "$ROOT/Sources/UI/StandaloneNBTEditorViewController.swift" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text()
-start = source.index("  private func rebuildRows() {")
-end = source.index("\n  private var rootNeedsOwnRow", start)
+start = source.index("  override func rebuildRows() {")
+end = source.index("\n  override func numberOfSections", start)
 block = source[start:end]
-clear = "rows.removeAll(keepingCapacity: true)"
-assert clear in block
-assert block.index(clear) < block.index("if query.isEmpty")
-assert "rows.append(contentsOf: NBTTreeRows.search" not in block
-assert "rows = searchRows" in block
+assert "rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)" in block
+assert "rows.append" not in block
 print("incremental-query stale-row regression passed")
 PY

@@ -99,13 +99,7 @@ struct VillageNBTRecord: Hashable {
   }
 
   private static func pathText(_ path: [NBTPathComponent]) -> String {
-    guard !path.isEmpty else { return "/" }
-    return path.reduce(into: "") { result, component in
-      switch component {
-      case .compound(let name): result += "/\(name)"
-      case .list(let index): result += "[\(index)]"
-      }
-    }
+    NBTPathComponent.description(of: path)
   }
 }
 
@@ -644,11 +638,13 @@ final class VillageNBTStore {
           contentsOf: legacyCandidates(in: child, path: path + [.list(index)], nameHint: nameHint))
       }
     case .compound(let tags):
+      var occurrences = [String: Int]()
       for tag in tags {
+        let component = NBTPathComponent.child(named: tag.name, occurrences: &occurrences)
         result.append(
           contentsOf: legacyCandidates(
             in: tag.value,
-            path: path + [.compound(tag.name)],
+            path: path + [component],
             nameHint: tag.name
           ))
       }

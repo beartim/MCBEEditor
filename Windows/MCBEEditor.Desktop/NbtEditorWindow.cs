@@ -21,6 +21,7 @@ public sealed class NbtEditorWindow : Window
     private readonly string? _structureName;
     private readonly TreeView _tree = new();
     private readonly TextBox _searchText = new();
+    private readonly ListBox _searchHits = new() { MaxHeight = 175, Visibility = Visibility.Collapsed };
     private readonly TextBlock _searchStatus = new();
     private readonly TextBlock _pathText = new();
     private readonly TextBlock _typeText = new();
@@ -49,7 +50,7 @@ public sealed class NbtEditorWindow : Window
 
     public NbtEditorWindow(string title, NbtDocument document, Func<NbtDocument, Task>? saveAsync = null,
         IEnumerable<string>? protectedRootNames = null, NbtEncoding fileEncoding = NbtEncoding.LittleEndian, string? structureName = null,
-        bool allowProtectedValueEdits = false)
+        bool allowProtectedValueEdits = false, string? initialTagPath = null)
     {
         Title = title;
         Width = 1040;
@@ -66,6 +67,12 @@ public sealed class NbtEditorWindow : Window
         _root = NbtEditorNode.Create(document.RootName.Length == 0 ? "<root>" : document.RootName, NbtDocumentTools.DeepClone(document.Root), null, true);
         Content = BuildUi();
         PopulateTree();
+        if (initialTagPath is not null)
+        {
+            // Paths include duplicate-name occurrences and escaped delimiters, as in the search results.
+            var hit = _root.DescendantsAndSelf().FirstOrDefault(node => node.Path == initialTagPath);
+            if (hit is not null) Loaded += (_, _) => SelectNode(hit, focusTree: true);
+        }
     }
 
     private UIElement BuildUi()
@@ -76,6 +83,7 @@ public sealed class NbtEditorWindow : Window
         rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.42, GridUnitType.Star) });
 
         var left = new Grid();
+        left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         left.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -89,18 +97,23 @@ public sealed class NbtEditorWindow : Window
         search.Children.Add(find);
         _searchText.MinWidth = 160;
         _searchText.ToolTip = "按名称 → 值 → 类型搜索";
+        _searchText.TextChanged += (_, _) => ClearSearchResults();
         _searchText.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { Find_Click(find, new RoutedEventArgs()); e.Handled = true; } };
         search.Children.Add(_searchText);
         Grid.SetRow(search, 1);
         left.Children.Add(search);
 
-        Grid.SetRow(_tree, 2);
+        ConfigureSearchHits();
+        Grid.SetRow(_searchHits, 2);
+        left.Children.Add(_searchHits);
+
+        Grid.SetRow(_tree, 3);
         _tree.SelectedItemChanged += Tree_SelectedItemChanged;
         left.Children.Add(_tree);
 
         _searchStatus.Foreground = Brushes.DimGray;
         _searchStatus.Margin = new Thickness(0, 5, 0, 0);
-        Grid.SetRow(_searchStatus, 3);
+        Grid.SetRow(_searchStatus, 4);
         left.Children.Add(_searchStatus);
         Grid.SetColumn(left, 0);
         rootGrid.Children.Add(left);
@@ -241,7 +254,13 @@ public sealed class NbtEditorWindow : Window
             Tag = node
         };
         item.MouseLeftButtonDown += TreeItem_PreviewMouseLeftButtonDown;
-        foreach (var child in node.Children) item.Items.Add(MakeTreeItem(child));
+        var occurrences = node.Value is NbtCompoundValue && node.Children.Count > 1
+            ? new Dictionary<string, int>(StringComparer.Ordinal) : null;
+        foreach (var child in node.Children)
+        {
+            child.NameOccurrence = occurrences is null ? 0 : NbtTagPath.NextOccurrence(occurrences, child.Name);
+            item.Items.Add(MakeTreeItem(child));
+        }
         return item;
     }
 
@@ -333,6 +352,7 @@ public sealed class NbtEditorWindow : Window
         try
         {
             node.Value = ParseEditableValue(node.Value.Type, _valueText.Text);
+            _valueText.Text = ScalarText(node.Value);
             MarkDirty();
             if (_tree.SelectedItem is TreeViewItem selectedItem && ReferenceEquals(selectedItem.Tag, node))
                 selectedItem.Header = CreateTreeHeader(node);
@@ -571,20 +591,65 @@ public sealed class NbtEditorWindow : Window
         _hintText.Text = message ?? $"批量选择：已选择 {count:N0} 个标签。点击树节点切换选择；全选仅作用于当前展开可见节点。";
     }
 
+    private void ConfigureSearchHits()
+    {
+        _searchHits.DisplayMemberPath = nameof(NbtEditorNode.SearchResultText);
+        _searchHits.Margin = new Thickness(0, 0, 0, 6);
+        ScrollViewer.SetHorizontalScrollBarVisibility(_searchHits, ScrollBarVisibility.Auto);
+        System.Windows.Automation.AutomationProperties.SetName(_searchHits, "NBT 搜索结果");
+        var menu = new ContextMenu();
+        var locate = new MenuItem { Header = "定位到此标签" };
+        locate.Click += (_, _) =>
+        {
+            if (menu.PlacementTarget is ListBoxItem { Content: NbtEditorNode hit })
+                LocateSearchResult(hit, focusTree: true);
+        };
+        menu.Items.Add(locate);
+        var style = new Style(typeof(ListBoxItem));
+        style.Setters.Add(new Setter(ContextMenuProperty, menu));
+        _searchHits.ItemContainerStyle = style;
+        _searchHits.KeyDown += (_, e) =>
+        {
+            if (e.Key != System.Windows.Input.Key.Enter || _searchHits.SelectedItem is not NbtEditorNode hit) return;
+            LocateSearchResult(hit, focusTree: true);
+            e.Handled = true;
+        };
+    }
+
     private void Find_Click(object? sender, RoutedEventArgs e)
     {
         var query = _searchText.Text.Trim();
         if (query.Length == 0) { _searchStatus.Text = "请输入名称、值或类型。"; return; }
-        if (!query.Equals(_lastSearch, StringComparison.OrdinalIgnoreCase))
-        {
-            _lastSearch = query;
-            _searchResults = SearchNodes(query).ToList();
-            _searchIndex = -1;
-        }
-        if (_searchResults.Count == 0) { _searchStatus.Text = "未找到匹配项。"; return; }
-        _searchIndex = (_searchIndex + 1) % _searchResults.Count;
-        SelectNode(_searchResults[_searchIndex]);
-        _searchStatus.Text = $"{_searchIndex + 1}/{_searchResults.Count} · 名称优先，其次值、类型";
+        UpdateSearchResults(query);
+        if (_searchResults.Count == 0) return;
+        LocateSearchResult(_searchResults[(_searchIndex + 1) % _searchResults.Count], focusTree: false);
+    }
+
+    private void UpdateSearchResults(string query)
+    {
+        if (query.Equals(_lastSearch, StringComparison.OrdinalIgnoreCase)) return;
+        _lastSearch = query;
+        _searchResults = SearchNodes(query).ToList();
+        _searchIndex = -1;
+        _searchHits.ItemsSource = _searchResults;
+        _searchHits.Visibility = _searchResults.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _searchStatus.Text = _searchResults.Count > 0 ? $"找到 {_searchResults.Count} 个标签" : "未找到匹配项。";
+    }
+
+    private void LocateSearchResult(NbtEditorNode hit, bool focusTree)
+    {
+        var query = _searchText.Text.Trim();
+        if (query.Length == 0) return;
+        if (!ReferenceEquals(hit, _selected) && !TryApplyCurrent(showErrors: true)) return;
+        // Applying a pending edit may have invalidated the matches. Keep the exact clicked node.
+        UpdateSearchResults(query);
+        var index = _searchResults.IndexOf(hit);
+        if (index < 0) return;
+        _searchIndex = index;
+        _searchHits.SelectedItem = hit;
+        _searchHits.ScrollIntoView(hit);
+        SelectNode(hit, focusTree);
+        _searchStatus.Text = $"{index + 1}/{_searchResults.Count}";
     }
 
     private IEnumerable<NbtEditorNode> SearchNodes(string query)
@@ -1033,34 +1098,34 @@ public sealed class NbtEditorWindow : Window
     private void MarkDirty()
     {
         _dirty = true;
+        ClearSearchResults();
+    }
+
+    private void ClearSearchResults()
+    {
+        _searchHits.ItemsSource = null;
+        _searchHits.Visibility = Visibility.Collapsed;
+        _searchStatus.Text = string.Empty;
         _searchResults.Clear();
         _searchIndex = -1;
         _lastSearch = string.Empty;
     }
 
-    private void SelectNode(NbtEditorNode target)
+    private void SelectNode(NbtEditorNode target, bool focusTree = false)
     {
-        foreach (var rootItem in _tree.Items.OfType<TreeViewItem>())
-            if (SelectNodeRecursive(rootItem, target)) return;
-    }
-
-    private static bool SelectNodeRecursive(TreeViewItem item, NbtEditorNode target)
-    {
-        if (ReferenceEquals(item.Tag, target))
+        ItemsControl parent = _tree;
+        foreach (var node in Ancestors(target).Reverse().Append(target))
         {
-            item.IsSelected = true;
-            item.BringIntoView();
-            return true;
+            var item = parent.Items.OfType<TreeViewItem>().FirstOrDefault(child => ReferenceEquals(child.Tag, node));
+            if (item is null) return;
+            if (!ReferenceEquals(node, target)) item.IsExpanded = true;
+            parent = item;
         }
-        foreach (var child in item.Items.OfType<TreeViewItem>())
-        {
-            if (SelectNodeRecursive(child, target))
-            {
-                item.IsExpanded = true;
-                return true;
-            }
-        }
-        return false;
+        if (parent is not TreeViewItem selected) return;
+        selected.IsSelected = true;
+        _tree.UpdateLayout();
+        if (focusTree) selected.Focus();
+        selected.BringIntoView();
     }
 
     private sealed class CompoundConflictWindow : Window
@@ -1110,7 +1175,11 @@ public sealed class NbtEditorWindow : Window
         public NbtEditorNode? Parent { get; }
         public bool IsRoot { get; }
         public List<NbtEditorNode> Children { get; } = new();
-        public string Path => Parent is null ? Name : Parent.Path + "/" + Name;
+        public int NameOccurrence { get; set; }
+        public string Path => Parent is null ? NbtTagPath.Root
+            : Parent.Value is NbtListValue ? Parent.Path + Name
+            : NbtTagPath.AppendName(Parent.Path, Name, NameOccurrence);
+        public string SearchResultText => $"{Name.ReplaceLineEndings(" ")}   ·   {Path}";
 
         private NbtEditorNode(string name, NbtValue value, NbtEditorNode? parent, bool isRoot)
         {

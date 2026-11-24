@@ -41,6 +41,7 @@ Windows\dist\MCBEEditor.exe
 - Y/X/Z 地图、地表/高度/矿物/生物群系/常加载/史莱姆等模式、动态视口、对象图层、未生成区域纹理和六方向 PNG 导出；PNG 范围支持两组 `(x,z)`、四个 ±∞ 边界以及自动大图降采样。
 - 玩家、实体、方块实体、村庄、HardcodedSpawners、结构、区块与数据库浏览；实体可直接导出 NBT/JSON、复制坐标和定位地图。
 - 完整 NBT 树编辑、搜索、导入导出、独立 NBT/mcstructure/JSON 工具与 Java Structure 转换。
+- NBT 编辑器的“查找/下一个”会列出各项的完整路径。右键结果并选择“定位到此标签”，或选中结果后按 Enter，树中会展开并高亮该项。独立文件和连续 NBT 记录列表也会逐条列出内部标签，定位时打开对应的根记录。
 - 方块/区域编辑：`getblock`、`setblock`、`fill`、`clone`、storage、biome、单/批量区块复制与管理、框选区域复制、搜索替换、常加载、HardcodedSpawners、清空/重新生成。
 - 实体与世界命令：目标选择器、传送/分散/经验、物品、效果、实体创建删除、时间、天气、常加载区域、structure 等。
 - `chunk query` 每行输出生成情况以及 `IsSlimeChunk=True/False` 与 `Ticking=True/False`。

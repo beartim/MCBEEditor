@@ -16,15 +16,7 @@ struct NBTNode {
   }
 
   var pathDescription: String {
-    guard !path.isEmpty else { return "/" }
-    return path.reduce(into: "") { result, component in
-      switch component {
-      case .compound(let name):
-        result += "/\(name)"
-      case .list(let index):
-        result += "[\(index)]"
-      }
-    }
+    NBTPathComponent.description(of: path)
   }
 }
 
@@ -32,12 +24,24 @@ struct NBTNode {
 /// and search in one place prevents the different editors from drifting apart
 /// and avoids eight copies of the same recursive implementation.
 enum NBTTreeRows {
+  static func rows(in document: NBTDocument, expanded: Set<[NBTPathComponent]>, query: String) -> [NBTNode] {
+    switch document.root {
+    case .compound, .list:
+      return query.isEmpty ? visibleChildren(of: document.root, expanded: expanded)
+        : search(in: document.root, query: query)
+    default:
+      let root = NBTNode(path: [], name: document.rootName.isEmpty ? "（根标签）" : document.rootName,
+                         value: document.root, depth: 0)
+      return query.isEmpty || matches(root, query: query) ? [root] : []
+    }
+  }
+
   static func visibleChildren(
     of root: NBTValue,
     expanded: Set<[NBTPathComponent]>
   ) -> [NBTNode] {
     var result = [NBTNode]()
-    appendVisibleChildren(
+    appendChildren(
       of: root,
       parentPath: [],
       depth: 0,
@@ -52,7 +56,7 @@ enum NBTTreeRows {
     guard !query.isEmpty else { return [] }
 
     var allNodes = [NBTNode]()
-    appendAllNodes(of: root, parentPath: [], depth: 0, to: &allNodes)
+    appendChildren(of: root, parentPath: [], depth: 0, expanded: nil, to: &allNodes)
 
     // Search uses strict fallback priority across the whole tree:
     // 1. tag name; only when there are no name matches,
@@ -129,20 +133,21 @@ enum NBTTreeRows {
     query.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  private static func appendVisibleChildren(
+  private static func appendChildren(
     of value: NBTValue,
     parentPath: [NBTPathComponent],
     depth: Int,
-    expanded: Set<[NBTPathComponent]>,
+    expanded: Set<[NBTPathComponent]>?,
     to result: inout [NBTNode]
   ) {
     switch value {
     case .compound(let tags):
+      var occurrences = [String: Int]()
       for tag in tags {
-        let path = parentPath + [.compound(tag.name)]
+        let path = parentPath + [NBTPathComponent.child(named: tag.name, occurrences: &occurrences)]
         result.append(NBTNode(path: path, name: tag.name, value: tag.value, depth: depth))
-        if expanded.contains(path) {
-          appendVisibleChildren(
+        if expanded?.contains(path) ?? true {
+          appendChildren(
             of: tag.value,
             parentPath: path,
             depth: depth + 1,
@@ -155,8 +160,8 @@ enum NBTTreeRows {
       for (index, child) in values.enumerated() {
         let path = parentPath + [.list(index)]
         result.append(NBTNode(path: path, name: "[\(index)]", value: child, depth: depth))
-        if expanded.contains(path) {
-          appendVisibleChildren(
+        if expanded?.contains(path) ?? true {
+          appendChildren(
             of: child,
             parentPath: path,
             depth: depth + 1,
@@ -169,31 +174,6 @@ enum NBTTreeRows {
       break
     }
   }
-
-  private static func appendAllNodes(
-    of value: NBTValue,
-    parentPath: [NBTPathComponent],
-    depth: Int,
-    to result: inout [NBTNode]
-  ) {
-    switch value {
-    case .compound(let tags):
-      for tag in tags {
-        let path = parentPath + [.compound(tag.name)]
-        result.append(NBTNode(path: path, name: tag.name, value: tag.value, depth: depth))
-        appendAllNodes(of: tag.value, parentPath: path, depth: depth + 1, to: &result)
-      }
-    case .list(_, let values):
-      for (index, child) in values.enumerated() {
-        let path = parentPath + [.list(index)]
-        result.append(NBTNode(path: path, name: "[\(index)]", value: child, depth: depth))
-        appendAllNodes(of: child, parentPath: path, depth: depth + 1, to: &result)
-      }
-    default:
-      break
-    }
-  }
-
 }
 
 

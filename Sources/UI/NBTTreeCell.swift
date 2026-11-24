@@ -42,6 +42,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
   private let titleNodeLabel = UILabel()
   private let detailNodeLabel = UILabel()
 
+  private var shouldRevealLocatedTitle = false
   private var depth = 0
   private var treeIndentationStep: CGFloat = 18
   private var hierarchyLines: [HierarchyLine] = []
@@ -124,6 +125,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
   override func prepareForReuse() {
     super.prepareForReuse()
     horizontalScrollView.setContentOffset(.zero, animated: false)
+    setLocated(false)
     hierarchyLines = []
     hierarchyLayer.path = nil
     iconView.image = nil
@@ -135,6 +137,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     node: NBTNode,
     expanded: Bool,
     searchMode: Bool,
+    isLocated: Bool = false,
     titleSuffix: String = "",
     indentationWidth: CGFloat = 18,
     titleFont: UIFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular),
@@ -143,6 +146,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     compactLeading: CGFloat? = nil,
     hierarchyLines: [HierarchyLine] = []
   ) {
+    setLocated(isLocated)
     self.depth = searchMode ? 0 : node.depth
     self.treeIndentationStep = indentationWidth
     self.titleFont = titleFont
@@ -153,7 +157,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
 
     let marker = node.hasChildren ? (expanded ? "▾" : "▸") : " "
     titleText = "\(marker) \(node.name)  <\(node.value.type.displayName)>\(titleSuffix)"
-    detailText = searchMode ? "\(node.value.summary)\n\(node.pathDescription)" : node.value.summary
+    detailText = searchMode ? "路径：\(node.pathDescription)\n\(node.value.summary)" : node.value.summary
 
     iconView.image = NBTTagIcon.image(for: node.value.type)
     titleNodeLabel.font = titleFont
@@ -173,6 +177,7 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     detailFont: UIFont,
     hierarchyLines: [HierarchyLine]
   ) {
+    setLocated(false)
     depth = node.depth
     self.treeIndentationStep = indentationWidth
     self.titleFont = titleFont
@@ -190,6 +195,12 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
     titleNodeLabel.text = titleText
     detailNodeLabel.text = detailText
     setNeedsLayout()
+  }
+
+  private func setLocated(_ located: Bool) {
+    contentView.backgroundColor = located ? UIColor.systemYellow.withAlphaComponent(0.32) : nil
+    shouldRevealLocatedTitle = located
+    if located { accessibilityTraits.insert(.selected) } else { accessibilityTraits.remove(.selected) }
   }
 
   override func layoutSubviews() {
@@ -225,6 +236,13 @@ final class NBTTreeCell: UITableViewCell, UIScrollViewDelegate {
       x: textX, y: textY + titleHeight + 1, width: availableTextWidth, height: detailHeight)
 
     drawHierarchyLines(cellHeight: h, iconCenterY: iconView.frame.midY)
+
+    if shouldRevealLocatedTitle {
+      let width = horizontalScrollView.bounds.width
+      let offset = textX + min(titleMeasured.width, 120) > width ? iconX - contentLeading : 0
+      horizontalScrollView.setContentOffset(CGPoint(x: min(offset, desiredContentWidth - width), y: 0), animated: false)
+      shouldRevealLocatedTitle = false
+    }
 
     if lastLaidOutWidth != horizontalScrollView.bounds.width {
       lastLaidOutWidth = horizontalScrollView.bounds.width

@@ -1,15 +1,12 @@
 import UIKit
 
-final class WorldObjectNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
+final class WorldObjectNBTEditorViewController: NBTSearchTreeViewController {
   private var object: BedrockWorldObject
   private let store: BedrockWorldObjectNBTStore
   private let onSave: (BedrockWorldObject?) -> Void
-  private var document: NBTDocument
-  private var rows = [NBTNode]()
-  private var expanded = Set<[NBTPathComponent]>()
+  private var document: NBTDocument { didSet { invalidateSearchLocation() } }
   private var dirty = false
   private let viewedItems = ViewedItemTracker()
-  private let searchController = UISearchController(searchResultsController: nil)
   private lazy var exitGuard = UnsavedNBTExitGuard(
     controller: self,
     isDirty: { [weak self] in self?.dirty ?? false },
@@ -36,12 +33,6 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    searchController.searchResultsUpdater = self
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
-    navigationItem.searchController = searchController
-    navigationItem.hidesSearchBarWhenScrolling = false
-    definesPresentationContext = true
     configureNavigationItems()
     expanded.insert([])
     NotificationCenter.default.addObserver(
@@ -89,20 +80,12 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     ]
   }
 
-  func updateSearchResults(for searchController: UISearchController) { rebuildRows() }
-
-  private var query: String {
-    searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      ?? ""
-  }
-
-  private func rebuildRows() {
+  override func rebuildRows() {
+    rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)
     if query.isEmpty {
-      rows = NBTTreeRows.visibleChildren(of: document.root, expanded: expanded)
       let state = dirty ? " • 未保存" : ""
       navigationItem.prompt = "\(object.source.rawValue)\(state)"
     } else {
-      rows = NBTTreeRows.search(in: document.root, query: query)
       navigationItem.prompt = "找到 \(rows.count) 个节点"
     }
     title = dirty ? "\(object.displayName) •" : object.displayName
@@ -128,9 +111,10 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
       node: node,
       expanded: expanded.contains(node.path),
       searchMode: !query.isEmpty,
+      isLocated: isLocated(node),
       titleSuffix: protected,
-      hierarchyLines: NBTTreeHierarchyGuide.lines(
-        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+      hierarchyLines: query.isEmpty ? NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded) : []
     )
     ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
@@ -161,10 +145,10 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
     tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
-        for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
-        searchController.searchBar.text = ""
-        searchController.isActive = false
-      } else if expanded.contains(node.path) {
+        revealSearchNode(node, expandingTarget: true)
+        return
+      }
+      if expanded.contains(node.path) {
         expanded.remove(node.path)
       } else {
         expanded.insert(node.path)
@@ -249,9 +233,10 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
       return nil
     }
     let node = rows[indexPath.row]
+    let locationActions = searchLocationActions(for: node)
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       guard let self = self else { return nil }
-      var actions = [UIAction]()
+      var actions = locationActions
       if case .compound = node.value {
         actions.append(
           UIAction(title: "增加子标签", image: UIImage(systemName: "plus")) { [weak self] _ in
@@ -298,7 +283,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
         ) { [weak self] name, value, replacingExisting in
           self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
         })
-      if !self.isProtectedIdentityNode(node) {
+      if !node.path.isEmpty, !self.isProtectedIdentityNode(node) {
         actions.append(
           UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) {
             [weak self] _ in
@@ -335,7 +320,7 @@ final class WorldObjectNBTEditorViewController: UITableViewController, UISearchR
       editAction.backgroundColor = .systemBlue
       actions.append(editAction)
     }
-    if !isProtectedIdentityNode(node) {
+    if !node.path.isEmpty, !isProtectedIdentityNode(node) {
       let deleteAction = UIContextualAction(style: .destructive, title: "删除") {
         [weak self] _, _, completion in
         guard let self = self else {

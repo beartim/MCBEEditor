@@ -1,14 +1,11 @@
 import UIKit
 
-final class StandaloneNBTEditorViewController: UITableViewController, UISearchResultsUpdating {
-  private var document: NBTDocument
+final class StandaloneNBTEditorViewController: NBTSearchTreeViewController {
+  private var document: NBTDocument { didSet { invalidateSearchLocation() } }
   private let displayTitle: String
   private let onCommit: (NBTDocument) -> Void
-  private var rows = [NBTNode]()
-  private var expanded = Set<[NBTPathComponent]>()
   private var dirty = false
   private let viewedItems = ViewedItemTracker()
-  private let searchController = UISearchController(searchResultsController: nil)
   private lazy var batchSelectionCoordinator = NBTBatchSelectionCoordinator(delegate: self)
 
   init(document: NBTDocument, title: String, onCommit: @escaping (NBTDocument) -> Void) {
@@ -33,12 +30,6 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    searchController.searchResultsUpdater = self
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
-    navigationItem.searchController = searchController
-    navigationItem.hidesSearchBarWhenScrolling = false
-    definesPresentationContext = true
     configureNavigationItems()
     navigationItem.leftBarButtonItem = UIBarButtonItem(
       title: "返回",
@@ -62,59 +53,14 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     ]
   }
 
-  func updateSearchResults(for searchController: UISearchController) { rebuildRows() }
-
-  private var query: String {
-    searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      ?? ""
-  }
-
-  private func rebuildRows() {
-    // UISearchResultsUpdating calls this once for every text change. Always
-    // rebuild from an empty array; otherwise results from earlier prefixes
-    // (for example "v", "va", …) remain in the table when the user finishes
-    // typing "variant".
-    rows.removeAll(keepingCapacity: true)
-    if query.isEmpty {
-      if rootNeedsOwnRow {
-        rows.append(
-          NBTNode(
-            path: [],
-            name: document.rootName.isEmpty ? "（根标签）" : document.rootName,
-            value: document.root,
-            depth: 0
-          ))
-      } else {
-        rows = NBTTreeRows.visibleChildren(of: document.root, expanded: expanded)
-      }
-      navigationItem.prompt =
-        "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName)\(dirty ? " · 未保存" : "")"
-    } else {
-      var searchRows = NBTTreeRows.search(in: document.root, query: query)
-      if rootNeedsOwnRow {
-        let root = NBTNode(
-          path: [],
-          name: document.rootName.isEmpty ? "（根标签）" : document.rootName,
-          value: document.root,
-          depth: 0
-        )
-        if NBTTreeRows.matches(root, query: query) { searchRows.insert(root, at: 0) }
-      }
-      rows = searchRows
-      navigationItem.prompt = "找到 \(rows.count) 个节点"
-    }
+  override func rebuildRows() {
+    rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)
+    navigationItem.prompt = query.isEmpty
+      ? "根名称：\(document.rootName.isEmpty ? "（空）" : document.rootName)\(dirty ? " · 未保存" : "")"
+      : "找到 \(rows.count) 个节点"
     title = dirty ? "\(displayTitle) •" : displayTitle
     tableView.reloadData()
     batchSelectionCoordinator.synchronizeWithVisibleRows()
-  }
-
-  private var rootNeedsOwnRow: Bool {
-    switch document.root {
-    case .compound, .list:
-      return false
-    default:
-      return true
-    }
   }
 
   override func numberOfSections(in tableView: UITableView) -> Int { 1 }
@@ -138,8 +84,9 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
       node: node,
       expanded: expanded.contains(node.path),
       searchMode: !query.isEmpty,
-      hierarchyLines: NBTTreeHierarchyGuide.lines(
-        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+      isLocated: isLocated(node),
+      hierarchyLines: query.isEmpty ? NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded) : []
     )
     ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
@@ -170,10 +117,10 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
     tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
       if !query.isEmpty {
-        for length in 1...node.path.count { expanded.insert(Array(node.path.prefix(length))) }
-        searchController.searchBar.text = ""
-        searchController.isActive = false
-      } else if expanded.contains(node.path) {
+        revealSearchNode(node, expandingTarget: true)
+        return
+      }
+      if expanded.contains(node.path) {
         expanded.remove(node.path)
       } else {
         expanded.insert(node.path)
@@ -276,9 +223,10 @@ final class StandaloneNBTEditorViewController: UITableViewController, UISearchRe
       return nil
     }
     let node = rows[indexPath.row]
+    let locationActions = searchLocationActions(for: node)
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       guard let self = self else { return nil }
-      var actions = [UIAction]()
+      var actions = locationActions
       switch node.value {
       case .compound:
         actions.append(

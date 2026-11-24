@@ -505,14 +505,12 @@ final class MetadataNBTListViewController: UITableViewController, UISearchResult
     }
 }
 
-final class MetadataNBTRecordViewController: UITableViewController, UISearchResultsUpdating {
+final class MetadataNBTRecordViewController: NBTRootSearchViewController {
     private var originalRecord: MetadataNBTRecord
     private let store: MetadataNBTStore
     private let onSave: () -> Void
-    private var roots: [ConsecutiveNBTRecord]
-    private var displayedIndices = [Int]()
+    private var roots: [ConsecutiveNBTRecord] { didSet { invalidateSearchLocation() } }
     private var dirty = false
-    private let searchController = UISearchController(searchResultsController: nil)
     private lazy var exitGuard = UnsavedNBTExitGuard(
         controller: self,
         isDirty: { [weak self] in self?.dirty ?? false },
@@ -535,11 +533,6 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        searchController.searchResultsUpdater = self
-        searchController.obscuresBackgroundDuringPresentation = false
-        searchController.searchBar.placeholder = "搜索根标签名、标签值或标签类型"
-        navigationItem.searchController = searchController
-        navigationItem.hidesSearchBarWhenScrolling = false
         configureNavigationItems()
         NotificationCenter.default.addObserver(
             self,
@@ -547,7 +540,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
             name: WorldSession.worldDidChangeNotification,
             object: store.worldSession
         )
-        rebuild()
+        rebuildRows()
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -570,7 +563,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
                 self.originalRecord = refreshed
                 self.roots = roots
                 self.viewedItems.reset()
-                self.rebuild()
+                self.rebuildRows()
             }
         }
     }
@@ -585,11 +578,8 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         ]
     }
 
-    func updateSearchResults(for searchController: UISearchController) { rebuild() }
-
-    private func rebuild() {
-        let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        displayedIndices = NBTTreeRows.searchDocuments(roots.map(\.document), query: query)
+    override func rebuildRows() {
+        showRoots(roots.map(\.document))
         batchSelectedIndices.formIntersection(Set(roots.indices))
         navigationItem.prompt = "\(originalRecord.keyText)\(dirty ? " · 未保存" : "")"
         exitGuard.synchronize()
@@ -607,7 +597,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         let document = roots[index].document
         let cell = tableView.dequeueReusableCell(withIdentifier: "MetadataRootCell") ?? UITableViewCell(style: .subtitle, reuseIdentifier: "MetadataRootCell")
         cell.textLabel?.text = "#\(index)  \(document.rootName.isEmpty ? "（空根名称）" : document.rootName)"
-        cell.detailTextLabel?.text = document.root.summary
+        configureRootResult(cell, index: index, detail: document.root.summary)
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.imageView?.image = NBTTagIcon.image(for: document.root.type)
         let key = String(index)
@@ -632,6 +622,18 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         return cell
     }
 
+    override func tableView(
+        _ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard !isBatchSelecting, displayedIndices.indices.contains(indexPath.row) else { return nil }
+        let index = displayedIndices[indexPath.row]
+        let actions = rootLocationActions(for: index)
+        guard !actions.isEmpty else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+            UIMenu(title: "根标签 #\(index)", children: actions)
+        }
+    }
+
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let index = displayedIndices[indexPath.row]
@@ -652,7 +654,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
             guard let self = self, self.roots.indices.contains(index) else { return }
             self.roots[index].document = updated
             self.dirty = true
-            self.rebuild()
+            self.rebuildRows()
         }
         navigationController?.pushViewController(editor, animated: true)
     }
@@ -680,7 +682,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         batchSelectedIndices.removeAll()
         tableView.reloadData()
         configureNavigationItems()
-        rebuild()
+        rebuildRows()
     }
 
     @objc private func toggleBatchSelectAll() {
@@ -737,7 +739,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
             }
             self.batchSelectedIndices.removeAll()
             self.dirty = true
-            self.rebuild()
+            self.rebuildRows()
             self.updateBatchNavigationItems(message: "已删除 \(indices.count) 个 NBT 根标签")
         })
         present(alert, animated: true)
@@ -768,7 +770,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
                 ConsecutiveNBTRecord(document: $0, rawData: Data(), encoding: .littleEndian)
             })
             self.dirty = true
-            self.rebuild()
+            self.rebuildRows()
         }
     }
 
@@ -779,7 +781,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
         do {
             try store.save(record: originalRecord, roots: roots)
             dirty = false
-            rebuild()
+            rebuildRows()
             onSave()
             navigationItem.prompt = "已保存 \(originalRecord.keyText)"
             return true
@@ -801,7 +803,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
                 guard let self = self, self.roots.indices.contains(rootIndex) else { return }
                 self.roots[rootIndex].document.rootName = alert?.textFields?.first?.text ?? ""
                 self.dirty = true
-                self.rebuild()
+                self.rebuildRows()
             })
             self.present(alert, animated: true)
             done(true)
@@ -813,7 +815,7 @@ final class MetadataNBTRecordViewController: UITableViewController, UISearchResu
                 guard let self = self, self.roots.indices.contains(rootIndex), self.roots.count > 1 else { done(false); return }
                 self.roots.remove(at: rootIndex)
                 self.dirty = true
-                self.rebuild()
+                self.rebuildRows()
                 done(true)
             }
             actions.insert(delete, at: 0)

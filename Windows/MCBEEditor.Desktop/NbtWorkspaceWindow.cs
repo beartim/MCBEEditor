@@ -696,9 +696,10 @@ public sealed class ConsecutiveNbtWindow : Window
     private IReadOnlyList<RootRow> _shown = Array.Empty<RootRow>();
     public bool DidSave { get; private set; }
 
-    private sealed record RootRow(int Index, string Name, string Type, string Summary, string Encoding, ConsecutiveNbtRecord Record)
+    private sealed record RootRow(int Index, string Name, string Type, string Summary, string Encoding, ConsecutiveNbtRecord Record, NbtSearchResult? Hit = null)
     {
         public string DisplayIndex => Index.ToString(CultureInfo.InvariantCulture);
+        public string RootPath => $"#{DisplayIndex} {Hit?.Path ?? NbtTagPath.Root}";
     }
 
     public ConsecutiveNbtWindow(string title, IReadOnlyList<ConsecutiveNbtRecord> roots, Func<IReadOnlyList<ConsecutiveNbtRecord>, Task> saveAsync)
@@ -734,7 +735,10 @@ public sealed class ConsecutiveNbtWindow : Window
         _grid.RowHeaderWidth = 0;
         _grid.SelectionMode = DataGridSelectionMode.Extended;
         _grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(RootRow.DisplayIndex)), Width = 55 });
-        _grid.Columns.Add(new DataGridTextColumn { Header = "根名称", Binding = new Binding(nameof(RootRow.Name)), Width = 220 });
+        var pathColumn = NbtTreeVisuals.AddRootSearchLocation<RootRow>(_grid, OpenHit);
+        _search.TextChanged += (_, _) =>
+            pathColumn.Visibility = string.IsNullOrWhiteSpace(_search.Text) ? Visibility.Collapsed : Visibility.Visible;
+        _grid.Columns.Add(new DataGridTextColumn { Header = "标签名", Binding = new Binding(nameof(RootRow.Name)), Width = 220 });
         _grid.Columns.Add(new DataGridTextColumn { Header = "类型", Binding = new Binding(nameof(RootRow.Type)), Width = 110 });
         _grid.Columns.Add(new DataGridTextColumn { Header = "摘要", Binding = new Binding(nameof(RootRow.Summary)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "编码", Binding = new Binding(nameof(RootRow.Encoding)), Width = 150 });
@@ -770,14 +774,20 @@ public sealed class ConsecutiveNbtWindow : Window
     private void Rebuild()
     {
         var query = _search.Text.Trim();
-        var rows = _roots.Select((record, index) => new RootRow(index,
-            string.IsNullOrEmpty(record.Document.RootName) ? "<root>" : record.Document.RootName,
-            record.Document.Root.Type.ToString(), record.Document.Root.Summary, record.Encoding.ToString(), record)).ToArray();
-        if (query.Length != 0)
+        var rows = new List<RootRow>();
+        for (int index = 0; index < _roots.Count; index++)
         {
-            rows = rows.Where(row => row.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || row.Type.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || NbtDocumentTools.Search(row.Record.Document, query, 1).Count > 0).ToArray();
+            var record = _roots[index];
+            var document = record.Document;
+            var encoding = record.Encoding.ToString();
+            if (query.Length == 0)
+            {
+                var name = string.IsNullOrEmpty(document.RootName) ? "<root>" : document.RootName;
+                rows.Add(new RootRow(index, name, document.Root.Type.ToString(), document.Root.Summary, encoding, record));
+            }
+            else
+                foreach (var hit in NbtDocumentTools.Search(document, query, int.MaxValue))
+                    rows.Add(new RootRow(index, hit.Name, hit.Type.ToString(), hit.ValueText, encoding, record, hit));
         }
         _shown = rows;
         _grid.ItemsSource = _shown;
@@ -787,12 +797,17 @@ public sealed class ConsecutiveNbtWindow : Window
 
     private void OpenSelected()
     {
-        if (_grid.SelectedItem is not RootRow row) return;
+        if (_grid.SelectedItem is RootRow row) OpenHit(row);
+    }
+
+    private void OpenHit(RootRow row)
+    {
+        if ((uint)row.Index >= (uint)_roots.Count) return;
         var editor = new NbtEditorWindow($"{Title} · #{row.Index}", row.Record.Document, async edited =>
         {
             _roots[row.Index] = _roots[row.Index] with { Document = edited };
             await SaveAsync();
-        }, Array.Empty<string>(), row.Record.Encoding) { Owner = this };
+        }, Array.Empty<string>(), row.Record.Encoding, initialTagPath: row.Hit?.Path) { Owner = this };
         editor.ShowDialog();
         if (editor.DidSave) Rebuild();
     }

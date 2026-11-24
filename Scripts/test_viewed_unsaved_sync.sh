@@ -133,8 +133,9 @@ if grep -R -q '搜索名称、路径、类型或值' "$ROOT/Sources/UI"; then
   echo "error: an NBT search field still advertises path search" >&2
   exit 1
 fi
-grep -q '搜索根标签名、标签值或标签类型' "$ROOT/Sources/UI/StandaloneNBTFileViewController.swift"
-grep -q '搜索根标签名、标签值或标签类型' "$ROOT/Sources/UI/MetadataNBTViewControllers.swift"
+grep -q '搜索根标签名、标签值或标签类型' "$ROOT/Sources/UI/NBTRootSearchViewController.swift"
+grep -q 'StandaloneNBTFileViewController: NBTRootSearchViewController' "$ROOT/Sources/UI/StandaloneNBTFileViewController.swift"
+grep -q 'MetadataNBTRecordViewController: NBTRootSearchViewController' "$ROOT/Sources/UI/MetadataNBTViewControllers.swift"
 if grep -q 'String(index) == query' "$ROOT/Sources/UI/StandaloneNBTFileViewController.swift" "$ROOT/Sources/UI/MetadataNBTViewControllers.swift"; then
   echo "error: root NBT search still matches sequence indices" >&2
   exit 1

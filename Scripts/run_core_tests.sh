@@ -6,6 +6,7 @@ bash "$ROOT/Scripts/test_map_projection_coordinates.sh"
 python3 "$ROOT/Scripts/test_ios_map_object_interaction.py"
 python3 "$ROOT/Scripts/test_map_navigation.py" swift
 python3 "$ROOT/Scripts/test_entity_editor_reopen.py"
+bash "$ROOT/Scripts/test_nbt_search_navigation.sh"
 TMP="${TMPDIR:-/tmp}/mcbeeditor-core-test"
 mkdir -p "$TMP"
 cat > "$TMP/main.swift" <<'SWIFT'
@@ -698,7 +699,8 @@ grep -qF 'TimeEditorViewController(session: session)' "$ROOT/Sources/UI/WorldToo
   echo "error: time, experience or game-version information UI is incomplete" >&2
   exit 1
 }
-grep -q 'UISearchResultsUpdating' "$ROOT/Sources/UI/NBTTreeViewController.swift" || {
+grep -q 'NBTSearchTreeViewController' "$ROOT/Sources/UI/NBTTreeViewController.swift" && \
+  grep -q 'UISearchResultsUpdating' "$ROOT/Sources/UI/NBTSearchTreeViewController.swift" || {
   echo "error: NBT full-tree search is missing" >&2
   exit 1
 }
@@ -1112,6 +1114,15 @@ swiftc \
   "$TMP/nbt_tree_rows_test.swift" \
   -o "$TMP/nbt-tree-rows-tests"
 "$TMP/nbt-tree-rows-tests"
+
+swiftc \
+  "$ROOT/Sources/Support/Errors.swift" \
+  "$ROOT/Sources/NBT/NBTTypes.swift" \
+  "$ROOT/Sources/UI/NBTNode.swift" \
+  "$ROOT/Sources/NBT/NBTTreeMutation.swift" \
+  "$ROOT/Scripts/Tests/NBTSearchLocationTests.swift" \
+  -o "$TMP/nbt-search-location-tests"
+"$TMP/nbt-search-location-tests"
 
 if grep -qF 'private func prefetchBorder(' "$ROOT/Sources/UI/WorldMapViewController.swift"; then
   echo "error: obsolete unused map prefetch function remains" >&2

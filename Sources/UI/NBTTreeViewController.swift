@@ -1,13 +1,10 @@
 import UIKit
 
-final class NBTTreeViewController: UITableViewController, UISearchResultsUpdating {
+final class NBTTreeViewController: NBTSearchTreeViewController {
   private let session: WorldSession
-  private var levelDat: LevelDatFile?
-  private var rows: [NBTNode] = []
-  private var expanded = Set<[NBTPathComponent]>()
+  private var levelDat: LevelDatFile? { didSet { invalidateSearchLocation() } }
   private var dirty = false
   private let viewedItems = ViewedItemTracker()
-  private let searchController = UISearchController(searchResultsController: nil)
   private lazy var exitGuard = UnsavedNBTExitGuard(
     controller: self,
     isDirty: { [weak self] in self?.dirty ?? false },
@@ -25,12 +22,6 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    searchController.searchResultsUpdater = self
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.searchBar.placeholder = "搜索标签名、标签值或标签类型"
-    navigationItem.searchController = searchController
-    navigationItem.hidesSearchBarWhenScrolling = false
-    definesPresentationContext = true
     configureNavigationItems()
     NotificationCenter.default.addObserver(
       self,
@@ -96,7 +87,7 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
       rebuildRows()
       navigationItem.prompt = "世界 NBT 已保存"
       DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-        if self?.searchQuery.isEmpty == true { self?.navigationItem.prompt = nil }
+        if self?.query.isEmpty == true { self?.navigationItem.prompt = nil }
       }
       return true
     } catch {
@@ -105,29 +96,14 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     }
   }
 
-  func updateSearchResults(for searchController: UISearchController) {
-    rebuildRows()
-  }
-
-  private var searchQuery: String {
-    searchController.searchBar.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-      ?? ""
-  }
-
-  private func rebuildRows() {
-    rows.removeAll(keepingCapacity: true)
-    guard let root = levelDat?.document.root else {
+  override func rebuildRows() {
+    guard let document = levelDat?.document else {
+      rows = []
       tableView.reloadData()
       return
     }
-
-    if searchQuery.isEmpty {
-      rows = NBTTreeRows.visibleChildren(of: root, expanded: expanded)
-      navigationItem.prompt = nil
-    } else {
-      rows = NBTTreeRows.search(in: root, query: searchQuery)
-      navigationItem.prompt = "找到 \(rows.count) 个节点"
-    }
+    rows = NBTTreeRows.rows(in: document, expanded: expanded, query: query)
+    navigationItem.prompt = query.isEmpty ? nil : "找到 \(rows.count) 个节点"
     tableView.reloadData()
     title = dirty ? "世界 NBT •" : "世界 NBT"
     exitGuard.synchronize()
@@ -154,9 +130,10 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     cell.configure(
       node: node,
       expanded: expanded.contains(node.path),
-      searchMode: !searchQuery.isEmpty,
-      hierarchyLines: NBTTreeHierarchyGuide.lines(
-        forRowAt: indexPath.row, rows: rows, expanded: expanded)
+      searchMode: !query.isEmpty,
+      isLocated: isLocated(node),
+      hierarchyLines: query.isEmpty ? NBTTreeHierarchyGuide.lines(
+        forRowAt: indexPath.row, rows: rows, expanded: expanded) : []
     )
     ViewedListSupport.clearAccessory(cell)
     batchSelectionCoordinator.configureCell(
@@ -186,8 +163,8 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
     viewedItems.mark(node.pathDescription)
     tableView.reloadRows(at: [indexPath], with: .none)
     if node.hasChildren {
-      if !searchQuery.isEmpty {
-        reveal(node)
+      if !query.isEmpty {
+        revealSearchNode(node, expandingTarget: true)
       } else {
         if expanded.contains(node.path) {
           expanded.remove(node.path)
@@ -199,18 +176,6 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
       return
     }
     edit(node)
-  }
-
-  private func reveal(_ node: NBTNode) {
-    for length in 1...node.path.count {
-      expanded.insert(Array(node.path.prefix(length)))
-    }
-    searchController.searchBar.text = ""
-    searchController.isActive = false
-    rebuildRows()
-    if let row = rows.firstIndex(where: { $0.path == node.path }) {
-      tableView.scrollToRow(at: IndexPath(row: row, section: 0), at: .middle, animated: true)
-    }
   }
 
   private func edit(_ node: NBTNode) {
@@ -289,9 +254,10 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
       return nil
     }
     let node = rows[indexPath.row]
+    let locationActions = searchLocationActions(for: node)
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
       guard let self = self else { return nil }
-      var actions = [UIAction]()
+      var actions = locationActions
       if case .compound = node.value {
         actions.append(
           UIAction(title: "增加子标签", image: UIImage(systemName: "plus")) { [weak self] _ in
@@ -338,14 +304,16 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
         ) { [weak self] name, value, replacingExisting in
           self?.add(value: value, name: name, to: node.path, replacingExisting: replacingExisting)
         })
-      actions.append(
-        UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) {
-          [weak self] _ in
-          guard let self = self else { return }
-          NBTEditingUI.confirmDelete(from: self, nodeName: node.name) { [weak self] in
-            self?.delete(node)
-          }
-        })
+      if !node.path.isEmpty {
+        actions.append(
+          UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) {
+            [weak self] _ in
+            guard let self = self else { return }
+            NBTEditingUI.confirmDelete(from: self, nodeName: node.name) { [weak self] in
+              self?.delete(node)
+            }
+          })
+      }
       return UIMenu(title: node.pathDescription, children: actions)
     }
   }
@@ -363,6 +331,7 @@ final class NBTTreeViewController: UITableViewController, UISearchResultsUpdatin
       return nil
     }
     let node = rows[indexPath.row]
+    guard !node.path.isEmpty else { return nil }
     let deleteAction = UIContextualAction(style: .destructive, title: "删除") {
       [weak self] _, _, completion in
       guard let self = self else {
